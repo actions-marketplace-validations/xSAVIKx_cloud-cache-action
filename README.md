@@ -84,7 +84,7 @@ Zero egress fees for CI caches:
 
 ```yaml
 - name: Configure AWS Credentials via OIDC
-  uses: aws-actions/configure-aws-credentials@v4
+  uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
   with:
     role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsCacheRole
     aws-region: us-east-1

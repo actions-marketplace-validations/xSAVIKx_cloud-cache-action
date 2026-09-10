@@ -76,7 +76,7 @@ jobs:
   prepare-dependencies:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Cache node_modules (Dual Mode: GitHub + S3 Sync)
         id: cache-deps
@@ -101,7 +101,7 @@ jobs:
     needs: prepare-dependencies
     runs-on: [self-hosted, aws-c6i-metal] # Heavy remote VM located inside AWS VPC
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Instantly pulls node_modules directly from local AWS S3 bucket over internal VPC
       - name: Restore node_modules from S3
