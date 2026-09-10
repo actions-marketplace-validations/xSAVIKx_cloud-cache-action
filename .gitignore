@@ -1,0 +1,10 @@
+node_modules/
+coverage/
+.DS_Store
+Thumbs.db
+*.log
+.cache
+docs/.vitepress/dist
+docs/.vitepress/cache
+tmp/
+scratch/

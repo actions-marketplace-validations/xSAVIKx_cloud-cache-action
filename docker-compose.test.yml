@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # Garage S3 compatible storage (https://garagehq.deuxfleurs.fr)
+  garage:
+    image: dxflrs/garage:v1.0.1
+    container_name: cloud-cache-garage
+    ports:
+      - "3900:3900" # S3 API
+      - "3902:3902" # Admin API
+    environment:
+      - RUST_LOG=info
+    restart: unless-stopped
+
+  # SeaweedFS S3 compatible storage (https://github.com/seaweedfs/seaweedfs)
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: cloud-cache-seaweedfs
+    ports:
+      - "8333:8333" # S3 API
+      - "9333:9333" # Master
+    command: "server -s3 -s3.port=8333"
+    restart: unless-stopped
+
+  # MinIO S3 compatible storage (Alternative / Local testing)
+  minio:
+    image: minio/minio:latest
+    container_name: cloud-cache-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    restart: unless-stopped

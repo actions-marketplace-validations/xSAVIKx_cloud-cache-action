@@ -1,0 +1,95 @@
+name: 'Save Cache (S3-Compatible)'
+description: 'Save Cache artifacts to any S3-compatible storage with actions/cache parity'
+author: 'Yurii Serhiichuk <yurii@serhiichuk.dev> (https://serhiichuk.dev)'
+
+inputs:
+  path:
+    description: 'A list of files, directories, and wildcard patterns to cache'
+    required: true
+  key:
+    description: 'An explicit key for saving the cache'
+    required: true
+  upload-chunk-size:
+    description: 'The chunk size used to split up large files during upload, in bytes'
+    required: false
+  enableCrossOsArchive:
+    description: 'An optional boolean when enabled, allows windows runners to save caches that can be restored on other platforms'
+    default: 'false'
+    required: false
+
+  # S3 Storage inputs
+  bucket:
+    description: 'The S3 bucket name where cache archives are stored'
+    required: true
+  endpoint:
+    description: 'Custom S3-compatible endpoint URL'
+    required: false
+  region:
+    description: 'AWS or S3 provider region'
+    required: false
+  provider:
+    description: 'Storage provider preset: aws, r2, gcs, b2, fastly, garage, seaweedfs, minio'
+    required: false
+  access-key:
+    description: 'S3 Access Key ID'
+    required: false
+  accessKey:
+    description: 'Alias for access-key'
+    required: false
+  secret-key:
+    description: 'S3 Secret Access Key'
+    required: false
+  secretKey:
+    description: 'Alias for secret-key'
+    required: false
+  session-token:
+    description: 'S3 Session Token'
+    required: false
+  sessionToken:
+    description: 'Alias for session-token'
+    required: false
+  force-path-style:
+    description: 'Force path-style S3 URLs'
+    required: false
+  prefix:
+    description: 'Subfolder prefix path within the bucket'
+    required: false
+    default: ''
+  s3-key-pattern:
+    description: 'Template pattern for S3 object key. Default: ${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}'
+    required: false
+    default: '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}'
+  scoped-to-repository:
+    description: 'Whether to prefix bucket cache paths with GITHUB_REPOSITORY (default: true)'
+    required: false
+    default: 'true'
+  retry:
+    description: 'Enable retries with exponential backoff on failure for S3 operations'
+    required: false
+    default: 'true'
+  retry-count:
+    description: 'Number of times to retry S3 operations in case of failure'
+    required: false
+    default: '3'
+  use-fallback:
+    description: 'Fall back to official GitHub Actions Cache service if S3 save fails'
+    required: false
+    default: 'false'
+
+outputs:
+  cache-size:
+    description: 'The size of the saved cache archive in bytes'
+  cache-storage-provider:
+    description: 'The resolved S3-compatible storage provider'
+  cache-s3-key:
+    description: 'The full S3 object key inside the bucket'
+  cache-etag:
+    description: 'The ETag checksum of the cache archive in S3'
+
+runs:
+  using: 'node24'
+  main: '../dist/save-only/index.js'
+
+branding:
+  icon: 'cloud-upload'
+  color: 'blue'

@@ -1,0 +1,197 @@
+import * as core from '@actions/core';
+import * as path from 'path';
+import * as os from 'os';
+import * as fs from 'fs';
+import { Inputs, Outputs, State, Defaults } from '../constants';
+import { IStateProvider, StateProvider, NullStateProvider } from '../state';
+import {
+  getInputAsArray,
+  getInputAsBool,
+  getInputAsInt,
+  formatSize,
+  isExactKeyMatch,
+  isValidEvent,
+} from '../utils/inputUtils';
+import { buildS3ObjectKey } from '../utils/pathUtils';
+import { createStorageContext } from '../storage/client';
+import { checkObjectExists, uploadFile } from '../storage/operations';
+import { withRetry } from '../storage/retry';
+import { getCompressionConfig } from '../archive/compression';
+import { createArchive, getArchiveSize } from '../archive/tar';
+import { fallbackSave } from '../utils/fallback';
+
+// Prevent unhandled rejection leaks from failing the workflow
+process.on('uncaughtException', (err) => {
+  core.warning(`Unhandled cache save exception: ${err instanceof Error ? err.message : String(err)}`);
+});
+
+export async function saveImpl(
+  stateProvider: IStateProvider
+): Promise<number | void> {
+  try {
+    if (!isValidEvent()) {
+      core.warning(
+        `Event Validation Warning: The event type ${process.env.GITHUB_EVENT_NAME} may not be tied to a branch or tag ref.`
+      );
+    }
+
+    const readOnlyState = stateProvider.getState(State.CacheReadOnly);
+    const readOnly = readOnlyState === 'true' || getInputAsBool(Inputs.ReadOnly);
+
+    if (readOnly) {
+      core.info('Read-only mode enabled. Skipping cache save.');
+      return;
+    }
+
+    // Resolve primary key from state or inputs
+    const primaryKey =
+      stateProvider.getState(State.CachePrimaryKey) ||
+      core.getInput(Inputs.Key);
+
+    if (!primaryKey) {
+      core.warning('Key is not specified. Skipping cache save.');
+      return;
+    }
+
+    // If exact key was already restored in this job, skip saving
+    const restoredKey = stateProvider.getCacheState();
+    if (restoredKey && isExactKeyMatch(primaryKey, restoredKey)) {
+      core.info(
+        `Cache hit occurred on primary key "${primaryKey}", not saving cache.`
+      );
+      return;
+    }
+
+    const cachePaths = getInputAsArray(Inputs.Path, { required: true });
+    if (cachePaths.length === 0) {
+      core.warning('No paths specified to cache. Skipping save.');
+      return;
+    }
+
+    const s3KeyPattern =
+      stateProvider.getState(State.CacheS3KeyPattern) ||
+      core.getInput(Inputs.S3KeyPattern) ||
+      Defaults.DefaultS3KeyPattern;
+    const prefix =
+      stateProvider.getState(State.CachePrefix) ||
+      core.getInput(Inputs.Prefix) ||
+      '';
+    const scopedToRepoState = stateProvider.getState(State.CacheScopedToRepository);
+    const scopedToRepository =
+      scopedToRepoState !== ''
+        ? scopedToRepoState === 'true'
+        : getInputAsBool(Inputs.ScopedToRepository, true);
+
+    const retryState = stateProvider.getState(State.CacheRetry);
+    const retryEnabled =
+      retryState !== '' ? retryState === 'true' : getInputAsBool(Inputs.Retry, true);
+    const retryCountState = stateProvider.getState(State.CacheRetryCount);
+    const retryCount =
+      Number(retryCountState) ||
+      getInputAsInt(Inputs.RetryCount, Defaults.DefaultRetryCount) ||
+      3;
+
+    const uploadChunkSize = getInputAsInt(Inputs.UploadChunkSize);
+    const enableCrossOsArchive = getInputAsBool(Inputs.EnableCrossOsArchive);
+    const useFallback = getInputAsBool(Inputs.UseFallback, false);
+
+    let storageContext;
+    try {
+      storageContext = createStorageContext();
+      core.setOutput(Outputs.CacheStorageProvider, storageContext.providerConfig.provider);
+    } catch (err: unknown) {
+      if (useFallback) {
+        core.warning(`S3 client initialization failed during save: ${err instanceof Error ? err.message : String(err)}`);
+        await fallbackSave(cachePaths, primaryKey, { uploadChunkSize }, enableCrossOsArchive);
+        return;
+      }
+      throw err;
+    }
+
+    const { client, bucket } = storageContext;
+    const compression = await getCompressionConfig();
+
+    const s3ObjectKey = buildS3ObjectKey({
+      key: primaryKey,
+      prefix,
+      archiveFilename: compression.archiveFilename,
+      pattern: s3KeyPattern,
+      scopedToRepository,
+    });
+
+    core.debug(`Target S3 key for save: ${s3ObjectKey} in bucket: ${bucket}`);
+
+    // Check if key already exists on S3 (prevent duplicate upload if another parallel job created it)
+    try {
+      const existing = await checkObjectExists(client, bucket, s3ObjectKey);
+      if (existing) {
+        core.info(`Cache object already exists at "${s3ObjectKey}". Skipping save.`);
+        core.setOutput(Outputs.CacheS3Key, s3ObjectKey);
+        core.setOutput(Outputs.CacheSize, existing.size.toString());
+        if (existing.etag) core.setOutput(Outputs.CacheETag, existing.etag);
+        return existing.size;
+      }
+    } catch (err) {
+      core.debug(`Object check error: ${err}`);
+    }
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+    const localArchive = path.join(tempDir, compression.archiveFilename);
+
+    try {
+      core.info(`Creating cache archive for paths: ${cachePaths.join(', ')}...`);
+      await createArchive(localArchive, cachePaths, compression, enableCrossOsArchive);
+
+      const archiveSize = getArchiveSize(localArchive);
+      core.info(`Archive created successfully. Size: ${formatSize(archiveSize)} (${archiveSize} bytes)`);
+
+      core.info(`Uploading cache archive to s3://${bucket}/${s3ObjectKey}...`);
+      const uploadResult = await withRetry(
+        () => uploadFile(client, bucket, s3ObjectKey, localArchive, uploadChunkSize),
+        {
+          retries: retryEnabled ? retryCount : 0,
+          operationName: `uploadFile (${s3ObjectKey})`,
+        }
+      );
+
+      core.info(`Cache saved to S3 successfully with key: ${primaryKey}`);
+      core.setOutput(Outputs.CacheS3Key, s3ObjectKey);
+      core.setOutput(Outputs.CacheSize, uploadResult.size.toString());
+      if (uploadResult.etag) {
+        core.setOutput(Outputs.CacheETag, uploadResult.etag);
+      }
+
+      return uploadResult.size;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (useFallback) {
+        core.warning(`S3 save failed: ${msg}. Attempting fallback save...`);
+        await fallbackSave(cachePaths, primaryKey, { uploadChunkSize }, enableCrossOsArchive);
+      } else {
+        core.warning(`Failed to save cache to S3: ${msg}`);
+      }
+    } finally {
+      try {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup error
+      }
+    }
+  } catch (err: unknown) {
+    core.warning(`Save cache encountered error: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+export async function runSave(earlyExit = true): Promise<void> {
+  await saveImpl(new StateProvider());
+  if (earlyExit) {
+    process.exit(0);
+  }
+}
+
+export async function runSaveOnly(earlyExit = true): Promise<void> {
+  await saveImpl(new NullStateProvider());
+  if (earlyExit) {
+    process.exit(0);
+  }
+}
