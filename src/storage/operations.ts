@@ -112,9 +112,8 @@ export async function uploadFile(
   const stats = fs.statSync(sourcePath);
   const fileStream = fs.createReadStream(sourcePath);
 
-  const partSize = uploadChunkSize && uploadChunkSize > 5 * 1024 * 1024
-    ? uploadChunkSize
-    : 10 * 1024 * 1024; // 10MB default part size
+  const partSize =
+    uploadChunkSize && uploadChunkSize > 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024; // 10MB default part size
 
   const parallelUpload = new Upload({
     client,

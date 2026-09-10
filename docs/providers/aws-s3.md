@@ -47,5 +47,6 @@ jobs:
 ## Recommended S3 Bucket Lifecycle Rule
 
 To prevent cache storage costs from growing unbounded, configure an S3 Lifecycle rule on your bucket:
+
 - **Rule action**: Expire current versions of objects
 - **Days after object creation**: `30` or `60` days

@@ -19,23 +19,25 @@ my-org/my-project/linux-node-18-a1b2c3/cache.tar.zst
 ## Available Template Placeholders
 
 ### Special Placeholders
-| Variable | Description | Example |
-|---|---|---|
-| `${GITHUB_REPOSITORY}` | Repository name in `owner/repo` format | `xSAVIKx/cloud-cache-action` |
-| `${prefix}` | Subfolder prefix with trailing slash if non-empty | `frontend/` |
-| `${key}` | The primary or matched cache key | `linux-node-a1b2c3` |
-| `${archive_filename}` | Compressed archive filename | `cache.tar.zst` or `cache.tar.gz` |
+
+| Variable               | Description                                       | Example                           |
+| ---------------------- | ------------------------------------------------- | --------------------------------- |
+| `${GITHUB_REPOSITORY}` | Repository name in `owner/repo` format            | `xSAVIKx/cloud-cache-action`      |
+| `${prefix}`            | Subfolder prefix with trailing slash if non-empty | `frontend/`                       |
+| `${key}`               | The primary or matched cache key                  | `linux-node-a1b2c3`               |
+| `${archive_filename}`  | Compressed archive filename                       | `cache.tar.zst` or `cache.tar.gz` |
 
 ### Environment Variables
+
 You can also reference **any environment variable** using `${VAR_NAME}`, `$VAR_NAME`, or `${env.VAR_NAME}`. This enables isolation per workload, job, matrix runner, or workflow run:
 
-| Variable | Description | Example Value |
-|---|---|---|
-| `${RUNNER_OS}` | Runner operating system | `Linux`, `Windows`, `macOS` |
-| `${GITHUB_JOB}` | Current job ID in the workflow | `build-frontend` |
-| `${GITHUB_RUN_ID}` | Unique ID of the workflow run | `1234567890` |
-| `${GITHUB_REF_NAME}` | Branch or tag name | `main`, `feature-auth` |
-| `${CUSTOM_WORKLOAD}` | Any user-defined environment variable | `api-service` |
+| Variable             | Description                           | Example Value               |
+| -------------------- | ------------------------------------- | --------------------------- |
+| `${RUNNER_OS}`       | Runner operating system               | `Linux`, `Windows`, `macOS` |
+| `${GITHUB_JOB}`      | Current job ID in the workflow        | `build-frontend`            |
+| `${GITHUB_RUN_ID}`   | Unique ID of the workflow run         | `1234567890`                |
+| `${GITHUB_REF_NAME}` | Branch or tag name                    | `main`, `feature-auth`      |
+| `${CUSTOM_WORKLOAD}` | Any user-defined environment variable | `api-service`               |
 
 ## Common Configuration Patterns
 

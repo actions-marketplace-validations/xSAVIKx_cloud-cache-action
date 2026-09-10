@@ -75127,7 +75127,8 @@ function buildS3ObjectKey(params, env = process.env) {
     let pattern = params.pattern || '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}';
     // If repository scoping is explicitly turned off and user didn't provide custom pattern,
     // remove ${GITHUB_REPOSITORY}/
-    if (params.scopedToRepository === false && (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
+    if (params.scopedToRepository === false &&
+        (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
         pattern = pattern.replace('${GITHUB_REPOSITORY}/', '').replace('${GITHUB_REPOSITORY}', '');
     }
     const specialVars = {
@@ -75147,7 +75148,8 @@ function buildS3SearchPrefix(restoreKey, params, env = process.env) {
     const prefix = params.prefix ? normalizePrefix(params.prefix) : '';
     const trimmedRestoreKey = restoreKey.trim();
     let pattern = params.pattern || '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}';
-    if (params.scopedToRepository === false && (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
+    if (params.scopedToRepository === false &&
+        (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
         pattern = pattern.replace('${GITHUB_REPOSITORY}/', '').replace('${GITHUB_REPOSITORY}', '');
     }
     // Find where ${key} or $key starts in the pattern
@@ -75167,9 +75169,8 @@ function buildS3SearchPrefix(restoreKey, params, env = process.env) {
 /**
  * Extracts the cache key name from a full S3 object key based on pattern and search prefix.
  */
-function extractKeyFromS3Object(objectKey, searchPrefix, archiveFilename) {
+function extractKeyFromS3Object(objectKey, _searchPrefix, archiveFilename) {
     const normalizedObject = normalizeS3Key(objectKey);
-    const normalizedPrefix = normalizeS3Key(searchPrefix);
     // Remove archive filename at the end
     let candidate = normalizedObject;
     if (candidate.endsWith(`/${archiveFilename}`)) {
@@ -75349,7 +75350,10 @@ function createStorageContext() {
     if (!bucket) {
         throw new Error('Bucket name is required. Please set "bucket" input or AWS_S3_BUCKET environment variable.');
     }
-    const endpointInput = getInputWithEnv(Inputs.Endpoint, ['AWS_ENDPOINT_URL', 'AWS_ENDPOINT_URL_S3']);
+    const endpointInput = getInputWithEnv(Inputs.Endpoint, [
+        'AWS_ENDPOINT_URL',
+        'AWS_ENDPOINT_URL_S3',
+    ]);
     const regionInput = getInputWithEnv(Inputs.Region, ['AWS_REGION', 'AWS_DEFAULT_REGION']);
     const providerInput = getInput(Inputs.Provider);
     const forcePathStyleRaw = getInput(Inputs.ForcePathStyle);
@@ -75453,9 +75457,7 @@ async function downloadFile(client, bucket, key, destinationPath) {
 async function uploadFile(client, bucket, key, sourcePath, uploadChunkSize) {
     const stats = fs.statSync(sourcePath);
     const fileStream = fs.createReadStream(sourcePath);
-    const partSize = uploadChunkSize && uploadChunkSize > 5 * 1024 * 1024
-        ? uploadChunkSize
-        : 10 * 1024 * 1024; // 10MB default part size
+    const partSize = uploadChunkSize && uploadChunkSize > 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024; // 10MB default part size
     const parallelUpload = new Upload({
         client,
         params: {

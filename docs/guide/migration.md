@@ -44,12 +44,14 @@ All existing features (`lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchiv
 ## Migrating from `tespkg/actions-cache`
 
 If you are using `tespkg/actions-cache`, you will notice immediate benefits:
+
 1. Full support for active runner environments (Node 24) without deprecation warnings.
 2. Official AWS SDK v3 instead of `minio-js`, avoiding known signing quirks with Cloudflare R2 and Fastly.
 3. Windows runners produce clean POSIX forward-slash keys on S3 instead of broken backslashes.
 4. Parity with `actions/cache@v6` features including `lookup-only`, `fail-on-cache-miss`, and `read-only`.
 
 ### Differences in Inputs:
+
 - `bucket`, `endpoint`, `region`, `insecure`, `accessKey`, `secretKey`, `sessionToken` continue to be supported for full backward compatibility!
 - We also support kebab-case aliases (`access-key`, `secret-key`, `session-token`, `force-path-style`).
 - Fallback (`use-fallback`) is `false` by default in `cloud-cache-action` rather than `true`. If you want GitHub Cache fallback on cache miss, set `use-fallback: true`.

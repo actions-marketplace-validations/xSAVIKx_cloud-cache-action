@@ -81,7 +81,10 @@ export function buildS3ObjectKey(
 
   // If repository scoping is explicitly turned off and user didn't provide custom pattern,
   // remove ${GITHUB_REPOSITORY}/
-  if (params.scopedToRepository === false && (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
+  if (
+    params.scopedToRepository === false &&
+    (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))
+  ) {
     pattern = pattern.replace('${GITHUB_REPOSITORY}/', '').replace('${GITHUB_REPOSITORY}', '');
   }
 
@@ -110,12 +113,16 @@ export function buildS3SearchPrefix(
 
   let pattern = params.pattern || '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}';
 
-  if (params.scopedToRepository === false && (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
+  if (
+    params.scopedToRepository === false &&
+    (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))
+  ) {
     pattern = pattern.replace('${GITHUB_REPOSITORY}/', '').replace('${GITHUB_REPOSITORY}', '');
   }
 
   // Find where ${key} or $key starts in the pattern
-  const keyMarkerIndex = pattern.indexOf('${key}') !== -1 ? pattern.indexOf('${key}') : pattern.indexOf('$key');
+  const keyMarkerIndex =
+    pattern.indexOf('${key}') !== -1 ? pattern.indexOf('${key}') : pattern.indexOf('$key');
   if (keyMarkerIndex !== -1) {
     const beforeKey = pattern.slice(0, keyMarkerIndex);
     const specialVars: Record<string, string> = {
@@ -135,11 +142,10 @@ export function buildS3SearchPrefix(
  */
 export function extractKeyFromS3Object(
   objectKey: string,
-  searchPrefix: string,
+  _searchPrefix: string,
   archiveFilename: string
 ): string {
   const normalizedObject = normalizeS3Key(objectKey);
-  const normalizedPrefix = normalizeS3Key(searchPrefix);
 
   // Remove archive filename at the end
   let candidate = normalizedObject;

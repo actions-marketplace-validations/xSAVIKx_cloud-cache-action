@@ -12,17 +12,9 @@ import {
   isExactKeyMatch,
   isValidEvent,
 } from '../utils/inputUtils';
-import {
-  buildS3ObjectKey,
-  buildS3SearchPrefix,
-  extractKeyFromS3Object,
-} from '../utils/pathUtils';
+import { buildS3ObjectKey, buildS3SearchPrefix, extractKeyFromS3Object } from '../utils/pathUtils';
 import { createStorageContext, StorageContext } from '../storage/client';
-import {
-  checkObjectExists,
-  listObjectsWithPrefix,
-  downloadFile,
-} from '../storage/operations';
+import { checkObjectExists, listObjectsWithPrefix, downloadFile } from '../storage/operations';
 import { withRetry } from '../storage/retry';
 import { getCompressionConfig, CompressionConfig } from '../archive/compression';
 import { extractArchive } from '../archive/tar';
@@ -62,15 +54,14 @@ export async function restoreFromS3(
 
   let exactObject = null;
   try {
-    exactObject = await withRetry(
-      () => checkObjectExists(client, bucket, exactObjectKey),
-      {
-        retries: retryEnabled ? retryCount : 0,
-        operationName: `checkObjectExists (${exactObjectKey})`,
-      }
-    );
+    exactObject = await withRetry(() => checkObjectExists(client, bucket, exactObjectKey), {
+      retries: retryEnabled ? retryCount : 0,
+      operationName: `checkObjectExists (${exactObjectKey})`,
+    });
   } catch (err) {
-    core.warning(`Error checking S3 cache object: ${err instanceof Error ? err.message : String(err)}`);
+    core.warning(
+      `Error checking S3 cache object: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 
   if (exactObject) {
@@ -81,13 +72,10 @@ export async function restoreFromS3(
       const localArchive = path.join(tempDir, compression.archiveFilename);
       try {
         core.info(`Downloading cache archive from s3://${bucket}/${exactObjectKey}...`);
-        await withRetry(
-          () => downloadFile(client, bucket, exactObjectKey, localArchive),
-          {
-            retries: retryEnabled ? retryCount : 0,
-            operationName: `downloadFile (${exactObjectKey})`,
-          }
-        );
+        await withRetry(() => downloadFile(client, bucket, exactObjectKey, localArchive), {
+          retries: retryEnabled ? retryCount : 0,
+          operationName: `downloadFile (${exactObjectKey})`,
+        });
 
         core.info(`Extracting cache archive to working directory...`);
         await extractArchive(localArchive, compression);
@@ -121,13 +109,10 @@ export async function restoreFromS3(
     });
 
     try {
-      const objects = await withRetry(
-        () => listObjectsWithPrefix(client, bucket, searchPrefix),
-        {
-          retries: retryEnabled ? retryCount : 0,
-          operationName: `listObjectsWithPrefix (${searchPrefix})`,
-        }
-      );
+      const objects = await withRetry(() => listObjectsWithPrefix(client, bucket, searchPrefix), {
+        retries: retryEnabled ? retryCount : 0,
+        operationName: `listObjectsWithPrefix (${searchPrefix})`,
+      });
 
       const validObjects = objects.filter(
         (o) =>
@@ -148,20 +133,19 @@ export async function restoreFromS3(
         );
 
         const isExact = isExactKeyMatch(primaryKey, matchedKey);
-        core.info(`S3 cache prefix hit: resolved key "${matchedKey}" using prefix "${restoreKey}" (${formatSize(matchedObj.size)})`);
+        core.info(
+          `S3 cache prefix hit: resolved key "${matchedKey}" using prefix "${restoreKey}" (${formatSize(matchedObj.size)})`
+        );
 
         if (!lookupOnly) {
           const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-'));
           const localArchive = path.join(tempDir, compression.archiveFilename);
           try {
             core.info(`Downloading cache archive from s3://${bucket}/${matchedObj.key}...`);
-            await withRetry(
-              () => downloadFile(client, bucket, matchedObj.key, localArchive),
-              {
-                retries: retryEnabled ? retryCount : 0,
-                operationName: `downloadFile (${matchedObj.key})`,
-              }
-            );
+            await withRetry(() => downloadFile(client, bucket, matchedObj.key, localArchive), {
+              retries: retryEnabled ? retryCount : 0,
+              operationName: `downloadFile (${matchedObj.key})`,
+            });
 
             core.info(`Extracting cache archive to working directory...`);
             await extractArchive(localArchive, compression);
@@ -228,8 +212,10 @@ export async function restoreImpl(
 
     // Dual-cache configuration
     const dualCache = getInputAsBool(Inputs.DualCache, false);
-    const restorePriority = core.getInput(Inputs.RestorePriority) || Defaults.DefaultRestorePriority;
-    const dualCacheStrategy = core.getInput(Inputs.DualCacheStrategy) || Defaults.DefaultDualCacheStrategy;
+    const restorePriority =
+      core.getInput(Inputs.RestorePriority) || Defaults.DefaultRestorePriority;
+    const dualCacheStrategy =
+      core.getInput(Inputs.DualCacheStrategy) || Defaults.DefaultDualCacheStrategy;
     const dualCacheStrict = getInputAsBool(Inputs.DualCacheStrict, false);
 
     // Persist configuration for post-save step
@@ -253,7 +239,9 @@ export async function restoreImpl(
       stateProvider.setState(State.CacheStorageProvider, storageContext.providerConfig.provider);
     } catch (err: unknown) {
       if (useFallback || dualCache) {
-        core.warning(`S3 client initialization failed: ${err instanceof Error ? err.message : String(err)}`);
+        core.warning(
+          `S3 client initialization failed: ${err instanceof Error ? err.message : String(err)}`
+        );
       } else {
         throw err;
       }
@@ -292,7 +280,9 @@ export async function restoreImpl(
     let hitSource: 's3' | 'github' | 'none' = 'none';
 
     if (dualCache) {
-      core.info(`Dual-caching enabled (priority: ${restorePriority}, strategy: ${dualCacheStrategy})`);
+      core.info(
+        `Dual-caching enabled (priority: ${restorePriority}, strategy: ${dualCacheStrategy})`
+      );
 
       if (restorePriority === 'github-first') {
         // 1. Try GitHub Cache first
@@ -307,7 +297,9 @@ export async function restoreImpl(
           }
         } catch (err) {
           if (dualCacheStrict) throw err;
-          core.warning(`GitHub cache query error: ${err instanceof Error ? err.message : String(err)}`);
+          core.warning(
+            `GitHub cache query error: ${err instanceof Error ? err.message : String(err)}`
+          );
         }
 
         // 2. Fallback to S3 if GitHub cache missed
@@ -328,7 +320,9 @@ export async function restoreImpl(
             }
           } catch (err) {
             if (dualCacheStrict) throw err;
-            core.warning(`S3 cache query error: ${err instanceof Error ? err.message : String(err)}`);
+            core.warning(
+              `S3 cache query error: ${err instanceof Error ? err.message : String(err)}`
+            );
           }
         }
       } else {
@@ -350,7 +344,9 @@ export async function restoreImpl(
             }
           } catch (err) {
             if (dualCacheStrict) throw err;
-            core.warning(`S3 cache query error: ${err instanceof Error ? err.message : String(err)}`);
+            core.warning(
+              `S3 cache query error: ${err instanceof Error ? err.message : String(err)}`
+            );
           }
         }
 
@@ -368,7 +364,9 @@ export async function restoreImpl(
             }
           } catch (err) {
             if (dualCacheStrict) throw err;
-            core.warning(`GitHub cache query error: ${err instanceof Error ? err.message : String(err)}`);
+            core.warning(
+              `GitHub cache query error: ${err instanceof Error ? err.message : String(err)}`
+            );
           }
         }
       }
@@ -410,9 +408,13 @@ export async function restoreImpl(
       core.setOutput(Outputs.CacheMatchedKey, resolvedMatchedKey);
 
       if (lookupOnly) {
-        core.info(`Cache found from source "${hitSource}" and can be restored from key: ${resolvedMatchedKey}`);
+        core.info(
+          `Cache found from source "${hitSource}" and can be restored from key: ${resolvedMatchedKey}`
+        );
       } else {
-        core.info(`Cache restored successfully from source "${hitSource}" with key: ${resolvedMatchedKey}`);
+        core.info(
+          `Cache restored successfully from source "${hitSource}" with key: ${resolvedMatchedKey}`
+        );
       }
 
       return resolvedMatchedKey;

@@ -12,12 +12,8 @@ jest.unstable_mockModule('@actions/core', () => ({
 
 const { Inputs, Outputs, State } = await import('../../src/constants');
 const { StateProvider, NullStateProvider } = await import('../../src/state');
-const {
-  getInputAsArray,
-  getInputAsBool,
-  getInputAsInt,
-  isExactKeyMatch,
-} = await import('../../src/utils/inputUtils');
+const { getInputAsArray, getInputAsBool, getInputAsInt, isExactKeyMatch } =
+  await import('../../src/utils/inputUtils');
 
 describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
   beforeEach(() => {
@@ -37,29 +33,19 @@ describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
       'read-only',
     ];
 
-    it.each(activeCacheInputs)(
-      'supports official input "%s"',
-      (inputName) => {
-        const values = Object.values(Inputs);
-        expect(values).toContain(inputName);
-      }
-    );
+    it.each(activeCacheInputs)('supports official input "%s"', (inputName) => {
+      const values = Object.values(Inputs);
+      expect(values).toContain(inputName);
+    });
   });
 
   describe('Outputs Specification Parity', () => {
-    const officialOutputs = [
-      'cache-hit',
-      'cache-primary-key',
-      'cache-matched-key',
-    ];
+    const officialOutputs = ['cache-hit', 'cache-primary-key', 'cache-matched-key'];
 
-    it.each(officialOutputs)(
-      'provides official output "%s"',
-      (outputName) => {
-        const values = Object.values(Outputs);
-        expect(values).toContain(outputName);
-      }
-    );
+    it.each(officialOutputs)('provides official output "%s"', (outputName) => {
+      const values = Object.values(Outputs);
+      expect(values).toContain(outputName);
+    });
 
     it('provides extended cloud provider diagnostics', () => {
       expect(Outputs.CacheSize).toBe('cache-size');
@@ -83,10 +69,7 @@ describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
 
       expect(provider.getState(State.CachePrimaryKey)).toBe('test-primary-key');
       expect(provider.getCacheState()).toBe('test-matched-key');
-      expect(mockSaveState).toHaveBeenCalledWith(
-        State.CachePrimaryKey,
-        'test-primary-key'
-      );
+      expect(mockSaveState).toHaveBeenCalledWith(State.CachePrimaryKey, 'test-primary-key');
     });
 
     it('NullStateProvider isolates state in standalone restore/save runs', () => {
@@ -100,18 +83,13 @@ describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
 
   describe('Input Parser Semantics Parity', () => {
     it('parses multiline paths identical to actions/cache', () => {
-      mockGetInput.mockReturnValue(
-        '  node_modules \n\n .cache \n dist/**/*.js  '
-      );
+      mockGetInput.mockReturnValue('  node_modules \n\n .cache \n dist/**/*.js  ');
       const paths = getInputAsArray(Inputs.Path);
       expect(paths).toEqual(['node_modules', '.cache', 'dist/**/*.js']);
     });
 
     it('parses booleans with case-insensitivity', () => {
-      mockGetInput
-        .mockReturnValueOnce('TRUE')
-        .mockReturnValueOnce('false')
-        .mockReturnValueOnce('');
+      mockGetInput.mockReturnValueOnce('TRUE').mockReturnValueOnce('false').mockReturnValueOnce('');
 
       expect(getInputAsBool(Inputs.LookupOnly)).toBe(true);
       expect(getInputAsBool(Inputs.FailOnCacheMiss)).toBe(false);
@@ -130,12 +108,8 @@ describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
     });
 
     it('exact key match helper is case-insensitive and trims whitespace', () => {
-      expect(isExactKeyMatch('Linux-Node-18-abc', ' linux-node-18-abc ')).toBe(
-        true
-      );
-      expect(isExactKeyMatch('Linux-Node-18-abc', 'Linux-Node-18-xyz')).toBe(
-        false
-      );
+      expect(isExactKeyMatch('Linux-Node-18-abc', ' linux-node-18-abc ')).toBe(true);
+      expect(isExactKeyMatch('Linux-Node-18-abc', 'Linux-Node-18-xyz')).toBe(false);
       expect(isExactKeyMatch('Linux-Node-18-abc', undefined)).toBe(false);
     });
   });

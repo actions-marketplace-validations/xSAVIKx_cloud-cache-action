@@ -1,13 +1,5 @@
 export type StorageProvider =
-  | 'aws'
-  | 'r2'
-  | 'gcs'
-  | 'b2'
-  | 'fastly'
-  | 'garage'
-  | 'seaweedfs'
-  | 'minio'
-  | 'generic-s3';
+  'aws' | 'r2' | 'gcs' | 'b2' | 'fastly' | 'garage' | 'seaweedfs' | 'minio' | 'generic-s3';
 
 export interface ProviderConfig {
   provider: StorageProvider;
@@ -16,10 +8,7 @@ export interface ProviderConfig {
   forcePathStyle: boolean;
 }
 
-export function detectProvider(
-  endpointInput?: string,
-  explicitProvider?: string
-): StorageProvider {
+export function detectProvider(endpointInput?: string, explicitProvider?: string): StorageProvider {
   if (explicitProvider) {
     const normalized = explicitProvider.toLowerCase().trim();
     switch (normalized) {

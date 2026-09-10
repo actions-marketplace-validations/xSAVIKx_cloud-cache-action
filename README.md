@@ -163,8 +163,8 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
     access-key: ${{ secrets.R2_ACCESS_KEY }}
     secret-key: ${{ secrets.R2_SECRET_KEY }}
     dual-cache: true
-    restore-priority: github-first   # Fast local cache on GitHub-hosted runner
-    dual-cache-strategy: backfill    # Populates S3 bucket so remote runners can access it
+    restore-priority: github-first # Fast local cache on GitHub-hosted runner
+    dual-cache-strategy: backfill # Populates S3 bucket so remote runners can access it
     key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
     path: node_modules
 
@@ -177,8 +177,8 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
     access-key: ${{ secrets.R2_ACCESS_KEY }}
     secret-key: ${{ secrets.R2_SECRET_KEY }}
     dual-cache: true
-    restore-priority: s3-first       # Direct VPC speed, bypasses GitHub cache latency
-    read-only: true                  # Fast restore-only for build job
+    restore-priority: s3-first # Direct VPC speed, bypasses GitHub cache latency
+    read-only: true # Fast restore-only for build job
     key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
     path: node_modules
 ```
@@ -187,34 +187,34 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
 
 ## Inputs
 
-| Input | Required | Default | Description |
-|---|:---:|:---:|---|
-| `bucket` | **Yes** | — | Name of the S3 bucket |
-| `key` | **Yes** | — | Explicit key for restoring and saving cache |
-| `path` | **Yes** | — | Multiline list of paths or files to cache |
-| `restore-keys` | No | — | Multiline string of prefix keys for fallback matching |
-| `endpoint` | No | Auto/AWS | Custom S3 endpoint URL |
-| `region` | No | Auto/`us-east-1` | AWS or S3 provider region |
-| `provider` | No | Auto | Preset: `aws`, `r2`, `gcs`, `b2`, `fastly`, `garage`, `seaweedfs`, `minio` |
-| `access-key` / `accessKey` | No | `AWS_ACCESS_KEY_ID` | S3 Access Key ID |
-| `secret-key` / `secretKey` | No | `AWS_SECRET_ACCESS_KEY` | S3 Secret Access Key |
-| `session-token` / `sessionToken` | No | `AWS_SESSION_TOKEN` | S3 Session Token |
-| `force-path-style` | No | Auto | Force path-style S3 URLs |
-| `prefix` | No | `""` | Subfolder prefix path inside bucket |
-| `s3-key-pattern` | No | `${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}` | Custom S3 key template pattern (supports `${ENV_VARS}`) |
-| `scoped-to-repository` | No | `true` | Prefix bucket cache paths with repository name |
-| `lookup-only` | No | `false` | Check existence without downloading |
-| `fail-on-cache-miss` | No | `false` | Fail workflow if cache is not found |
-| `enableCrossOsArchive`| No | `false` | Allow Windows runners to save/restore cross-OS caches |
-| `read-only` | No | `false` | Restore cache but never save in post step |
-| `save-always` | No | `false` | Run post-save even if prior steps failed |
-| `retry` | No | `true` | Enable exponential backoff retries on S3 operations |
-| `retry-count` | No | `3` | Maximum number of S3 retries |
-| `use-fallback` | No | `false` | Fallback to GitHub Actions cache service if S3 fails |
-| `dual-cache` | No | `false` | Cache to both S3 and GitHub Actions Cache simultaneously |
-| `restore-priority` | No | `s3-first` | Cache source to query first: `s3-first` or `github-first` |
-| `dual-cache-strategy` | No | `backfill` | Sync strategy: `backfill` (sync missing tier), `independent`, `skip-on-hit` |
-| `dual-cache-strict` | No | `false` | Fail step if either tier encounters an error |
+| Input                            | Required |                          Default                           | Description                                                                 |
+| -------------------------------- | :------: | :--------------------------------------------------------: | --------------------------------------------------------------------------- |
+| `bucket`                         | **Yes**  |                             —                              | Name of the S3 bucket                                                       |
+| `key`                            | **Yes**  |                             —                              | Explicit key for restoring and saving cache                                 |
+| `path`                           | **Yes**  |                             —                              | Multiline list of paths or files to cache                                   |
+| `restore-keys`                   |    No    |                             —                              | Multiline string of prefix keys for fallback matching                       |
+| `endpoint`                       |    No    |                          Auto/AWS                          | Custom S3 endpoint URL                                                      |
+| `region`                         |    No    |                      Auto/`us-east-1`                      | AWS or S3 provider region                                                   |
+| `provider`                       |    No    |                            Auto                            | Preset: `aws`, `r2`, `gcs`, `b2`, `fastly`, `garage`, `seaweedfs`, `minio`  |
+| `access-key` / `accessKey`       |    No    |                    `AWS_ACCESS_KEY_ID`                     | S3 Access Key ID                                                            |
+| `secret-key` / `secretKey`       |    No    |                  `AWS_SECRET_ACCESS_KEY`                   | S3 Secret Access Key                                                        |
+| `session-token` / `sessionToken` |    No    |                    `AWS_SESSION_TOKEN`                     | S3 Session Token                                                            |
+| `force-path-style`               |    No    |                            Auto                            | Force path-style S3 URLs                                                    |
+| `prefix`                         |    No    |                            `""`                            | Subfolder prefix path inside bucket                                         |
+| `s3-key-pattern`                 |    No    | `${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}` | Custom S3 key template pattern (supports `${ENV_VARS}`)                     |
+| `scoped-to-repository`           |    No    |                           `true`                           | Prefix bucket cache paths with repository name                              |
+| `lookup-only`                    |    No    |                          `false`                           | Check existence without downloading                                         |
+| `fail-on-cache-miss`             |    No    |                          `false`                           | Fail workflow if cache is not found                                         |
+| `enableCrossOsArchive`           |    No    |                          `false`                           | Allow Windows runners to save/restore cross-OS caches                       |
+| `read-only`                      |    No    |                          `false`                           | Restore cache but never save in post step                                   |
+| `save-always`                    |    No    |                          `false`                           | Run post-save even if prior steps failed                                    |
+| `retry`                          |    No    |                           `true`                           | Enable exponential backoff retries on S3 operations                         |
+| `retry-count`                    |    No    |                            `3`                             | Maximum number of S3 retries                                                |
+| `use-fallback`                   |    No    |                          `false`                           | Fallback to GitHub Actions cache service if S3 fails                        |
+| `dual-cache`                     |    No    |                          `false`                           | Cache to both S3 and GitHub Actions Cache simultaneously                    |
+| `restore-priority`               |    No    |                         `s3-first`                         | Cache source to query first: `s3-first` or `github-first`                   |
+| `dual-cache-strategy`            |    No    |                         `backfill`                         | Sync strategy: `backfill` (sync missing tier), `independent`, `skip-on-hit` |
+| `dual-cache-strict`              |    No    |                          `false`                           | Fail step if either tier encounters an error                                |
 
 ---
 

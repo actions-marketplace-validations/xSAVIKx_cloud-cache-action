@@ -22,7 +22,9 @@ import { fallbackSave } from '../utils/fallback';
 
 // Prevent unhandled rejection leaks from failing the workflow
 process.on('uncaughtException', (err) => {
-  core.warning(`Unhandled cache save exception: ${err instanceof Error ? err.message : String(err)}`);
+  core.warning(
+    `Unhandled cache save exception: ${err instanceof Error ? err.message : String(err)}`
+  );
 });
 
 export async function saveToS3(
@@ -73,7 +75,9 @@ export async function saveToS3(
     await createArchive(localArchive, cachePaths, compression, enableCrossOsArchive);
 
     const archiveSize = getArchiveSize(localArchive);
-    core.info(`Archive created successfully. Size: ${formatSize(archiveSize)} (${archiveSize} bytes)`);
+    core.info(
+      `Archive created successfully. Size: ${formatSize(archiveSize)} (${archiveSize} bytes)`
+    );
 
     core.info(`Uploading cache archive to s3://${bucket}/${s3ObjectKey}...`);
     const uploadResult = await withRetry(
@@ -99,9 +103,7 @@ export async function saveToS3(
   }
 }
 
-export async function saveImpl(
-  stateProvider: IStateProvider
-): Promise<number | void> {
+export async function saveImpl(stateProvider: IStateProvider): Promise<number | void> {
   try {
     if (!isValidEvent()) {
       core.warning(
@@ -117,9 +119,7 @@ export async function saveImpl(
       return;
     }
 
-    const primaryKey =
-      stateProvider.getState(State.CachePrimaryKey) ||
-      core.getInput(Inputs.Key);
+    const primaryKey = stateProvider.getState(State.CachePrimaryKey) || core.getInput(Inputs.Key);
 
     if (!primaryKey) {
       core.warning('Key is not specified. Skipping cache save.');
@@ -136,10 +136,7 @@ export async function saveImpl(
       stateProvider.getState(State.CacheS3KeyPattern) ||
       core.getInput(Inputs.S3KeyPattern) ||
       Defaults.DefaultS3KeyPattern;
-    const prefix =
-      stateProvider.getState(State.CachePrefix) ||
-      core.getInput(Inputs.Prefix) ||
-      '';
+    const prefix = stateProvider.getState(State.CachePrefix) || core.getInput(Inputs.Prefix) || '';
     const scopedToRepoState = stateProvider.getState(State.CacheScopedToRepository);
     const scopedToRepository =
       scopedToRepoState !== ''
@@ -151,9 +148,7 @@ export async function saveImpl(
       retryState !== '' ? retryState === 'true' : getInputAsBool(Inputs.Retry, true);
     const retryCountState = stateProvider.getState(State.CacheRetryCount);
     const retryCount =
-      Number(retryCountState) ||
-      getInputAsInt(Inputs.RetryCount, Defaults.DefaultRetryCount) ||
-      3;
+      Number(retryCountState) || getInputAsInt(Inputs.RetryCount, Defaults.DefaultRetryCount) || 3;
 
     const uploadChunkSize = getInputAsInt(Inputs.UploadChunkSize);
     const enableCrossOsArchive = getInputAsBool(Inputs.EnableCrossOsArchive);
@@ -183,7 +178,9 @@ export async function saveImpl(
       core.setOutput(Outputs.CacheStorageProvider, storageContext.providerConfig.provider);
     } catch (err: unknown) {
       if (useFallback || dualCache) {
-        core.warning(`S3 client initialization failed during save: ${err instanceof Error ? err.message : String(err)}`);
+        core.warning(
+          `S3 client initialization failed during save: ${err instanceof Error ? err.message : String(err)}`
+        );
       } else {
         throw err;
       }
@@ -209,11 +206,15 @@ export async function saveImpl(
       // Determine GitHub Cache save necessity
       let shouldSaveGH = true;
       if (ghExactHit) {
-        core.info(`Exact hit already occurred in GitHub Cache for key "${primaryKey}", skipping GitHub save.`);
+        core.info(
+          `Exact hit already occurred in GitHub Cache for key "${primaryKey}", skipping GitHub save.`
+        );
         shouldSaveGH = false;
         savedSources.push('github');
       } else if (dualCacheStrategy === 'skip-on-hit' && (s3ExactHit || ghExactHit)) {
-        core.info('Cache hit occurred on another tier; strategy is skip-on-hit, skipping GitHub save.');
+        core.info(
+          'Cache hit occurred on another tier; strategy is skip-on-hit, skipping GitHub save.'
+        );
         shouldSaveGH = false;
       }
 
@@ -240,7 +241,9 @@ export async function saveImpl(
           if (s3Res.etag) core.setOutput(Outputs.CacheETag, s3Res.etag);
         } catch (err) {
           if (dualCacheStrict) throw err;
-          core.warning(`Dual-cache S3 save error: ${err instanceof Error ? err.message : String(err)}`);
+          core.warning(
+            `Dual-cache S3 save error: ${err instanceof Error ? err.message : String(err)}`
+          );
         }
       }
 
@@ -259,13 +262,17 @@ export async function saveImpl(
           }
         } catch (err) {
           if (dualCacheStrict) throw err;
-          core.warning(`Dual-cache GitHub save error: ${err instanceof Error ? err.message : String(err)}`);
+          core.warning(
+            `Dual-cache GitHub save error: ${err instanceof Error ? err.message : String(err)}`
+          );
         }
       }
 
       const finalSaved = Array.from(new Set(savedSources));
       core.setOutput(Outputs.CacheSavedSources, finalSaved.join(',') || 'none');
-      core.info(`Dual-cache save complete. Active cache sources: ${finalSaved.join(', ') || 'none'}`);
+      core.info(
+        `Dual-cache save complete. Active cache sources: ${finalSaved.join(', ') || 'none'}`
+      );
       return;
     }
 
@@ -312,7 +319,9 @@ export async function saveImpl(
       core.setOutput(Outputs.CacheSavedSources, 'github');
     }
   } catch (err: unknown) {
-    core.warning(`Save cache encountered error: ${err instanceof Error ? err.message : String(err)}`);
+    core.warning(
+      `Save cache encountered error: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 }
 

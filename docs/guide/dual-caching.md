@@ -7,10 +7,12 @@
 ## Why Dual Caching?
 
 In modern CI/CD setups, organizations often run a hybrid infrastructure:
+
 - Standard linting, light tests, and PR checks run on **GitHub-hosted runners** (`ubuntu-latest`).
 - Heavy compilation, Docker builds, GPU workloads, and integration tests run on **self-hosted runners** (Kubernetes, AWS EC2, or on-premise bare-metal).
 
 This creates a common challenge:
+
 1. **Runner Isolation**: Self-hosted or remote runners may have high latency, bandwidth limits, or restricted access to GitHub's internal cache service, but have direct, high-speed access to an S3-compatible bucket (or local Garage / SeaweedFS / MinIO / Cloudflare R2).
 2. **Quota Limits**: GitHub enforces a strict **10 GB per repository** cache limit. Once exceeded, older caches are evicted, causing unexpected slowdowns.
 3. **Redundancy & Availability**: If GitHub's cache service experiences transient 503 errors or an outage, having S3 as an active peer ensures your builds never suffer cold starts.
@@ -46,11 +48,11 @@ flowchart TD
 
 When `dual-cache: true` is enabled, the post-run step evaluates both tiers according to `dual-cache-strategy`:
 
-| Strategy | Behavior |
-|---|---|
-| **`backfill`** *(default)* | If one tier hit but the other missed (e.g. GitHub Cache hit, S3 missed), post-save automatically **backfills** the missing tier so both systems stay synchronized. |
-| **`independent`** | Verifies existence in S3 and GitHub independently, uploading to any tier where the key is absent. |
-| **`skip-on-hit`** | If an exact match hit occurred on *either* tier during restore, saving is skipped on both. |
+| Strategy                   | Behavior                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`backfill`** _(default)_ | If one tier hit but the other missed (e.g. GitHub Cache hit, S3 missed), post-save automatically **backfills** the missing tier so both systems stay synchronized. |
+| **`independent`**          | Verifies existence in S3 and GitHub independently, uploading to any tier where the key is absent.                                                                  |
+| **`skip-on-hit`**          | If an exact match hit occurred on _either_ tier during restore, saving is skipped on both.                                                                         |
 
 ---
 
@@ -59,10 +61,12 @@ When `dual-cache: true` is enabled, the post-run step evaluates both tiers accor
 ### Use Case 1: Lightweight Runners for Dependencies $\to$ Remote Cloud VM for Heavy Builds
 
 A common architectural pattern is separating concerns across runner tiers to minimize cloud compute costs:
+
 1. **Lightweight GitHub-hosted runner (`ubuntu-latest`)**: Runs quick tasks like `npm ci` to assemble `node_modules` or download package dependencies.
 2. **Heavyweight Remote Cloud runner (`[self-hosted, aws-heavy]`)**: An EC2 or GCP machine with high CPU/GPU/RAM dedicated to compiling native artifacts, building Docker images, or executing end-to-end integration tests.
 
 With **Dual Caching**:
+
 - The GitHub-hosted runner uses `dual-cache: true` with `restore-priority: github-first` and `dual-cache-strategy: backfill`. It benefits from GitHub's internal runner cache, but **automatically synchronizes the populated `node_modules` directly into your AWS S3 or GCP bucket**.
 - The remote cloud machine then restores `node_modules` directly from S3 at line-rate internal VPC speeds (`restore-priority: s3-first`) without network bottlenecking or GitHub cache quota contention.
 
@@ -153,7 +157,7 @@ Avoid cold builds when GitHub's 10GB per-repo cache limit evicts keys, or during
     secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     dual-cache: true
     restore-priority: github-first # Use GitHub cache while available
-    dual-cache-strategy: backfill  # Keep S3 continuously primed as cold-cache safety net
+    dual-cache-strategy: backfill # Keep S3 continuously primed as cold-cache safety net
     key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
     restore-keys: |
       ${{ runner.os }}-gradle-
@@ -170,6 +174,7 @@ Avoid cold builds when GitHub's 10GB per-repo cache limit evicts keys, or during
 ### Use Case 3: Zero-Downtime Migration from GitHub Cache to Cloud Storage
 
 If your team is migrating from `actions/cache` to Cloudflare R2 or AWS S3:
+
 1. Enable `dual-cache: true` with `restore-priority: github-first`.
 2. Existing builds will continue restoring instantly from GitHub Actions Cache.
 3. In the background, `backfill` saves every cache bundle to your S3 bucket.
@@ -181,16 +186,16 @@ If your team is migrating from `actions/cache` to Cloudflare R2 or AWS S3:
 
 ### Inputs
 
-| Input | Type | Default | Description |
-|---|:---:|:---:|---|
-| `dual-cache` | boolean | `false` | Enables simultaneous caching across S3-compatible storage and GitHub Actions Cache. |
-| `restore-priority` | string | `s3-first` | Order to check caches during restore: `s3-first` or `github-first`. |
-| `dual-cache-strategy` | string | `backfill` | Save synchronization mode: `backfill` (sync missing tier), `independent`, or `skip-on-hit`. |
-| `dual-cache-strict` | boolean | `false` | When `false` (default), errors in one tier emit warnings without failing the job. When `true`, any failure halts execution. |
+| Input                 |  Type   |  Default   | Description                                                                                                                 |
+| --------------------- | :-----: | :--------: | --------------------------------------------------------------------------------------------------------------------------- |
+| `dual-cache`          | boolean |  `false`   | Enables simultaneous caching across S3-compatible storage and GitHub Actions Cache.                                         |
+| `restore-priority`    | string  | `s3-first` | Order to check caches during restore: `s3-first` or `github-first`.                                                         |
+| `dual-cache-strategy` | string  | `backfill` | Save synchronization mode: `backfill` (sync missing tier), `independent`, or `skip-on-hit`.                                 |
+| `dual-cache-strict`   | boolean |  `false`   | When `false` (default), errors in one tier emit warnings without failing the job. When `true`, any failure halts execution. |
 
 ### Outputs
 
-| Output | Values | Description |
-|---|:---:|---|
-| `cache-hit-source` | `s3` \| `github` \| `none` | Identifies which storage tier provided the restored cache bundle. |
+| Output                |                  Values                   | Description                                                                      |
+| --------------------- | :---------------------------------------: | -------------------------------------------------------------------------------- |
+| `cache-hit-source`    |        `s3` \| `github` \| `none`         | Identifies which storage tier provided the restored cache bundle.                |
 | `cache-saved-sources` | `s3,github` \| `s3` \| `github` \| `none` | Comma-separated list of storage tiers that successfully stored the cache bundle. |

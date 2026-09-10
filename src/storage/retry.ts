@@ -7,10 +7,7 @@ export interface RetryOptions {
   operationName?: string;
 }
 
-export async function withRetry<T>(
-  operation: () => Promise<T>,
-  options: RetryOptions
-): Promise<T> {
+export async function withRetry<T>(operation: () => Promise<T>, options: RetryOptions): Promise<T> {
   const retries = Math.max(0, options.retries);
   const minTimeout = options.minTimeoutMs ?? 1000;
   const factor = options.factor ?? 2;
@@ -30,9 +27,7 @@ export async function withRetry<T>(
       }
 
       // Calculate exponential backoff with jitter
-      const delay = Math.round(
-        minTimeout * Math.pow(factor, attempt - 1) + Math.random() * 500
-      );
+      const delay = Math.round(minTimeout * Math.pow(factor, attempt - 1) + Math.random() * 500);
 
       core.info(
         `Failed to ${opName}. Attempt ${attempt}/${retries + 1} failed: ${errorMessage}. Retrying in ${delay}ms...`

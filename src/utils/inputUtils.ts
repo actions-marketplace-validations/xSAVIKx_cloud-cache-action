@@ -1,10 +1,7 @@
 import * as core from '@actions/core';
 import { Events } from '../constants';
 
-export function getInputAsArray(
-  name: string,
-  options?: core.InputOptions
-): string[] {
+export function getInputAsArray(name: string, options?: core.InputOptions): string[] {
   return core
     .getInput(name, options)
     .split('\n')
@@ -70,10 +67,7 @@ export function getInputWithEnv(
   return '';
 }
 
-export function isExactKeyMatch(
-  primaryKey: string,
-  matchedKey?: string
-): boolean {
+export function isExactKeyMatch(primaryKey: string, matchedKey?: string): boolean {
   if (!matchedKey) {
     return false;
   }

@@ -2,9 +2,9 @@
 layout: home
 
 hero:
-  name: "Cloud Cache Action"
-  text: "Cache to any S3 storage with 1:1 actions/cache parity"
-  tagline: "Drop-in replacement for actions/cache supporting AWS S3, Cloudflare R2, GCS, Backblaze B2, Fastly, Garage, SeaweedFS, and MinIO."
+  name: 'Cloud Cache Action'
+  text: 'Cache to any S3 storage with 1:1 actions/cache parity'
+  tagline: 'Drop-in replacement for actions/cache supporting AWS S3, Cloudflare R2, GCS, Backblaze B2, Fastly, Garage, SeaweedFS, and MinIO.'
   actions:
     - theme: brand
       text: Get Started

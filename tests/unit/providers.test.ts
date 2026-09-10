@@ -1,7 +1,4 @@
-import {
-  detectProvider,
-  resolveProviderDefaults,
-} from '../../src/storage/providers';
+import { detectProvider, resolveProviderDefaults } from '../../src/storage/providers';
 
 describe('Storage Providers', () => {
   describe('detectProvider', () => {
@@ -14,9 +11,7 @@ describe('Storage Providers', () => {
     });
 
     it('detects Cloudflare R2 from endpoint URL', () => {
-      expect(
-        detectProvider('https://abc123def456.r2.cloudflarestorage.com')
-      ).toBe('r2');
+      expect(detectProvider('https://abc123def456.r2.cloudflarestorage.com')).toBe('r2');
     });
 
     it('detects Google Cloud Storage from endpoint URL', () => {
@@ -24,15 +19,11 @@ describe('Storage Providers', () => {
     });
 
     it('detects Backblaze B2 from endpoint URL', () => {
-      expect(detectProvider('https://s3.us-west-004.backblazeb2.com')).toBe(
-        'b2'
-      );
+      expect(detectProvider('https://s3.us-west-004.backblazeb2.com')).toBe('b2');
     });
 
     it('detects Fastly Object Storage from endpoint URL', () => {
-      expect(
-        detectProvider('https://object.us-east-1.fastlystorage.com')
-      ).toBe('fastly');
+      expect(detectProvider('https://object.us-east-1.fastlystorage.com')).toBe('fastly');
     });
 
     it('detects Garage from standard port :3900', () => {
@@ -58,9 +49,7 @@ describe('Storage Providers', () => {
 
   describe('resolveProviderDefaults', () => {
     it('configures Cloudflare R2 with region auto and virtual-hosted style', () => {
-      const config = resolveProviderDefaults(
-        'https://myaccount.r2.cloudflarestorage.com'
-      );
+      const config = resolveProviderDefaults('https://myaccount.r2.cloudflarestorage.com');
       expect(config.provider).toBe('r2');
       expect(config.region).toBe('auto');
       expect(config.forcePathStyle).toBe(false);
@@ -73,9 +62,7 @@ describe('Storage Providers', () => {
     });
 
     it('extracts region automatically from Backblaze B2 endpoint', () => {
-      const config = resolveProviderDefaults(
-        'https://s3.us-west-004.backblazeb2.com'
-      );
+      const config = resolveProviderDefaults('https://s3.us-west-004.backblazeb2.com');
       expect(config.provider).toBe('b2');
       expect(config.region).toBe('us-west-004');
       expect(config.forcePathStyle).toBe(false);
@@ -102,6 +89,31 @@ describe('Storage Providers', () => {
       );
       expect(config.region).toBe('custom-region');
       expect(config.forcePathStyle).toBe(true);
+    });
+
+    it('handles explicit provider aliases and generic-s3 fallback', () => {
+      expect(detectProvider(undefined, 's3')).toBe('aws');
+      expect(detectProvider(undefined, 'fastly')).toBe('fastly');
+      expect(detectProvider(undefined, 'minio')).toBe('minio');
+      expect(detectProvider(undefined, 'unknown-provider')).toBe('generic-s3');
+      expect(detectProvider('https://unrecognized-s3.example.com')).toBe('generic-s3');
+    });
+
+    it('prepends https:// when protocol is omitted from endpoint', () => {
+      const config = resolveProviderDefaults('custom-endpoint.domain.com');
+      expect(config.endpoint).toBe('https://custom-endpoint.domain.com');
+    });
+
+    it('resolves defaults for fastly and minio providers', () => {
+      const fastly = resolveProviderDefaults('https://object.us-east-1.fastlystorage.com');
+      expect(fastly.provider).toBe('fastly');
+      expect(fastly.forcePathStyle).toBe(true);
+      expect(fastly.region).toBe('us-east-1');
+
+      const minio = resolveProviderDefaults('http://localhost:9000');
+      expect(minio.provider).toBe('minio');
+      expect(minio.forcePathStyle).toBe(true);
+      expect(minio.region).toBe('us-east-1');
     });
   });
 });

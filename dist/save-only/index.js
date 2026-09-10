@@ -75126,7 +75126,8 @@ function buildS3ObjectKey(params, env = process.env) {
     let pattern = params.pattern || '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}';
     // If repository scoping is explicitly turned off and user didn't provide custom pattern,
     // remove ${GITHUB_REPOSITORY}/
-    if (params.scopedToRepository === false && (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
+    if (params.scopedToRepository === false &&
+        (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
         pattern = pattern.replace('${GITHUB_REPOSITORY}/', '').replace('${GITHUB_REPOSITORY}', '');
     }
     const specialVars = {
@@ -75146,7 +75147,8 @@ function buildS3SearchPrefix(restoreKey, params, env = process.env) {
     const prefix = params.prefix ? normalizePrefix(params.prefix) : '';
     const trimmedRestoreKey = restoreKey.trim();
     let pattern = params.pattern || '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}';
-    if (params.scopedToRepository === false && (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
+    if (params.scopedToRepository === false &&
+        (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
         pattern = pattern.replace('${GITHUB_REPOSITORY}/', '').replace('${GITHUB_REPOSITORY}', '');
     }
     // Find where ${key} or $key starts in the pattern
@@ -75166,9 +75168,8 @@ function buildS3SearchPrefix(restoreKey, params, env = process.env) {
 /**
  * Extracts the cache key name from a full S3 object key based on pattern and search prefix.
  */
-function extractKeyFromS3Object(objectKey, searchPrefix, archiveFilename) {
+function extractKeyFromS3Object(objectKey, _searchPrefix, archiveFilename) {
     const normalizedObject = normalizeS3Key(objectKey);
-    const normalizedPrefix = normalizeS3Key(searchPrefix);
     // Remove archive filename at the end
     let candidate = normalizedObject;
     if (candidate.endsWith(`/${archiveFilename}`)) {
@@ -75348,7 +75349,10 @@ function createStorageContext() {
     if (!bucket) {
         throw new Error('Bucket name is required. Please set "bucket" input or AWS_S3_BUCKET environment variable.');
     }
-    const endpointInput = getInputWithEnv(Inputs.Endpoint, ['AWS_ENDPOINT_URL', 'AWS_ENDPOINT_URL_S3']);
+    const endpointInput = getInputWithEnv(Inputs.Endpoint, [
+        'AWS_ENDPOINT_URL',
+        'AWS_ENDPOINT_URL_S3',
+    ]);
     const regionInput = getInputWithEnv(Inputs.Region, ['AWS_REGION', 'AWS_DEFAULT_REGION']);
     const providerInput = getInput(Inputs.Provider);
     const forcePathStyleRaw = getInput(Inputs.ForcePathStyle);
@@ -75452,9 +75456,7 @@ async function downloadFile(client, bucket, key, destinationPath) {
 async function uploadFile(client, bucket, key, sourcePath, uploadChunkSize) {
     const stats = external_fs_namespaceObject.statSync(sourcePath);
     const fileStream = external_fs_namespaceObject.createReadStream(sourcePath);
-    const partSize = uploadChunkSize && uploadChunkSize > 5 * 1024 * 1024
-        ? uploadChunkSize
-        : 10 * 1024 * 1024; // 10MB default part size
+    const partSize = uploadChunkSize && uploadChunkSize > 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024; // 10MB default part size
     const parallelUpload = new lib_storage_dist_cjs/* Upload */._({
         client,
         params: {
@@ -128781,8 +128783,7 @@ async function saveImpl(stateProvider) {
             info('Read-only mode enabled. Skipping cache save.');
             return;
         }
-        const primaryKey = stateProvider.getState(constants_State.CachePrimaryKey) ||
-            getInput(Inputs.Key);
+        const primaryKey = stateProvider.getState(constants_State.CachePrimaryKey) || getInput(Inputs.Key);
         if (!primaryKey) {
             warning('Key is not specified. Skipping cache save.');
             return;
@@ -128795,9 +128796,7 @@ async function saveImpl(stateProvider) {
         const s3KeyPattern = stateProvider.getState(constants_State.CacheS3KeyPattern) ||
             getInput(Inputs.S3KeyPattern) ||
             Defaults.DefaultS3KeyPattern;
-        const prefix = stateProvider.getState(constants_State.CachePrefix) ||
-            getInput(Inputs.Prefix) ||
-            '';
+        const prefix = stateProvider.getState(constants_State.CachePrefix) || getInput(Inputs.Prefix) || '';
         const scopedToRepoState = stateProvider.getState(constants_State.CacheScopedToRepository);
         const scopedToRepository = scopedToRepoState !== ''
             ? scopedToRepoState === 'true'
@@ -128805,9 +128804,7 @@ async function saveImpl(stateProvider) {
         const retryState = stateProvider.getState(constants_State.CacheRetry);
         const retryEnabled = retryState !== '' ? retryState === 'true' : getInputAsBool(Inputs.Retry, true);
         const retryCountState = stateProvider.getState(constants_State.CacheRetryCount);
-        const retryCount = Number(retryCountState) ||
-            getInputAsInt(Inputs.RetryCount, Defaults.DefaultRetryCount) ||
-            3;
+        const retryCount = Number(retryCountState) || getInputAsInt(Inputs.RetryCount, Defaults.DefaultRetryCount) || 3;
         const uploadChunkSize = getInputAsInt(Inputs.UploadChunkSize);
         const enableCrossOsArchive = getInputAsBool(Inputs.EnableCrossOsArchive);
         const useFallback = getInputAsBool(Inputs.UseFallback, false);

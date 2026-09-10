@@ -1,14 +1,6 @@
-import { Inputs, Outputs, State } from '../../src/constants';
-import { NullStateProvider, StateProvider } from '../../src/state';
-import * as inputUtils from '../../src/utils/inputUtils';
+import { Inputs, Outputs } from '../../src/constants';
 
 describe('Dual-Cache Logic & Strategies', () => {
-  let stateProvider: StateProvider;
-
-  beforeEach(() => {
-    stateProvider = new StateProvider();
-  });
-
   describe('Configuration Resolution', () => {
     it('defaults dual-cache to false', () => {
       expect(Inputs.DualCache).toBe('dual-cache');
@@ -34,7 +26,7 @@ describe('Dual-Cache Logic & Strategies', () => {
       }
       return {
         saveS3: !s3ExactHit,
-        saveGH: !ghExactHit
+        saveGH: !ghExactHit,
       };
     }
 

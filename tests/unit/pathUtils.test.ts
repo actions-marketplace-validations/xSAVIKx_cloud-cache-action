@@ -1,9 +1,11 @@
+import * as path from 'path';
 import {
   normalizeS3Key,
   buildS3ObjectKey,
   buildS3SearchPrefix,
   extractKeyFromS3Object,
   normalizePrefix,
+  resolveArchivePaths,
 } from '../../src/utils/pathUtils';
 
 describe('Path and S3 Key Utilities', () => {
@@ -19,9 +21,7 @@ describe('Path and S3 Key Utilities', () => {
     });
 
     it('strips leading slash', () => {
-      expect(normalizeS3Key('/my-bucket-prefix/key')).toBe(
-        'my-bucket-prefix/key'
-      );
+      expect(normalizeS3Key('/my-bucket-prefix/key')).toBe('my-bucket-prefix/key');
     });
   });
 
@@ -87,12 +87,15 @@ describe('Path and S3 Key Utilities', () => {
         {
           key: 'primary-cache-key',
           archiveFilename: 'cache.tar.zst',
-          pattern: '${GITHUB_REPOSITORY}/${RUNNER_OS}/${GITHUB_JOB}/${WORKLOAD_NAME}/${key}/${archive_filename}',
+          pattern:
+            '${GITHUB_REPOSITORY}/${RUNNER_OS}/${GITHUB_JOB}/${WORKLOAD_NAME}/${key}/${archive_filename}',
         },
         mockEnv
       );
 
-      expect(key).toBe('owner/repo/Linux/integration-tests/api-service/primary-cache-key/cache.tar.zst');
+      expect(key).toBe(
+        'owner/repo/Linux/integration-tests/api-service/primary-cache-key/cache.tar.zst'
+      );
     });
 
     it('supports ${env.VAR_NAME} and $VAR_NAME syntax for environment variables', () => {
@@ -106,7 +109,8 @@ describe('Path and S3 Key Utilities', () => {
         {
           key: 'cache-key',
           archiveFilename: 'cache.tar.zst',
-          pattern: '${GITHUB_REPOSITORY}/${env.NODE_VERSION}/$BUILD_TARGET/${key}/${archive_filename}',
+          pattern:
+            '${GITHUB_REPOSITORY}/${env.NODE_VERSION}/$BUILD_TARGET/${key}/${archive_filename}',
         },
         mockEnv
       );
@@ -160,6 +164,39 @@ describe('Path and S3 Key Utilities', () => {
         'cache.tar.zst'
       );
       expect(extracted).toBe('node-deps-xyz');
+    });
+
+    it('extracts cache key name when filename is directly adjacent', () => {
+      const fullKey = 'owner/my-repo/node-deps-xyzcache.tar.zst';
+      const extracted = extractKeyFromS3Object(
+        fullKey,
+        'owner/my-repo/node-deps-',
+        'cache.tar.zst'
+      );
+      expect(extracted).toBe('node-deps-xyz');
+    });
+  });
+
+  describe('buildS3SearchPrefix fallback', () => {
+    it('falls back cleanly when pattern does not contain key placeholder', () => {
+      const searchPrefix = buildS3SearchPrefix('restore-prefix-', {
+        repository: 'owner/repo',
+        prefix: 'ci/',
+        pattern: 'static/prefix/without/placeholder',
+      });
+      expect(searchPrefix).toBe('owner/repo/ci/restore-prefix-');
+    });
+  });
+
+  describe('resolveArchivePaths', () => {
+    it('converts absolute paths relative to cwd and leaves relative paths intact', () => {
+      const cwd = process.cwd();
+      const absPath = path.join(cwd, 'dist', 'bundle.js');
+      const relPath = 'src/index.ts';
+
+      const resolved = resolveArchivePaths([absPath, relPath]);
+      expect(resolved[0]).toBe(path.join('dist', 'bundle.js'));
+      expect(resolved[1]).toBe('src/index.ts');
     });
   });
 });
