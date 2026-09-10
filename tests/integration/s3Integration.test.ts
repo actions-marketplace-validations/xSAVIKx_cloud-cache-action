@@ -39,7 +39,7 @@ describe('S3 Storage Integration Tests (Garage / SeaweedFS / S3)', () => {
   it('runs upload, head, list, and download against S3 server when available', async () => {
     if (!isS3Available) {
       console.log(
-        `Skipping live S3 integration test because no S3 server was reachable at ${endpoint}. (Start garage or seaweedfs with docker-compose -f docker-compose.test.yml up to run live)`
+        `Skipping live S3 integration test because no S3 server was reachable at ${endpoint}. (Start garage or seaweedfs with docker compose -f docker-compose.test.yml up to run live)`
       );
       return;
     }
