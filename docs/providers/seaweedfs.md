@@ -6,7 +6,7 @@
 
 ```yaml
 - name: Cache dependencies using SeaweedFS
-  uses: xSAVIKx/cloud-cache-action@v1
+  uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: ci-cache
     endpoint: http://seaweedfs.internal:8333 # S3 API endpoint

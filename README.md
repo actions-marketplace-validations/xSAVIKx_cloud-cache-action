@@ -39,7 +39,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 
 ```yaml
 - name: Cache dependencies to S3
-  uses: xSAVIKx/cloud-cache-action@v1
+  uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: my-ci-cache-bucket
     endpoint: https://<account_id>.r2.cloudflarestorage.com # Or AWS, GCS, B2, MinIO
@@ -70,7 +70,7 @@ Full documentation, provider guides, and advanced configurations are available a
 Zero egress fees for CI caches:
 
 ```yaml
-- uses: xSAVIKx/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: ci-cache
     endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
@@ -89,7 +89,7 @@ Zero egress fees for CI caches:
     role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsCacheRole
     aws-region: us-east-1
 
-- uses: xSAVIKx/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: my-aws-cache-bucket
     key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
@@ -99,7 +99,7 @@ Zero egress fees for CI caches:
 ### Google Cloud Storage (GCS)
 
 ```yaml
-- uses: xSAVIKx/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: my-gcs-cache-bucket
     endpoint: https://storage.googleapis.com
@@ -112,7 +112,7 @@ Zero egress fees for CI caches:
 ### Backblaze B2
 
 ```yaml
-- uses: xSAVIKx/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: my-b2-cache-bucket
     endpoint: https://s3.us-west-004.backblazeb2.com
@@ -125,7 +125,7 @@ Zero egress fees for CI caches:
 ### Fastly Object Storage
 
 ```yaml
-- uses: xSAVIKx/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: my-fastly-cache
     endpoint: https://object.us-east-1.fastlystorage.com
@@ -138,7 +138,7 @@ Zero egress fees for CI caches:
 ### Self-Hosted: Garage & SeaweedFS
 
 ```yaml
-- uses: xSAVIKx/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: ci-cache
     endpoint: http://garage.internal:3900 # or http://seaweedfs.internal:8333
@@ -156,7 +156,7 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
 ```yaml
 # Job 1: Lightweight GitHub-hosted runner installs & caches dependencies
 - name: Prepare node_modules
-  uses: xSAVIKx/cloud-cache-action@v1
+  uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: my-ci-cache
     endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
@@ -170,7 +170,7 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
 
 # Job 2: Remote AWS/GCP self-hosted runner building Docker/native binaries
 - name: Restore node_modules directly from S3
-  uses: xSAVIKx/cloud-cache-action@v1
+  uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: my-ci-cache
     endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
@@ -234,8 +234,8 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
 
 ## Sub-Actions
 
-- **Restore Only**: `uses: xSAVIKx/cloud-cache-action/restore@v1`
-- **Save Only**: `uses: xSAVIKx/cloud-cache-action/save@v1`
+- **Restore Only**: `uses: xSAVIKx/cloud-cache-action/restore@v0`
+- **Save Only**: `uses: xSAVIKx/cloud-cache-action/save@v0`
 
 ---
 

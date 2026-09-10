@@ -80,7 +80,7 @@ jobs:
 
       - name: Cache node_modules (Dual Mode: GitHub + S3 Sync)
         id: cache-deps
-        uses: xSAVIKx/cloud-cache-action@v1
+        uses: xSAVIKx/cloud-cache-action@v0
         with:
           bucket: my-company-ci-cache
           endpoint: https://s3.us-east-1.amazonaws.com # or GCS / Cloudflare R2
@@ -105,7 +105,7 @@ jobs:
 
       # Instantly pulls node_modules directly from local AWS S3 bucket over internal VPC
       - name: Restore node_modules from S3
-        uses: xSAVIKx/cloud-cache-action@v1
+        uses: xSAVIKx/cloud-cache-action@v0
         with:
           bucket: my-company-ci-cache
           endpoint: https://s3.us-east-1.amazonaws.com
@@ -119,7 +119,7 @@ jobs:
 
       # Docker layer cache can also be persisted to S3
       - name: Cache Docker Buildx layers
-        uses: xSAVIKx/cloud-cache-action@v1
+        uses: xSAVIKx/cloud-cache-action@v0
         with:
           bucket: my-company-ci-cache
           access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -146,7 +146,7 @@ Avoid cold builds when GitHub's 10GB per-repo cache limit evicts keys, or during
 ```yaml
 - name: Cache with S3 backup
   id: cache-step
-  uses: xSAVIKx/cloud-cache-action@v1
+  uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: my-overflow-s3-bucket
     access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}

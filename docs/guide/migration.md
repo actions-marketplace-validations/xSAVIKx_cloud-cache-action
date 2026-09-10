@@ -22,7 +22,7 @@ Because `cloud-cache-action` maintains 1:1 input and output parity, you simply c
 
 ```yaml
 - name: Cache dependencies
-  uses: xSAVIKx/cloud-cache-action@v1
+  uses: xSAVIKx/cloud-cache-action@v0
   with:
     # 1. Add your S3 bucket & credentials
     bucket: my-ci-cache-bucket

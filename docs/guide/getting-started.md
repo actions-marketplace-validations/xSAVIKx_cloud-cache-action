@@ -10,7 +10,7 @@ Add the following step to your GitHub Actions workflow:
 
 ```yaml
 - name: Cache dependencies to S3
-  uses: xSAVIKx/cloud-cache-action@v1
+  uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: my-ci-cache-bucket
     endpoint: https://<account_id>.r2.cloudflarestorage.com # Or AWS, GCS, B2, MinIO, etc.
@@ -48,7 +48,7 @@ Just like `actions/cache/restore` and `actions/cache/save`, you can invoke resto
 ```yaml
 - name: Restore cache
   id: restore-step
-  uses: xSAVIKx/cloud-cache-action/restore@v1
+  uses: xSAVIKx/cloud-cache-action/restore@v0
   with:
     bucket: my-ci-cache-bucket
     key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
@@ -59,7 +59,7 @@ Just like `actions/cache/restore` and `actions/cache/save`, you can invoke resto
 
 ```yaml
 - name: Save cache
-  uses: xSAVIKx/cloud-cache-action/save@v1
+  uses: xSAVIKx/cloud-cache-action/save@v0
   with:
     bucket: my-ci-cache-bucket
     key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}

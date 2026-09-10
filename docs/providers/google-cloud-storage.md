@@ -10,7 +10,7 @@ Google Cloud Storage provides full S3 interoperability via its XML API and HMAC 
 
 ```yaml
 - name: Cache dependencies using Google Cloud Storage
-  uses: xSAVIKx/cloud-cache-action@v1
+  uses: xSAVIKx/cloud-cache-action@v0
   with:
     bucket: my-gcs-cache-bucket
     endpoint: https://storage.googleapis.com
