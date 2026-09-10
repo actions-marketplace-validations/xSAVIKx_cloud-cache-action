@@ -96,6 +96,24 @@ inputs:
     required: false
     default: 'false'
 
+  # Dual-cache inputs
+  dual-cache:
+    description: 'Cache to both S3-compatible storage and GitHub Actions Cache simultaneously'
+    required: false
+    default: 'false'
+  restore-priority:
+    description: 'Order of cache sources to query during restore: s3-first or github-first'
+    required: false
+    default: 's3-first'
+  dual-cache-strategy:
+    description: 'Sync strategy for saving in dual-cache mode: backfill (sync missing tier), independent, or skip-on-hit'
+    required: false
+    default: 'backfill'
+  dual-cache-strict:
+    description: 'Fail step if either tier encounters an error during dual-cache operations (default: false, fault-tolerant)'
+    required: false
+    default: 'false'
+
 outputs:
   cache-hit:
     description: 'A boolean value to indicate an exact match was found for the primary key'
@@ -111,6 +129,10 @@ outputs:
     description: 'The full S3 object key inside the bucket'
   cache-etag:
     description: 'The ETag checksum of the cache archive in S3'
+  cache-hit-source:
+    description: 'The cache tier that serviced the restore hit: s3, github, or none'
+  cache-saved-sources:
+    description: 'Comma-separated list of cache tiers successfully saved to: s3, github, or s3,github'
 
 runs:
   using: 'node24'

@@ -29,6 +29,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 - **Custom S3 Key & Environment Templating**: Default pattern `${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}` with full override capability and support for dynamic environment variables (`${RUNNER_OS}`, `${GITHUB_JOB}`, `${WORKLOAD_TYPE}`).
 - **Safe Cross-Platform Keys**: Guarantees standard POSIX forward slashes (`/`) in object storage across Linux, macOS, and Windows runners (fixing legacy backslash bugs).
 - **Multi-Threaded `zstd` Compression**: Lightning-fast archiving with fallback to `gzip`.
+- **Dual Caching (Multi-Tier)**: Optionally cache across both remote S3 and GitHub Actions Cache simultaneously with configurable priority (`s3-first` or `github-first`) and automatic backfill synchronization.
 - **Standalone Sub-Actions**: Includes `cloud-cache-action/restore` and `cloud-cache-action/save` for decoupled cache stages.
 - **Resilient**: Automatic exponential backoff retries on transient network errors.
 
@@ -148,6 +149,24 @@ Zero egress fees for CI caches:
     path: build/
 ```
 
+### Dual Caching (Hybrid GitHub + Remote Runner Fleet)
+
+Cache to **both** S3 and GitHub Actions Cache simultaneously with automatic backfill synchronization:
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-ci-cache
+    endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+    access-key: ${{ secrets.R2_ACCESS_KEY }}
+    secret-key: ${{ secrets.R2_SECRET_KEY }}
+    dual-cache: true
+    restore-priority: s3-first       # or 'github-first' for hosted runners
+    dual-cache-strategy: backfill    # auto-syncs the missing tier if one hits
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    path: node_modules
+```
+
 ---
 
 ## Inputs
@@ -176,6 +195,10 @@ Zero egress fees for CI caches:
 | `retry` | No | `true` | Enable exponential backoff retries on S3 operations |
 | `retry-count` | No | `3` | Maximum number of S3 retries |
 | `use-fallback` | No | `false` | Fallback to GitHub Actions cache service if S3 fails |
+| `dual-cache` | No | `false` | Cache to both S3 and GitHub Actions Cache simultaneously |
+| `restore-priority` | No | `s3-first` | Cache source to query first: `s3-first` or `github-first` |
+| `dual-cache-strategy` | No | `backfill` | Sync strategy: `backfill` (sync missing tier), `independent`, `skip-on-hit` |
+| `dual-cache-strict` | No | `false` | Fail step if either tier encounters an error |
 
 ---
 
@@ -188,6 +211,8 @@ Zero egress fees for CI caches:
 - `cache-storage-provider`: Resolved storage provider (e.g. `r2`, `gcs`, `aws`).
 - `cache-s3-key`: Full S3 object key inside the bucket.
 - `cache-etag`: ETag checksum of the archive in S3.
+- `cache-hit-source`: The tier that serviced the hit: `s3`, `github`, or `none`.
+- `cache-saved-sources`: Tiers successfully saved to: `s3`, `github`, or `s3,github`.
 
 ---
 

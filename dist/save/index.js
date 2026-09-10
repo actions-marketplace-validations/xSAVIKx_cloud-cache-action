@@ -72914,6 +72914,11 @@ var Inputs;
     Inputs["Retry"] = "retry";
     Inputs["RetryCount"] = "retry-count";
     Inputs["UseFallback"] = "use-fallback";
+    // Dual-cache inputs
+    Inputs["DualCache"] = "dual-cache";
+    Inputs["RestorePriority"] = "restore-priority";
+    Inputs["DualCacheStrategy"] = "dual-cache-strategy";
+    Inputs["DualCacheStrict"] = "dual-cache-strict";
 })(Inputs || (exports.Inputs = Inputs = {}));
 var Outputs;
 (function (Outputs) {
@@ -72924,6 +72929,9 @@ var Outputs;
     Outputs["CacheStorageProvider"] = "cache-storage-provider";
     Outputs["CacheS3Key"] = "cache-s3-key";
     Outputs["CacheETag"] = "cache-etag";
+    // Dual-cache outputs
+    Outputs["CacheHitSource"] = "cache-hit-source";
+    Outputs["CacheSavedSources"] = "cache-saved-sources";
 })(Outputs || (exports.Outputs = Outputs = {}));
 var State;
 (function (State) {
@@ -72944,6 +72952,14 @@ var State;
     State["CacheRetry"] = "CACHE_RETRY";
     State["CacheRetryCount"] = "CACHE_RETRY_COUNT";
     State["CacheReadOnly"] = "CACHE_READ_ONLY";
+    // Dual-cache state
+    State["CacheDualCache"] = "CACHE_DUAL_CACHE";
+    State["CacheRestorePriority"] = "CACHE_RESTORE_PRIORITY";
+    State["CacheDualCacheStrategy"] = "CACHE_DUAL_CACHE_STRATEGY";
+    State["CacheDualCacheStrict"] = "CACHE_DUAL_CACHE_STRICT";
+    State["CacheS3ExactHit"] = "CACHE_S3_EXACT_HIT";
+    State["CacheGithubExactHit"] = "CACHE_GITHUB_EXACT_HIT";
+    State["CacheHitSource"] = "CACHE_HIT_SOURCE";
 })(State || (exports.State = State = {}));
 var Events;
 (function (Events) {
@@ -72955,6 +72971,8 @@ exports.Defaults = {
     DefaultArchiveFilenameZstd: 'cache.tar.zst',
     DefaultArchiveFilenameGzip: 'cache.tar.gz',
     DefaultRetryCount: 3,
+    DefaultRestorePriority: 's3-first',
+    DefaultDualCacheStrategy: 'backfill',
 };
 
 
@@ -72999,6 +73017,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.saveToS3 = saveToS3;
 exports.saveImpl = saveImpl;
 exports.runSave = runSave;
 exports.runSaveOnly = runSaveOnly;
@@ -73020,6 +73039,59 @@ const fallback_1 = __nccwpck_require__(48191);
 process.on('uncaughtException', (err) => {
     core.warning(`Unhandled cache save exception: ${err instanceof Error ? err.message : String(err)}`);
 });
+async function saveToS3(storageContext, primaryKey, cachePaths, s3KeyPattern, prefix, scopedToRepository, retryEnabled, retryCount, uploadChunkSize, enableCrossOsArchive, compression) {
+    const { client, bucket } = storageContext;
+    const s3ObjectKey = (0, pathUtils_1.buildS3ObjectKey)({
+        key: primaryKey,
+        prefix,
+        archiveFilename: compression.archiveFilename,
+        pattern: s3KeyPattern,
+        scopedToRepository,
+    });
+    core.debug(`Target S3 key for save: ${s3ObjectKey} in bucket: ${bucket}`);
+    // Check if object already exists in S3 (e.g. concurrent race)
+    try {
+        const existing = await (0, operations_1.checkObjectExists)(client, bucket, s3ObjectKey);
+        if (existing) {
+            core.info(`Cache object already exists at "${s3ObjectKey}". Skipping upload.`);
+            return {
+                size: existing.size,
+                s3ObjectKey,
+                etag: existing.etag,
+            };
+        }
+    }
+    catch (err) {
+        core.debug(`Object existence check error: ${err}`);
+    }
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+    const localArchive = path.join(tempDir, compression.archiveFilename);
+    try {
+        core.info(`Creating cache archive for paths: ${cachePaths.join(', ')}...`);
+        await (0, tar_1.createArchive)(localArchive, cachePaths, compression, enableCrossOsArchive);
+        const archiveSize = (0, tar_1.getArchiveSize)(localArchive);
+        core.info(`Archive created successfully. Size: ${(0, inputUtils_1.formatSize)(archiveSize)} (${archiveSize} bytes)`);
+        core.info(`Uploading cache archive to s3://${bucket}/${s3ObjectKey}...`);
+        const uploadResult = await (0, retry_1.withRetry)(() => (0, operations_1.uploadFile)(client, bucket, s3ObjectKey, localArchive, uploadChunkSize), {
+            retries: retryEnabled ? retryCount : 0,
+            operationName: `uploadFile (${s3ObjectKey})`,
+        });
+        core.info(`Cache saved to S3 successfully with key: ${primaryKey}`);
+        return {
+            size: uploadResult.size,
+            s3ObjectKey,
+            etag: uploadResult.etag,
+        };
+    }
+    finally {
+        try {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+        catch {
+            // Ignore cleanup error
+        }
+    }
+}
 async function saveImpl(stateProvider) {
     try {
         if (!(0, inputUtils_1.isValidEvent)()) {
@@ -73031,17 +73103,10 @@ async function saveImpl(stateProvider) {
             core.info('Read-only mode enabled. Skipping cache save.');
             return;
         }
-        // Resolve primary key from state or inputs
         const primaryKey = stateProvider.getState(constants_1.State.CachePrimaryKey) ||
             core.getInput(constants_1.Inputs.Key);
         if (!primaryKey) {
             core.warning('Key is not specified. Skipping cache save.');
-            return;
-        }
-        // If exact key was already restored in this job, skip saving
-        const restoredKey = stateProvider.getCacheState();
-        if (restoredKey && (0, inputUtils_1.isExactKeyMatch)(primaryKey, restoredKey)) {
-            core.info(`Cache hit occurred on primary key "${primaryKey}", not saving cache.`);
             return;
         }
         const cachePaths = (0, inputUtils_1.getInputAsArray)(constants_1.Inputs.Path, { required: true });
@@ -73068,81 +73133,127 @@ async function saveImpl(stateProvider) {
         const uploadChunkSize = (0, inputUtils_1.getInputAsInt)(constants_1.Inputs.UploadChunkSize);
         const enableCrossOsArchive = (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.EnableCrossOsArchive);
         const useFallback = (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.UseFallback, false);
-        let storageContext;
+        // Dual-cache configuration and restore states
+        const dualCacheState = stateProvider.getState(constants_1.State.CacheDualCache);
+        const dualCache = dualCacheState !== '' ? dualCacheState === 'true' : (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.DualCache, false);
+        const dualCacheStrategy = stateProvider.getState(constants_1.State.CacheDualCacheStrategy) ||
+            core.getInput(constants_1.Inputs.DualCacheStrategy) ||
+            constants_1.Defaults.DefaultDualCacheStrategy;
+        const dualCacheStrictState = stateProvider.getState(constants_1.State.CacheDualCacheStrict);
+        const dualCacheStrict = dualCacheStrictState !== ''
+            ? dualCacheStrictState === 'true'
+            : (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.DualCacheStrict, false);
+        const s3ExactHit = stateProvider.getState(constants_1.State.CacheS3ExactHit) === 'true';
+        const ghExactHit = stateProvider.getState(constants_1.State.CacheGithubExactHit) === 'true';
+        const restoredKey = stateProvider.getCacheState();
+        let storageContext = null;
         try {
             storageContext = (0, client_1.createStorageContext)();
             core.setOutput(constants_1.Outputs.CacheStorageProvider, storageContext.providerConfig.provider);
         }
         catch (err) {
-            if (useFallback) {
+            if (useFallback || dualCache) {
                 core.warning(`S3 client initialization failed during save: ${err instanceof Error ? err.message : String(err)}`);
-                await (0, fallback_1.fallbackSave)(cachePaths, primaryKey, { uploadChunkSize }, enableCrossOsArchive);
-                return;
-            }
-            throw err;
-        }
-        const { client, bucket } = storageContext;
-        const compression = await (0, compression_1.getCompressionConfig)();
-        const s3ObjectKey = (0, pathUtils_1.buildS3ObjectKey)({
-            key: primaryKey,
-            prefix,
-            archiveFilename: compression.archiveFilename,
-            pattern: s3KeyPattern,
-            scopedToRepository,
-        });
-        core.debug(`Target S3 key for save: ${s3ObjectKey} in bucket: ${bucket}`);
-        // Check if key already exists on S3 (prevent duplicate upload if another parallel job created it)
-        try {
-            const existing = await (0, operations_1.checkObjectExists)(client, bucket, s3ObjectKey);
-            if (existing) {
-                core.info(`Cache object already exists at "${s3ObjectKey}". Skipping save.`);
-                core.setOutput(constants_1.Outputs.CacheS3Key, s3ObjectKey);
-                core.setOutput(constants_1.Outputs.CacheSize, existing.size.toString());
-                if (existing.etag)
-                    core.setOutput(constants_1.Outputs.CacheETag, existing.etag);
-                return existing.size;
-            }
-        }
-        catch (err) {
-            core.debug(`Object check error: ${err}`);
-        }
-        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
-        const localArchive = path.join(tempDir, compression.archiveFilename);
-        try {
-            core.info(`Creating cache archive for paths: ${cachePaths.join(', ')}...`);
-            await (0, tar_1.createArchive)(localArchive, cachePaths, compression, enableCrossOsArchive);
-            const archiveSize = (0, tar_1.getArchiveSize)(localArchive);
-            core.info(`Archive created successfully. Size: ${(0, inputUtils_1.formatSize)(archiveSize)} (${archiveSize} bytes)`);
-            core.info(`Uploading cache archive to s3://${bucket}/${s3ObjectKey}...`);
-            const uploadResult = await (0, retry_1.withRetry)(() => (0, operations_1.uploadFile)(client, bucket, s3ObjectKey, localArchive, uploadChunkSize), {
-                retries: retryEnabled ? retryCount : 0,
-                operationName: `uploadFile (${s3ObjectKey})`,
-            });
-            core.info(`Cache saved to S3 successfully with key: ${primaryKey}`);
-            core.setOutput(constants_1.Outputs.CacheS3Key, s3ObjectKey);
-            core.setOutput(constants_1.Outputs.CacheSize, uploadResult.size.toString());
-            if (uploadResult.etag) {
-                core.setOutput(constants_1.Outputs.CacheETag, uploadResult.etag);
-            }
-            return uploadResult.size;
-        }
-        catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            if (useFallback) {
-                core.warning(`S3 save failed: ${msg}. Attempting fallback save...`);
-                await (0, fallback_1.fallbackSave)(cachePaths, primaryKey, { uploadChunkSize }, enableCrossOsArchive);
             }
             else {
-                core.warning(`Failed to save cache to S3: ${msg}`);
+                throw err;
             }
         }
-        finally {
+        const compression = await (0, compression_1.getCompressionConfig)();
+        const savedSources = [];
+        if (dualCache) {
+            core.info(`Dual-cache save executing (strategy: ${dualCacheStrategy})`);
+            // Determine S3 save necessity
+            let shouldSaveS3 = true;
+            if (s3ExactHit) {
+                core.info(`Exact hit already occurred in S3 for key "${primaryKey}", skipping S3 save.`);
+                shouldSaveS3 = false;
+                savedSources.push('s3');
+            }
+            else if (dualCacheStrategy === 'skip-on-hit' && (s3ExactHit || ghExactHit)) {
+                core.info('Cache hit occurred on another tier; strategy is skip-on-hit, skipping S3 save.');
+                shouldSaveS3 = false;
+            }
+            // Determine GitHub Cache save necessity
+            let shouldSaveGH = true;
+            if (ghExactHit) {
+                core.info(`Exact hit already occurred in GitHub Cache for key "${primaryKey}", skipping GitHub save.`);
+                shouldSaveGH = false;
+                savedSources.push('github');
+            }
+            else if (dualCacheStrategy === 'skip-on-hit' && (s3ExactHit || ghExactHit)) {
+                core.info('Cache hit occurred on another tier; strategy is skip-on-hit, skipping GitHub save.');
+                shouldSaveGH = false;
+            }
+            // 1. Save to S3 if needed
+            if (shouldSaveS3 && storageContext) {
+                try {
+                    core.info(`Saving/backfilling cache to S3...`);
+                    const s3Res = await saveToS3(storageContext, primaryKey, cachePaths, s3KeyPattern, prefix, scopedToRepository, retryEnabled, retryCount, uploadChunkSize, enableCrossOsArchive, compression);
+                    savedSources.push('s3');
+                    core.setOutput(constants_1.Outputs.CacheS3Key, s3Res.s3ObjectKey);
+                    core.setOutput(constants_1.Outputs.CacheSize, s3Res.size.toString());
+                    if (s3Res.etag)
+                        core.setOutput(constants_1.Outputs.CacheETag, s3Res.etag);
+                }
+                catch (err) {
+                    if (dualCacheStrict)
+                        throw err;
+                    core.warning(`Dual-cache S3 save error: ${err instanceof Error ? err.message : String(err)}`);
+                }
+            }
+            // 2. Save to GitHub Cache if needed
+            if (shouldSaveGH) {
+                try {
+                    core.info(`Saving/backfilling cache to GitHub Actions Cache...`);
+                    const ghRes = await (0, fallback_1.fallbackSave)(cachePaths, primaryKey, { uploadChunkSize }, enableCrossOsArchive);
+                    if (ghRes !== undefined) {
+                        savedSources.push('github');
+                    }
+                }
+                catch (err) {
+                    if (dualCacheStrict)
+                        throw err;
+                    core.warning(`Dual-cache GitHub save error: ${err instanceof Error ? err.message : String(err)}`);
+                }
+            }
+            const finalSaved = Array.from(new Set(savedSources));
+            core.setOutput(constants_1.Outputs.CacheSavedSources, finalSaved.join(',') || 'none');
+            core.info(`Dual-cache save complete. Active cache sources: ${finalSaved.join(', ') || 'none'}`);
+            return;
+        }
+        // Standard Pure-S3 Save
+        if (restoredKey && (0, inputUtils_1.isExactKeyMatch)(primaryKey, restoredKey)) {
+            core.info(`Cache hit occurred on primary key "${primaryKey}", not saving cache.`);
+            core.setOutput(constants_1.Outputs.CacheSavedSources, 'none');
+            return;
+        }
+        if (storageContext) {
             try {
-                fs.rmSync(tempDir, { recursive: true, force: true });
+                const s3Res = await saveToS3(storageContext, primaryKey, cachePaths, s3KeyPattern, prefix, scopedToRepository, retryEnabled, retryCount, uploadChunkSize, enableCrossOsArchive, compression);
+                core.setOutput(constants_1.Outputs.CacheS3Key, s3Res.s3ObjectKey);
+                core.setOutput(constants_1.Outputs.CacheSize, s3Res.size.toString());
+                core.setOutput(constants_1.Outputs.CacheSavedSources, 's3');
+                if (s3Res.etag)
+                    core.setOutput(constants_1.Outputs.CacheETag, s3Res.etag);
+                return s3Res.size;
             }
-            catch {
-                // Ignore cleanup error
+            catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                if (useFallback) {
+                    core.warning(`S3 save failed: ${msg}. Attempting fallback save to GitHub...`);
+                    await (0, fallback_1.fallbackSave)(cachePaths, primaryKey, { uploadChunkSize }, enableCrossOsArchive);
+                    core.setOutput(constants_1.Outputs.CacheSavedSources, 'github');
+                }
+                else {
+                    core.warning(`Failed to save cache to S3: ${msg}`);
+                    core.setOutput(constants_1.Outputs.CacheSavedSources, 'none');
+                }
             }
+        }
+        else if (useFallback) {
+            await (0, fallback_1.fallbackSave)(cachePaths, primaryKey, { uploadChunkSize }, enableCrossOsArchive);
+            core.setOutput(constants_1.Outputs.CacheSavedSources, 'github');
         }
     }
     catch (err) {

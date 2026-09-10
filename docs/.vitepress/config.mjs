@@ -7,6 +7,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
+      { text: 'Dual Caching', link: '/guide/dual-caching' },
       { text: 'Providers', link: '/providers/aws-s3' },
       { text: 'Key Patterns', link: '/guide/s3-key-patterns' },
       { text: 'Migration', link: '/guide/migration' },
@@ -16,6 +17,7 @@ export default defineConfig({
         text: 'Getting Started',
         items: [
           { text: 'Introduction', link: '/guide/getting-started' },
+          { text: 'Dual Caching (S3 + GitHub)', link: '/guide/dual-caching' },
           { text: 'S3 Key Templating', link: '/guide/s3-key-patterns' },
           { text: 'Migrating from actions/cache', link: '/guide/migration' },
         ],

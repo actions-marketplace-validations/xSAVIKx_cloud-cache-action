@@ -26,6 +26,12 @@ export enum Inputs {
   Retry = 'retry',
   RetryCount = 'retry-count',
   UseFallback = 'use-fallback',
+
+  // Dual-cache inputs
+  DualCache = 'dual-cache',
+  RestorePriority = 'restore-priority',
+  DualCacheStrategy = 'dual-cache-strategy',
+  DualCacheStrict = 'dual-cache-strict',
 }
 
 export enum Outputs {
@@ -36,6 +42,10 @@ export enum Outputs {
   CacheStorageProvider = 'cache-storage-provider',
   CacheS3Key = 'cache-s3-key',
   CacheETag = 'cache-etag',
+
+  // Dual-cache outputs
+  CacheHitSource = 'cache-hit-source',
+  CacheSavedSources = 'cache-saved-sources',
 }
 
 export enum State {
@@ -56,6 +66,15 @@ export enum State {
   CacheRetry = 'CACHE_RETRY',
   CacheRetryCount = 'CACHE_RETRY_COUNT',
   CacheReadOnly = 'CACHE_READ_ONLY',
+
+  // Dual-cache state
+  CacheDualCache = 'CACHE_DUAL_CACHE',
+  CacheRestorePriority = 'CACHE_RESTORE_PRIORITY',
+  CacheDualCacheStrategy = 'CACHE_DUAL_CACHE_STRATEGY',
+  CacheDualCacheStrict = 'CACHE_DUAL_CACHE_STRICT',
+  CacheS3ExactHit = 'CACHE_S3_EXACT_HIT',
+  CacheGithubExactHit = 'CACHE_GITHUB_EXACT_HIT',
+  CacheHitSource = 'CACHE_HIT_SOURCE',
 }
 
 export enum Events {
@@ -68,4 +87,6 @@ export const Defaults = {
   DefaultArchiveFilenameZstd: 'cache.tar.zst',
   DefaultArchiveFilenameGzip: 'cache.tar.gz',
   DefaultRetryCount: 3,
+  DefaultRestorePriority: 's3-first',
+  DefaultDualCacheStrategy: 'backfill',
 };

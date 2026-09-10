@@ -72914,6 +72914,11 @@ var Inputs;
     Inputs["Retry"] = "retry";
     Inputs["RetryCount"] = "retry-count";
     Inputs["UseFallback"] = "use-fallback";
+    // Dual-cache inputs
+    Inputs["DualCache"] = "dual-cache";
+    Inputs["RestorePriority"] = "restore-priority";
+    Inputs["DualCacheStrategy"] = "dual-cache-strategy";
+    Inputs["DualCacheStrict"] = "dual-cache-strict";
 })(Inputs || (exports.Inputs = Inputs = {}));
 var Outputs;
 (function (Outputs) {
@@ -72924,6 +72929,9 @@ var Outputs;
     Outputs["CacheStorageProvider"] = "cache-storage-provider";
     Outputs["CacheS3Key"] = "cache-s3-key";
     Outputs["CacheETag"] = "cache-etag";
+    // Dual-cache outputs
+    Outputs["CacheHitSource"] = "cache-hit-source";
+    Outputs["CacheSavedSources"] = "cache-saved-sources";
 })(Outputs || (exports.Outputs = Outputs = {}));
 var State;
 (function (State) {
@@ -72944,6 +72952,14 @@ var State;
     State["CacheRetry"] = "CACHE_RETRY";
     State["CacheRetryCount"] = "CACHE_RETRY_COUNT";
     State["CacheReadOnly"] = "CACHE_READ_ONLY";
+    // Dual-cache state
+    State["CacheDualCache"] = "CACHE_DUAL_CACHE";
+    State["CacheRestorePriority"] = "CACHE_RESTORE_PRIORITY";
+    State["CacheDualCacheStrategy"] = "CACHE_DUAL_CACHE_STRATEGY";
+    State["CacheDualCacheStrict"] = "CACHE_DUAL_CACHE_STRICT";
+    State["CacheS3ExactHit"] = "CACHE_S3_EXACT_HIT";
+    State["CacheGithubExactHit"] = "CACHE_GITHUB_EXACT_HIT";
+    State["CacheHitSource"] = "CACHE_HIT_SOURCE";
 })(State || (exports.State = State = {}));
 var Events;
 (function (Events) {
@@ -72955,6 +72971,8 @@ exports.Defaults = {
     DefaultArchiveFilenameZstd: 'cache.tar.zst',
     DefaultArchiveFilenameGzip: 'cache.tar.gz',
     DefaultRetryCount: 3,
+    DefaultRestorePriority: 's3-first',
+    DefaultDualCacheStrategy: 'backfill',
 };
 
 
@@ -72999,6 +73017,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.restoreFromS3 = restoreFromS3;
 exports.restoreImpl = restoreImpl;
 exports.runRestore = runRestore;
 exports.runRestoreOnly = runRestoreOnly;
@@ -73016,6 +73035,116 @@ const retry_1 = __nccwpck_require__(43091);
 const compression_1 = __nccwpck_require__(4604);
 const tar_1 = __nccwpck_require__(29661);
 const fallback_1 = __nccwpck_require__(48191);
+async function restoreFromS3(storageContext, primaryKey, restoreKeys, s3KeyPattern, prefix, scopedToRepository, retryEnabled, retryCount, lookupOnly, compression) {
+    const { client, bucket } = storageContext;
+    const exactObjectKey = (0, pathUtils_1.buildS3ObjectKey)({
+        key: primaryKey,
+        prefix,
+        archiveFilename: compression.archiveFilename,
+        pattern: s3KeyPattern,
+        scopedToRepository,
+    });
+    core.debug(`Checking exact S3 key match: ${exactObjectKey} in bucket: ${bucket}`);
+    let exactObject = null;
+    try {
+        exactObject = await (0, retry_1.withRetry)(() => (0, operations_1.checkObjectExists)(client, bucket, exactObjectKey), {
+            retries: retryEnabled ? retryCount : 0,
+            operationName: `checkObjectExists (${exactObjectKey})`,
+        });
+    }
+    catch (err) {
+        core.warning(`Error checking S3 cache object: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (exactObject) {
+        core.info(`Exact S3 cache hit on key: ${primaryKey} (${(0, inputUtils_1.formatSize)(exactObject.size)})`);
+        if (!lookupOnly) {
+            const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-'));
+            const localArchive = path.join(tempDir, compression.archiveFilename);
+            try {
+                core.info(`Downloading cache archive from s3://${bucket}/${exactObjectKey}...`);
+                await (0, retry_1.withRetry)(() => (0, operations_1.downloadFile)(client, bucket, exactObjectKey, localArchive), {
+                    retries: retryEnabled ? retryCount : 0,
+                    operationName: `downloadFile (${exactObjectKey})`,
+                });
+                core.info(`Extracting cache archive to working directory...`);
+                await (0, tar_1.extractArchive)(localArchive, compression);
+                core.info(`Cache restored successfully from S3 key: ${primaryKey}`);
+            }
+            finally {
+                try {
+                    fs.rmSync(tempDir, { recursive: true, force: true });
+                }
+                catch {
+                    // Ignore cleanup error
+                }
+            }
+        }
+        return {
+            matchedKey: primaryKey,
+            isExactHit: true,
+            s3ObjectKey: exactObjectKey,
+            size: exactObject.size,
+            etag: exactObject.etag,
+        };
+    }
+    // Exact match not found; search restore-keys in S3
+    core.debug(`Exact S3 match not found. Searching restore keys: ${restoreKeys.join(', ')}`);
+    for (const restoreKey of restoreKeys) {
+        const searchPrefix = (0, pathUtils_1.buildS3SearchPrefix)(restoreKey, {
+            prefix,
+            pattern: s3KeyPattern,
+            scopedToRepository,
+        });
+        try {
+            const objects = await (0, retry_1.withRetry)(() => (0, operations_1.listObjectsWithPrefix)(client, bucket, searchPrefix), {
+                retries: retryEnabled ? retryCount : 0,
+                operationName: `listObjectsWithPrefix (${searchPrefix})`,
+            });
+            const validObjects = objects.filter((o) => o.key.endsWith(`/${compression.archiveFilename}`) ||
+                o.key.endsWith(compression.archiveFilename));
+            if (validObjects.length > 0) {
+                validObjects.sort((a, b) => (b.lastModified?.getTime() ?? 0) - (a.lastModified?.getTime() ?? 0));
+                const matchedObj = validObjects[0];
+                const matchedKey = (0, pathUtils_1.extractKeyFromS3Object)(matchedObj.key, searchPrefix, compression.archiveFilename);
+                const isExact = (0, inputUtils_1.isExactKeyMatch)(primaryKey, matchedKey);
+                core.info(`S3 cache prefix hit: resolved key "${matchedKey}" using prefix "${restoreKey}" (${(0, inputUtils_1.formatSize)(matchedObj.size)})`);
+                if (!lookupOnly) {
+                    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-'));
+                    const localArchive = path.join(tempDir, compression.archiveFilename);
+                    try {
+                        core.info(`Downloading cache archive from s3://${bucket}/${matchedObj.key}...`);
+                        await (0, retry_1.withRetry)(() => (0, operations_1.downloadFile)(client, bucket, matchedObj.key, localArchive), {
+                            retries: retryEnabled ? retryCount : 0,
+                            operationName: `downloadFile (${matchedObj.key})`,
+                        });
+                        core.info(`Extracting cache archive to working directory...`);
+                        await (0, tar_1.extractArchive)(localArchive, compression);
+                        core.info(`Cache restored successfully from S3 key: ${matchedKey}`);
+                    }
+                    finally {
+                        try {
+                            fs.rmSync(tempDir, { recursive: true, force: true });
+                        }
+                        catch {
+                            // Ignore cleanup error
+                        }
+                    }
+                }
+                return {
+                    matchedKey,
+                    isExactHit: isExact,
+                    s3ObjectKey: matchedObj.key,
+                    size: matchedObj.size,
+                    etag: matchedObj.etag,
+                };
+            }
+        }
+        catch (err) {
+            core.warning(`Error querying S3 prefix "${searchPrefix}": ${err instanceof Error ? err.message : String(err)}`);
+        }
+    }
+    return null;
+}
 async function restoreImpl(stateProvider, earlyExit) {
     try {
         if (!(0, inputUtils_1.isValidEvent)()) {
@@ -73029,6 +73158,7 @@ async function restoreImpl(stateProvider, earlyExit) {
         const failOnCacheMiss = (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.FailOnCacheMiss);
         const lookupOnly = (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.LookupOnly);
         const readOnly = (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.ReadOnly);
+        const enableCrossOsArchive = (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.EnableCrossOsArchive);
         stateProvider.setState(constants_1.State.CacheReadOnly, String(readOnly));
         const s3KeyPattern = core.getInput(constants_1.Inputs.S3KeyPattern) || constants_1.Defaults.DefaultS3KeyPattern;
         const prefix = core.getInput(constants_1.Inputs.Prefix) || '';
@@ -73036,151 +73166,180 @@ async function restoreImpl(stateProvider, earlyExit) {
         const retryEnabled = (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.Retry, true);
         const retryCount = (0, inputUtils_1.getInputAsInt)(constants_1.Inputs.RetryCount, constants_1.Defaults.DefaultRetryCount) || 3;
         const useFallback = (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.UseFallback, false);
-        // Save configuration into state so post-run save step can reuse it
+        // Dual-cache configuration
+        const dualCache = (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.DualCache, false);
+        const restorePriority = core.getInput(constants_1.Inputs.RestorePriority) || constants_1.Defaults.DefaultRestorePriority;
+        const dualCacheStrategy = core.getInput(constants_1.Inputs.DualCacheStrategy) || constants_1.Defaults.DefaultDualCacheStrategy;
+        const dualCacheStrict = (0, inputUtils_1.getInputAsBool)(constants_1.Inputs.DualCacheStrict, false);
+        // Persist configuration for post-save step
         stateProvider.setState(constants_1.State.CacheS3KeyPattern, s3KeyPattern);
         stateProvider.setState(constants_1.State.CachePrefix, prefix);
         stateProvider.setState(constants_1.State.CacheScopedToRepository, String(scopedToRepository));
         stateProvider.setState(constants_1.State.CacheRetry, String(retryEnabled));
         stateProvider.setState(constants_1.State.CacheRetryCount, String(retryCount));
+        stateProvider.setState(constants_1.State.CacheDualCache, String(dualCache));
+        stateProvider.setState(constants_1.State.CacheRestorePriority, restorePriority);
+        stateProvider.setState(constants_1.State.CacheDualCacheStrategy, dualCacheStrategy);
+        stateProvider.setState(constants_1.State.CacheDualCacheStrict, String(dualCacheStrict));
         core.setOutput(constants_1.Outputs.CacheHit, 'false');
-        let storageContext;
+        core.setOutput(constants_1.Outputs.CacheHitSource, 'none');
+        let storageContext = null;
         try {
             storageContext = (0, client_1.createStorageContext)();
             core.setOutput(constants_1.Outputs.CacheStorageProvider, storageContext.providerConfig.provider);
             stateProvider.setState(constants_1.State.CacheStorageProvider, storageContext.providerConfig.provider);
         }
         catch (err) {
-            if (useFallback) {
+            if (useFallback || dualCache) {
                 core.warning(`S3 client initialization failed: ${err instanceof Error ? err.message : String(err)}`);
-                return await handleFallbackRestore(cachePaths, primaryKey, restoreKeys, lookupOnly, failOnCacheMiss);
             }
-            throw err;
+            else {
+                throw err;
+            }
         }
-        const { client, bucket } = storageContext;
         const compression = await (0, compression_1.getCompressionConfig)();
-        const exactObjectKey = (0, pathUtils_1.buildS3ObjectKey)({
-            key: primaryKey,
-            prefix,
-            archiveFilename: compression.archiveFilename,
-            pattern: s3KeyPattern,
-            scopedToRepository,
-        });
-        core.debug(`Checking exact S3 key match: ${exactObjectKey} in bucket: ${bucket}`);
-        // Check exact match
-        let exactObject = null;
-        try {
-            exactObject = await (0, retry_1.withRetry)(() => (0, operations_1.checkObjectExists)(client, bucket, exactObjectKey), {
-                retries: retryEnabled ? retryCount : 0,
-                operationName: `checkObjectExists (${exactObjectKey})`,
-            });
-        }
-        catch (err) {
-            core.warning(`Error checking S3 cache object: ${err instanceof Error ? err.message : String(err)}`);
-        }
-        if (exactObject) {
-            core.info(`Exact cache hit on key: ${primaryKey} (${(0, inputUtils_1.formatSize)(exactObject.size)})`);
-            stateProvider.setState(constants_1.State.CacheMatchedKey, primaryKey);
-            stateProvider.setState(constants_1.State.CacheS3Key, exactObjectKey);
-            core.setOutput(constants_1.Outputs.CacheHit, 'true');
-            core.setOutput(constants_1.Outputs.CacheMatchedKey, primaryKey);
-            core.setOutput(constants_1.Outputs.CacheS3Key, exactObjectKey);
-            core.setOutput(constants_1.Outputs.CacheSize, exactObject.size.toString());
-            if (exactObject.etag) {
-                core.setOutput(constants_1.Outputs.CacheETag, exactObject.etag);
-            }
-            if (lookupOnly) {
-                core.info(`Cache found and can be restored from key: ${primaryKey} (lookup-only is enabled)`);
-                return primaryKey;
-            }
-            const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-'));
-            const localArchive = path.join(tempDir, compression.archiveFilename);
-            try {
-                core.info(`Downloading cache archive from s3://${bucket}/${exactObjectKey}...`);
-                await (0, retry_1.withRetry)(() => (0, operations_1.downloadFile)(client, bucket, exactObjectKey, localArchive), {
-                    retries: retryEnabled ? retryCount : 0,
-                    operationName: `downloadFile (${exactObjectKey})`,
-                });
-                core.info(`Extracting cache archive to working directory...`);
-                await (0, tar_1.extractArchive)(localArchive, compression);
-                core.info(`Cache restored successfully from key: ${primaryKey}`);
-                return primaryKey;
-            }
-            finally {
+        const tryS3 = async () => {
+            if (!storageContext)
+                return null;
+            return await restoreFromS3(storageContext, primaryKey, restoreKeys, s3KeyPattern, prefix, scopedToRepository, retryEnabled, retryCount, lookupOnly, compression);
+        };
+        const tryGitHub = async () => {
+            core.info('Querying GitHub Actions native cache service...');
+            return await (0, fallback_1.fallbackRestore)(cachePaths, primaryKey, restoreKeys, { lookupOnly }, enableCrossOsArchive);
+        };
+        let resolvedMatchedKey;
+        let hitSource = 'none';
+        if (dualCache) {
+            core.info(`Dual-caching enabled (priority: ${restorePriority}, strategy: ${dualCacheStrategy})`);
+            if (restorePriority === 'github-first') {
+                // 1. Try GitHub Cache first
                 try {
-                    fs.rmSync(tempDir, { recursive: true, force: true });
-                }
-                catch {
-                    // Ignore cleanup error
-                }
-            }
-        }
-        // Exact match was not found; search restore-keys
-        core.debug(`Exact match not found. Searching restore keys: ${restoreKeys.join(', ')}`);
-        for (const restoreKey of restoreKeys) {
-            const searchPrefix = (0, pathUtils_1.buildS3SearchPrefix)(restoreKey, {
-                prefix,
-                pattern: s3KeyPattern,
-                scopedToRepository,
-            });
-            core.debug(`Searching S3 objects with prefix: ${searchPrefix}`);
-            try {
-                const objects = await (0, retry_1.withRetry)(() => (0, operations_1.listObjectsWithPrefix)(client, bucket, searchPrefix), {
-                    retries: retryEnabled ? retryCount : 0,
-                    operationName: `listObjectsWithPrefix (${searchPrefix})`,
-                });
-                // Filter objects containing archive filename extension
-                const validObjects = objects.filter((o) => o.key.endsWith(`/${compression.archiveFilename}`) ||
-                    o.key.endsWith(compression.archiveFilename));
-                if (validObjects.length > 0) {
-                    // Sort by LastModified descending
-                    validObjects.sort((a, b) => (b.lastModified?.getTime() ?? 0) - (a.lastModified?.getTime() ?? 0));
-                    const matchedObj = validObjects[0];
-                    const matchedKey = (0, pathUtils_1.extractKeyFromS3Object)(matchedObj.key, searchPrefix, compression.archiveFilename);
-                    core.info(`Cache prefix hit: resolved key "${matchedKey}" using prefix "${restoreKey}" (${(0, inputUtils_1.formatSize)(matchedObj.size)})`);
-                    stateProvider.setState(constants_1.State.CacheMatchedKey, matchedKey);
-                    stateProvider.setState(constants_1.State.CacheS3Key, matchedObj.key);
-                    const isExact = (0, inputUtils_1.isExactKeyMatch)(primaryKey, matchedKey);
-                    core.setOutput(constants_1.Outputs.CacheHit, isExact.toString());
-                    core.setOutput(constants_1.Outputs.CacheMatchedKey, matchedKey);
-                    core.setOutput(constants_1.Outputs.CacheS3Key, matchedObj.key);
-                    core.setOutput(constants_1.Outputs.CacheSize, matchedObj.size.toString());
-                    if (matchedObj.etag) {
-                        core.setOutput(constants_1.Outputs.CacheETag, matchedObj.etag);
+                    const ghKey = await tryGitHub();
+                    if (ghKey) {
+                        resolvedMatchedKey = ghKey;
+                        hitSource = 'github';
+                        if ((0, inputUtils_1.isExactKeyMatch)(primaryKey, ghKey)) {
+                            stateProvider.setState(constants_1.State.CacheGithubExactHit, 'true');
+                        }
                     }
-                    if (lookupOnly) {
-                        core.info(`Cache found and can be restored from key: ${matchedKey} (lookup-only is enabled)`);
-                        return matchedKey;
-                    }
-                    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-'));
-                    const localArchive = path.join(tempDir, compression.archiveFilename);
+                }
+                catch (err) {
+                    if (dualCacheStrict)
+                        throw err;
+                    core.warning(`GitHub cache query error: ${err instanceof Error ? err.message : String(err)}`);
+                }
+                // 2. Fallback to S3 if GitHub cache missed
+                if (!resolvedMatchedKey && storageContext) {
+                    core.info('GitHub cache missed; querying S3 storage...');
                     try {
-                        core.info(`Downloading cache archive from s3://${bucket}/${matchedObj.key}...`);
-                        await (0, retry_1.withRetry)(() => (0, operations_1.downloadFile)(client, bucket, matchedObj.key, localArchive), {
-                            retries: retryEnabled ? retryCount : 0,
-                            operationName: `downloadFile (${matchedObj.key})`,
-                        });
-                        core.info(`Extracting cache archive to working directory...`);
-                        await (0, tar_1.extractArchive)(localArchive, compression);
-                        core.info(`Cache restored successfully from key: ${matchedKey}`);
-                        return matchedKey;
+                        const s3Result = await tryS3();
+                        if (s3Result) {
+                            resolvedMatchedKey = s3Result.matchedKey;
+                            hitSource = 's3';
+                            if (s3Result.isExactHit) {
+                                stateProvider.setState(constants_1.State.CacheS3ExactHit, 'true');
+                            }
+                            stateProvider.setState(constants_1.State.CacheS3Key, s3Result.s3ObjectKey);
+                            core.setOutput(constants_1.Outputs.CacheS3Key, s3Result.s3ObjectKey);
+                            core.setOutput(constants_1.Outputs.CacheSize, s3Result.size.toString());
+                            if (s3Result.etag)
+                                core.setOutput(constants_1.Outputs.CacheETag, s3Result.etag);
+                        }
                     }
-                    finally {
-                        try {
-                            fs.rmSync(tempDir, { recursive: true, force: true });
-                        }
-                        catch {
-                            // Ignore cleanup error
-                        }
+                    catch (err) {
+                        if (dualCacheStrict)
+                            throw err;
+                        core.warning(`S3 cache query error: ${err instanceof Error ? err.message : String(err)}`);
                     }
                 }
             }
-            catch (err) {
-                core.warning(`Error querying S3 prefix "${searchPrefix}": ${err instanceof Error ? err.message : String(err)}`);
+            else {
+                // s3-first (default)
+                // 1. Try S3 first
+                if (storageContext) {
+                    try {
+                        const s3Result = await tryS3();
+                        if (s3Result) {
+                            resolvedMatchedKey = s3Result.matchedKey;
+                            hitSource = 's3';
+                            if (s3Result.isExactHit) {
+                                stateProvider.setState(constants_1.State.CacheS3ExactHit, 'true');
+                            }
+                            stateProvider.setState(constants_1.State.CacheS3Key, s3Result.s3ObjectKey);
+                            core.setOutput(constants_1.Outputs.CacheS3Key, s3Result.s3ObjectKey);
+                            core.setOutput(constants_1.Outputs.CacheSize, s3Result.size.toString());
+                            if (s3Result.etag)
+                                core.setOutput(constants_1.Outputs.CacheETag, s3Result.etag);
+                        }
+                    }
+                    catch (err) {
+                        if (dualCacheStrict)
+                            throw err;
+                        core.warning(`S3 cache query error: ${err instanceof Error ? err.message : String(err)}`);
+                    }
+                }
+                // 2. Fallback to GitHub Cache if S3 missed
+                if (!resolvedMatchedKey) {
+                    core.info('S3 storage missed; querying GitHub cache...');
+                    try {
+                        const ghKey = await tryGitHub();
+                        if (ghKey) {
+                            resolvedMatchedKey = ghKey;
+                            hitSource = 'github';
+                            if ((0, inputUtils_1.isExactKeyMatch)(primaryKey, ghKey)) {
+                                stateProvider.setState(constants_1.State.CacheGithubExactHit, 'true');
+                            }
+                        }
+                    }
+                    catch (err) {
+                        if (dualCacheStrict)
+                            throw err;
+                        core.warning(`GitHub cache query error: ${err instanceof Error ? err.message : String(err)}`);
+                    }
+                }
             }
         }
-        // If S3 restore had no match, check fallback
-        if (useFallback) {
-            return await handleFallbackRestore(cachePaths, primaryKey, restoreKeys, lookupOnly, failOnCacheMiss);
+        else {
+            // Pure S3 Mode (standard)
+            if (storageContext) {
+                const s3Result = await tryS3();
+                if (s3Result) {
+                    resolvedMatchedKey = s3Result.matchedKey;
+                    hitSource = 's3';
+                    if (s3Result.isExactHit) {
+                        stateProvider.setState(constants_1.State.CacheS3ExactHit, 'true');
+                    }
+                    stateProvider.setState(constants_1.State.CacheS3Key, s3Result.s3ObjectKey);
+                    core.setOutput(constants_1.Outputs.CacheS3Key, s3Result.s3ObjectKey);
+                    core.setOutput(constants_1.Outputs.CacheSize, s3Result.size.toString());
+                    if (s3Result.etag)
+                        core.setOutput(constants_1.Outputs.CacheETag, s3Result.etag);
+                }
+            }
+            // Standalone use-fallback option
+            if (!resolvedMatchedKey && useFallback) {
+                core.info('S3 cache missed; checking use-fallback GitHub cache...');
+                const ghKey = await tryGitHub();
+                if (ghKey) {
+                    resolvedMatchedKey = ghKey;
+                    hitSource = 'github';
+                }
+            }
+        }
+        stateProvider.setState(constants_1.State.CacheHitSource, hitSource);
+        core.setOutput(constants_1.Outputs.CacheHitSource, hitSource);
+        if (resolvedMatchedKey) {
+            stateProvider.setState(constants_1.State.CacheMatchedKey, resolvedMatchedKey);
+            const isExact = (0, inputUtils_1.isExactKeyMatch)(primaryKey, resolvedMatchedKey);
+            core.setOutput(constants_1.Outputs.CacheHit, isExact.toString());
+            core.setOutput(constants_1.Outputs.CacheMatchedKey, resolvedMatchedKey);
+            if (lookupOnly) {
+                core.info(`Cache found from source "${hitSource}" and can be restored from key: ${resolvedMatchedKey}`);
+            }
+            else {
+                core.info(`Cache restored successfully from source "${hitSource}" with key: ${resolvedMatchedKey}`);
+            }
+            return resolvedMatchedKey;
         }
         if (failOnCacheMiss) {
             throw new Error(`Failed to restore cache entry. Exiting as fail-on-cache-miss is set. Input key: ${primaryKey}`);
@@ -73195,21 +73354,6 @@ async function restoreImpl(stateProvider, earlyExit) {
             process.exit(1);
         }
     }
-}
-async function handleFallbackRestore(cachePaths, primaryKey, restoreKeys, lookupOnly, failOnCacheMiss) {
-    const fallbackKey = await (0, fallback_1.fallbackRestore)(cachePaths, primaryKey, restoreKeys, { lookupOnly });
-    if (fallbackKey) {
-        const isExact = (0, inputUtils_1.isExactKeyMatch)(primaryKey, fallbackKey);
-        core.setOutput(constants_1.Outputs.CacheHit, isExact.toString());
-        core.setOutput(constants_1.Outputs.CacheMatchedKey, fallbackKey);
-        core.info(`Fallback cache restored successfully from key: ${fallbackKey}`);
-        return fallbackKey;
-    }
-    if (failOnCacheMiss) {
-        throw new Error(`Failed to restore cache entry. Exiting as fail-on-cache-miss is set. Input key: ${primaryKey}`);
-    }
-    core.info('Fallback cache restore did not find matching cache.');
-    return undefined;
 }
 async function runRestore(earlyExit = true) {
     await restoreImpl(new state_1.StateProvider(), earlyExit);
