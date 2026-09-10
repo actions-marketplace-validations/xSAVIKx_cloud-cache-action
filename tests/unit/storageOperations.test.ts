@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { mockClient } from 'aws-sdk-client-mock';
 import {
   S3Client,
@@ -124,7 +125,7 @@ describe('Storage Operations', () => {
   describe('withRetry', () => {
     it('retries until success within limit', async () => {
       let attempts = 0;
-      const fn = jest.fn().mockImplementation(async () => {
+      const fn = jest.fn<() => Promise<string>>().mockImplementation(async () => {
         attempts++;
         if (attempts < 3) {
           throw new Error('Transient error');
@@ -142,7 +143,7 @@ describe('Storage Operations', () => {
     });
 
     it('throws if all retries are exhausted', async () => {
-      const fn = jest.fn().mockRejectedValue(new Error('Permanent failure'));
+      const fn = jest.fn<() => Promise<void>>().mockRejectedValue(new Error('Permanent failure'));
 
       await expect(
         withRetry(fn, {

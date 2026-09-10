@@ -1,14 +1,23 @@
-import { Inputs, Outputs, State } from '../../src/constants';
-import { StateProvider, NullStateProvider } from '../../src/state';
-import {
+import { jest } from '@jest/globals';
+
+const mockSaveState = jest.fn<(k: string, v: string) => void>();
+const mockGetState = jest.fn<(k: string) => string>();
+const mockGetInput = jest.fn<(k: string, options?: unknown) => string>();
+
+jest.unstable_mockModule('@actions/core', () => ({
+  saveState: mockSaveState,
+  getState: mockGetState,
+  getInput: mockGetInput,
+}));
+
+const { Inputs, Outputs, State } = await import('../../src/constants');
+const { StateProvider, NullStateProvider } = await import('../../src/state');
+const {
   getInputAsArray,
   getInputAsBool,
   getInputAsInt,
   isExactKeyMatch,
-} from '../../src/utils/inputUtils';
-import * as core from '@actions/core';
-
-jest.mock('@actions/core');
+} = await import('../../src/utils/inputUtils');
 
 describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
   beforeEach(() => {
@@ -63,12 +72,10 @@ describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
   describe('State Management Parity', () => {
     it('StateProvider stores and restores keys matching actions/cache state lifecycle', () => {
       const stateMap = new Map<string, string>();
-      (core.saveState as jest.Mock).mockImplementation((k, v) =>
-        stateMap.set(k, v)
-      );
-      (core.getState as jest.Mock).mockImplementation((k) =>
-        stateMap.get(k) || ''
-      );
+      mockSaveState.mockImplementation((k: string, v: string) => {
+        stateMap.set(k, v);
+      });
+      mockGetState.mockImplementation((k: string) => stateMap.get(k) || '');
 
       const provider = new StateProvider();
       provider.setState(State.CachePrimaryKey, 'test-primary-key');
@@ -76,7 +83,7 @@ describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
 
       expect(provider.getState(State.CachePrimaryKey)).toBe('test-primary-key');
       expect(provider.getCacheState()).toBe('test-matched-key');
-      expect(core.saveState).toHaveBeenCalledWith(
+      expect(mockSaveState).toHaveBeenCalledWith(
         State.CachePrimaryKey,
         'test-primary-key'
       );
@@ -87,13 +94,13 @@ describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
       provider.setState(State.CachePrimaryKey, 'standalone-key');
 
       expect(provider.getState(State.CachePrimaryKey)).toBe('standalone-key');
-      expect(core.saveState).not.toHaveBeenCalled();
+      expect(mockSaveState).not.toHaveBeenCalled();
     });
   });
 
   describe('Input Parser Semantics Parity', () => {
     it('parses multiline paths identical to actions/cache', () => {
-      (core.getInput as jest.Mock).mockReturnValue(
+      mockGetInput.mockReturnValue(
         '  node_modules \n\n .cache \n dist/**/*.js  '
       );
       const paths = getInputAsArray(Inputs.Path);
@@ -101,7 +108,7 @@ describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
     });
 
     it('parses booleans with case-insensitivity', () => {
-      (core.getInput as jest.Mock)
+      mockGetInput
         .mockReturnValueOnce('TRUE')
         .mockReturnValueOnce('false')
         .mockReturnValueOnce('');
@@ -112,7 +119,7 @@ describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
     });
 
     it('parses integer upload-chunk-size', () => {
-      (core.getInput as jest.Mock)
+      mockGetInput
         .mockReturnValueOnce('10485760')
         .mockReturnValueOnce('invalid')
         .mockReturnValueOnce('');
