@@ -10,7 +10,7 @@ Cloudflare R2 provides zero egress fees, making it one of the most cost-effectiv
 
 ```yaml
 - name: Cache dependencies using Cloudflare R2
-  uses: serhiichuk/cloud-cache-action@v1
+  uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-r2-cache-bucket
     endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com

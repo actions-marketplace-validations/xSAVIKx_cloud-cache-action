@@ -34,7 +34,7 @@ export default defineConfig({
       },
     ],
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/serhiichuk/cloud-cache-action' },
+      { icon: 'github', link: 'https://github.com/xSAVIKx/cloud-cache-action' },
     ],
     footer: {
       message: 'Released under the MIT License.',

@@ -9,7 +9,7 @@ Fastly Object Storage provides edge-proximate S3-compatible storage.
 
 ```yaml
 - name: Cache dependencies using Fastly Object Storage
-  uses: serhiichuk/cloud-cache-action@v1
+  uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-fastly-cache-bucket
     endpoint: https://object.us-east-1.fastlystorage.com

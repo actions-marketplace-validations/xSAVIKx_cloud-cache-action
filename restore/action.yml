@@ -1,6 +1,6 @@
 name: 'Restore Cache (S3-Compatible)'
 description: 'Restore Cache artifacts from any S3-compatible storage with actions/cache parity'
-author: 'Yurii Serhiichuk <yurii@serhiichuk.dev> (https://serhiichuk.dev)'
+author: 'Yurii Serhiichuk (https://serhiichuk.dev)'
 
 inputs:
   path:

@@ -8,3 +8,4 @@ docs/.vitepress/dist
 docs/.vitepress/cache
 tmp/
 scratch/
+.idea/

@@ -1,6 +1,6 @@
 name: 'Save Cache (S3-Compatible)'
 description: 'Save Cache artifacts to any S3-compatible storage with actions/cache parity'
-author: 'Yurii Serhiichuk <yurii@serhiichuk.dev> (https://serhiichuk.dev)'
+author: 'Yurii Serhiichuk (https://serhiichuk.dev)'
 
 inputs:
   path:

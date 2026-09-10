@@ -1,14 +1,14 @@
 # Cloud Cache Action
 
-[![CI Tests](https://github.com/serhiichuk/cloud-cache-action/actions/workflows/test.yml/badge.svg)](https://github.com/serhiichuk/cloud-cache-action/actions/workflows/test.yml)
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://serhiichuk.github.io/cloud-cache-action/)
+[![CI Tests](https://github.com/xSAVIKx/cloud-cache-action/actions/workflows/test.yml/badge.svg)](https://github.com/xSAVIKx/cloud-cache-action/actions/workflows/test.yml)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://xsavikx.github.io/cloud-cache-action/)
 [![Node Runtime](https://img.shields.io/badge/node-24-green.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Author](https://img.shields.io/badge/Author-serhiichuk.dev-black)](https://serhiichuk.dev)
 
 A modern, high-performance GitHub Action for saving and restoring cache bundles directly to any S3-compatible cloud or self-hosted object storage with **1:1 `actions/cache` (v4–v6) parity**.
 
-Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev) (<yurii@serhiichuk.dev>).
+Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 
 ---
 
@@ -26,7 +26,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev) (<yurii@ser
   - **SeaweedFS S3**
   - **MinIO / LocalStack / Ceph**
 - **Smart Provider Auto-Detection**: Automatically determines optimal regions and path-style addressing from your endpoint URL.
-- **Custom S3 Key Templating**: Default pattern `${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}` with full override capability.
+- **Custom S3 Key & Environment Templating**: Default pattern `${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}` with full override capability and support for dynamic environment variables (`${RUNNER_OS}`, `${GITHUB_JOB}`, `${WORKLOAD_TYPE}`).
 - **Safe Cross-Platform Keys**: Guarantees standard POSIX forward slashes (`/`) in object storage across Linux, macOS, and Windows runners (fixing legacy backslash bugs).
 - **Multi-Threaded `zstd` Compression**: Lightning-fast archiving with fallback to `gzip`.
 - **Standalone Sub-Actions**: Includes `cloud-cache-action/restore` and `cloud-cache-action/save` for decoupled cache stages.
@@ -38,7 +38,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev) (<yurii@ser
 
 ```yaml
 - name: Cache dependencies to S3
-  uses: serhiichuk/cloud-cache-action@v1
+  uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-ci-cache-bucket
     endpoint: https://<account_id>.r2.cloudflarestorage.com # Or AWS, GCS, B2, MinIO
@@ -58,7 +58,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev) (<yurii@ser
 
 Full documentation, provider guides, and advanced configurations are available at:
 
-👉 **[https://serhiichuk.github.io/cloud-cache-action/](https://serhiichuk.github.io/cloud-cache-action/)**
+👉 **[https://xsavikx.github.io/cloud-cache-action/](https://xsavikx.github.io/cloud-cache-action/)**
 
 ---
 
@@ -69,7 +69,7 @@ Full documentation, provider guides, and advanced configurations are available a
 Zero egress fees for CI caches:
 
 ```yaml
-- uses: serhiichuk/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: ci-cache
     endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
@@ -88,7 +88,7 @@ Zero egress fees for CI caches:
     role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsCacheRole
     aws-region: us-east-1
 
-- uses: serhiichuk/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-aws-cache-bucket
     key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
@@ -98,7 +98,7 @@ Zero egress fees for CI caches:
 ### Google Cloud Storage (GCS)
 
 ```yaml
-- uses: serhiichuk/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-gcs-cache-bucket
     endpoint: https://storage.googleapis.com
@@ -111,7 +111,7 @@ Zero egress fees for CI caches:
 ### Backblaze B2
 
 ```yaml
-- uses: serhiichuk/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-b2-cache-bucket
     endpoint: https://s3.us-west-004.backblazeb2.com
@@ -124,7 +124,7 @@ Zero egress fees for CI caches:
 ### Fastly Object Storage
 
 ```yaml
-- uses: serhiichuk/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-fastly-cache
     endpoint: https://object.us-east-1.fastlystorage.com
@@ -137,7 +137,7 @@ Zero egress fees for CI caches:
 ### Self-Hosted: Garage & SeaweedFS
 
 ```yaml
-- uses: serhiichuk/cloud-cache-action@v1
+- uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: ci-cache
     endpoint: http://garage.internal:3900 # or http://seaweedfs.internal:8333
@@ -166,7 +166,7 @@ Zero egress fees for CI caches:
 | `session-token` / `sessionToken` | No | `AWS_SESSION_TOKEN` | S3 Session Token |
 | `force-path-style` | No | Auto | Force path-style S3 URLs |
 | `prefix` | No | `""` | Subfolder prefix path inside bucket |
-| `s3-key-pattern` | No | `${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}` | Custom S3 key template pattern |
+| `s3-key-pattern` | No | `${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}` | Custom S3 key template pattern (supports `${ENV_VARS}`) |
 | `scoped-to-repository` | No | `true` | Prefix bucket cache paths with repository name |
 | `lookup-only` | No | `false` | Check existence without downloading |
 | `fail-on-cache-miss` | No | `false` | Fail workflow if cache is not found |
@@ -193,8 +193,8 @@ Zero egress fees for CI caches:
 
 ## Sub-Actions
 
-- **Restore Only**: `uses: serhiichuk/cloud-cache-action/restore@v1`
-- **Save Only**: `uses: serhiichuk/cloud-cache-action/save@v1`
+- **Restore Only**: `uses: xSAVIKx/cloud-cache-action/restore@v1`
+- **Save Only**: `uses: xSAVIKx/cloud-cache-action/save@v1`
 
 ---
 
@@ -223,4 +223,4 @@ npm run docs:build
 
 Distributed under the [MIT License](LICENSE).
 
-Authored by **[Yurii Serhiichuk](https://serhiichuk.dev)** (<yurii@serhiichuk.dev>).
+Authored by **[Yurii Serhiichuk](https://serhiichuk.dev)**.

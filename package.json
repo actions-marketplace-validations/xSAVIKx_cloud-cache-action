@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/serhiichuk/cloud-cache-action.git"
+    "url": "git+https://github.com/xSAVIKx/cloud-cache-action.git"
   },
   "keywords": [
     "actions",
@@ -33,7 +33,6 @@
   ],
   "author": {
     "name": "Yurii Serhiichuk",
-    "email": "yurii@serhiichuk.dev",
     "url": "https://serhiichuk.dev"
   },
   "license": "MIT",
