@@ -149,21 +149,37 @@ Zero egress fees for CI caches:
     path: build/
 ```
 
-### Dual Caching (Hybrid GitHub + Remote Runner Fleet)
+### Dual Caching (Lightweight GitHub Runner $\to$ Heavy Remote Cloud Build)
 
-Cache to **both** S3 and GitHub Actions Cache simultaneously with automatic backfill synchronization:
+Cache across **both** S3 and GitHub Actions Cache simultaneously. In this pattern, lightweight GitHub-hosted runners assemble `node_modules`, and heavy remote AWS/GCP machines pull directly from S3 at line-rate VPC speeds:
 
 ```yaml
-- uses: xSAVIKx/cloud-cache-action@v1
+# Job 1: Lightweight GitHub-hosted runner installs & caches dependencies
+- name: Prepare node_modules
+  uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-ci-cache
     endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
     access-key: ${{ secrets.R2_ACCESS_KEY }}
     secret-key: ${{ secrets.R2_SECRET_KEY }}
     dual-cache: true
-    restore-priority: s3-first       # or 'github-first' for hosted runners
-    dual-cache-strategy: backfill    # auto-syncs the missing tier if one hits
-    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-priority: github-first   # Fast local cache on GitHub-hosted runner
+    dual-cache-strategy: backfill    # Populates S3 bucket so remote runners can access it
+    key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+    path: node_modules
+
+# Job 2: Remote AWS/GCP self-hosted runner building Docker/native binaries
+- name: Restore node_modules directly from S3
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-ci-cache
+    endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+    access-key: ${{ secrets.R2_ACCESS_KEY }}
+    secret-key: ${{ secrets.R2_SECRET_KEY }}
+    dual-cache: true
+    restore-priority: s3-first       # Direct VPC speed, bypasses GitHub cache latency
+    read-only: true                  # Fast restore-only for build job
+    key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
     path: node_modules
 ```
 

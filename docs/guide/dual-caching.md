@@ -56,58 +56,85 @@ When `dual-cache: true` is enabled, the post-run step evaluates both tiers accor
 
 ## Real-World Use Cases & Examples
 
-### Use Case 1: Hybrid Runner Fleet (GitHub-Hosted + Self-Hosted)
+### Use Case 1: Lightweight Runners for Dependencies $\to$ Remote Cloud VM for Heavy Builds
 
-A single workflow where Job A runs on GitHub-hosted runners and Job B runs on self-hosted GPU runners, sharing the same cache:
+A common architectural pattern is separating concerns across runner tiers to minimize cloud compute costs:
+1. **Lightweight GitHub-hosted runner (`ubuntu-latest`)**: Runs quick tasks like `npm ci` to assemble `node_modules` or download package dependencies.
+2. **Heavyweight Remote Cloud runner (`[self-hosted, aws-heavy]`)**: An EC2 or GCP machine with high CPU/GPU/RAM dedicated to compiling native artifacts, building Docker images, or executing end-to-end integration tests.
+
+With **Dual Caching**:
+- The GitHub-hosted runner uses `dual-cache: true` with `restore-priority: github-first` and `dual-cache-strategy: backfill`. It benefits from GitHub's internal runner cache, but **automatically synchronizes the populated `node_modules` directly into your AWS S3 or GCP bucket**.
+- The remote cloud machine then restores `node_modules` directly from S3 at line-rate internal VPC speeds (`restore-priority: s3-first`) without network bottlenecking or GitHub cache quota contention.
 
 ```yaml
-name: Hybrid Fleet CI
+name: Full Pipeline (Lightweight Prep to Heavy Cloud Build)
 
 on: [push, pull_request]
 
 jobs:
-  # Job A: Runs on GitHub-hosted runner, prefers GitHub Cache
-  lint-and-unit-tests:
+  # Job 1: Lightweight GitHub-hosted runner resolves dependencies
+  prepare-dependencies:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache dependencies (Dual Mode - GitHub Preferred)
+      - name: Cache node_modules (Dual Mode: GitHub + S3 Sync)
+        id: cache-deps
         uses: xSAVIKx/cloud-cache-action@v1
         with:
-          bucket: my-ci-cache-bucket
-          endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
-          access-key: ${{ secrets.R2_ACCESS_KEY }}
-          secret-key: ${{ secrets.R2_SECRET_KEY }}
+          bucket: my-company-ci-cache
+          endpoint: https://s3.us-east-1.amazonaws.com # or GCS / Cloudflare R2
+          access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           dual-cache: true
-          restore-priority: github-first # Fast local GitHub cache on hosted runner
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          path: ~/.npm
+          restore-priority: github-first # Quickest on GitHub-hosted runner
+          dual-cache-strategy: backfill  # Ensures S3 gets populated even if GitHub Cache hit
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          path: node_modules
 
-      - run: npm ci
-      - run: npm test
+      - name: Install dependencies on miss
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: npm ci
 
-  # Job B: Runs on self-hosted runner, prefers S3 / R2
-  heavy-integration-tests:
-    needs: lint-and-unit-tests
-    runs-on: [self-hosted, linux, x64]
+  # Job 2: Heavyweight remote AWS/GCP runner builds Docker / Native binaries
+  build-product:
+    needs: prepare-dependencies
+    runs-on: [self-hosted, aws-c6i-metal] # Heavy remote VM located inside AWS VPC
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache dependencies (Dual Mode - S3 Preferred)
+      # Instantly pulls node_modules directly from local AWS S3 bucket over internal VPC
+      - name: Restore node_modules from S3
         uses: xSAVIKx/cloud-cache-action@v1
         with:
-          bucket: my-ci-cache-bucket
-          endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
-          access-key: ${{ secrets.R2_ACCESS_KEY }}
-          secret-key: ${{ secrets.R2_SECRET_KEY }}
+          bucket: my-company-ci-cache
+          endpoint: https://s3.us-east-1.amazonaws.com
+          access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           dual-cache: true
-          restore-priority: s3-first # Direct high-speed connection to R2/S3
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          path: ~/.npm
+          restore-priority: s3-first    # Direct VPC speed, no GitHub egress lag
+          read-only: true               # Dependencies were already saved by Job 1
+          key: Linux-node-modules-${{ hashFiles('**/package-lock.json') }}
+          path: node_modules
 
-      - run: npm ci
-      - run: npm run test:integration
+      # Docker layer cache can also be persisted to S3
+      - name: Cache Docker Buildx layers
+        uses: xSAVIKx/cloud-cache-action@v1
+        with:
+          bucket: my-company-ci-cache
+          access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          key: docker-layers-${{ github.sha }}
+          restore-keys: |
+            docker-layers-
+          path: /tmp/.buildx-cache
+
+      - name: Build Native / Docker Product
+        run: |
+          docker buildx build \
+            --cache-from=type=local,src=/tmp/.buildx-cache \
+            --cache-to=type=local,dest=/tmp/.buildx-cache-new,mode=max \
+            -t my-app:latest .
 ```
 
 ---
