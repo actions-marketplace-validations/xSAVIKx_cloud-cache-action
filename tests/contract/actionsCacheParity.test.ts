@@ -12,8 +12,9 @@ jest.unstable_mockModule('@actions/core', () => ({
 
 const { Inputs, Outputs, State } = await import('../../src/constants');
 const { StateProvider, NullStateProvider } = await import('../../src/state');
-const { getInputAsArray, getInputAsBool, getInputAsInt, isExactKeyMatch } =
-  await import('../../src/utils/inputUtils');
+const { getInputAsArray, getInputAsBool, getInputAsInt, isExactKeyMatch } = await import(
+  '../../src/utils/inputUtils'
+);
 
 describe('API Contract Parity: actions/cache (v4, v5, v6)', () => {
   beforeEach(() => {

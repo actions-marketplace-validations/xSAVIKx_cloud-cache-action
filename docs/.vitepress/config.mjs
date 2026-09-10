@@ -2,7 +2,8 @@ import { defineConfig } from 'vitepress';
 
 export default defineConfig({
   title: 'Cloud Cache Action',
-  description: 'Fast, flexible GitHub Action caching to any S3-compatible storage with 1:1 actions/cache parity',
+  description:
+    'Fast, flexible GitHub Action caching to any S3-compatible storage with 1:1 actions/cache parity',
   base: '/cloud-cache-action/',
   themeConfig: {
     nav: [
@@ -35,9 +36,7 @@ export default defineConfig({
         ],
       },
     ],
-    socialLinks: [
-      { icon: 'github', link: 'https://github.com/xSAVIKx/cloud-cache-action' },
-    ],
+    socialLinks: [{ icon: 'github', link: 'https://github.com/xSAVIKx/cloud-cache-action' }],
     footer: {
       message: 'Released under the MIT License.',
       copyright: 'Created by <a href="https://serhiichuk.dev" target="_blank">Yurii Serhiichuk</a>',

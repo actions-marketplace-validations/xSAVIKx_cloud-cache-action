@@ -11,8 +11,9 @@ jest.unstable_mockModule('@actions/core', () => ({
   debug: mockDebug,
 }));
 
-const { getCompressionConfig, resetCompressionConfigCache } =
-  await import('../../src/archive/compression');
+const { getCompressionConfig, resetCompressionConfigCache } = await import(
+  '../../src/archive/compression'
+);
 
 describe('Archive Compression Config', () => {
   beforeEach(() => {

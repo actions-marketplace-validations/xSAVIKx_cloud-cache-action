@@ -1,5 +1,13 @@
 export type StorageProvider =
-  'aws' | 'r2' | 'gcs' | 'b2' | 'fastly' | 'garage' | 'seaweedfs' | 'minio' | 'generic-s3';
+  | 'aws'
+  | 'r2'
+  | 'gcs'
+  | 'b2'
+  | 'fastly'
+  | 'garage'
+  | 'seaweedfs'
+  | 'minio'
+  | 'generic-s3';
 
 export interface ProviderConfig {
   provider: StorageProvider;
