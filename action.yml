@@ -1,5 +1,5 @@
 name: 'Cloud Cache Action'
-description: 'Cache artifacts to any S3-compatible storage (AWS S3, Cloudflare R2, GCS, Backblaze B2, Fastly, Garage, SeaweedFS, MinIO) with 1:1 actions/cache parity'
+description: 'Cache artifacts to any S3-compatible storage with 1:1 actions/cache parity and dual-caching'
 author: 'Yurii Serhiichuk (https://serhiichuk.dev)'
 
 inputs:
