@@ -29,11 +29,11 @@ describe('End-to-End Cache Lifecycle against Local S3 Containers', () => {
     try {
       await client.send(new CreateBucketCommand({ Bucket: bucket }));
       isS3Available = true;
-    } catch {
-      // Bucket might already exist or service may be unreachable
-      try {
+    } catch (err: unknown) {
+      const error = err as { name?: string };
+      if (error.name === 'BucketAlreadyOwnedByYou' || error.name === 'BucketAlreadyExists') {
         isS3Available = true;
-      } catch {
+      } else {
         isS3Available = false;
       }
     }
