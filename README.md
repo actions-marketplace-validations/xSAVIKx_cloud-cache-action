@@ -1,12 +1,32 @@
-# Cloud Cache Action
+<p align="center">
+  <a href="https://xsavikx.github.io/cloud-cache-action/">
+    <img src="https://raw.githubusercontent.com/xSAVIKx/cloud-cache-action/main/docs/public/logo.svg" width="128" height="128" alt="Cloud Cache Action Logo">
+  </a>
+</p>
 
-[![CI Tests](https://github.com/xSAVIKx/cloud-cache-action/actions/workflows/test.yml/badge.svg)](https://github.com/xSAVIKx/cloud-cache-action/actions/workflows/test.yml)
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://xsavikx.github.io/cloud-cache-action/)
-[![Node Runtime](https://img.shields.io/badge/node-24-green.svg)](https://nodejs.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Author](https://img.shields.io/badge/Author-serhiichuk.dev-black)](https://serhiichuk.dev)
+<h1 align="center">Cloud Cache Action</h1>
 
-A modern, high-performance GitHub Action for saving and restoring cache bundles directly to any S3-compatible cloud or self-hosted object storage with **1:1 `actions/cache` (v4–v6) parity**.
+<p align="center">
+  <strong>High-performance GitHub Action for saving and restoring CI cache bundles directly to any S3-compatible cloud or self-hosted object storage with 1:1 actions/cache parity and native Node 24 runtime.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/xSAVIKx/cloud-cache-action/actions/workflows/test.yml"><img src="https://github.com/xSAVIKx/cloud-cache-action/actions/workflows/test.yml/badge.svg" alt="CI Tests"></a>
+  <a href="https://xsavikx.github.io/cloud-cache-action/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg" alt="Documentation"></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-24-green.svg" alt="Node Runtime"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://serhiichuk.dev"><img src="https://img.shields.io/badge/Author-serhiichuk.dev-black" alt="Author"></a>
+</p>
+
+<p align="center">
+  <a href="#quick-usage">Quick Usage</a> •
+  <a href="https://xsavikx.github.io/cloud-cache-action/">Documentation</a> •
+  <a href="#supported-providers--examples">Supported Providers</a> •
+  <a href="#dual-caching-lightweight-github-runner--heavy-remote-cloud-build">Dual Caching</a> •
+  <a href="#inputs">Inputs & Outputs</a>
+</p>
+
+---
 
 Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 
