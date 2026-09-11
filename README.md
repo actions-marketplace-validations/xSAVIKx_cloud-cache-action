@@ -169,7 +169,25 @@ Zero egress fees for CI caches:
     path: build/
 ```
 
+### Self-Hosted / Local CI: MinIO
+
+Even though upstream open-source MinIO changed licensing and older standalone community releases are no longer actively maintained, `cloud-cache-action` provides complete drop-in interoperability for existing on-prem MinIO clusters and ephemeral CI containers:
+
+```yaml
+- name: Cache dependencies using MinIO
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: ci-cache
+    endpoint: http://127.0.0.1:9000 # or https://minio.internal:9000
+    access-key: ${{ secrets.MINIO_ACCESS_KEY }}
+    secret-key: ${{ secrets.MINIO_SECRET_KEY }}
+    force-path-style: true # Required for MinIO
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: build/
+```
+
 ### Dual Caching (Lightweight GitHub Runner $\to$ Heavy Remote Cloud Build)
+
 
 Cache across **both** S3 and GitHub Actions Cache simultaneously. In this pattern, lightweight GitHub-hosted runners assemble `node_modules`, and heavy remote AWS/GCP machines pull directly from S3 at line-rate VPC speeds:
 
