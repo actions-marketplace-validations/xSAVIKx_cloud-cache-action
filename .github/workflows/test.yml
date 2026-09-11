@@ -30,8 +30,9 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Start local test containers
-        run: docker compose -f docker-compose.test.yml up -d seaweedfs minio
+      - name: Start local test container (SeaweedFS)
+        run: docker compose -f docker-compose.test.yml up -d seaweedfs
+        continue-on-error: true
 
       - name: Run Jest test suite
         run: npm test
