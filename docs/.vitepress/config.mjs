@@ -44,6 +44,10 @@ export default defineConfig({
     ['link', { rel: 'manifest', href: '/cloud-cache-action/site.webmanifest' }],
     ['meta', { name: 'theme-color', content: '#0ea5e9' }],
     ['meta', { property: 'og:image', content: '/cloud-cache-action/android-chrome-512x512.png' }],
+    [
+      'meta',
+      { name: 'google-site-verification', content: 'sMLPKoYMB5EoPQiOfUJ51P7xLG55OXBKV9PTEvp2HPw' },
+    ],
     ['link', { rel: 'describedby', href: 'https://xsavikx.github.io/cloud-cache-action/llms.txt' }],
   ],
   themeConfig: {
