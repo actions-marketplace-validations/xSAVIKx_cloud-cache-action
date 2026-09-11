@@ -1,0 +1,57 @@
+/* ==========================================================================
+   Accessibility (a11y) & WCAG 2.1 AA Compliance Styles
+   ========================================================================== */
+
+/* Fix code block language label contrast ratio (WCAG AA requirement: >= 4.5:1) */
+.vp-doc [class*="language-"] > span.lang {
+  color: var(--vp-c-text-2) !important;
+  font-weight: 500;
+}
+
+/* Ensure syntax highlighted code comments satisfy WCAG AA contrast (>= 4.5:1) */
+.dark .vp-doc pre.shiki code span[style*="--shiki-dark:#6A737D"],
+.dark .vp-doc pre.shiki code span[style*="--shiki-dark:#6a737d"] {
+  color: #94a3b8 !important;
+}
+
+/* Ensure focus-visible is prominent and accessible for keyboard navigators */
+:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1) !important;
+  outline-offset: 2px !important;
+}
+
+/* Respect user preferences for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* WCAG 2.2 AA (SC 2.5.8 Target Size Minimum): Ensure interactive elements meet >= 24px */
+.VPDocOutlineItem .outline-link {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.VPDocFooter .pager-link {
+  min-height: 48px;
+}
+
+.VPLocalNav .menu,
+.VPLocalNavOutlineDropdown button {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.VPNavBarHamburger {
+  min-width: 32px;
+  min-height: 32px;
+}

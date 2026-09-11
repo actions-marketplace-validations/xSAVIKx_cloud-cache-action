@@ -1,6 +1,7 @@
 import DefaultTheme from 'vitepress/theme';
 import { h } from 'vue';
 import DocFooter from './DocFooter.vue';
+import './style.css';
 
 export default {
   extends: DefaultTheme,

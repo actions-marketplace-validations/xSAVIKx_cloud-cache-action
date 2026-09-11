@@ -9,6 +9,9 @@ export default defineConfig({
     hostname: 'https://xsavikx.github.io/cloud-cache-action/',
   },
   lastUpdated: true,
+  transformHtml(code) {
+    return code.replace('class="VPContent is-home"', 'role="main" class="VPContent is-home"');
+  },
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/cloud-cache-action/favicon.svg' }],
     ['link', { rel: 'icon', type: 'image/x-icon', href: '/cloud-cache-action/favicon.ico' }],
