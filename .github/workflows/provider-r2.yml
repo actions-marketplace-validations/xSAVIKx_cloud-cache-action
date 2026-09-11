@@ -1,0 +1,91 @@
+﻿name: Provider - Cloudflare R2
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * *'
+
+jobs:
+  test-cloudflare-r2:
+    name: Cloudflare R2 Live Integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Check Cloudflare R2 credentials
+        id: check-secrets
+        run: |
+          if [ -z "${{ secrets.R2_ACCOUNT_ID }}" ] || [ -z "${{ secrets.R2_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.R2_SECRET_ACCESS_KEY }}" ] || [ -z "${{ secrets.R2_BUCKET }}" ]; then
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+            echo "::notice::Cloudflare R2 secrets (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET) are not configured. Skipping live Cloudflare R2 integration test."
+          else
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate synthetic test payload
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: |
+          mkdir -p /tmp/r2-cache-test
+          echo "R2 test artifact $(date +%s%N) for run ${{ github.run_id }}" > /tmp/r2-cache-test/sample.txt
+          sha256sum /tmp/r2-cache-test/sample.txt > /tmp/r2-expected-sha.txt
+          cat /tmp/r2-expected-sha.txt
+
+      - name: Save cache to Cloudflare R2 (save-only)
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        uses: ./save
+        with:
+          path: /tmp/r2-cache-test
+          key: r2-live-test-${{ github.run_id }}-${{ github.run_attempt }}
+          bucket: ${{ secrets.R2_BUCKET }}
+          endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          access-key: ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+
+      - name: Purge local test payload
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: rm -rf /tmp/r2-cache-test
+
+      - name: Restore cache from Cloudflare R2 (restore-only)
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        id: restore-r2
+        uses: ./restore
+        with:
+          path: /tmp/r2-cache-test
+          key: r2-live-test-${{ github.run_id }}-${{ github.run_attempt }}
+          bucket: ${{ secrets.R2_BUCKET }}
+          endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          access-key: ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          fail-on-cache-miss: true
+
+      - name: Verify restored content and checksum
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: |
+          echo "Asserting cache hit..."
+          if [ "${{ steps.restore-r2.outputs.cache-hit }}" != "true" ]; then
+            echo "::error::Expected cache-hit to be 'true', got '${{ steps.restore-r2.outputs.cache-hit }}'"
+            exit 1
+          fi
+
+          if [ ! -f /tmp/r2-cache-test/sample.txt ]; then
+            echo "::error::Restored file /tmp/r2-cache-test/sample.txt not found!"
+            exit 1
+          fi
+
+          ACTUAL_SHA=$(sha256sum /tmp/r2-cache-test/sample.txt | awk '{print $1}')
+          EXPECTED_SHA=$(awk '{print $1}' /tmp/r2-expected-sha.txt)
+          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            echo "::error::Checksum mismatch! Expected $EXPECTED_SHA, got $ACTUAL_SHA"
+            exit 1
+          fi
+
+          echo "Live Cloudflare R2 cache save & restore test succeeded! Checksum: $ACTUAL_SHA"
