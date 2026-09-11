@@ -1,10 +1,95 @@
 # MinIO S3 Setup
 
-[MinIO](https://min.io/) is a high-performance distributed object store with native S3 API compatibility, widely used for on-premise infrastructure and local CI testing.
+[MinIO](https://min.io/) is a high-performance distributed object store with native S3 API compatibility, widely used for on-premise infrastructure, private enterprise clouds, and local CI testing.
 
 > [!NOTE]
 > **Maintenance & Compatibility Notice**:
 > While upstream open-source MinIO changed licensing (AGPLv3) and standalone community releases are no longer actively maintained with free public security patches, many development teams and enterprise clusters continue to rely on existing MinIO infrastructure or use ephemeral containers in CI. `cloud-cache-action` maintains 100% interoperability with all MinIO versions.
+
+---
+
+## Best Practices: Bucket & Cluster Setup
+
+Follow these recommendations when setting up MinIO for CI/CD caching:
+
+### 1. Bucket Privacy & Quotas
+- **Bucket Access Policy**: Ensure the bucket access policy is strictly private (`none`). Never set download or public access policies on cache buckets.
+- **Hard Storage Quotas**: CI builds can rapidly generate hundreds of gigabytes of dependency archives. Use the MinIO Client (`mc`) to set a hard storage quota on your cache bucket:
+  ```bash
+  # Set a 100 GB hard limit on the cache bucket
+  mc quota set --hard 100GB myminio/ci-cache
+  ```
+
+### 2. Information Lifecycle Management (ILM) Auto-Expiration
+MinIO includes native ILM lifecycle management. Configure automatic expiration so old caches are purged automatically:
+```bash
+# Automatically expire and delete cache archives older than 30 days
+mc ilm rule add --expire-days 30 myminio/ci-cache
+
+# Automatically abort incomplete multipart uploads after 7 days
+mc ilm rule add --expire-delete-marker --abort-incomplete-multipart-upload-days 7 myminio/ci-cache
+```
+
+### 3. Server-Side Encryption
+Enable transparent server-side encryption with MinIO-managed keys:
+```bash
+# Enable auto-encryption on the bucket
+mc encrypt set sse-s3 myminio/ci-cache
+```
+
+---
+
+## Credentials & Least-Privilege Service Accounts
+
+> [!WARNING]
+> Never use root credentials (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`) in your GitHub Actions workflows. Always create a dedicated Service Account restricted strictly to the CI cache bucket.
+
+### 1. Create a Restricted Policy (`ci-cache-policy.json`)
+Save the following minimal policy JSON:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::ci-cache"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": "arn:aws:s3:::ci-cache/*"
+    }
+  ]
+}
+```
+
+Add the policy to MinIO:
+```bash
+mc admin policy create myminio ci-cache-policy ci-cache-policy.json
+```
+
+### 2. Generate Service Account Credentials
+```bash
+# Create a service account restricted by the policy
+mc admin user svcacct add --policy ci-cache-policy myminio ci-runner
+```
+MinIO will print the **Access Key** and **Secret Key**.
+
+### 3. Configure GitHub Secrets
+Store the credentials in your repository's **Settings** > **Secrets and variables** > **Actions**:
+
+| Secret Name | Description |
+| :--- | :--- |
+| `MINIO_ACCESS_KEY` | MinIO Service Account Access Key |
+| `MINIO_SECRET_KEY` | MinIO Service Account Secret Key |
 
 ---
 

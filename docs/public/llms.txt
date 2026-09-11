@@ -35,14 +35,14 @@ Key capabilities:
 
 ## Storage Providers
 
-- [AWS S3](https://xsavikx.github.io/cloud-cache-action/providers/aws-s3.html): Setup guide using static IAM credentials or GitHub Actions OIDC role assumption.
-- [Cloudflare R2](https://xsavikx.github.io/cloud-cache-action/providers/cloudflare-r2.html): Zero egress fee object caching setup and API token configuration.
-- [Google Cloud Storage](https://xsavikx.github.io/cloud-cache-action/providers/google-cloud-storage.html): XML API interoperability setup using HMAC service account keys.
-- [Backblaze B2](https://xsavikx.github.io/cloud-cache-action/providers/backblaze-b2.html): High affordability S3-compatible cloud storage configuration.
-- [Fastly Object Storage](https://xsavikx.github.io/cloud-cache-action/providers/fastly-storage.html): Edge-proximate object storage caching configuration.
-- [Garage S3](https://xsavikx.github.io/cloud-cache-action/providers/garage.html): Lightweight distributed self-hosted S3 storage setup and local testing.
-- [SeaweedFS S3](https://xsavikx.github.io/cloud-cache-action/providers/seaweedfs.html): High-capacity distributed filesystem with native S3 API gateway.
-- [MinIO S3](https://xsavikx.github.io/cloud-cache-action/providers/minio.html): High-performance Kubernetes-native S3 object store and local container testing.
+- [AWS S3](https://xsavikx.github.io/cloud-cache-action/providers/aws-s3.html): Setup guide, bucket best practices, OIDC IAM role assumption, and lifecycle expiration.
+- [Cloudflare R2](https://xsavikx.github.io/cloud-cache-action/providers/cloudflare-r2.html): Zero egress fee caching, bucket configuration best practices, and scoped API tokens.
+- [Google Cloud Storage](https://xsavikx.github.io/cloud-cache-action/providers/google-cloud-storage.html): XML API interoperability, bucket best practices, and service account HMAC keys.
+- [Backblaze B2](https://xsavikx.github.io/cloud-cache-action/providers/backblaze-b2.html): S3-compatible cloud storage setup, bucket lifecycle rules, and restricted application keys.
+- [Fastly Object Storage](https://xsavikx.github.io/cloud-cache-action/providers/fastly-storage.html): Edge-proximate object storage caching configuration, lifecycle, and access management.
+- [Garage S3](https://xsavikx.github.io/cloud-cache-action/providers/garage.html): Lightweight distributed self-hosted S3 setup, bucket quotas, and key management.
+- [SeaweedFS S3](https://xsavikx.github.io/cloud-cache-action/providers/seaweedfs.html): High-capacity distributed filesystem, native TTL auto-pruning, and S3 credentials.
+- [MinIO S3](https://xsavikx.github.io/cloud-cache-action/providers/minio.html): High-performance S3 object store, ephemeral CI containers, quotas, and service accounts.
 
 ## Optional
 

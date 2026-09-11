@@ -1,17 +1,105 @@
 # AWS S3 Setup
 
-Cloud Cache Action supports AWS S3 out of the box using both static credentials and GitHub Actions OIDC (OpenID Connect) with IAM Roles.
+Cloud Cache Action supports AWS S3 out of the box using both GitHub Actions OIDC (OpenID Connect) with IAM Roles and static IAM credentials.
 
-## Option A: GitHub Actions OIDC (Recommended)
+---
 
-Using OIDC avoids managing long-lived static AWS access keys:
+## Best Practices: Bucket Setup & Configuration
+
+Follow these recommendations when creating and configuring your AWS S3 cache bucket:
+
+### 1. Bucket Region & Colocation
+- **GitHub-hosted runners**: Default `ubuntu-latest` and `windows-latest` runners typically execute in AWS US regions (`us-east-1` or `us-east-2`). Creating your bucket in `us-east-1` minimizes cross-region latency and lowers data transfer fees.
+- **Self-hosted EC2 runners**: Always create the bucket in the same AWS region and VPC as your runners to achieve maximum throughput (line-rate VPC speeds) with zero data transfer costs.
+
+### 2. Security & Access Control
+- **Block All Public Access**: Ensure all 4 settings under **Block Public Access** are enabled. Cache bundles contain compiled binaries, source artifacts, and dependency manifests that must never be publicly readable.
+- **Object Ownership**: Enable **Bucket owner enforced** (disable ACLs) to guarantee consistent ownership of all uploaded archives.
+- **Default Encryption**: Use server-side encryption with Amazon S3 managed keys (**SSE-S3** / `AES256`) or AWS KMS (**SSE-KMS**). SSE-S3 is included at no additional cost.
+
+### 3. Lifecycle Rules & Cost Optimization
+Without lifecycle management, older cache revisions accumulate and increase storage costs. Configure two lifecycle rules under **Bucket Management** > **Lifecycle Rules**:
+
+1. **Expire Current Objects**:
+   - **Filter**: Apply to all objects in bucket (or prefix `${GITHUB_REPOSITORY}/`).
+   - **Action**: Expire current versions of objects after **30** or **60 days**.
+2. **Abort Incomplete Multipart Uploads**:
+   - **Action**: Delete expired object delete markers and incomplete multipart uploads after **7 days**. This prevents lingering chunks from failed or interrupted uploads from consuming storage.
+
+---
+
+## Credentials & Least-Privilege IAM Policies
+
+### Option A: GitHub Actions OIDC (Recommended)
+
+Using GitHub Actions OpenID Connect (OIDC) eliminates the need to store long-lived AWS Access Keys in repository secrets.
+
+#### 1. Configure the IAM Role Trust Policy
+Create an IAM Role with a trust policy allowing GitHub Actions to assume it:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:<OWNER>/<REPO>:*"
+        }
+      }
+    }
+  ]
+}
+```
+
+#### 2. Attach Least-Privilege S3 Permissions Policy
+Attach an IAM policy granting only the minimal actions required by `cloud-cache-action`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowBucketListing",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket"
+    },
+    {
+      "Sid": "AllowObjectOperations",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket/*"
+    }
+  ]
+}
+```
+
+> [!NOTE]
+> `cloud-cache-action` does not require `s3:DeleteObject`. Lifecycle cleanup is handled by bucket lifecycle rules.
+
+#### 3. Workflow Example (OIDC)
 
 ```yaml
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
+      id-token: write # Required for requesting the OIDC JWT
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -30,7 +118,11 @@ jobs:
           path: node_modules
 ```
 
-## Option B: Static IAM Credentials
+---
+
+### Option B: Static IAM Credentials
+
+If you prefer static credentials, create a dedicated IAM user (never use your root AWS account) with the least-privilege policy shown above, generate an Access Key ID and Secret Access Key, and save them in your repository's GitHub Secrets.
 
 ```yaml
 - name: Cache dependencies
@@ -44,18 +136,12 @@ jobs:
     path: node_modules
 ```
 
-## Recommended S3 Bucket Lifecycle Rule
-
-To prevent cache storage costs from growing unbounded, configure an S3 Lifecycle rule on your bucket:
-
-- **Rule action**: Expire current versions of objects
-- **Days after object creation**: `30` or `60` days
+---
 
 ## Live CI Verification Workflow
 
-This action is tested continuously against real AWS S3 storage. You can inspect the live GitHub Actions workflow file in the repository: [`.github/workflows/provider-aws-s3.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/.github/workflows/provider-aws-s3.yml).
+This action is tested continuously against a real Amazon S3 bucket. You can inspect the live GitHub Actions workflow file in the repository: [`.github/workflows/provider-aws-s3.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/.github/workflows/provider-aws-s3.yml).
 
 ::: details `.github/workflows/provider-aws-s3.yml` (Click to view full workflow)
 <<< ../../.github/workflows/provider-aws-s3.yml{yaml}
 :::
-
