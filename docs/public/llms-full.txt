@@ -1,0 +1,719 @@
+# Cloud Cache Action - Complete Documentation (llms-full.txt)
+Author: Yurii Serhiichuk (https://serhiichuk.dev)
+Repository: https://github.com/xSAVIKx/cloud-cache-action
+Documentation: https://xsavikx.github.io/cloud-cache-action/
+License: MIT
+
+================================================================================
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/getting-started.md -->
+<!-- ============================================================================ -->
+
+# Getting Started
+
+**Cloud Cache Action** allows you to store and retrieve GitHub Actions cache bundles using any S3-compatible cloud or self-hosted object storage service.
+
+It is designed as a drop-in replacement for `actions/cache@v4-v6`, keeping your CI/CD workflows lightning fast while bypassing GitHub's 10GB default cache quotas and egress fees.
+
+## Quickstart
+
+Add the following step to your GitHub Actions workflow:
+
+```yaml
+- name: Cache dependencies to S3
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-ci-cache-bucket
+    endpoint: https://<account_id>.r2.cloudflarestorage.com # Or AWS, GCS, B2, MinIO, etc.
+    access-key: ${{ secrets.S3_ACCESS_KEY }}
+    secret-key: ${{ secrets.S3_SECRET_KEY }}
+    path: |
+      ~/.npm
+      node_modules
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+```
+
+## How It Works
+
+1. **Restore Phase (Pre/Main)**:
+   - Connects to your S3 bucket using modern `@aws-sdk/client-s3`.
+   - Checks if an exact match exists for the `key` parameter.
+   - If not found, evaluates `restore-keys` in order and downloads the most recently updated matching archive.
+   - Decompresses the archive using `zstd` (or `gzip` fallback) directly into your workspace.
+   - Sets outputs (`cache-hit`, `cache-primary-key`, `cache-matched-key`, `cache-size`, `cache-storage-provider`, `cache-s3-key`).
+
+2. **Save Phase (Post)**:
+   - If `read-only: true` or if an exact key match occurred during restore, saving is automatically skipped.
+   - Otherwise, archives the specified `path` directories using multi-threaded `zstd` compression.
+   - Streams the compressed archive to your S3 bucket using multipart uploads via `@aws-sdk/lib-storage`.
+   - Emits diagnostics and completes cleanly without breaking the build on non-fatal network interruptions.
+
+## Standalone Restore and Save Actions
+
+Just like `actions/cache/restore` and `actions/cache/save`, you can invoke restore and save as independent steps:
+
+### Restore Only
+
+```yaml
+- name: Restore cache
+  id: restore-step
+  uses: xSAVIKx/cloud-cache-action/restore@v1
+  with:
+    bucket: my-ci-cache-bucket
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: build/
+```
+
+### Save Only
+
+```yaml
+- name: Save cache
+  uses: xSAVIKx/cloud-cache-action/save@v1
+  with:
+    bucket: my-ci-cache-bucket
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: build/
+```
+
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/dual-caching.md -->
+<!-- ============================================================================ -->
+
+# Dual Caching (S3 + GitHub Actions Cache)
+
+**Dual Caching** allows your GitHub Actions workflows to save and restore cache bundles across **both** remote S3-compatible storage and GitHub's native Actions Cache service simultaneously.
+
+---
+
+## Why Dual Caching?
+
+In modern CI/CD setups, organizations often run a hybrid infrastructure:
+
+- Standard linting, light tests, and PR checks run on **GitHub-hosted runners** (`ubuntu-latest`).
+- Heavy compilation, Docker builds, GPU workloads, and integration tests run on **self-hosted runners** (Kubernetes, AWS EC2, or on-premise bare-metal).
+
+This creates a common challenge:
+
+1. **Runner Isolation**: Self-hosted or remote runners may have high latency, bandwidth limits, or restricted access to GitHub's internal cache service, but have direct, high-speed access to an S3-compatible bucket (or local Garage / SeaweedFS / MinIO / Cloudflare R2).
+2. **Quota Limits**: GitHub enforces a strict **10 GB per repository** cache limit. Once exceeded, older caches are evicted, causing unexpected slowdowns.
+3. **Redundancy & Availability**: If GitHub's cache service experiences transient 503 errors or an outage, having S3 as an active peer ensures your builds never suffer cold starts.
+
+With Dual Caching enabled, the **exact same cache keys** are populated in both systems, and jobs can seamlessly read from whichever source is optimal.
+
+---
+
+## Architecture & Flow
+
+### Restore Flow
+
+```mermaid
+flowchart TD
+    Start[Restore Step Starts] --> CheckDual{dual-cache: true?}
+    CheckDual -- No --> S3Only[Standard S3 Restore]
+    CheckDual -- Yes --> Priority{restore-priority}
+
+    Priority -- s3-first --> S3Try[1. Query S3 Storage]
+    S3Try -- S3 Hit --> RestoreS3[Restore from S3\ncache-hit-source: s3]
+    S3Try -- S3 Miss/Fail --> GHTry[2. Fallback to GitHub Cache]
+    GHTry -- GH Hit --> RestoreGH[Restore from GitHub Cache\ncache-hit-source: github]
+    GHTry -- GH Miss --> Miss[Cache Miss across both tiers\ncache-hit-source: none]
+
+    Priority -- github-first --> GHTryFirst[1. Query GitHub Cache]
+    GHTryFirst -- GH Hit --> RestoreGHFirst[Restore from GitHub Cache\ncache-hit-source: github]
+    GHTryFirst -- GH Miss/Fail --> S3TrySecond[2. Fallback to S3 Storage]
+    S3TrySecond -- S3 Hit --> RestoreS3Second[Restore from S3\ncache-hit-source: s3]
+    S3TrySecond -- S3 Miss --> Miss
+```
+
+### Save Flow (Post-step)
+
+When `dual-cache: true` is enabled, the post-run step evaluates both tiers according to `dual-cache-strategy`:
+
+| Strategy                   | Behavior                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`backfill`** _(default)_ | If one tier hit but the other missed (e.g. GitHub Cache hit, S3 missed), post-save automatically **backfills** the missing tier so both systems stay synchronized. |
+| **`independent`**          | Verifies existence in S3 and GitHub independently, uploading to any tier where the key is absent.                                                                  |
+| **`skip-on-hit`**          | If an exact match hit occurred on _either_ tier during restore, saving is skipped on both.                                                                         |
+
+---
+
+## Real-World Use Cases & Examples
+
+### Use Case 1: Lightweight Runners for Dependencies $\to$ Remote Cloud VM for Heavy Builds
+
+A common architectural pattern is separating concerns across runner tiers to minimize cloud compute costs:
+
+1. **Lightweight GitHub-hosted runner (`ubuntu-latest`)**: Runs quick tasks like `npm ci` to assemble `node_modules` or download package dependencies.
+2. **Heavyweight Remote Cloud runner (`[self-hosted, aws-heavy]`)**: An EC2 or GCP machine with high CPU/GPU/RAM dedicated to compiling native artifacts, building Docker images, or executing end-to-end integration tests.
+
+With **Dual Caching**:
+
+- The GitHub-hosted runner uses `dual-cache: true` with `restore-priority: github-first` and `dual-cache-strategy: backfill`. It benefits from GitHub's internal runner cache, but **automatically synchronizes the populated `node_modules` directly into your AWS S3 or GCP bucket**.
+- The remote cloud machine then restores `node_modules` directly from S3 at line-rate internal VPC speeds (`restore-priority: s3-first`) without network bottlenecking or GitHub cache quota contention.
+
+```yaml
+name: Full Pipeline (Lightweight Prep to Heavy Cloud Build)
+
+on: [push, pull_request]
+
+jobs:
+  # Job 1: Lightweight GitHub-hosted runner resolves dependencies
+  prepare-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Cache node_modules (Dual Mode: GitHub + S3 Sync)
+        id: cache-deps
+        uses: xSAVIKx/cloud-cache-action@v1
+        with:
+          bucket: my-company-ci-cache
+          endpoint: https://s3.us-east-1.amazonaws.com # or GCS / Cloudflare R2
+          access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          dual-cache: true
+          restore-priority: github-first # Quickest on GitHub-hosted runner
+          dual-cache-strategy: backfill  # Ensures S3 gets populated even if GitHub Cache hit
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          path: node_modules
+
+      - name: Install dependencies on miss
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: npm ci
+
+  # Job 2: Heavyweight remote AWS/GCP runner builds Docker / Native binaries
+  build-product:
+    needs: prepare-dependencies
+    runs-on: [self-hosted, aws-c6i-metal] # Heavy remote VM located inside AWS VPC
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Instantly pulls node_modules directly from local AWS S3 bucket over internal VPC
+      - name: Restore node_modules from S3
+        uses: xSAVIKx/cloud-cache-action@v1
+        with:
+          bucket: my-company-ci-cache
+          endpoint: https://s3.us-east-1.amazonaws.com
+          access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          dual-cache: true
+          restore-priority: s3-first    # Direct VPC speed, no GitHub egress lag
+          read-only: true               # Dependencies were already saved by Job 1
+          key: Linux-node-modules-${{ hashFiles('**/package-lock.json') }}
+          path: node_modules
+
+      # Docker layer cache can also be persisted to S3
+      - name: Cache Docker Buildx layers
+        uses: xSAVIKx/cloud-cache-action@v1
+        with:
+          bucket: my-company-ci-cache
+          access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          key: docker-layers-${{ github.sha }}
+          restore-keys: |
+            docker-layers-
+          path: /tmp/.buildx-cache
+
+      - name: Build Native / Docker Product
+        run: |
+          docker buildx build \
+            --cache-from=type=local,src=/tmp/.buildx-cache \
+            --cache-to=type=local,dest=/tmp/.buildx-cache-new,mode=max \
+            -t my-app:latest .
+```
+
+---
+
+### Use Case 2: Quota Spillover & High-Availability Redundancy
+
+Avoid cold builds when GitHub's 10GB per-repo cache limit evicts keys, or during GitHub service disruptions:
+
+```yaml
+- name: Cache with S3 backup
+  id: cache-step
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-overflow-s3-bucket
+    access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    dual-cache: true
+    restore-priority: github-first # Use GitHub cache while available
+    dual-cache-strategy: backfill # Keep S3 continuously primed as cold-cache safety net
+    key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+    restore-keys: |
+      ${{ runner.os }}-gradle-
+    path: ~/.gradle/caches
+
+- name: Inspect Cache Hit Source
+  run: |
+    echo "Cache Hit: ${{ steps.cache-step.outputs.cache-hit }}"
+    echo "Serviced by: ${{ steps.cache-step.outputs.cache-hit-source }}" # 'github', 's3', or 'none'
+```
+
+---
+
+### Use Case 3: Zero-Downtime Migration from GitHub Cache to Cloud Storage
+
+If your team is migrating from `actions/cache` to Cloudflare R2 or AWS S3:
+
+1. Enable `dual-cache: true` with `restore-priority: github-first`.
+2. Existing builds will continue restoring instantly from GitHub Actions Cache.
+3. In the background, `backfill` saves every cache bundle to your S3 bucket.
+4. Once your S3 bucket is warmed up, switch `restore-priority: s3-first` or turn off dual-cache.
+
+---
+
+## Dual-Cache Configuration Reference
+
+### Inputs
+
+| Input                 |  Type   |  Default   | Description                                                                                                                 |
+| --------------------- | :-----: | :--------: | --------------------------------------------------------------------------------------------------------------------------- |
+| `dual-cache`          | boolean |  `false`   | Enables simultaneous caching across S3-compatible storage and GitHub Actions Cache.                                         |
+| `restore-priority`    | string  | `s3-first` | Order to check caches during restore: `s3-first` or `github-first`.                                                         |
+| `dual-cache-strategy` | string  | `backfill` | Save synchronization mode: `backfill` (sync missing tier), `independent`, or `skip-on-hit`.                                 |
+| `dual-cache-strict`   | boolean |  `false`   | When `false` (default), errors in one tier emit warnings without failing the job. When `true`, any failure halts execution. |
+
+### Outputs
+
+| Output                |                  Values                   | Description                                                                      |
+| --------------------- | :---------------------------------------: | -------------------------------------------------------------------------------- |
+| `cache-hit-source`    |        `s3` \| `github` \| `none`         | Identifies which storage tier provided the restored cache bundle.                |
+| `cache-saved-sources` | `s3,github` \| `s3` \| `github` \| `none` | Comma-separated list of storage tiers that successfully stored the cache bundle. |
+
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/s3-key-patterns.md -->
+<!-- ============================================================================ -->
+
+# S3 Key Templating & Overrides
+
+Cloud Cache Action gives you complete control over where and how cache archives are named and organized in your storage bucket.
+
+## Default Key Pattern
+
+By default, the S3 key is constructed using:
+
+```text
+${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}
+```
+
+For example, for repository `my-org/my-project` with primary key `linux-node-18-a1b2c3`, the resulting object in the bucket will be:
+
+```text
+my-org/my-project/linux-node-18-a1b2c3/cache.tar.zst
+```
+
+## Available Template Placeholders
+
+### Special Placeholders
+
+| Variable               | Description                                       | Example                           |
+| ---------------------- | ------------------------------------------------- | --------------------------------- |
+| `${GITHUB_REPOSITORY}` | Repository name in `owner/repo` format            | `xSAVIKx/cloud-cache-action`      |
+| `${prefix}`            | Subfolder prefix with trailing slash if non-empty | `frontend/`                       |
+| `${key}`               | The primary or matched cache key                  | `linux-node-a1b2c3`               |
+| `${archive_filename}`  | Compressed archive filename                       | `cache.tar.zst` or `cache.tar.gz` |
+
+### Environment Variables
+
+You can also reference **any environment variable** using `${VAR_NAME}`, `$VAR_NAME`, or `${env.VAR_NAME}`. This enables isolation per workload, job, matrix runner, or workflow run:
+
+| Variable             | Description                           | Example Value               |
+| -------------------- | ------------------------------------- | --------------------------- |
+| `${RUNNER_OS}`       | Runner operating system               | `Linux`, `Windows`, `macOS` |
+| `${GITHUB_JOB}`      | Current job ID in the workflow        | `build-frontend`            |
+| `${GITHUB_RUN_ID}`   | Unique ID of the workflow run         | `1234567890`                |
+| `${GITHUB_REF_NAME}` | Branch or tag name                    | `main`, `feature-auth`      |
+| `${CUSTOM_WORKLOAD}` | Any user-defined environment variable | `api-service`               |
+
+## Common Configuration Patterns
+
+### 1. Custom Prefix Within Repository
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: ci-caches
+    prefix: web-app
+    key: ${{ runner.os }}-node-${{ hashFiles('yarn.lock') }}
+    path: node_modules
+```
+
+Object key: `my-org/my-repo/web-app/linux-node-12345/cache.tar.zst`
+
+### 2. Disabling Repository Scoping (Global Shared Cache)
+
+If multiple repositories share the exact same pre-built toolchains or caches across an organization:
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: shared-org-cache
+    scoped-to-repository: false
+    key: global-rust-toolchain-v1
+    path: ~/.cargo
+```
+
+Object key: `global-rust-toolchain-v1/cache.tar.zst`
+
+### 3. Fully Custom S3 Key Pattern
+
+You can define any pattern using `s3-key-pattern`:
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-bucket
+    s3-key-pattern: 'builds/${GITHUB_REPOSITORY}/${prefix}${key}.tar.zst'
+    prefix: release-v1/
+    key: app-bundle
+    path: dist/
+```
+
+Object key: `builds/my-org/my-repo/release-v1/app-bundle.tar.zst`
+
+### 4. Per-Workload / Per-Job Isolated Cache
+
+You can isolate caches across parallel matrix jobs, workloads, or workflow runs using environment variables:
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  env:
+    WORKLOAD_TYPE: backend-api
+  with:
+    bucket: my-bucket
+    s3-key-pattern: '${GITHUB_REPOSITORY}/${RUNNER_OS}/${WORKLOAD_TYPE}/${key}/${archive_filename}'
+    key: ${{ runner.os }}-deps-${{ hashFiles('go.sum') }}
+    path: ~/go/pkg/mod
+```
+
+Object key: `my-org/my-repo/Linux/backend-api/Linux-deps-abc123/cache.tar.zst`
+
+> [!NOTE]
+> Regardless of whether the runner is running on Windows, Linux, or macOS, all S3 keys are guaranteed to be normalized with standard POSIX forward slashes (`/`), avoiding invalid backslashes in object storage.
+
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/migration.md -->
+<!-- ============================================================================ -->
+
+# Migration Guide
+
+Migrating from official `actions/cache` or legacy `tespkg/actions-cache` to `cloud-cache-action` takes less than 2 minutes.
+
+## Migrating from `actions/cache` (v4, v5, v6)
+
+Because `cloud-cache-action` maintains 1:1 input and output parity, you simply change the `uses:` line and add your bucket configuration:
+
+### Before (`actions/cache`):
+
+```yaml
+- name: Cache dependencies
+  uses: actions/cache@v4
+  with:
+    path: node_modules
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+```
+
+### After (`cloud-cache-action`):
+
+```yaml
+- name: Cache dependencies
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    # 1. Add your S3 bucket & credentials
+    bucket: my-ci-cache-bucket
+    endpoint: https://<account-id>.r2.cloudflarestorage.com # optional for AWS S3
+    access-key: ${{ secrets.S3_ACCESS_KEY }}
+    secret-key: ${{ secrets.S3_SECRET_KEY }}
+
+    # 2. Keep all your existing inputs exactly as they are
+    path: node_modules
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+```
+
+All existing features (`lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `save-always`, `read-only`) continue to work identically.
+
+---
+
+## Migrating from `tespkg/actions-cache`
+
+If you are using `tespkg/actions-cache`, you will notice immediate benefits:
+
+1. Full support for active runner environments (Node 24) without deprecation warnings.
+2. Official AWS SDK v3 instead of `minio-js`, avoiding known signing quirks with Cloudflare R2 and Fastly.
+3. Windows runners produce clean POSIX forward-slash keys on S3 instead of broken backslashes.
+4. Parity with `actions/cache@v6` features including `lookup-only`, `fail-on-cache-miss`, and `read-only`.
+
+### Differences in Inputs:
+
+- `bucket`, `endpoint`, `region`, `insecure`, `accessKey`, `secretKey`, `sessionToken` continue to be supported for full backward compatibility!
+- We also support kebab-case aliases (`access-key`, `secret-key`, `session-token`, `force-path-style`).
+- Fallback (`use-fallback`) is `false` by default in `cloud-cache-action` rather than `true`. If you want GitHub Cache fallback on cache miss, set `use-fallback: true`.
+
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/aws-s3.md -->
+<!-- ============================================================================ -->
+
+# AWS S3 Setup
+
+Cloud Cache Action supports AWS S3 out of the box using both static credentials and GitHub Actions OIDC (OpenID Connect) with IAM Roles.
+
+## Option A: GitHub Actions OIDC (Recommended)
+
+Using OIDC avoids managing long-lived static AWS access keys:
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsCacheRole
+          aws-region: us-east-1
+
+      - name: Cache dependencies
+        uses: xSAVIKx/cloud-cache-action@v1
+        with:
+          bucket: my-actions-cache-bucket
+          key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+          path: node_modules
+```
+
+## Option B: Static IAM Credentials
+
+```yaml
+- name: Cache dependencies
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-actions-cache-bucket
+    region: us-east-1
+    access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: node_modules
+```
+
+## Recommended S3 Bucket Lifecycle Rule
+
+To prevent cache storage costs from growing unbounded, configure an S3 Lifecycle rule on your bucket:
+
+- **Rule action**: Expire current versions of objects
+- **Days after object creation**: `30` or `60` days
+
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/cloudflare-r2.md -->
+<!-- ============================================================================ -->
+
+# Cloudflare R2 Setup
+
+Cloudflare R2 provides zero egress fees, making it one of the most cost-effective caching backends for GitHub Actions.
+
+## Configuration
+
+1. Create a bucket in the Cloudflare dashboard under **R2 Object Storage**.
+2. Generate an **R2 API Token** with `Object Read & Write` permissions.
+3. Note your Cloudflare **Account ID** and API Token credentials (**Access Key ID** and **Secret Access Key**).
+
+```yaml
+- name: Cache dependencies using Cloudflare R2
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-r2-cache-bucket
+    endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+    access-key: ${{ secrets.R2_ACCESS_KEY_ID }}
+    secret-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+    path: ~/.npm
+```
+
+> [!TIP]
+> Cloud Cache Action automatically detects Cloudflare R2 from the endpoint URL and sets `region: auto` and `force-path-style: false` automatically.
+
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/google-cloud-storage.md -->
+<!-- ============================================================================ -->
+
+# Google Cloud Storage (GCS) Setup
+
+Google Cloud Storage provides full S3 interoperability via its XML API and HMAC service account keys.
+
+## Configuration
+
+1. In the Google Cloud Console, navigate to **Cloud Storage** > **Settings** > **Interoperability**.
+2. Create an **HMAC Key** for your service account or user. You will receive an **Access ID** and **Secret**.
+3. Use `https://storage.googleapis.com` as the endpoint.
+
+```yaml
+- name: Cache dependencies using Google Cloud Storage
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-gcs-cache-bucket
+    endpoint: https://storage.googleapis.com
+    access-key: ${{ secrets.GCS_HMAC_ACCESS_ID }}
+    secret-key: ${{ secrets.GCS_HMAC_SECRET }}
+    key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+    path: ~/.gradle/caches
+```
+
+> [!NOTE]
+> GCS S3 interoperability requires path-style addressing (`force-path-style: true`). Cloud Cache Action auto-detects `storage.googleapis.com` and automatically configures path-style addressing and region defaults.
+
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/backblaze-b2.md -->
+<!-- ============================================================================ -->
+
+# Backblaze B2 Setup
+
+Backblaze B2 offers affordable S3-compatible cloud storage.
+
+## Configuration
+
+1. In the Backblaze B2 console, create a bucket and note its S3 endpoint (e.g. `s3.us-west-004.backblazeb2.com`).
+2. Navigate to **App Keys** and create an **Application Key** with `readWrite` access to the bucket.
+3. Use the `keyID` as `access-key` and `applicationKey` as `secret-key`.
+
+```yaml
+- name: Cache dependencies using Backblaze B2
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-b2-cache-bucket
+    endpoint: https://s3.us-west-004.backblazeb2.com
+    access-key: ${{ secrets.B2_KEY_ID }}
+    secret-key: ${{ secrets.B2_APPLICATION_KEY }}
+    key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+    path: ~/.m2/repository
+```
+
+> [!TIP]
+> Cloud Cache Action automatically parses the region (e.g. `us-west-004`) from the Backblaze endpoint URL, so you don't need to specify `region` manually.
+
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/fastly-storage.md -->
+<!-- ============================================================================ -->
+
+# Fastly Object Storage Setup
+
+Fastly Object Storage provides edge-proximate S3-compatible storage.
+
+## Configuration
+
+1. In Fastly Object Storage, retrieve your bucket name, access credentials, and S3 endpoint (e.g. `https://object.<region>.fastlystorage.com`).
+2. Add them to your workflow:
+
+```yaml
+- name: Cache dependencies using Fastly Object Storage
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-fastly-cache-bucket
+    endpoint: https://object.us-east-1.fastlystorage.com
+    access-key: ${{ secrets.FASTLY_ACCESS_KEY }}
+    secret-key: ${{ secrets.FASTLY_SECRET_KEY }}
+    key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    path: |
+      ~/.cargo/bin/
+      ~/.cargo/registry/index/
+      ~/.cargo/registry/cache/
+      target/
+```
+
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/garage.md -->
+<!-- ============================================================================ -->
+
+# Garage S3 Setup
+
+[Garage](https://garagehq.deuxfleurs.fr/) is an open-source, lightweight distributed S3-compatible storage system designed to be self-hosted with minimal resource usage.
+
+## Configuration
+
+When running self-hosted runners or local CI infrastructure with Garage:
+
+```yaml
+- name: Cache dependencies using self-hosted Garage
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: ci-cache
+    endpoint: http://garage.internal:3900 # Or your public/private Garage S3 URL
+    provider: garage
+    access-key: ${{ secrets.GARAGE_ACCESS_KEY }}
+    secret-key: ${{ secrets.GARAGE_SECRET_KEY }}
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: build/
+```
+
+## Running Garage Locally for Integration Testing
+
+You can spin up Garage locally using the repository's `docker-compose.test.yml`:
+
+```bash
+docker compose -f docker-compose.test.yml up -d garage
+```
+
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/seaweedfs.md -->
+<!-- ============================================================================ -->
+
+# SeaweedFS S3 Setup
+
+[SeaweedFS](https://github.com/seaweedfs/seaweedfs) is an independent, high-performance distributed file system with native S3 API compatibility.
+
+## Configuration
+
+```yaml
+- name: Cache dependencies using SeaweedFS
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: ci-cache
+    endpoint: http://seaweedfs.internal:8333 # S3 API endpoint
+    provider: seaweedfs
+    access-key: ${{ secrets.SEAWEED_ACCESS_KEY }}
+    secret-key: ${{ secrets.SEAWEED_SECRET_KEY }}
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: build/
+```
+
+## Running SeaweedFS Locally for Testing
+
+You can spin up SeaweedFS locally with S3 enabled:
+
+```bash
+docker compose -f docker-compose.test.yml up -d seaweedfs
+```
+

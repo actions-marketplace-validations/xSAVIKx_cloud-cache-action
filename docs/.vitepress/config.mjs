@@ -5,6 +5,10 @@ export default defineConfig({
   description:
     'Fast, flexible GitHub Action caching to any S3-compatible storage with 1:1 actions/cache parity',
   base: '/cloud-cache-action/',
+  sitemap: {
+    hostname: 'https://xsavikx.github.io/cloud-cache-action/',
+  },
+  lastUpdated: true,
   themeConfig: {
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
