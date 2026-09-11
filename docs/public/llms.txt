@@ -1,25 +1,16 @@
 # Cloud Cache Action
 
-> High-performance, drop-in GitHub Action for saving and restoring CI cache bundles directly to any S3-compatible cloud or self-hosted object storage with 1:1 actions/cache parity and native Node 24 runtime.
+> High-performance GitHub Action for saving and restoring CI cache bundles directly to any S3-compatible cloud or self-hosted object storage with 1:1 actions/cache parity and native Node 24 runtime.
 
-Author: Yurii Serhiichuk (https://serhiichuk.dev)
-Repository: https://github.com/xSAVIKx/cloud-cache-action
-Documentation: https://xsavikx.github.io/cloud-cache-action/
-License: MIT
+Cloud Cache Action solves GitHub Actions cache quotas (10 GB default per repository) and egress transfer fees by letting developers store cache archives in their own S3-compatible storage tier (AWS S3, Cloudflare R2, Google Cloud Storage, Backblaze B2, Fastly, Garage S3, SeaweedFS, MinIO).
 
-## Overview
-
-Cloud Cache Action is designed to solve GitHub Actions cache limits (10 GB default per repository) and egress transfer fees by letting developers store cache archives in their own S3-compatible storage tier (AWS S3, Cloudflare R2, Google Cloud Storage, Backblaze B2, Fastly Object Storage, Garage S3, SeaweedFS, MinIO).
-
-It provides:
+Key capabilities:
 - 1:1 input and output compatibility with `actions/cache` (v4, v5, and v6).
 - Native Node 24 execution (`runs: using: 'node24'`) with zero runner deprecation warnings.
 - Multi-threaded Zstandard (`zstd`) compression with automatic `gzip` fallback.
 - Dual-caching mode: syncs simultaneously to both remote S3 and GitHub Actions Cache tier for maximum resilience.
 - Standalone sub-actions: `xSAVIKx/cloud-cache-action/restore@v1` and `xSAVIKx/cloud-cache-action/save@v1`.
 - Safe POSIX key normalization: Guarantees forward slashes (`/`) in S3 keys across Windows, Linux, and macOS runners.
-
-## Quickstart
 
 ```yaml
 - name: Cache dependencies to S3
@@ -29,69 +20,30 @@ It provides:
     endpoint: https://<account_id>.r2.cloudflarestorage.com # Or AWS, GCS, B2, MinIO
     access-key: ${{ secrets.S3_ACCESS_KEY }}
     secret-key: ${{ secrets.S3_SECRET_KEY }}
-    path: |
-      ~/.npm
-      node_modules
+    path: ~/.npm
     key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
     restore-keys: |
       ${{ runner.os }}-node-
 ```
 
-## Inputs Reference
+## Documentation
 
-### Standard `actions/cache` Inputs
-- `path` (required): Files, directories, or wildcard patterns to cache and restore.
-- `key` (required): Primary key for restoring and saving the cache.
-- `restore-keys` (optional): Ordered multiline prefix keys evaluated if primary key misses.
-- `fail-on-cache-miss` (optional, default: false): Fails the workflow if no cache match is found.
-- `lookup-only` (optional, default: false): Checks if a cache entry exists without downloading.
-- `read-only` (optional, default: false): Restores cache but skips saving in the post step.
-- `save-always` (optional, default: false): Saves cache even if preceding steps failed.
-- `enableCrossOsArchive` (optional, default: false): Enables Windows runners to share archives across platforms.
+- [Getting Started](https://xsavikx.github.io/cloud-cache-action/guide/getting-started.html): Quickstart guide, cache lifecycle breakdown, and standalone restore/save workflows.
+- [Dual Caching Guide](https://xsavikx.github.io/cloud-cache-action/guide/dual-caching.html): Multi-tier caching across S3 and GitHub Actions Cache with backfill synchronization.
+- [S3 Key Patterns](https://xsavikx.github.io/cloud-cache-action/guide/s3-key-patterns.html): Custom object key templating, prefixing, and organization-wide cache sharing.
+- [Migration Guide](https://xsavikx.github.io/cloud-cache-action/guide/migration.html): 2-minute migration guide from actions/cache or tespkg/actions-cache.
 
-### S3 & Cloud Storage Inputs
-- `bucket` (required): S3 bucket name.
-- `endpoint` (optional): S3-compatible endpoint URL (e.g. `https://storage.googleapis.com` or `https://<id>.r2.cloudflarestorage.com`).
-- `region` (optional, default: 'auto' / 'us-east-1'): Storage region.
-- `provider` (optional): Provider preset: `aws`, `r2`, `gcs`, `b2`, `fastly`, `garage`, `seaweedfs`, `minio`.
-- `access-key` / `accessKey` (optional): S3 Access Key ID (defaults to AWS_ACCESS_KEY_ID or IAM/OIDC).
-- `secret-key` / `secretKey` (optional): S3 Secret Access Key (defaults to AWS_SECRET_ACCESS_KEY).
-- `session-token` / `sessionToken` (optional): S3 Session Token (defaults to AWS_SESSION_TOKEN).
-- `force-path-style` (optional): Force path-style addressing (auto-configured for MinIO and GCS).
-- `prefix` (optional, default: ''): Subfolder prefix inside the bucket.
-- `s3-key-pattern` (optional, default: `${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}`): S3 key structure template. Supports `${RUNNER_OS}`, `${GITHUB_JOB}`, etc.
-- `scoped-to-repository` (optional, default: true): Prefixes bucket keys with repository name.
-- `retry` (optional, default: true): Exponential backoff retries on transient errors.
-- `retry-count` (optional, default: 3): Number of retry attempts.
-- `use-fallback` (optional, default: false): Fallback to GitHub Actions Cache service on miss/error.
+## Storage Providers
 
-### Dual-Caching Inputs
-- `dual-cache` (optional, default: false): Simultaneously cache to both S3 and GitHub Actions Cache.
-- `restore-priority` (optional, default: 's3-first'): Query priority: `s3-first` or `github-first`.
-- `dual-cache-strategy` (optional, default: 'backfill'): Save strategy: `backfill`, `independent`, or `skip-on-hit`.
-- `dual-cache-strict` (optional, default: false): Fails step if either tier errors (default false is fault-tolerant).
+- [AWS S3](https://xsavikx.github.io/cloud-cache-action/providers/aws-s3.html): Setup guide using static IAM credentials or GitHub Actions OIDC role assumption.
+- [Cloudflare R2](https://xsavikx.github.io/cloud-cache-action/providers/cloudflare-r2.html): Zero egress fee object caching setup and API token configuration.
+- [Google Cloud Storage](https://xsavikx.github.io/cloud-cache-action/providers/google-cloud-storage.html): XML API interoperability setup using HMAC service account keys.
+- [Backblaze B2](https://xsavikx.github.io/cloud-cache-action/providers/backblaze-b2.html): High affordability S3-compatible cloud storage configuration.
+- [Fastly Object Storage](https://xsavikx.github.io/cloud-cache-action/providers/fastly-storage.html): Edge-proximate object storage caching configuration.
+- [Garage S3](https://xsavikx.github.io/cloud-cache-action/providers/garage.html): Lightweight distributed self-hosted S3 storage setup and local testing.
+- [SeaweedFS S3](https://xsavikx.github.io/cloud-cache-action/providers/seaweedfs.html): High-capacity distributed filesystem with native S3 API gateway.
 
-## Outputs Reference
-- `cache-hit`: 'true' if exact match found for primary key; 'false' otherwise.
-- `cache-primary-key`: Evaluated primary key.
-- `cache-matched-key`: Restored key (primary or partial prefix match).
-- `cache-size`: Archive size in bytes.
-- `cache-storage-provider`: Resolved provider identifier (`aws`, `r2`, `gcs`, etc.).
-- `cache-s3-key`: Full S3 object key inside the bucket.
-- `cache-etag`: ETag checksum of archive in S3.
-- `cache-hit-source`: Tier that serviced restore: `s3`, `github`, or `none`.
-- `cache-saved-sources`: Tiers successfully saved to: `s3`, `github`, or `s3,github`.
+## Optional
 
-## Provider Setups & Documentation Links
-
-- [AWS S3](https://xsavikx.github.io/cloud-cache-action/providers/aws-s3.html): IAM static credentials or GitHub OIDC role assumption.
-- [Cloudflare R2](https://xsavikx.github.io/cloud-cache-action/providers/cloudflare-r2.html): Zero egress fees object caching.
-- [Google Cloud Storage](https://xsavikx.github.io/cloud-cache-action/providers/google-cloud-storage.html): XML API interoperability via HMAC service account keys.
-- [Backblaze B2](https://xsavikx.github.io/cloud-cache-action/providers/backblaze-b2.html): High affordability S3 storage.
-- [Fastly Object Storage](https://xsavikx.github.io/cloud-cache-action/providers/fastly-storage.html): Edge-proximate object storage.
-- [Garage S3](https://xsavikx.github.io/cloud-cache-action/providers/garage.html): Lightweight distributed self-hosted storage.
-- [SeaweedFS S3](https://xsavikx.github.io/cloud-cache-action/providers/seaweedfs.html): High-capacity distributed filesystem with S3 gateway.
-- [Dual-Caching Guide](https://xsavikx.github.io/cloud-cache-action/guide/dual-caching.html): Multi-tier synchronization strategies.
-- [S3 Key Patterns](https://xsavikx.github.io/cloud-cache-action/guide/s3-key-patterns.html): Templating and organization-wide cache sharing.
-- [Migration Guide](https://xsavikx.github.io/cloud-cache-action/guide/migration.html): 2-minute migration from actions/cache or tespkg/actions-cache.
-- [Full Documentation Concatenation](https://xsavikx.github.io/cloud-cache-action/llms-full.txt): Complete docs in single plain-text format.
+- [Full Documentation Concatenation](https://xsavikx.github.io/cloud-cache-action/llms-full.txt): Complete concatenated documentation in a single plain-text file.
+- [Repository and Issue Tracker](https://github.com/xSAVIKx/cloud-cache-action): GitHub source repository, releases, and issue tracker.
