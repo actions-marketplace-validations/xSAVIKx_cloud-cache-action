@@ -31,7 +31,7 @@ Key capabilities:
 - [Getting Started](https://xsavikx.github.io/cloud-cache-action/guide/getting-started.html): Quickstart guide, cache lifecycle breakdown, and standalone restore/save workflows.
 - [Dual Caching Guide](https://xsavikx.github.io/cloud-cache-action/guide/dual-caching.html): Multi-tier caching across S3 and GitHub Actions Cache with backfill synchronization.
 - [S3 Key Patterns](https://xsavikx.github.io/cloud-cache-action/guide/s3-key-patterns.html): Custom object key templating, prefixing, and organization-wide cache sharing.
-- [Migration Guide](https://xsavikx.github.io/cloud-cache-action/guide/migration.html): 2-minute migration guide from actions/cache or tespkg/actions-cache.
+- [Migration Guide](https://xsavikx.github.io/cloud-cache-action/guide/migration.html): 2-minute migration guide, copy-pastable AI agent migration prompt, and secrets cheat sheet.
 
 ## Storage Providers
 

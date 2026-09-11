@@ -73,7 +73,18 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
       ${{ runner.os }}-node-
 ```
 
+### 🤖 Migrate in Seconds with AI Coding Agents
+
+If you use an AI coding assistant (such as Claude Code, Cursor, Copilot, Antigravity, or Devin), paste this prompt to migrate your repository automatically:
+
+```text
+Migrate all GitHub Actions cache steps in this repository to `xSAVIKx/cloud-cache-action@v1`. Discover all workflow files in `.github/workflows/`, replace `actions/cache@*` (and /restore or /save) preserving all keys, paths, and inputs, detect or ask which storage provider (Cloudflare R2, AWS S3, GCS, MinIO) to configure, and provide a checklist of required GitHub Secrets.
+```
+
+👉 See the full [Agent-Assisted Migration Guide](https://xsavikx.github.io/cloud-cache-action/guide/migration.html) for the comprehensive prompt and provider secrets cheat sheet.
+
 ---
+
 
 ## Documentation
 
