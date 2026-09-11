@@ -142,8 +142,9 @@ describe('Storage Operations', () => {
 
     it('throws error when response Body is empty', async () => {
       s3Mock.on(GetObjectCommand).resolves({});
+      const tempPath = path.join(os.tmpdir(), 'empty-body-test.txt');
 
-      await expect(downloadFile(client, 'test-bucket', 'empty-key', '/dummy/path')).rejects.toThrow(
+      await expect(downloadFile(client, 'test-bucket', 'empty-key', tempPath)).rejects.toThrow(
         'Empty response body received'
       );
     });
