@@ -1,0 +1,94 @@
+﻿name: Provider - Google Cloud Storage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * *'
+
+jobs:
+  test-gcs:
+    name: Google Cloud Storage Live Integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Check Google Cloud Storage credentials
+        id: check-secrets
+        run: |
+          ACCESS_ID="${{ secrets.GCS_HMAC_ACCESS_ID || secrets.GCS_ACCESS_KEY_ID }}"
+          SECRET_KEY="${{ secrets.GCS_HMAC_SECRET || secrets.GCS_SECRET_ACCESS_KEY }}"
+          BUCKET="${{ secrets.GCS_BUCKET }}"
+          if [ -z "$ACCESS_ID" ] || [ -z "$SECRET_KEY" ] || [ -z "$BUCKET" ]; then
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+            echo "::notice::Google Cloud Storage secrets (GCS_BUCKET, GCS_HMAC_ACCESS_ID/GCS_ACCESS_KEY_ID, GCS_HMAC_SECRET/GCS_SECRET_ACCESS_KEY) are not configured. Skipping live GCS integration test."
+          else
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate synthetic test payload
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: |
+          mkdir -p /tmp/gcs-cache-test
+          echo "GCS test artifact $(date +%s%N) for run ${{ github.run_id }}" > /tmp/gcs-cache-test/sample.txt
+          sha256sum /tmp/gcs-cache-test/sample.txt > /tmp/gcs-expected-sha.txt
+          cat /tmp/gcs-expected-sha.txt
+
+      - name: Save cache to Google Cloud Storage (save-only)
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        uses: ./save
+        with:
+          path: /tmp/gcs-cache-test
+          key: gcs-live-test-${{ github.run_id }}-${{ github.run_attempt }}
+          bucket: ${{ secrets.GCS_BUCKET }}
+          endpoint: https://storage.googleapis.com
+          access-key: ${{ secrets.GCS_HMAC_ACCESS_ID || secrets.GCS_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.GCS_HMAC_SECRET || secrets.GCS_SECRET_ACCESS_KEY }}
+
+      - name: Purge local test payload
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: rm -rf /tmp/gcs-cache-test
+
+      - name: Restore cache from Google Cloud Storage (restore-only)
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        id: restore-gcs
+        uses: ./restore
+        with:
+          path: /tmp/gcs-cache-test
+          key: gcs-live-test-${{ github.run_id }}-${{ github.run_attempt }}
+          bucket: ${{ secrets.GCS_BUCKET }}
+          endpoint: https://storage.googleapis.com
+          access-key: ${{ secrets.GCS_HMAC_ACCESS_ID || secrets.GCS_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.GCS_HMAC_SECRET || secrets.GCS_SECRET_ACCESS_KEY }}
+          fail-on-cache-miss: true
+
+      - name: Verify restored content and checksum
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: |
+          echo "Asserting cache hit..."
+          if [ "${{ steps.restore-gcs.outputs.cache-hit }}" != "true" ]; then
+            echo "::error::Expected cache-hit to be 'true', got '${{ steps.restore-gcs.outputs.cache-hit }}'"
+            exit 1
+          fi
+
+          if [ ! -f /tmp/gcs-cache-test/sample.txt ]; then
+            echo "::error::Restored file /tmp/gcs-cache-test/sample.txt not found!"
+            exit 1
+          fi
+
+          ACTUAL_SHA=$(sha256sum /tmp/gcs-cache-test/sample.txt | awk '{print $1}')
+          EXPECTED_SHA=$(awk '{print $1}' /tmp/gcs-expected-sha.txt)
+          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            echo "::error::Checksum mismatch! Expected $EXPECTED_SHA, got $ACTUAL_SHA"
+            exit 1
+          fi
+
+          echo "Live Google Cloud Storage cache save & restore test succeeded! Checksum: $ACTUAL_SHA"
