@@ -9,7 +9,41 @@ export default defineConfig({
     hostname: 'https://xsavikx.github.io/cloud-cache-action/',
   },
   lastUpdated: true,
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/cloud-cache-action/favicon.svg' }],
+    ['link', { rel: 'icon', type: 'image/x-icon', href: '/cloud-cache-action/favicon.ico' }],
+    [
+      'link',
+      {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: '32x32',
+        href: '/cloud-cache-action/favicon-32x32.png',
+      },
+    ],
+    [
+      'link',
+      {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: '16x16',
+        href: '/cloud-cache-action/favicon-16x16.png',
+      },
+    ],
+    [
+      'link',
+      {
+        rel: 'apple-touch-icon',
+        sizes: '180x180',
+        href: '/cloud-cache-action/apple-touch-icon.png',
+      },
+    ],
+    ['link', { rel: 'manifest', href: '/cloud-cache-action/site.webmanifest' }],
+    ['meta', { name: 'theme-color', content: '#0ea5e9' }],
+    ['meta', { property: 'og:image', content: '/cloud-cache-action/android-chrome-512x512.png' }],
+  ],
   themeConfig: {
+    logo: { src: '/logo.svg', alt: 'Cloud Cache Action' },
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Dual Caching', link: '/guide/dual-caching' },
