@@ -44,7 +44,7 @@ You can also reference **any environment variable** using `${VAR_NAME}`, `$VAR_N
 ### 1. Custom Prefix Within Repository
 
 ```yaml
-- uses: xSAVIKx/cloud-cache-action@v0
+- uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: ci-caches
     prefix: web-app
@@ -59,7 +59,7 @@ Object key: `my-org/my-repo/web-app/linux-node-12345/cache.tar.zst`
 If multiple repositories share the exact same pre-built toolchains or caches across an organization:
 
 ```yaml
-- uses: xSAVIKx/cloud-cache-action@v0
+- uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: shared-org-cache
     scoped-to-repository: false
@@ -74,7 +74,7 @@ Object key: `global-rust-toolchain-v1/cache.tar.zst`
 You can define any pattern using `s3-key-pattern`:
 
 ```yaml
-- uses: xSAVIKx/cloud-cache-action@v0
+- uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-bucket
     s3-key-pattern: 'builds/${GITHUB_REPOSITORY}/${prefix}${key}.tar.zst'
@@ -90,7 +90,7 @@ Object key: `builds/my-org/my-repo/release-v1/app-bundle.tar.zst`
 You can isolate caches across parallel matrix jobs, workloads, or workflow runs using environment variables:
 
 ```yaml
-- uses: xSAVIKx/cloud-cache-action@v0
+- uses: xSAVIKx/cloud-cache-action@v1
   env:
     WORKLOAD_TYPE: backend-api
   with:

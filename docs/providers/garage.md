@@ -8,7 +8,7 @@ When running self-hosted runners or local CI infrastructure with Garage:
 
 ```yaml
 - name: Cache dependencies using self-hosted Garage
-  uses: xSAVIKx/cloud-cache-action@v0
+  uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: ci-cache
     endpoint: http://garage.internal:3900 # Or your public/private Garage S3 URL

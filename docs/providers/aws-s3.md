@@ -23,7 +23,7 @@ jobs:
           aws-region: us-east-1
 
       - name: Cache dependencies
-        uses: xSAVIKx/cloud-cache-action@v0
+        uses: xSAVIKx/cloud-cache-action@v1
         with:
           bucket: my-actions-cache-bucket
           key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
@@ -34,7 +34,7 @@ jobs:
 
 ```yaml
 - name: Cache dependencies
-  uses: xSAVIKx/cloud-cache-action@v0
+  uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-actions-cache-bucket
     region: us-east-1

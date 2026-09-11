@@ -10,7 +10,7 @@ Backblaze B2 offers affordable S3-compatible cloud storage.
 
 ```yaml
 - name: Cache dependencies using Backblaze B2
-  uses: xSAVIKx/cloud-cache-action@v0
+  uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-b2-cache-bucket
     endpoint: https://s3.us-west-004.backblazeb2.com

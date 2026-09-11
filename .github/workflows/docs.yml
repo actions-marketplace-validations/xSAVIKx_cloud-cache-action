@@ -36,7 +36,7 @@ jobs:
         run: mkdir -p ~/.npm docs/.vitepress/dist
 
       - name: Restore npm cache via Cloud Cache Action
-        uses: xSAVIKx/cloud-cache-action@v0
+        uses: xSAVIKx/cloud-cache-action@v1
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
@@ -47,7 +47,7 @@ jobs:
       - run: npm ci
 
       - name: Restore VitePress build cache via Cloud Cache Action
-        uses: xSAVIKx/cloud-cache-action@v0
+        uses: xSAVIKx/cloud-cache-action@v1
         with:
           path: docs/.vitepress/dist
           key: ${{ runner.os }}-vitepress-${{ hashFiles('docs/**', 'package-lock.json') }}
