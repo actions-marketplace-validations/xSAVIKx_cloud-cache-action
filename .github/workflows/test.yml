@@ -18,17 +18,21 @@ jobs:
         with:
           node-version: 24
 
-      - name: Start local test container (SeaweedFS)
+      - name: Start local test container (MinIO)
         run: |
-          docker compose -f docker-compose.test.yml up -d seaweedfs
+          docker compose -f docker-compose.test.yml up -d minio
           for i in {1..30}; do
-            if curl -s http://127.0.0.1:8333/ > /dev/null 2>&1; then
-              echo "SeaweedFS is ready."
+            if curl -s http://127.0.0.1:9000/minio/health/live > /dev/null 2>&1; then
+              echo "MinIO is ready."
               break
             fi
             sleep 1
           done
+          docker exec cloud-cache-minio mkdir -p /data/test-bucket
         continue-on-error: true
+
+      - name: Ensure npm cache directory exists
+        run: mkdir -p ~/.npm
 
       - name: Restore npm cache (local S3 + GitHub dual-cache)
         uses: ./
@@ -38,29 +42,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-
           bucket: test-bucket
-          endpoint: http://127.0.0.1:8333
-          access-key: any
-          secret-key: any
+          endpoint: http://127.0.0.1:9000
+          access-key: minioadmin
+          secret-key: minioadmin
           force-path-style: true
           dual-cache: true
           restore-priority: s3-first
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Restore VitePress build cache
-        uses: ./
-        with:
-          path: docs/.vitepress/cache
-          key: ${{ runner.os }}-vitepress-${{ hashFiles('docs/**', 'package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-vitepress-
-          bucket: test-bucket
-          endpoint: http://127.0.0.1:8333
-          access-key: any
-          secret-key: any
-          force-path-style: true
-          dual-cache: true
 
       - name: Code style and lint check
         run: |
@@ -99,16 +89,17 @@ jobs:
         with:
           node-version: 24
 
-      - name: Start local test container (SeaweedFS)
+      - name: Start local test container (MinIO)
         run: |
-          docker compose -f docker-compose.test.yml up -d seaweedfs
+          docker compose -f docker-compose.test.yml up -d minio
           for i in {1..30}; do
-            if curl -s http://127.0.0.1:8333/ > /dev/null 2>&1; then
-              echo "SeaweedFS is ready."
+            if curl -s http://127.0.0.1:9000/minio/health/live > /dev/null 2>&1; then
+              echo "MinIO is ready."
               break
             fi
             sleep 1
           done
+          docker exec cloud-cache-minio mkdir -p /data/test-bucket
 
       - name: Generate synthetic test payload
         run: |
@@ -123,9 +114,9 @@ jobs:
           path: /tmp/dogfood-cache-payload
           key: dogfood-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           bucket: test-bucket
-          endpoint: http://127.0.0.1:8333
-          access-key: any
-          secret-key: any
+          endpoint: http://127.0.0.1:9000
+          access-key: minioadmin
+          secret-key: minioadmin
           force-path-style: true
 
       - name: Purge local test payload
@@ -138,9 +129,9 @@ jobs:
           path: /tmp/dogfood-cache-payload
           key: dogfood-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           bucket: test-bucket
-          endpoint: http://127.0.0.1:8333
-          access-key: any
-          secret-key: any
+          endpoint: http://127.0.0.1:9000
+          access-key: minioadmin
+          secret-key: minioadmin
           force-path-style: true
           fail-on-cache-miss: true
 
