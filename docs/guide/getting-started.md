@@ -65,3 +65,24 @@ Just like `actions/cache/restore` and `actions/cache/save`, you can invoke resto
     key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
     path: build/
 ```
+
+### Action Metadata Definitions
+
+You can inspect the full action specification files directly in the repository:
+
+- **Unified Action**: [`action.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/action.yml)
+- **Dedicated Restore Action**: [`restore/action.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/restore/action.yml)
+- **Dedicated Save Action**: [`save/action.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/save/action.yml)
+
+::: details `action.yml` (Click to view unified action definition)
+<<< ../../action.yml{yaml}
+:::
+
+::: details `restore/action.yml` (Click to view restore action definition)
+<<< ../../restore/action.yml{yaml}
+:::
+
+::: details `save/action.yml` (Click to view save action definition)
+<<< ../../save/action.yml{yaml}
+:::
+

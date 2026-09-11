@@ -24,3 +24,12 @@ Cloudflare R2 provides zero egress fees, making it one of the most cost-effectiv
 
 > [!TIP]
 > Cloud Cache Action automatically detects Cloudflare R2 from the endpoint URL and sets `region: auto` and `force-path-style: false` automatically.
+
+## Live CI Verification Workflow
+
+This action is tested continuously against Cloudflare R2 with zero egress fees. You can inspect the live GitHub Actions workflow file in the repository: [`.github/workflows/provider-r2.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/.github/workflows/provider-r2.yml).
+
+::: details `.github/workflows/provider-r2.yml` (Click to view full workflow)
+<<< ../../.github/workflows/provider-r2.yml{yaml}
+:::
+

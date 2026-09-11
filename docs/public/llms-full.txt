@@ -676,12 +676,28 @@ When running self-hosted runners or local CI infrastructure with Garage:
     path: build/
 ```
 
-## Running Garage Locally for Integration Testing
+### Running Garage Locally for Integration Testing
 
-You can spin up Garage locally using the repository's `docker-compose.test.yml`:
+You can spin up Garage locally using the repository's [`docker-compose.test.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/docker-compose.test.yml):
 
 ```bash
 docker compose -f docker-compose.test.yml up -d garage
+```
+
+The Garage service requires a configuration file mounted at `/etc/garage.toml` ([`tests/fixtures/garage.toml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/tests/fixtures/garage.toml)).
+
+### Initializing Garage S3 Locally
+
+```bash
+# 1. Assign layout to the local node
+NODE_ID=$(docker exec cloud-cache-garage /garage status | awk '/Node/ {print $2}')
+docker exec -ti cloud-cache-garage /garage layout assign -z dc1 -c 10G $NODE_ID
+docker exec -ti cloud-cache-garage /garage layout apply --version 1
+
+# 2. Create access key and bucket
+docker exec -ti cloud-cache-garage /garage key create ci-cache-key
+docker exec -ti cloud-cache-garage /garage bucket create ci-cache
+docker exec -ti cloud-cache-garage /garage bucket allow ci-cache --read --write --key ci-cache-key
 ```
 
 
@@ -711,9 +727,49 @@ docker compose -f docker-compose.test.yml up -d garage
 
 ## Running SeaweedFS Locally for Testing
 
-You can spin up SeaweedFS locally with S3 enabled:
+You can spin up SeaweedFS locally with S3 enabled using the repository's [`docker-compose.test.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/docker-compose.test.yml):
 
 ```bash
 docker compose -f docker-compose.test.yml up -d seaweedfs
 ```
 
+Once running:
+- S3 API: `http://localhost:8333`
+- Master UI: `http://localhost:9333`
+
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/minio.md -->
+<!-- ============================================================================ -->
+
+# MinIO S3 Setup
+
+[MinIO](https://min.io/) is an open-source, high-performance distributed object store with native S3 API compatibility, widely used for on-premise deployments and local CI testing.
+
+## Configuration
+
+```yaml
+- name: Cache dependencies using MinIO
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: ci-cache
+    endpoint: http://minio.internal:9000
+    access-key: ${{ secrets.MINIO_ACCESS_KEY }}
+    secret-key: ${{ secrets.MINIO_SECRET_KEY }}
+    force-path-style: true
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: build/
+```
+
+## Running MinIO Locally for Integration Testing
+
+You can spin up MinIO locally using the repository's [`docker-compose.test.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/docker-compose.test.yml):
+
+```bash
+docker compose -f docker-compose.test.yml up -d minio
+```
+
+Once running:
+- S3 API: `http://localhost:9000`
+- Web Console: `http://localhost:9001` (User: `minioadmin`, Password: `minioadmin`)

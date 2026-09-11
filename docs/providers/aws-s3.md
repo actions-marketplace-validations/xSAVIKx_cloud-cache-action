@@ -50,3 +50,12 @@ To prevent cache storage costs from growing unbounded, configure an S3 Lifecycle
 
 - **Rule action**: Expire current versions of objects
 - **Days after object creation**: `30` or `60` days
+
+## Live CI Verification Workflow
+
+This action is tested continuously against real AWS S3 storage. You can inspect the live GitHub Actions workflow file in the repository: [`.github/workflows/provider-aws-s3.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/.github/workflows/provider-aws-s3.yml).
+
+::: details `.github/workflows/provider-aws-s3.yml` (Click to view full workflow)
+<<< ../../.github/workflows/provider-aws-s3.yml{yaml}
+:::
+

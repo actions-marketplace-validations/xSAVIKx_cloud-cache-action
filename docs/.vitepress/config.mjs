@@ -75,6 +75,7 @@ export default defineConfig({
           { text: 'Fastly Object Storage', link: '/providers/fastly-storage' },
           { text: 'Garage S3', link: '/providers/garage' },
           { text: 'SeaweedFS S3', link: '/providers/seaweedfs' },
+          { text: 'MinIO S3', link: '/providers/minio' },
         ],
       },
     ],

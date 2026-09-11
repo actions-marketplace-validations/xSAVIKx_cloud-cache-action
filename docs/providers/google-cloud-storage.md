@@ -22,3 +22,12 @@ Google Cloud Storage provides full S3 interoperability via its XML API and HMAC 
 
 > [!NOTE]
 > GCS S3 interoperability requires path-style addressing (`force-path-style: true`). Cloud Cache Action auto-detects `storage.googleapis.com` and automatically configures path-style addressing and region defaults.
+
+## Live CI Verification Workflow
+
+This action is tested continuously against Google Cloud Storage using HMAC keys and the XML API. You can inspect the live GitHub Actions workflow file in the repository: [`.github/workflows/provider-gcs.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/.github/workflows/provider-gcs.yml).
+
+::: details `.github/workflows/provider-gcs.yml` (Click to view full workflow)
+<<< ../../.github/workflows/provider-gcs.yml{yaml}
+:::
+

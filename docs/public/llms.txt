@@ -42,6 +42,7 @@ Key capabilities:
 - [Fastly Object Storage](https://xsavikx.github.io/cloud-cache-action/providers/fastly-storage.html): Edge-proximate object storage caching configuration.
 - [Garage S3](https://xsavikx.github.io/cloud-cache-action/providers/garage.html): Lightweight distributed self-hosted S3 storage setup and local testing.
 - [SeaweedFS S3](https://xsavikx.github.io/cloud-cache-action/providers/seaweedfs.html): High-capacity distributed filesystem with native S3 API gateway.
+- [MinIO S3](https://xsavikx.github.io/cloud-cache-action/providers/minio.html): High-performance Kubernetes-native S3 object store and local container testing.
 
 ## Optional
 

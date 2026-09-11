@@ -199,3 +199,14 @@ If your team is migrating from `actions/cache` to Cloudflare R2 or AWS S3:
 | --------------------- | :---------------------------------------: | -------------------------------------------------------------------------------- |
 | `cache-hit-source`    |        `s3` \| `github` \| `none`         | Identifies which storage tier provided the restored cache bundle.                |
 | `cache-saved-sources` | `s3,github` \| `s3` \| `github` \| `none` | Comma-separated list of storage tiers that successfully stored the cache bundle. |
+
+---
+
+## Live CI Dogfooding & Verification
+
+The dual-cache backfill and skip-on-hit strategies are exercised continuously within the repository's test workflow: [`.github/workflows/test.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/.github/workflows/test.yml).
+
+::: details `.github/workflows/test.yml` (Click to view full CI test workflow)
+<<< ../../.github/workflows/test.yml{yaml}
+:::
+
