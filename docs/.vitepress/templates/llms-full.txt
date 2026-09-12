@@ -1,7 +1,7 @@
 # Cloud Cache Action - Complete Documentation (llms-full.txt)
 Author: Yurii Serhiichuk (https://serhiichuk.dev)
 Repository: https://github.com/xSAVIKx/cloud-cache-action
-Documentation: https://xsavikx.github.io/cloud-cache-action/
+Documentation: {{SITE_URL}}
 License: MIT
 
 ================================================================================

@@ -1,4 +1,7 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { defineConfig } from 'vitepress';
+import { SITE_URL } from './site.mjs';
 
 export default defineConfig({
   title: 'Cloud Cache Action',
@@ -6,11 +9,28 @@ export default defineConfig({
     'Fast, flexible GitHub Action caching to any S3-compatible storage with 1:1 actions/cache parity',
   base: '/cloud-cache-action/',
   sitemap: {
-    hostname: 'https://xsavikx.github.io/cloud-cache-action/',
+    hostname: SITE_URL,
   },
   lastUpdated: true,
   transformHtml(code) {
     return code.replace('class="VPContent is-home"', 'role="main" class="VPContent is-home"');
+  },
+  /**
+   * llms.txt, llms-full.txt and robots.txt carry absolute URLs, so they are
+   * generated from templates rather than copied. They used to live in public/,
+   * which VitePress copies verbatim — meaning they would have survived a change
+   * to SITE_ORIGIN untouched and kept advertising the old host while every
+   * other emitted file moved. Copied assets are exactly where that hides.
+   */
+  buildEnd(siteConfig) {
+    const templates = path.join(import.meta.dirname, 'templates');
+    for (const file of ['llms.txt', 'llms-full.txt', 'robots.txt']) {
+      const body = readFileSync(path.join(templates, file), 'utf8').replaceAll(
+        '{{SITE_URL}}',
+        SITE_URL
+      );
+      writeFileSync(path.join(siteConfig.outDir, file), body);
+    }
   },
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/cloud-cache-action/favicon.svg' }],
@@ -48,7 +68,7 @@ export default defineConfig({
       'meta',
       { name: 'google-site-verification', content: 'sMLPKoYMB5EoPQiOfUJ51P7xLG55OXBKV9PTEvp2HPw' },
     ],
-    ['link', { rel: 'describedby', href: 'https://xsavikx.github.io/cloud-cache-action/llms.txt' }],
+    ['link', { rel: 'describedby', href: `${SITE_URL}llms.txt` }],
   ],
   themeConfig: {
     logo: { src: '/logo.svg', alt: 'Cloud Cache Action' },
