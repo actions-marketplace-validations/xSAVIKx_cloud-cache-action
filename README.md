@@ -308,7 +308,7 @@ check before archiving still avoids pointless work when the key already exists.
 ## Job Summary
 
 After both restore and save, a step summary table is written via `core.summary` — a "Cloud cache
-restore" table with the primary/matched key, cache hit, source and duration, and a "Cloud cache
+restore" table with the primary/matched key, cache hit, source, size and duration, and a "Cloud cache
 save" table with the key, tiers saved to, size and duration. This is on by default; set
 `job-summary: false` to turn it off. No summary is written when the step fails with an error, or
 when `GITHUB_STEP_SUMMARY` is not set.

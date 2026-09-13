@@ -51,7 +51,7 @@ Symlinks are archived as links, never followed and re-created as copies. On Wind
    - Verifies the archive's sha256 checksum, when the object carries one, before extracting it.
    - Decompresses the archive using `zstd` (or `gzip` fallback) directly into your workspace.
    - Sets outputs (`cache-hit`, `cache-primary-key`, `cache-matched-key`, `cache-size`, `cache-storage-provider`, `cache-s3-key`).
-   - Writes a job summary table with the key, hit status, source and duration, unless `job-summary: false`.
+   - Writes a job summary table with the key, hit status, source, size and duration, unless `job-summary: false`.
 
 2. **Save Phase (Post)**:
    - If `read-only: true` or if an exact key match occurred during restore, saving is automatically skipped.
