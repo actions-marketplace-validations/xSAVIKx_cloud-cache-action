@@ -48,6 +48,10 @@ jest.unstable_mockModule('../../../src/core/s3Tier', () => ({
 jest.unstable_mockModule('../../../src/core/githubTier', () => ({
   restoreFromGitHub: mockRestoreFromGitHub,
 }));
+const mockWriteRestoreSummary = jest.fn<(data: unknown) => Promise<void>>();
+jest.unstable_mockModule('../../../src/core/summary', () => ({
+  writeRestoreSummary: mockWriteRestoreSummary,
+}));
 
 const { restoreImpl, runRestore, runRestoreOnly } = await import('../../../src/core/restoreImpl');
 
@@ -107,6 +111,16 @@ describe('restoreImpl', () => {
     expect(state.values.get(State.CacheHitSource)).toBe('s3');
     expect(mockRestoreFromGitHub).not.toHaveBeenCalled();
     expect(mockSetFailed).not.toHaveBeenCalled();
+    expect(mockWriteRestoreSummary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobSummary: true,
+        primaryKey: 'Linux-npm-abc',
+        matchedKey: 'Linux-npm-abc',
+        cacheHit: true,
+        source: 's3',
+        size: 2048,
+      })
+    );
   });
 
   it('reports a partial hit as cache-hit false', async () => {
@@ -141,6 +155,24 @@ describe('restoreImpl', () => {
     expect(outputs.get('cache-hit')).toBe('false');
     expect(outputs.get('cache-hit-source')).toBe('none');
     expect(mockSetFailed).not.toHaveBeenCalled();
+    expect(mockWriteRestoreSummary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobSummary: true,
+        primaryKey: 'Linux-npm-abc',
+        matchedKey: undefined,
+        cacheHit: false,
+        source: 'none',
+        size: undefined,
+      })
+    );
+  });
+
+  it('passes job-summary through to the summary writer', async () => {
+    inputs.set(Inputs.JobSummary, 'false');
+    await restoreImpl(state, false);
+    expect(mockWriteRestoreSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ jobSummary: false })
+    );
   });
 
   it('fails on a miss when fail-on-cache-miss is set', async () => {
@@ -237,6 +269,7 @@ describe('restoreImpl', () => {
     inputs.delete(Inputs.Key);
     await restoreImpl(state, false);
     expect(mockSetFailed).toHaveBeenCalledWith('Input required and not supplied: key');
+    expect(mockWriteRestoreSummary).not.toHaveBeenCalled();
   });
 
   it('runs the wrappers without exiting when earlyExit is false', async () => {

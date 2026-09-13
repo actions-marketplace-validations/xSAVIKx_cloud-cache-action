@@ -110,6 +110,12 @@ inputs:
     required: false
     default: 'false'
 
+  # Job summary input
+  job-summary:
+    description: 'Write a job summary table with the cache keys, hit, source, size, and duration'
+    required: false
+    default: 'true'
+
 outputs:
   cache-hit:
     description: 'A boolean value to indicate an exact match was found for the primary key'

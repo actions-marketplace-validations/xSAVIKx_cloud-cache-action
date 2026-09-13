@@ -38,6 +38,9 @@ export enum Inputs {
   RestorePriority = 'restore-priority',
   DualCacheStrategy = 'dual-cache-strategy',
   DualCacheStrict = 'dual-cache-strict',
+
+  // Job summary input
+  JobSummary = 'job-summary',
 }
 
 export enum Outputs {
@@ -82,6 +85,7 @@ export enum State {
   CacheS3ExactHit = 'CACHE_S3_EXACT_HIT',
   CacheGithubExactHit = 'CACHE_GITHUB_EXACT_HIT',
   CacheHitSource = 'CACHE_HIT_SOURCE',
+  CacheJobSummary = 'CACHE_JOB_SUMMARY',
 }
 
 export enum Events {

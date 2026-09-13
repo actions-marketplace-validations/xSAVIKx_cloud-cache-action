@@ -60,6 +60,10 @@ jest.unstable_mockModule('../../../src/core/githubTier', () => ({
   existsInGitHub: mockExistsInGitHub,
   saveToGitHub: mockSaveToGitHub,
 }));
+const mockWriteSaveSummary = jest.fn<(data: unknown) => Promise<void>>();
+jest.unstable_mockModule('../../../src/core/summary', () => ({
+  writeSaveSummary: mockWriteSaveSummary,
+}));
 
 const { runSave, runSaveOnly, saveImpl } = await import('../../../src/core/saveImpl');
 
@@ -108,6 +112,22 @@ describe('saveImpl', () => {
         'cache-saved-sources': 's3',
       });
       expect(mockSaveToGitHub).not.toHaveBeenCalled();
+      expect(mockWriteSaveSummary).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobSummary: true,
+          key: 'Linux-npm-abc',
+          savedTo: ['s3'],
+          size: 2048,
+        })
+      );
+    });
+
+    it('passes job-summary through to the summary writer', async () => {
+      inputs.set(Inputs.JobSummary, 'false');
+      await saveImpl(state);
+      expect(mockWriteSaveSummary).toHaveBeenCalledWith(
+        expect.objectContaining({ jobSummary: false })
+      );
     });
 
     it('builds the S3 tier with the compression method the restore step used', async () => {
@@ -123,6 +143,9 @@ describe('saveImpl', () => {
       await saveImpl(state);
       expect(mockSaveToS3).not.toHaveBeenCalled();
       expect(outputs.get('cache-saved-sources')).toBe('none');
+      expect(mockWriteSaveSummary).toHaveBeenCalledWith(
+        expect.objectContaining({ savedTo: [], size: undefined })
+      );
     });
 
     it('still saves to S3 after an exact hit from the GitHub fallback', async () => {
@@ -196,6 +219,7 @@ describe('saveImpl', () => {
       state.setState(State.CacheReadOnly, 'true');
       await saveImpl(state);
       expect(mockBuildS3Tier).not.toHaveBeenCalled();
+      expect(mockWriteSaveSummary).not.toHaveBeenCalled();
     });
 
     it('warns and skips when no key is available', async () => {
@@ -203,6 +227,7 @@ describe('saveImpl', () => {
       await saveImpl(state);
       expect(mockWarning).toHaveBeenCalledWith('Key is not specified. Skipping cache save.');
       expect(mockBuildS3Tier).not.toHaveBeenCalled();
+      expect(mockWriteSaveSummary).not.toHaveBeenCalled();
     });
   });
 
@@ -218,6 +243,9 @@ describe('saveImpl', () => {
       expect(mockExistsInGitHub).toHaveBeenCalledWith(['~/.npm'], 'Linux-npm-abc', false);
       expect(mockSaveToGitHub).toHaveBeenCalled();
       expect(outputs.get('cache-saved-sources')).toBe('s3,github');
+      expect(mockWriteSaveSummary).toHaveBeenCalledWith(
+        expect.objectContaining({ savedTo: ['s3', 'github'] })
+      );
     });
 
     it('does not re-upload to GitHub when the key is already there', async () => {

@@ -98,6 +98,12 @@ inputs:
     required: false
     default: 'false'
 
+  # Job summary input
+  job-summary:
+    description: 'Write a job summary table with the cache key, saved-to tiers, size, and duration'
+    required: false
+    default: 'true'
+
 outputs:
   cache-size:
     description: 'The size of the saved cache archive in bytes'

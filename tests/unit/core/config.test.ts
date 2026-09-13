@@ -42,6 +42,7 @@ describe('readCacheConfig', () => {
       dualCacheStrategy: 'backfill',
       dualCacheStrict: false,
       streaming: false,
+      jobSummary: true,
     });
     expect(mockWarning).not.toHaveBeenCalled();
   });

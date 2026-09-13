@@ -35,6 +35,7 @@ export interface CacheConfig {
   dualCacheStrategy: DualCacheStrategy;
   dualCacheStrict: boolean;
   streaming: boolean;
+  jobSummary: boolean;
 }
 
 function readDualCacheStrategy(): DualCacheStrategy {
@@ -91,6 +92,7 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     dualCacheStrategy: text(State.CacheDualCacheStrategy, readDualCacheStrategy),
     dualCacheStrict: bool(State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
     streaming: bool(State.CacheStreaming, () => getInputAsBool(Inputs.Streaming)),
+    jobSummary: bool(State.CacheJobSummary, () => getInputAsBool(Inputs.JobSummary, true)),
   };
 }
 
@@ -109,4 +111,5 @@ export function persistCacheConfig(state: IStateProvider, config: CacheConfig): 
   state.setState(State.CacheDualCacheStrategy, config.dualCacheStrategy);
   state.setState(State.CacheDualCacheStrict, String(config.dualCacheStrict));
   state.setState(State.CacheStreaming, String(config.streaming));
+  state.setState(State.CacheJobSummary, String(config.jobSummary));
 }

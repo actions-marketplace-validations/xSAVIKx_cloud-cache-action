@@ -6,6 +6,7 @@ import { persistCacheConfig, readCacheConfig, type CacheConfig } from './config'
 import { restoreFromGitHub } from './githubTier';
 import { toError, type RestoreOutcome } from './outcomes';
 import { buildS3Tier, restoreFromS3, type S3Tier } from './s3Tier';
+import { writeRestoreSummary } from './summary';
 
 type Source = 's3' | 'github';
 type Hit = Extract<RestoreOutcome, { kind: 'hit' }>;
@@ -87,6 +88,7 @@ export async function restoreImpl(
   stateProvider: IStateProvider,
   earlyExit?: boolean
 ): Promise<string | undefined> {
+  const start = Date.now();
   try {
     if (!isValidEvent()) {
       core.warning(
@@ -117,8 +119,19 @@ export async function restoreImpl(
     for (const source of restoreOrder(config)) {
       const outcome = await attempt(source, config, s3);
       switch (outcome.kind) {
-        case 'hit':
-          return reportHit(stateProvider, config, source, outcome);
+        case 'hit': {
+          const matchedKey = reportHit(stateProvider, config, source, outcome);
+          await writeRestoreSummary({
+            jobSummary: config.jobSummary,
+            primaryKey: config.primaryKey,
+            matchedKey,
+            cacheHit: outcome.exact,
+            source,
+            size: outcome.s3?.size,
+            durationMs: Date.now() - start,
+          });
+          return matchedKey;
+        }
         case 'miss':
           break;
         case 'error':
@@ -139,6 +152,15 @@ export async function restoreImpl(
     }
 
     stateProvider.setState(State.CacheHitSource, 'none');
+    await writeRestoreSummary({
+      jobSummary: config.jobSummary,
+      primaryKey: config.primaryKey,
+      matchedKey: undefined,
+      cacheHit: false,
+      source: 'none',
+      size: undefined,
+      durationMs: Date.now() - start,
+    });
     if (config.failOnCacheMiss) {
       throw new Error(
         `Failed to restore cache entry. Exiting as fail-on-cache-miss is set. Input key: ${config.primaryKey}`

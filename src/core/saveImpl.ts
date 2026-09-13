@@ -6,6 +6,13 @@ import { readCacheConfig, type CacheConfig } from './config';
 import { existsInGitHub, saveToGitHub } from './githubTier';
 import { toError, type S3ObjectInfo } from './outcomes';
 import { buildS3Tier, saveToS3, type S3Tier } from './s3Tier';
+import { writeSaveSummary } from './summary';
+
+/** What got saved where, so the caller can build the job summary and its own return value. */
+interface SaveResult {
+  size?: number;
+  sources: Array<'s3' | 'github'>;
+}
 
 function reportS3(info: S3ObjectInfo | undefined): void {
   if (!info) {
@@ -42,11 +49,11 @@ async function saveSingleTier(
   config: CacheConfig,
   s3: S3Tier | undefined,
   s3ExactHit: boolean
-): Promise<number | void> {
+): Promise<SaveResult> {
   if (s3ExactHit) {
     core.info(`Cache hit occurred on the primary key ${config.primaryKey}, not saving cache.`);
     core.setOutput(Outputs.CacheSavedSources, 'none');
-    return;
+    return { sources: [] };
   }
 
   if (s3) {
@@ -56,10 +63,10 @@ async function saveSingleTier(
       case 'exists':
         reportS3(outcome.s3);
         core.setOutput(Outputs.CacheSavedSources, 's3');
-        return outcome.s3?.size;
+        return { size: outcome.s3?.size, sources: ['s3'] };
       case 'skipped':
         core.setOutput(Outputs.CacheSavedSources, 'none');
-        return;
+        return { sources: [] };
       case 'error':
         core.warning(`Failed to save cache to S3: ${outcome.error.message}`);
         break;
@@ -81,7 +88,7 @@ async function saveSingleTier(
     switch (outcome.kind) {
       case 'saved':
         core.setOutput(Outputs.CacheSavedSources, 'github');
-        return;
+        return { sources: ['github'] };
       case 'error':
         core.warning(`Failed to save cache to GitHub Actions Cache: ${outcome.error.message}`);
         break;
@@ -95,6 +102,7 @@ async function saveSingleTier(
     }
   }
   core.setOutput(Outputs.CacheSavedSources, 'none');
+  return { sources: [] };
 }
 
 async function saveBothTiers(
@@ -102,8 +110,9 @@ async function saveBothTiers(
   s3: S3Tier | undefined,
   s3ExactHit: boolean,
   githubExactHit: boolean
-): Promise<void> {
+): Promise<SaveResult> {
   const present = new Set<'s3' | 'github'>();
+  let size: number | undefined;
   const tierFailed = (tier: string, error: Error): void => {
     if (config.dualCacheStrict) {
       throw new Error(`Saving to ${tier} failed: ${error.message}`, { cause: error });
@@ -128,6 +137,7 @@ async function saveBothTiers(
       case 'exists':
         present.add('s3');
         reportS3(outcome.s3);
+        size = outcome.s3?.size;
         break;
       case 'skipped':
         break;
@@ -187,10 +197,12 @@ async function saveBothTiers(
   const sources = (['s3', 'github'] as const).filter((source) => present.has(source));
   core.setOutput(Outputs.CacheSavedSources, sources.join(',') || 'none');
   core.info(`Dual-cache save complete. Cache present in: ${sources.join(', ') || 'none'}`);
+  return { size, sources: [...sources] };
 }
 
 export async function saveImpl(stateProvider: IStateProvider): Promise<number | void> {
   let strict = false;
+  const start = Date.now();
   try {
     if (!isValidEvent()) {
       core.warning(
@@ -217,11 +229,17 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
     const githubExactHit = stateProvider.getState(State.CacheGithubExactHit) === 'true';
     const s3 = await setUpS3(config, stateProvider);
 
-    if (config.dualCache) {
-      await saveBothTiers(config, s3, s3ExactHit, githubExactHit);
-      return;
-    }
-    return await saveSingleTier(config, s3, s3ExactHit);
+    const result = config.dualCache
+      ? await saveBothTiers(config, s3, s3ExactHit, githubExactHit)
+      : await saveSingleTier(config, s3, s3ExactHit);
+    await writeSaveSummary({
+      jobSummary: config.jobSummary,
+      key: config.primaryKey,
+      savedTo: result.sources,
+      size: result.size,
+      durationMs: Date.now() - start,
+    });
+    return config.dualCache ? undefined : result.size;
   } catch (err) {
     const message = toError(err).message;
     if (strict) {
