@@ -143,12 +143,13 @@ jobs:
           node tests/support/fixtureTree.ts verify "$RUNNER_TEMP/fixture.json"
 
   roundtrip:
-    name: Round trip (${{ matrix.os }})
+    name: Round trip (${{ matrix.os }}, streaming ${{ matrix.streaming }})
     needs: unit
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        streaming: ['false', 'true']
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -176,6 +177,7 @@ jobs:
           bucket: cloud-cache-test
           key: ${{ env.KEY }}-v1
           path: ${{ steps.fixture.outputs.paths }}
+          streaming: ${{ matrix.streaming }}
       - name: Remove the fixture tree
         run: node tests/support/fixtureTree.ts clear
       - name: Restore the exact key
@@ -186,6 +188,7 @@ jobs:
           key: ${{ env.KEY }}-v1
           path: ${{ steps.fixture.outputs.paths }}
           fail-on-cache-miss: true
+          streaming: ${{ matrix.streaming }}
       - name: Verify the restored tree
         run: |
           test "${{ steps.exact.outputs.cache-hit }}" = "true"

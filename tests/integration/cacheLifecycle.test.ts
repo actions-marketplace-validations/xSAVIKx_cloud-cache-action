@@ -152,10 +152,12 @@ afterEach(() => {
   [roots.workspace, roots.outside, roots.home, scratch].forEach(removeDir);
 });
 
-describe.each<CompressionConfig>([
-  { method: 'gzip', archiveFilename: 'cache.tar.gz' },
-  { method: 'zstd', archiveFilename: 'cache.tar.zst' },
-])('cache lifecycle with $method', (config) => {
+describe.each<CompressionConfig & { streaming: boolean }>([
+  { method: 'gzip', archiveFilename: 'cache.tar.gz', streaming: false },
+  { method: 'gzip', archiveFilename: 'cache.tar.gz', streaming: true },
+  { method: 'zstd', archiveFilename: 'cache.tar.zst', streaming: false },
+  { method: 'zstd', archiveFilename: 'cache.tar.zst', streaming: true },
+])('cache lifecycle with $method (streaming: $streaming)', (config) => {
   itS3(
     'misses, saves, and restores every fixture case exactly',
     async () => {
@@ -163,19 +165,25 @@ describe.each<CompressionConfig>([
         console.log('zstd is not installed; skipping the zstd lifecycle.');
         return;
       }
-      compression = config;
+      compression = { method: config.method, archiveFilename: config.archiveFilename };
+      const streaming = String(config.streaming);
       const fixture = buildFixtureTree(roots, { largeFileBytes: 12 * 1024 * 1024 });
-      const key = `rt-${config.method}-${runId}`;
+      const key = `rt-${config.method}-${config.streaming ? 'stream' : 'file'}-${runId}`;
       const paths = fixture.patterns.join('\n');
 
-      const first = await restore({ key, path: paths });
+      const first = await restore({ key, path: paths, streaming });
       expect(first.outputs['cache-hit']).toBe('false');
-      expect(await save({ key, path: paths }, first.state)).toMatchObject({
+      expect(await save({ key, path: paths, streaming }, first.state)).toMatchObject({
         'cache-saved-sources': 's3',
       });
 
       clearFixtureRoots(roots);
-      const second = await restore({ key, path: paths, 'fail-on-cache-miss': 'true' });
+      const second = await restore({
+        key,
+        path: paths,
+        'fail-on-cache-miss': 'true',
+        streaming,
+      });
       expect(second.outputs).toMatchObject({
         'cache-hit': 'true',
         'cache-matched-key': key,
