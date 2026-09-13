@@ -132,6 +132,159 @@ describe('compileKeyTemplate', () => {
   });
 });
 
+describe('placeholder removal', () => {
+  it('removes ${GITHUB_REPOSITORY} and ${ref} cleanly when they are not slash-adjacent on both sides', () => {
+    const pattern = 'builds/${GITHUB_REPOSITORY}-${ref}/${key}/${version}/${archive_filename}';
+
+    expect(
+      compileKeyTemplate({
+        ...base,
+        pattern,
+        scopedToRepository: true,
+        scopedToRef: true,
+      }).objectKey(MAIN, 'k')
+    ).toBe(`builds/octo/app-refs%2Fheads%2Fmain/k/${VERSION}/cache.tar.zst`);
+
+    expect(
+      compileKeyTemplate({
+        ...base,
+        pattern,
+        scopedToRepository: false,
+        scopedToRef: true,
+      }).objectKey(MAIN, 'k')
+    ).toBe(`builds-refs%2Fheads%2Fmain/k/${VERSION}/cache.tar.zst`);
+
+    expect(
+      compileKeyTemplate({
+        ...base,
+        pattern,
+        scopedToRepository: true,
+        scopedToRef: false,
+      }).objectKey('', 'k')
+    ).toBe(`builds/octo/app-k/${VERSION}/cache.tar.zst`);
+
+    expect(
+      compileKeyTemplate({
+        ...base,
+        pattern,
+        scopedToRepository: false,
+        scopedToRef: false,
+      }).objectKey('', 'k')
+    ).toBe(`builds-k/${VERSION}/cache.tar.zst`);
+  });
+
+  it('never leaves a leading slash when ${ref} opens the pattern', () => {
+    const pattern = '${ref}/${key}';
+
+    expect(compileKeyTemplate({ ...base, pattern, scopedToRef: true }).objectKey(MAIN, 'k')).toBe(
+      `refs%2Fheads%2Fmain/k`
+    );
+    expect(compileKeyTemplate({ ...base, pattern, scopedToRef: false }).objectKey('', 'k')).toBe(
+      'k'
+    );
+  });
+
+  it('never leaves a doubled slash when ${ref} sits between ${key} and a following segment', () => {
+    const pattern = '${key}/${ref}/${archive_filename}';
+
+    expect(compileKeyTemplate({ ...base, pattern, scopedToRef: true }).objectKey(MAIN, 'k')).toBe(
+      'k/refs%2Fheads%2Fmain/cache.tar.zst'
+    );
+    expect(compileKeyTemplate({ ...base, pattern, scopedToRef: false }).objectKey('', 'k')).toBe(
+      'k/cache.tar.zst'
+    );
+  });
+
+  it('drops ${ref} cleanly when it is glued to ${prefix} with no slash between them', () => {
+    const pattern = '${prefix}${ref}/${key}/${archive_filename}';
+
+    expect(
+      compileKeyTemplate({ ...base, pattern, prefix: 'team-a', scopedToRef: true }).objectKey(
+        MAIN,
+        'k'
+      )
+    ).toBe('team-a/refs%2Fheads%2Fmain/k/cache.tar.zst');
+    expect(
+      compileKeyTemplate({ ...base, pattern, prefix: 'team-a', scopedToRef: false }).objectKey(
+        '',
+        'k'
+      )
+    ).toBe('team-a/k/cache.tar.zst');
+  });
+});
+
+describe('bare special variables', () => {
+  it('keeps a bare special variable literal instead of expanding it from the environment', () => {
+    const template = compileKeyTemplate({
+      ...base,
+      pattern: '${GITHUB_REPOSITORY}/$ref/${key}/${version}/${archive_filename}',
+      env: { ref: 'should-not-be-used' },
+    });
+    expect(template.objectKey(MAIN, 'k')).toBe(`octo/app/$ref/k/${VERSION}/cache.tar.zst`);
+  });
+
+  it('never substitutes a bare ${GITHUB_REPOSITORY}, even though the real env var is set', () => {
+    const template = compileKeyTemplate({
+      ...base,
+      pattern: '$GITHUB_REPOSITORY/${ref}/${key}/${version}/${archive_filename}',
+      env: { GITHUB_REPOSITORY: 'someone/else' },
+    });
+    expect(template.objectKey(MAIN, 'k')).toBe(
+      `$GITHUB_REPOSITORY/refs%2Fheads%2Fmain/k/${VERSION}/cache.tar.zst`
+    );
+  });
+
+  it('warns once per distinct bare special variable', () => {
+    const template = compileKeyTemplate({
+      ...base,
+      pattern: '${ref}/$key/${key}/$ref/${version}/${archive_filename}',
+    });
+    expect(template.warnings).toEqual([
+      's3-key-pattern uses $key; write ${key} to use the key placeholder.',
+      's3-key-pattern uses $ref; write ${ref} to use the ref placeholder.',
+    ]);
+  });
+
+  it('does not warn about an ordinary bare environment reference', () => {
+    const template = compileKeyTemplate({
+      ...base,
+      pattern: '$RUNNER_OS/${ref}/${key}/${version}/${archive_filename}',
+      env: { RUNNER_OS: 'Linux' },
+    });
+    expect(template.warnings).toEqual([]);
+  });
+});
+
+describe('scopePrefix', () => {
+  it('equals searchPrefix(ref, "") for a given ref', () => {
+    const template = compileKeyTemplate(base);
+    expect(template.scopePrefix(MAIN)).toBe(template.searchPrefix(MAIN, ''));
+    expect(template.scopePrefix(MAIN)).toBe('octo/app/refs%2Fheads%2Fmain/');
+  });
+
+  it('resolves the text before ${ref} for every ref when no ref is given', () => {
+    const template = compileKeyTemplate(base);
+    expect(template.scopePrefix()).toBe('octo/app/');
+  });
+
+  it('equals searchPrefix("", "") for an unscoped pattern', () => {
+    const template = compileKeyTemplate({ ...base, scopedToRef: false });
+    expect(template.scopePrefix()).toBe(template.searchPrefix('', ''));
+    expect(template.scopePrefix()).toBe('octo/app/');
+    expect(template.scopePrefix(MAIN)).toBe(template.searchPrefix('', ''));
+  });
+
+  it('applies the same normalisation as the base for a custom pattern', () => {
+    const template = compileKeyTemplate({
+      ...base,
+      pattern: '${prefix}${ref}/${key}/${archive_filename}',
+      prefix: 'team-a',
+    });
+    expect(template.scopePrefix()).toBe('team-a/');
+    expect(template.scopePrefix(MAIN)).toBe('team-a/refs%2Fheads%2Fmain/');
+  });
+});
+
 describe('normalizePrefix', () => {
   it.each([
     ['', ''],
