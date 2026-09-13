@@ -42,7 +42,14 @@ const mockFindNewestObject =
     ) => Promise<CacheObjectMetadata | undefined>
   >();
 const mockDownloadFile =
-  jest.fn<(client: S3Client, bucket: string, key: string, destination: string) => Promise<void>>();
+  jest.fn<
+    (
+      client: S3Client,
+      bucket: string,
+      key: string,
+      destination: string
+    ) => Promise<{ metadata?: Record<string, string> }>
+  >();
 const mockUploadFile =
   jest.fn<
     (
@@ -50,14 +57,17 @@ const mockUploadFile =
       bucket: string,
       key: string,
       source: string,
-      chunkSize?: number
+      chunkSize?: number,
+      options?: { metadata?: Record<string, string>; ifNoneMatch?: string }
     ) => Promise<{ size: number; etag?: string }>
   >();
+const mockSha256File = jest.fn<(filePath: string) => Promise<string>>();
 
 const mockInfo = jest.fn<(message: string) => void>();
+const mockDebug = jest.fn<(message: string) => void>();
 
 jest.unstable_mockModule('@actions/core', () => ({
-  debug: jest.fn(),
+  debug: mockDebug,
   info: mockInfo,
   warning: mockWarning,
 }));
@@ -81,6 +91,9 @@ jest.unstable_mockModule('../../../src/storage/operations', () => ({
   findNewestObject: mockFindNewestObject,
   downloadFile: mockDownloadFile,
   uploadFile: mockUploadFile,
+}));
+jest.unstable_mockModule('../../../src/archive/checksum', () => ({
+  sha256File: mockSha256File,
 }));
 
 const { buildS3Tier, findS3Match, restoreFromS3, saveToS3 } = await import(
@@ -153,12 +166,13 @@ beforeEach(() => {
     }
     return newest;
   });
-  mockDownloadFile.mockResolvedValue();
+  mockDownloadFile.mockResolvedValue({});
   mockExtractArchive.mockResolvedValue();
   mockCreateArchive.mockResolvedValue();
   mockGetArchiveSize.mockReturnValue(2048);
   mockUploadFile.mockResolvedValue({ size: 2048, etag: '"new"' });
   mockResolveCachePaths.mockResolvedValue({ entries: ['node_modules'], skipped: [] });
+  mockSha256File.mockResolvedValue('archive-sha256');
 });
 
 describe('findS3Match', () => {
@@ -323,6 +337,41 @@ describe('restoreFromS3', () => {
   it('reports a miss', async () => {
     await expect(restoreFromS3(tier(), 'k', ['k-'], false)).resolves.toEqual({ kind: 'miss' });
   });
+
+  describe('integrity check', () => {
+    it('extracts when the downloaded archive matches the sha256 in the object metadata', async () => {
+      put(FEATURE, 'k', 1);
+      mockDownloadFile.mockResolvedValue({ metadata: { 'cloud-cache-sha256': 'good-hash' } });
+      mockSha256File.mockResolvedValue('good-hash');
+      const outcome = await restoreFromS3(tier(), 'k', [], false);
+      expect(outcome.kind).toBe('hit');
+      expect(mockExtractArchive).toHaveBeenCalled();
+    });
+
+    it('returns an integrity error without extracting on a sha256 mismatch', async () => {
+      const objectKey = put(FEATURE, 'k', 1);
+      mockDownloadFile.mockResolvedValue({ metadata: { 'cloud-cache-sha256': 'expected-hash' } });
+      mockSha256File.mockResolvedValue('actual-hash');
+      const outcome = await restoreFromS3(tier(), 'k', [], false);
+      expect(outcome).toEqual({
+        kind: 'error',
+        error: new Error(
+          `Integrity check failed for s3://bucket/${objectKey}: expected sha256 expected-hash, got actual-hash`
+        ),
+      });
+      expect(mockExtractArchive).not.toHaveBeenCalled();
+    });
+
+    it('skips verification and logs a debug line when the object carries no checksum metadata', async () => {
+      put(FEATURE, 'k', 1);
+      mockDownloadFile.mockResolvedValue({});
+      const outcome = await restoreFromS3(tier(), 'k', [], false);
+      expect(outcome.kind).toBe('hit');
+      expect(mockSha256File).not.toHaveBeenCalled();
+      expect(mockExtractArchive).toHaveBeenCalled();
+      expect(mockDebug).toHaveBeenCalledWith(expect.stringContaining('sha256'));
+    });
+  });
 });
 
 describe('saveToS3', () => {
@@ -370,9 +419,25 @@ describe('saveToS3', () => {
       'bucket',
       objectKey,
       archivePath,
-      5_242_880
+      5_242_880,
+      { metadata: { 'cloud-cache-sha256': 'archive-sha256' } }
     );
     expect(fs.existsSync(path.dirname(archivePath))).toBe(false);
+  });
+
+  it('hashes the archive and uploads its sha256 as object metadata', async () => {
+    mockSha256File.mockResolvedValue(
+      'c0ffee0000000000000000000000000000000000000000000000000000ffee'
+    );
+    await saveToS3(tier(), 'k', ['node_modules']);
+    const [archivePath] = mockCreateArchive.mock.calls[0];
+    expect(mockSha256File).toHaveBeenCalledWith(archivePath);
+    const [, , , , , options] = mockUploadFile.mock.calls[0];
+    expect(options).toEqual({
+      metadata: {
+        'cloud-cache-sha256': 'c0ffee0000000000000000000000000000000000000000000000000000ffee',
+      },
+    });
   });
 
   it('does not repeat an upload the SDK already retried', async () => {

@@ -89,12 +89,27 @@ export async function findNewestObject(
   return newest;
 }
 
+export interface DownloadResult {
+  /** Object metadata from the GetObject response; undefined when the object carries none. */
+  metadata?: Record<string, string>;
+}
+
+export interface UploadOptions {
+  /** Stored as `x-amz-meta-*` headers and returned by HeadObject/GetObject. */
+  metadata?: Record<string, string>;
+  /**
+   * Pass-through for a conditional write (e.g. `'*'` to fail if the key already exists).
+   * Unused until Task 4 wires it into s3Tier's save path.
+   */
+  ifNoneMatch?: string;
+}
+
 export async function downloadFile(
   client: S3Client,
   bucket: string,
   key: string,
   destinationPath: string
-): Promise<void> {
+): Promise<DownloadResult> {
   // Ensure target folder exists
   const dir = path.dirname(destinationPath);
   if (!fs.existsSync(dir)) {
@@ -113,6 +128,8 @@ export async function downloadFile(
 
   const fileStream = fs.createWriteStream(destinationPath);
   await pipeline(response.Body as Readable, fileStream);
+
+  return { metadata: response.Metadata };
 }
 
 export async function uploadFile(
@@ -120,7 +137,8 @@ export async function uploadFile(
   bucket: string,
   key: string,
   sourcePath: string,
-  uploadChunkSize?: number
+  uploadChunkSize?: number,
+  options?: UploadOptions
 ): Promise<{ size: number; etag?: string }> {
   const stats = fs.statSync(sourcePath);
   const fileStream = fs.createReadStream(sourcePath);
@@ -135,6 +153,8 @@ export async function uploadFile(
       Bucket: bucket,
       Key: key,
       Body: fileStream,
+      Metadata: options?.metadata,
+      IfNoneMatch: options?.ifNoneMatch,
     },
     partSize,
     queueSize: 4,

@@ -4,6 +4,8 @@ import {
   HeadObjectCommand,
   ListObjectsV2Command,
   GetObjectCommand,
+  PutObjectCommand,
+  CreateMultipartUploadCommand,
 } from '@aws-sdk/client-s3';
 import { checkObjectExists, downloadFile, findNewestObject } from '../../src/storage/operations';
 import * as fs from 'fs';
@@ -172,6 +174,43 @@ describe('Storage Operations', () => {
         'Empty response body received'
       );
     });
+
+    it('returns the object metadata from the GetObject response', async () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-download-'));
+      const destPath = path.join(tempDir, 'with-metadata.txt');
+      const mockStream = new Readable();
+      mockStream.push('data');
+      mockStream.push(null);
+
+      s3Mock.on(GetObjectCommand).resolves({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        Body: mockStream as any,
+        Metadata: { 'cloud-cache-sha256': 'abc123' },
+      });
+
+      const result = await downloadFile(client, 'test-bucket', 'sample-key', destPath);
+      expect(result.metadata).toEqual({ 'cloud-cache-sha256': 'abc123' });
+
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('leaves metadata undefined when the response carries none', async () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-download-'));
+      const destPath = path.join(tempDir, 'no-metadata.txt');
+      const mockStream = new Readable();
+      mockStream.push('data');
+      mockStream.push(null);
+
+      s3Mock.on(GetObjectCommand).resolves({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        Body: mockStream as any,
+      });
+
+      const result = await downloadFile(client, 'test-bucket', 'sample-key', destPath);
+      expect(result.metadata).toBeUndefined();
+
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
   });
 
   describe('uploadFile', () => {
@@ -220,6 +259,56 @@ describe('Storage Operations', () => {
       try {
         await uploadFile(client, 'test-bucket', 'large-key', sampleFile, chunkSize);
         expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(parts);
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    it('passes metadata and ifNoneMatch through to a single-part PutObject', async () => {
+      const { uploadFile } = await import('../../src/storage/operations');
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-upload-'));
+      const sampleFile = path.join(tempDir, 'small.bin');
+      fs.writeFileSync(sampleFile, Buffer.alloc(1024, 'a'));
+      s3Mock.on(PutObjectCommand).resolves({ ETag: '"mocked-etag"' });
+
+      try {
+        await uploadFile(client, 'test-bucket', 'meta-key', sampleFile, undefined, {
+          metadata: { 'cloud-cache-sha256': 'deadbeef' },
+          ifNoneMatch: '*',
+        });
+        const [call] = s3Mock.commandCalls(PutObjectCommand);
+        expect(call.args[0].input).toMatchObject({
+          Metadata: { 'cloud-cache-sha256': 'deadbeef' },
+          IfNoneMatch: '*',
+        });
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    it('passes metadata and ifNoneMatch through to a multipart upload', async () => {
+      const { CompleteMultipartUploadCommand, UploadPartCommand } = await import(
+        '@aws-sdk/client-s3'
+      );
+      const { uploadFile } = await import('../../src/storage/operations');
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-upload-'));
+      const sampleFile = path.join(tempDir, 'large-meta.bin');
+      fs.writeFileSync(sampleFile, Buffer.alloc(12 * 1024 * 1024, 'a'));
+      s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
+      s3Mock.on(UploadPartCommand).resolves({ ETag: '"part"' });
+      s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
+
+      try {
+        await uploadFile(client, 'test-bucket', 'large-meta-key', sampleFile, undefined, {
+          metadata: { 'cloud-cache-sha256': 'feedface' },
+          ifNoneMatch: '*',
+        });
+        const [call] = s3Mock.commandCalls(CreateMultipartUploadCommand);
+        expect(call.args[0].input).toMatchObject({
+          Metadata: { 'cloud-cache-sha256': 'feedface' },
+        });
       } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }

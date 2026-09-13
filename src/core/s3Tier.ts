@@ -7,6 +7,7 @@ import {
   type CompressionConfig,
   type CompressionMethod,
 } from '../archive/compression';
+import { sha256File } from '../archive/checksum';
 import { getWorkspace, resolveCachePaths } from '../archive/paths';
 import { createArchive, extractArchive, getArchiveSize } from '../archive/tar';
 import { Defaults } from '../constants';
@@ -51,6 +52,9 @@ export interface BuildS3TierOptions {
   /** Compression method the restore step used; detected again when absent or unknown. */
   compression?: string;
 }
+
+/** Object metadata key holding the archive's sha256, verified before extracting on restore. */
+const SHA256_METADATA_KEY = 'cloud-cache-sha256';
 
 const COMPRESSION_CONFIGS: Record<CompressionMethod, CompressionConfig> = {
   zstd: { method: 'zstd', archiveFilename: Defaults.DefaultArchiveFilenameZstd },
@@ -193,11 +197,30 @@ export async function restoreFromS3(
   try {
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
     const { client, bucket } = tier.storage;
-    await withRetry(() => downloadFile(client, bucket, found.objectKey, archivePath), {
-      retries: tier.streamRetries,
-      operationName: `Download of ${found.objectKey}`,
-      shouldRetry: isRetryableStreamError,
-    });
+    const { metadata } = await withRetry(
+      () => downloadFile(client, bucket, found.objectKey, archivePath),
+      {
+        retries: tier.streamRetries,
+        operationName: `Download of ${found.objectKey}`,
+        shouldRetry: isRetryableStreamError,
+      }
+    );
+    const expectedSha256 = metadata?.[SHA256_METADATA_KEY];
+    if (expectedSha256) {
+      const actualSha256 = await sha256File(archivePath);
+      if (actualSha256 !== expectedSha256) {
+        return {
+          kind: 'error',
+          error: new Error(
+            `Integrity check failed for s3://${bucket}/${found.objectKey}: expected sha256 ${expectedSha256}, got ${actualSha256}`
+          ),
+        };
+      }
+    } else {
+      core.debug(
+        `s3://${bucket}/${found.objectKey} has no ${SHA256_METADATA_KEY} metadata; skipping integrity check.`
+      );
+    }
     await extractArchive(archivePath, tier.compression, tier.workspace);
     return hit;
   } catch (err) {
@@ -237,8 +260,12 @@ export async function saveToS3(
     core.info(
       `Uploading ${formatSize(getArchiveSize(archivePath))} to s3://${bucket}/${objectKey}...`
     );
+    const checksum = await sha256File(archivePath);
     const uploaded = await withRetry(
-      () => uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize),
+      () =>
+        uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize, {
+          metadata: { [SHA256_METADATA_KEY]: checksum },
+        }),
       {
         retries: tier.streamRetries,
         operationName: `Upload of ${objectKey}`,
