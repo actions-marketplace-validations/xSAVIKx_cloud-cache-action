@@ -1,6 +1,6 @@
 import { S3Client, S3ClientConfig } from '@aws-sdk/client-s3';
 import * as core from '@actions/core';
-import { ProviderConfig, resolveProviderDefaults } from './providers';
+import { ProviderConfig, isKnownProvider, resolveProviderDefaults } from './providers';
 import { getInputWithEnv, getInputAsBool } from '../utils/inputUtils';
 import { Inputs } from '../constants';
 
@@ -10,7 +10,12 @@ export interface StorageContext {
   bucket: string;
 }
 
-export function createStorageContext(): StorageContext {
+export interface StorageClientOptions {
+  /** Total SDK attempts per request, including the first one. */
+  maxAttempts: number;
+}
+
+export function createStorageContext(options: StorageClientOptions): StorageContext {
   const bucket = getInputWithEnv(Inputs.Bucket, ['AWS_S3_BUCKET', 'S3_BUCKET']);
   if (!bucket) {
     throw new Error(
@@ -24,6 +29,9 @@ export function createStorageContext(): StorageContext {
   ]);
   const regionInput = getInputWithEnv(Inputs.Region, ['AWS_REGION', 'AWS_DEFAULT_REGION']);
   const providerInput = core.getInput(Inputs.Provider);
+  if (providerInput && !isKnownProvider(providerInput)) {
+    core.warning(`Unknown provider "${providerInput}"; using generic S3-compatible defaults.`);
+  }
 
   const forcePathStyleRaw = core.getInput(Inputs.ForcePathStyle);
   const forcePathStyleInput =
@@ -51,10 +59,18 @@ export function createStorageContext(): StorageContext {
   const clientConfig: S3ClientConfig = {
     region: providerConfig.region,
     forcePathStyle: providerConfig.forcePathStyle,
+    maxAttempts: Math.max(1, options.maxAttempts),
+    retryMode: 'standard',
   };
 
   if (providerConfig.endpoint) {
     clientConfig.endpoint = providerConfig.endpoint;
+  }
+
+  if (providerConfig.provider !== 'aws') {
+    // Several S3-compatible services reject the CRC checksums the SDK sends by default.
+    clientConfig.requestChecksumCalculation = 'WHEN_REQUIRED';
+    clientConfig.responseChecksumValidation = 'WHEN_REQUIRED';
   }
 
   if (accessKey && secretKey) {
@@ -63,18 +79,20 @@ export function createStorageContext(): StorageContext {
       secretAccessKey: secretKey,
       sessionToken: sessionToken || undefined,
     };
+  } else if (accessKey || secretKey) {
+    core.warning(
+      'Only one of access-key and secret-key is set; ignoring it and using the default AWS credential chain.'
+    );
   }
 
   core.debug(
     `Configuring S3 client for provider: ${providerConfig.provider} (endpoint: ${
       providerConfig.endpoint || 'AWS default'
-    }, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle})`
+    }, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle}, maxAttempts: ${clientConfig.maxAttempts})`
   );
 
-  const client = new S3Client(clientConfig);
-
   return {
-    client,
+    client: new S3Client(clientConfig),
     providerConfig,
     bucket,
   };

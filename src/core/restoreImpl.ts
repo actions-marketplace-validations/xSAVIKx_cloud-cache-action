@@ -234,7 +234,7 @@ export async function restoreImpl(
 
     let storageContext: StorageContext | null = null;
     try {
-      storageContext = createStorageContext();
+      storageContext = createStorageContext({ maxAttempts: retryEnabled ? retryCount + 1 : 1 });
       core.setOutput(Outputs.CacheStorageProvider, storageContext.providerConfig.provider);
       stateProvider.setState(State.CacheStorageProvider, storageContext.providerConfig.provider);
     } catch (err: unknown) {

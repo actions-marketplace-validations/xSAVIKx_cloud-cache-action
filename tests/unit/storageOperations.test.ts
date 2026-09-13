@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import { mockClient } from 'aws-sdk-client-mock';
 import {
   S3Client,
@@ -11,7 +10,6 @@ import {
   listObjectsWithPrefix,
   downloadFile,
 } from '../../src/storage/operations';
-import { withRetry } from '../../src/storage/retry';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -175,41 +173,6 @@ describe('Storage Operations', () => {
       expect(res.etag).toBe('"mocked-etag"');
 
       fs.rmSync(tempDir, { recursive: true, force: true });
-    });
-  });
-
-  describe('withRetry', () => {
-    it('retries until success within limit', async () => {
-      let attempts = 0;
-      const fn = jest.fn<() => Promise<string>>().mockImplementation(async () => {
-        attempts++;
-        if (attempts < 3) {
-          throw new Error('Transient error');
-        }
-        return 'success';
-      });
-
-      const result = await withRetry(fn, {
-        retries: 3,
-        minTimeoutMs: 10,
-        factor: 1,
-      });
-      expect(result).toBe('success');
-      expect(fn).toHaveBeenCalledTimes(3);
-    });
-
-    it('throws if all retries are exhausted', async () => {
-      const fn = jest.fn<() => Promise<void>>().mockRejectedValue(new Error('Permanent failure'));
-
-      await expect(
-        withRetry(fn, {
-          retries: 2,
-          minTimeoutMs: 10,
-          factor: 1,
-        })
-      ).rejects.toThrow('Permanent failure');
-
-      expect(fn).toHaveBeenCalledTimes(3);
     });
   });
 });

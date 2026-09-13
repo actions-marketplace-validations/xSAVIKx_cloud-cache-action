@@ -16,6 +16,26 @@ export interface ProviderConfig {
   forcePathStyle: boolean;
 }
 
+export const KNOWN_PROVIDERS = [
+  'aws',
+  's3',
+  'r2',
+  'cloudflare',
+  'gcs',
+  'google',
+  'b2',
+  'backblaze',
+  'fastly',
+  'garage',
+  'seaweedfs',
+  'seaweed',
+  'minio',
+] as const;
+
+export function isKnownProvider(name: string): boolean {
+  return (KNOWN_PROVIDERS as readonly string[]).includes(name.toLowerCase().trim());
+}
+
 export function detectProvider(endpointInput?: string, explicitProvider?: string): StorageProvider {
   if (explicitProvider) {
     const normalized = explicitProvider.toLowerCase().trim();

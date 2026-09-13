@@ -1,4 +1,8 @@
-import { detectProvider, resolveProviderDefaults } from '../../src/storage/providers';
+import {
+  detectProvider,
+  isKnownProvider,
+  resolveProviderDefaults,
+} from '../../src/storage/providers';
 
 describe('Storage Providers', () => {
   describe('detectProvider', () => {
@@ -114,6 +118,30 @@ describe('Storage Providers', () => {
       expect(minio.provider).toBe('minio');
       expect(minio.forcePathStyle).toBe(true);
       expect(minio.region).toBe('us-east-1');
+    });
+  });
+
+  describe('isKnownProvider', () => {
+    it.each([
+      'aws',
+      'S3',
+      ' r2 ',
+      'cloudflare',
+      'gcs',
+      'google',
+      'b2',
+      'backblaze',
+      'fastly',
+      'garage',
+      'seaweedfs',
+      'seaweed',
+      'minio',
+    ])('knows %s', (name) => {
+      expect(isKnownProvider(name)).toBe(true);
+    });
+
+    it.each(['cloudflare-r2', 'ceph', ''])('does not know "%s"', (name) => {
+      expect(isKnownProvider(name)).toBe(false);
     });
   });
 });
