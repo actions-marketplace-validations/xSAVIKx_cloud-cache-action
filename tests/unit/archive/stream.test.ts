@@ -5,6 +5,7 @@ import {
   killIfRunning,
   spawnArchiveCommand,
   waitForExit,
+  waitForExitAfterKill,
 } from '../../../src/archive/stream';
 
 // The "tool" in every case is this Node binary itself, run with inline scripts, so these tests
@@ -65,6 +66,63 @@ describe('waitForExit', () => {
     ]);
     await expect(waitForExit(child)).rejects.toThrow();
   });
+
+  it('resolves only once stdout has fully drained, not merely once the process has exited', async () => {
+    const child = spawnArchiveCommand(node("process.stdout.write('all-of-it'); process.exit(0);"), [
+      'ignore',
+      'pipe',
+      'ignore',
+    ]);
+    const chunks: Buffer[] = [];
+    child.stdout?.on('data', (chunk: Buffer) => chunks.push(chunk));
+    await expect(waitForExit(child)).resolves.toBe(0);
+    // No extra tick after the await above: by 'close', every 'data' event has already fired.
+    expect(Buffer.concat(chunks).toString()).toBe('all-of-it');
+  });
+});
+
+describe('waitForExitAfterKill', () => {
+  it('kills a running process and resolves once it actually closes', async () => {
+    const child = spawnArchiveCommand(node('setInterval(() => {}, 1000);'), [
+      'ignore',
+      'ignore',
+      'ignore',
+    ]);
+    const exit = waitForExit(child);
+    await waitForExitAfterKill(child, exit, 2000);
+    expect(child.killed).toBe(true);
+    expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
+  });
+
+  it('resolves quickly, without waiting out the timeout, once the process has already closed', async () => {
+    const child = spawnArchiveCommand(node('process.exit(0);'), ['ignore', 'ignore', 'ignore']);
+    const exit = waitForExit(child);
+    await exit;
+    const start = Date.now();
+    await waitForExitAfterKill(child, exit, 2000);
+    expect(Date.now() - start).toBeLessThan(500);
+  });
+
+  it('gives up after the bounded timeout instead of hanging on a process that ignores the signal', async () => {
+    const child = spawnArchiveCommand(
+      node("process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);"),
+      ['ignore', 'ignore', 'ignore']
+    );
+    const exit = waitForExit(child);
+    const start = Date.now();
+    await waitForExitAfterKill(child, exit, 100);
+    expect(Date.now() - start).toBeLessThan(2000);
+    // Clean up: the process ignored SIGTERM, so make sure it is not left running.
+    child.kill('SIGKILL');
+    await exit.catch(() => undefined);
+  });
+
+  it('never rejects, even when the exit promise itself rejects', async () => {
+    const child = spawnArchiveCommand(node('process.exit(3);'), ['ignore', 'ignore', 'ignore']);
+    await waitForExit(child);
+    const rejected = Promise.reject(new Error('boom'));
+    await expect(waitForExitAfterKill(child, rejected, 100)).resolves.toBeUndefined();
+  });
 });
 
 describe('killIfRunning', () => {
@@ -114,6 +172,29 @@ describe('captureStderrTail', () => {
     await waitForExit(child);
     await new Promise((resolve) => setImmediate(resolve));
     expect(tail.lines()).toEqual(['partial-no-newline']);
+  });
+
+  it('splits on CRLF as well as bare LF line endings', async () => {
+    const child = spawnArchiveCommand(
+      node("process.stderr.write('one\\r\\ntwo\\r\\nthree'); process.exit(0);"),
+      ['ignore', 'ignore', 'pipe']
+    );
+    const tail = captureStderrTail(child.stderr);
+    await waitForExit(child);
+    expect(tail.lines()).toEqual(['one', 'two', 'three']);
+  });
+
+  it('caps an unterminated line instead of growing it without bound', async () => {
+    const hugeLine = 'a'.repeat(20_000);
+    const child = spawnArchiveCommand(
+      node(`process.stderr.write(${JSON.stringify(hugeLine)}); process.exit(0);`),
+      ['ignore', 'ignore', 'pipe']
+    );
+    const tail = captureStderrTail(child.stderr);
+    await waitForExit(child);
+    const [line] = tail.lines();
+    expect(line.length).toBeLessThan(hugeLine.length);
+    expect(hugeLine.endsWith(line)).toBe(true);
   });
 });
 

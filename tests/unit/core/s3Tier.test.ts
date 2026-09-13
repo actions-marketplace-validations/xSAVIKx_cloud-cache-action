@@ -4,6 +4,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PassThrough, Readable, Transform } from 'node:stream';
+import { finished } from 'node:stream/promises';
 import type { CompressionConfig } from '../../../src/archive/compression';
 import type { ResolvedCachePaths } from '../../../src/archive/paths';
 import type { ArchiveCommand, ArchivePlan, TarTool } from '../../../src/archive/tar';
@@ -96,6 +97,8 @@ const makeFakeChild = (): FakeChild => ({
 const mockSpawnArchiveCommand = jest.fn<(command: ArchiveCommand, stdio: unknown) => FakeChild>();
 const mockWaitForExit = jest.fn<(child: FakeChild) => Promise<number>>();
 const mockKillIfRunning = jest.fn<(child: FakeChild) => void>();
+const mockWaitForExitAfterKill =
+  jest.fn<(child: FakeChild, exit: Promise<number>) => Promise<void>>();
 const mockCaptureStderrTail =
   jest.fn<(stream: unknown, maxLines?: number) => { lines(): string[] }>();
 
@@ -146,6 +149,7 @@ jest.unstable_mockModule('../../../src/archive/stream', () => ({
   spawnArchiveCommand: mockSpawnArchiveCommand,
   waitForExit: mockWaitForExit,
   killIfRunning: mockKillIfRunning,
+  waitForExitAfterKill: mockWaitForExitAfterKill,
   captureStderrTail: mockCaptureStderrTail,
   createByteCounter: () => {
     let total = 0;
@@ -272,6 +276,11 @@ beforeEach(() => {
   mockFormatManifest.mockImplementation((entries) => `${entries.join('\n')}\n`);
   mockCaptureStderrTail.mockReturnValue({ lines: () => [] });
   mockKillIfRunning.mockImplementation(() => undefined);
+  // Delegates to killIfRunning so existing assertions on it still see the call; skips the real
+  // bounded wait, since these tests fully control when `exit` settles.
+  mockWaitForExitAfterKill.mockImplementation(async (child) => {
+    mockKillIfRunning(child);
+  });
   mockCreateStreamUpload.mockImplementation(() => ({
     done: jest.fn(async () => ({ ETag: '"streamed"' })),
     abort: jest.fn(async () => undefined),
@@ -795,6 +804,7 @@ describe('buildS3Tier', () => {
 describe('saveToS3 streaming', () => {
   it('streams the archive from tar straight into the upload, without a temporary file', async () => {
     let child: FakeChild | undefined;
+    let uploadedBytes: Buffer | undefined;
     mockSpawnArchiveCommand.mockImplementation(() => {
       child = makeFakeChild();
       return child;
@@ -803,6 +813,17 @@ describe('saveToS3 streaming', () => {
       c.stdout.end(Buffer.from('streamed-archive-bytes'));
       return 0;
     });
+    mockCreateStreamUpload.mockImplementation((_client, _bucket, _key, body) => ({
+      done: jest.fn(async () => {
+        const chunks: Buffer[] = [];
+        for await (const chunk of body as Readable) {
+          chunks.push(chunk as Buffer);
+        }
+        uploadedBytes = Buffer.concat(chunks);
+        return { ETag: '"streamed"' };
+      }),
+      abort: jest.fn(async () => undefined),
+    }));
 
     const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules'], 5_242_880);
 
@@ -811,6 +832,7 @@ describe('saveToS3 streaming', () => {
       kind: 'saved',
       s3: { objectKey, size: 'streamed-archive-bytes'.length, etag: '"streamed"' },
     });
+    expect(uploadedBytes?.toString()).toBe('streamed-archive-bytes');
     expect(mockCreateArchive).not.toHaveBeenCalled();
     expect(mockGetArchiveSize).not.toHaveBeenCalled();
     expect(mockSha256File).not.toHaveBeenCalled();
@@ -827,6 +849,31 @@ describe('saveToS3 streaming', () => {
     expect(call[2]).toBe(objectKey);
     expect(call[4]).toBe(5_242_880);
     expect(call[5]).toEqual({ ifNoneMatch: '*' });
+  });
+
+  it('never lets the upload observe the body as complete when tar closes with a non-zero code', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      // tar produced some (truncated) output before failing; its stdout still reaches EOF.
+      c.stdout.end(Buffer.from('partial-archive'));
+      return 2;
+    });
+    const abort = jest.fn(async () => undefined);
+    mockCreateStreamUpload.mockImplementation((_client, _bucket, _key, body) => ({
+      done: jest.fn(async () => {
+        // A real Upload only resolves once it observes the body end; `finished` mirrors that.
+        await finished(body as Readable);
+        return { ETag: '"should-not-be-committed"' };
+      }),
+      abort,
+    }));
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+
+    expect(outcome.kind).toBe('error');
+    const message = outcome.kind === 'error' ? outcome.error.message : '';
+    expect(message).toContain('tar exited with code 2');
+    expect(abort).toHaveBeenCalled();
   });
 
   it('does not spawn tar when the object already exists', async () => {
@@ -875,6 +922,36 @@ describe('saveToS3 streaming', () => {
     expect(mockInfo).toHaveBeenCalledWith(
       `Another job saved s3://bucket/${objectKey} first; keeping its cache.`
     );
+  });
+
+  it('falls back to a file-mode save, sending no condition, when the server rejects If-None-Match outright', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    const abort = jest.fn(async () => undefined);
+    mockCreateStreamUpload.mockReturnValue({
+      done: jest.fn(async () => {
+        throw Object.assign(new Error('Not Implemented'), {
+          name: 'NotImplemented',
+          $metadata: { httpStatusCode: 501 },
+        });
+      }),
+      abort,
+    });
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+
+    expect(outcome.kind).toBe('saved');
+    expect(abort).toHaveBeenCalled();
+    expect(mockDebug).toHaveBeenCalledWith(expect.stringContaining('If-None-Match'));
+    expect(storage.conditionalWriteUnsupported).toBe(true);
+    // The fallback is a plain file-mode save: exactly one archive and one upload, unconditional.
+    expect(mockCreateArchive).toHaveBeenCalledTimes(1);
+    expect(mockUploadFile).toHaveBeenCalledTimes(1);
+    const [, , , , , options] = mockUploadFile.mock.calls[0];
+    expect(options).toEqual({ metadata: { 'cloud-cache-sha256': 'archive-sha256' } });
   });
 
   it('aborts the upload and kills tar when tar exits non-zero', async () => {
@@ -941,6 +1018,11 @@ describe('saveToS3 streaming', () => {
     expect(mockInfo).toHaveBeenCalledWith(
       'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.'
     );
+    expect(mockUsesSeparateZstd).toHaveBeenCalledWith({
+      tar: { path: '/usr/bin/tar', flavor: 'gnu' },
+      platform: process.platform,
+      compression: 'zstd',
+    });
   });
 });
 
@@ -1041,5 +1123,10 @@ describe('restoreFromS3 streaming', () => {
     expect(mockInfo).toHaveBeenCalledWith(
       'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.'
     );
+    expect(mockUsesSeparateZstd).toHaveBeenCalledWith({
+      tar: { path: '/usr/bin/tar', flavor: 'gnu' },
+      platform: process.platform,
+      compression: 'zstd',
+    });
   });
 });

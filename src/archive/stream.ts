@@ -16,13 +16,15 @@ export function spawnArchiveCommand(command: ArchiveCommand, stdio: StdioOptions
 }
 
 /**
- * Resolves with the exit code once the process exits normally, or rejects when it could not be
- * spawned at all (e.g. the tool is missing) or was terminated by a signal.
+ * Resolves with the exit code once the process AND its stdio streams have fully closed (the
+ * 'close' event, not 'exit'), so by the time this resolves, everything the process wrote to
+ * stdout/stderr has already drained and is safe to read. Rejects when it could not be spawned at
+ * all (e.g. the tool is missing) or was terminated by a signal.
  */
 export function waitForExit(child: ChildProcess): Promise<number> {
   return new Promise((resolve, reject) => {
     child.once('error', reject);
-    child.once('exit', (code, signal) => {
+    child.once('close', (code, signal) => {
       if (code !== null) {
         resolve(code);
         return;
@@ -41,10 +43,44 @@ export function killIfRunning(child: ChildProcess): void {
   }
 }
 
+/**
+ * Kills the process if it is still running, then waits (bounded) for it to actually close, so a
+ * caller's cleanup — removing a temp directory, reading the final stderr tail — does not race
+ * stdio that is still draining or a process that still has files open. Pass the same promise
+ * `waitForExit` already returned for this child: a fresh call would attach a listener for a
+ * one-shot event that may already have fired, and would then hang until the timeout. Never
+ * rejects: giving up on an orderly wait after `timeoutMs` is not a caller-visible failure.
+ */
+export async function waitForExitAfterKill(
+  child: ChildProcess,
+  exit: Promise<number>,
+  timeoutMs = 5000
+): Promise<void> {
+  killIfRunning(child);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, timeoutMs);
+  });
+  try {
+    await Promise.race([
+      exit.then(
+        () => undefined,
+        () => undefined
+      ),
+      timeout,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface StderrTail {
   /** The most recent lines written to the stream so far, oldest first, capped to maxLines. */
   lines(): string[];
 }
+
+/** Caps unterminated output so one very long (or binary) line cannot grow this without bound. */
+const MAX_PARTIAL_LENGTH = 8 * 1024;
 
 /** Collects up to `maxLines` of the most recent text a stream has produced, for error messages. */
 export function captureStderrTail(stream: Readable | null, maxLines = 20): StderrTail {
@@ -56,12 +92,18 @@ export function captureStderrTail(stream: Readable | null, maxLines = 20): Stder
       tail.shift();
     }
   };
-  stream?.on('data', (chunk: Buffer | string) => {
-    partial += chunk.toString('utf8');
-    const lines = partial.split('\n');
+  // setEncoding decodes multi-byte UTF-8 characters correctly across chunk boundaries, which
+  // chunk.toString('utf8') per chunk cannot.
+  stream?.setEncoding('utf8');
+  stream?.on('data', (chunk: string) => {
+    partial += chunk;
+    const lines = partial.split(/\r?\n/);
     partial = lines.pop() ?? '';
     for (const line of lines) {
       push(line);
+    }
+    if (partial.length > MAX_PARTIAL_LENGTH) {
+      partial = partial.slice(-MAX_PARTIAL_LENGTH);
     }
   });
   return {

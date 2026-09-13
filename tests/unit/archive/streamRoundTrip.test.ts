@@ -4,12 +4,18 @@ import * as path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { CompressionConfig } from '../../../src/archive/compression';
 import { resolveCachePaths } from '../../../src/archive/paths';
-import { captureStderrTail, spawnArchiveCommand, waitForExit } from '../../../src/archive/stream';
+import {
+  captureStderrTail,
+  killIfRunning,
+  spawnArchiveCommand,
+  waitForExit,
+} from '../../../src/archive/stream';
 import {
   buildCreateCommands,
   buildExtractCommands,
   findTar,
   formatManifest,
+  usesSeparateZstd,
 } from '../../../src/archive/tar';
 import {
   buildFixtureTree,
@@ -49,8 +55,15 @@ async function streamCreate(
     const stderrTail = captureStderrTail(child.stderr);
     const destination = fs.createWriteStream(destinationPath);
     const piped = pipeline(child.stdout as NodeJS.ReadableStream, destination);
-    const [, code] = await Promise.all([piped, waitForExit(child)]);
+    let code: number;
+    try {
+      [, code] = await Promise.all([piped, waitForExit(child)]);
+    } catch (err) {
+      killIfRunning(child);
+      throw err;
+    }
     if (code !== 0) {
+      killIfRunning(child);
       throw new Error(`tar exited with code ${code}: ${stderrTail.lines().join('\n')}`);
     }
   } finally {
@@ -78,8 +91,15 @@ async function streamExtract(
   const stderrTail = captureStderrTail(child.stderr);
   const source = fs.createReadStream(archivePath);
   const piped = pipeline(source, child.stdin as NodeJS.WritableStream);
-  const [, code] = await Promise.all([piped, waitForExit(child)]);
+  let code: number;
+  try {
+    [, code] = await Promise.all([piped, waitForExit(child)]);
+  } catch (err) {
+    killIfRunning(child);
+    throw err;
+  }
   if (code !== 0) {
+    killIfRunning(child);
     throw new Error(`tar exited with code ${code}: ${stderrTail.lines().join('\n')}`);
   }
 }
@@ -112,6 +132,13 @@ describe.each(compressions)('streaming tar round trip with $method', (compressio
   it('streams create to a file and streams extract from it, restoring every fixture case exactly', async () => {
     if (compression.method === 'zstd' && !(await io.which('zstd', false))) {
       console.log('zstd is not installed on this machine; skipping the zstd streaming round trip.');
+      return;
+    }
+    const tar = await findTar();
+    if (usesSeparateZstd({ tar, platform: process.platform, compression: compression.method })) {
+      console.log(
+        'This host uses BSD tar with zstd, which cannot stream (see the Windows fallback); skipping.'
+      );
       return;
     }
 

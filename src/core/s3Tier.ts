@@ -1,4 +1,5 @@
 import * as core from '@actions/core';
+import type { ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -28,6 +29,7 @@ import {
   killIfRunning,
   spawnArchiveCommand,
   waitForExit,
+  waitForExitAfterKill,
 } from '../archive/stream';
 import { Defaults } from '../constants';
 import { createStorageContext, type StorageContext } from '../storage/client';
@@ -63,7 +65,7 @@ export interface S3Tier {
   /** Extra attempts for download and upload streams, which the SDK does not retry itself. */
   streamRetries: number;
   /** Stream archives directly between tar and S3 instead of using a temporary file (Task 8). */
-  streaming: boolean;
+  streaming?: boolean;
 }
 
 export interface S3Match {
@@ -249,13 +251,21 @@ export async function restoreFromS3(
   );
 
   if (tier.streaming) {
-    const tar = await findTar();
-    if (
-      !usesSeparateZstd({ tar, platform: process.platform, compression: tier.compression.method })
-    ) {
-      return restoreFromS3Streaming(tier, found, tar, hit);
+    try {
+      const tar = await findTar();
+      if (
+        !usesSeparateZstd({
+          tar,
+          platform: process.platform,
+          compression: tier.compression.method,
+        })
+      ) {
+        return await restoreFromS3Streaming(tier, found, tar, hit);
+      }
+      core.info(STREAMING_FALLBACK_MESSAGE);
+    } catch (err) {
+      return { kind: 'error', error: toError(err) };
     }
-    core.info(STREAMING_FALLBACK_MESSAGE);
   }
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-restore-'));
@@ -303,7 +313,6 @@ export async function saveToS3(
 ): Promise<SaveOutcome> {
   const { client, bucket } = tier.storage;
   const objectKey = tier.template.objectKey(tier.saveRef, primaryKey);
-  let tempDir: string | undefined;
   try {
     const existing = await checkObjectExists(client, bucket, objectKey);
     if (existing) {
@@ -329,7 +338,29 @@ export async function saveToS3(
       core.info(STREAMING_FALLBACK_MESSAGE);
     }
 
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+    return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+  } catch (err) {
+    return { kind: 'error', error: toError(err) };
+  }
+}
+
+/**
+ * File-based save: archives to a temporary file, uploads it, and handles the Task 4 conditional
+ * write outcomes (412 -> exists; a condition the server rejects outright is retried once without
+ * it). Used both as the default (non-streaming) save path, and as the fallback a streaming save
+ * takes when its server rejects `If-None-Match` outright (see `saveToS3Streaming`) — reused
+ * rather than duplicated, so both paths agree on precondition handling.
+ */
+async function saveToS3FileMode(
+  tier: S3Tier,
+  objectKey: string,
+  entries: readonly string[],
+  primaryKey: string,
+  uploadChunkSize?: number
+): Promise<SaveOutcome> {
+  const { client, bucket } = tier.storage;
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+  try {
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
     await createArchive(archivePath, entries, tier.compression, tier.workspace);
     const archiveSize = getArchiveSize(archivePath);
@@ -374,9 +405,7 @@ export async function saveToS3(
   } catch (err) {
     return { kind: 'error', error: toError(err) };
   } finally {
-    if (tempDir) {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
@@ -392,8 +421,11 @@ function withStderrTail(err: unknown, tail: readonly string[]): Error {
 /**
  * Streaming save (Task 8): spawns tar writing the archive to stdout and pipes it, through a
  * byte counter (there is no file to stat for the size), into an S3 multipart upload. Tar and
- * the upload run concurrently; either one failing aborts the other, so a truncated or dropped
- * archive can never look like a successful upload.
+ * the upload run concurrently, but the upload body is only ever told the archive is complete
+ * (`counter.stream.end()`) once tar has actually closed with exit code 0; any other outcome —
+ * a non-zero exit, a signal, or the pipe itself breaking — destroys the body with an error
+ * first, so lib-storage can never send the final PutObject/CompleteMultipartUpload for a
+ * truncated archive. `If-None-Match` would otherwise keep such a bad object forever.
  */
 async function saveToS3Streaming(
   tier: S3Tier,
@@ -405,6 +437,7 @@ async function saveToS3Streaming(
 ): Promise<SaveOutcome> {
   const { client, bucket } = tier.storage;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+  let child: ChildProcess | undefined;
   try {
     const manifestPath = path.join(tempDir, 'manifest.txt');
     fs.writeFileSync(manifestPath, formatManifest(entries));
@@ -418,15 +451,35 @@ async function saveToS3Streaming(
       manifestPath,
     });
 
-    const child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
+    child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
     const stderrTail = captureStderrTail(child.stderr);
+    const tarClose = waitForExit(child);
     const counter = createByteCounter();
-    const pipePromise = pipeline(child.stdout as Readable, counter.stream);
-    const tarDone = waitForExit(child).then((code) => {
-      if (code !== 0) {
-        throw new Error(`tar exited with code ${code}`);
+    // A stream this code may `destroy(err)` itself (below) needs a permanent error listener:
+    // pipeline's own listener is only attached while it is in flight, and is gone by the time
+    // finalizeBody calls destroy() after pipeline has already settled.
+    counter.stream.on('error', () => undefined);
+    // `end: false`: tar's stdout reaching EOF must never by itself end the upload body — only a
+    // confirmed clean exit (below) may do that.
+    const pipePromise = pipeline(child.stdout as Readable, counter.stream, { end: false });
+
+    // Captured once and reused (not re-invoked) so every branch below can await the same
+    // settlement, whichever of upload.done()/finalizeBody() the outer Promise.all resolved on.
+    const finalized = (async (): Promise<void> => {
+      let code: number;
+      try {
+        [, code] = await Promise.all([pipePromise, tarClose]);
+      } catch (err) {
+        counter.stream.destroy(toError(err));
+        throw err;
       }
-    });
+      if (code !== 0) {
+        const failure = new Error(`tar exited with code ${code}`);
+        counter.stream.destroy(failure);
+        throw failure;
+      }
+      counter.stream.end();
+    })();
 
     const sendCondition = !tier.storage.conditionalWriteUnsupported;
     core.info(`Streaming upload to s3://${bucket}/${objectKey}...`);
@@ -435,23 +488,43 @@ async function saveToS3Streaming(
     });
 
     try {
-      const [uploaded] = await Promise.all([upload.done(), tarDone, pipePromise]);
+      const [uploaded] = await Promise.all([upload.done(), finalized]);
       core.info(`Cache saved to S3 with key: ${primaryKey}`);
       return {
         kind: 'saved',
         s3: { objectKey, size: counter.count(), etag: (uploaded as { ETag?: string }).ETag },
       };
     } catch (err) {
+      // Whichever of the two rejected first, wait for the other to settle too, so the byte
+      // count below reflects everything tar actually produced, not a mid-flight snapshot.
+      await finalized.catch(() => undefined);
       if (sendCondition && isPreconditionFailed(err)) {
         core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
+        await waitForExitAfterKill(child, tarClose);
         await upload.abort().catch(() => undefined);
-        killIfRunning(child);
         return { kind: 'exists', s3: { objectKey, size: counter.count(), etag: undefined } };
       }
+      if (sendCondition && isConditionUnsupported(err)) {
+        core.debug(
+          `s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`
+        );
+        tier.storage.conditionalWriteUnsupported = true;
+        await waitForExitAfterKill(child, tarClose);
+        await upload.abort().catch(() => undefined);
+        return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+      }
+      await waitForExitAfterKill(child, tarClose);
       await upload.abort().catch(() => undefined);
-      killIfRunning(child);
       throw withStderrTail(err, stderrTail.lines());
     }
+  } catch (err) {
+    // Only reached by a failure before the inner try above could take charge of tar (a
+    // synchronous throw right after spawning it, for example); that inner try always leaves
+    // tar killed and waited for on every path of its own.
+    if (child) {
+      killIfRunning(child);
+    }
+    return { kind: 'error', error: toError(err) };
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -468,8 +541,12 @@ async function restoreFromS3Streaming(
   hit: RestoreOutcome
 ): Promise<RestoreOutcome> {
   const { client, bucket } = tier.storage;
+  let body: Readable | undefined;
+  let child: ChildProcess | undefined;
   try {
-    const { body, metadata } = await getObjectStream(client, bucket, found.objectKey);
+    const stream = await getObjectStream(client, bucket, found.objectKey);
+    body = stream.body;
+    const { metadata } = stream;
     fs.mkdirSync(tier.workspace, { recursive: true });
     const [command] = buildExtractCommands({
       tar,
@@ -480,20 +557,19 @@ async function restoreFromS3Streaming(
       tempDir: os.tmpdir(),
     });
 
-    const child = spawnArchiveCommand(command, ['pipe', 'ignore', 'pipe']);
+    child = spawnArchiveCommand(command, ['pipe', 'ignore', 'pipe']);
     const stderrTail = captureStderrTail(child.stderr);
+    const tarClose = waitForExit(child);
     const tap = createSha256Tap();
     const pipePromise = pipeline(body, tap.stream, child.stdin as Writable);
-    const tarDone = waitForExit(child).then((code) => {
+
+    try {
+      const [, code] = await Promise.all([pipePromise, tarClose]);
       if (code !== 0) {
         throw new Error(`tar exited with code ${code}`);
       }
-    });
-
-    try {
-      await Promise.all([pipePromise, tarDone]);
     } catch (err) {
-      killIfRunning(child);
+      await waitForExitAfterKill(child, tarClose);
       throw withStderrTail(err, stderrTail.lines());
     }
 
@@ -515,6 +591,14 @@ async function restoreFromS3Streaming(
     }
     return hit;
   } catch (err) {
+    // Only reached by a failure before the inner try above took charge (a synchronous throw
+    // right after spawning tar, or one before tar was even spawned): kill tar if it exists, or
+    // otherwise release the GetObject body so its connection is not left dangling.
+    if (child) {
+      killIfRunning(child);
+    } else {
+      body?.destroy();
+    }
     return { kind: 'error', error: toError(err) };
   }
 }
