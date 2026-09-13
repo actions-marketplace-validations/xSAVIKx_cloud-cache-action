@@ -49,48 +49,53 @@ async function main(argv: string[]): Promise<void> {
   const client = createTestS3Client(config);
   const bucket = config.bucket;
 
-  if (command === 'export') {
-    const [dir, prefix, contains] = args;
-    const keys = await listKeys(client, bucket, prefix, contains);
-    if (keys.length === 0) {
-      throw new Error(`No objects under "${prefix}" contain "${contains}"`);
-    }
-    fs.mkdirSync(dir, { recursive: true });
-    const index: ExportIndex = { objects: [] };
-    for (const [position, key] of keys.entries()) {
-      const file = `object-${position}.bin`;
-      const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-      fs.writeFileSync(path.join(dir, file), await response.Body!.transformToByteArray());
-      index.objects.push({ key, file });
-    }
-    fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(index, null, 2));
-    console.log(`Exported ${keys.length} object(s):\n${keys.join('\n')}`);
-  } else if (command === 'import') {
-    const [dir] = args;
-    const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8')) as ExportIndex;
-    for (const { key, file } of index.objects) {
-      await client.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: key,
-          Body: fs.readFileSync(path.join(dir, file)),
-        })
+  try {
+    if (command === 'export') {
+      const [dir, prefix, contains] = args;
+      const keys = await listKeys(client, bucket, prefix, contains);
+      if (keys.length === 0) {
+        throw new Error(`No objects under "${prefix}" contain "${contains}"`);
+      }
+      fs.mkdirSync(dir, { recursive: true });
+      const index: ExportIndex = { objects: [] };
+      for (const [position, key] of keys.entries()) {
+        const file = `object-${position}.bin`;
+        const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        fs.writeFileSync(path.join(dir, file), await response.Body!.transformToByteArray());
+        index.objects.push({ key, file });
+      }
+      fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(index, null, 2));
+      console.log(`Exported ${keys.length} object(s):\n${keys.join('\n')}`);
+    } else if (command === 'import') {
+      const [dir] = args;
+      const index = JSON.parse(
+        fs.readFileSync(path.join(dir, 'index.json'), 'utf8')
+      ) as ExportIndex;
+      for (const { key, file } of index.objects) {
+        await client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: fs.readFileSync(path.join(dir, file)),
+          })
+        );
+      }
+      console.log(`Imported ${index.objects.length} object(s)`);
+    } else if (command === 'delete') {
+      const [prefix, contains] = args;
+      const keys = await listKeys(client, bucket, prefix, contains);
+      for (const key of keys) {
+        await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+      }
+      console.log(`Deleted ${keys.length} object(s)`);
+    } else {
+      throw new Error(
+        'Usage: s3Objects.ts export <dir> <prefix> <contains> | import <dir> | delete <prefix> <contains>'
       );
     }
-    console.log(`Imported ${index.objects.length} object(s)`);
-  } else if (command === 'delete') {
-    const [prefix, contains] = args;
-    const keys = await listKeys(client, bucket, prefix, contains);
-    for (const key of keys) {
-      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
-    }
-    console.log(`Deleted ${keys.length} object(s)`);
-  } else {
-    throw new Error(
-      'Usage: s3Objects.ts export <dir> <prefix> <contains> | import <dir> | delete <prefix> <contains>'
-    );
+  } finally {
+    client.destroy();
   }
-  client.destroy();
 }
 
 await main(process.argv.slice(2));

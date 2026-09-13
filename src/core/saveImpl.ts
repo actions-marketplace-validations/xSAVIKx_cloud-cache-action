@@ -51,16 +51,23 @@ async function saveSingleTier(
 
   if (s3) {
     const outcome = await saveToS3(s3, config.primaryKey, config.paths, config.uploadChunkSize);
-    if (outcome.kind === 'saved' || outcome.kind === 'exists') {
-      reportS3(outcome.s3);
-      core.setOutput(Outputs.CacheSavedSources, 's3');
-      return outcome.s3?.size;
+    switch (outcome.kind) {
+      case 'saved':
+      case 'exists':
+        reportS3(outcome.s3);
+        core.setOutput(Outputs.CacheSavedSources, 's3');
+        return outcome.s3?.size;
+      case 'skipped':
+        core.setOutput(Outputs.CacheSavedSources, 'none');
+        return;
+      case 'error':
+        core.warning(`Failed to save cache to S3: ${outcome.error.message}`);
+        break;
+      default: {
+        const unreachable: never = outcome;
+        throw new Error(`Unhandled save outcome: ${JSON.stringify(unreachable)}`);
+      }
     }
-    if (outcome.kind === 'skipped') {
-      core.setOutput(Outputs.CacheSavedSources, 'none');
-      return;
-    }
-    core.warning(`Failed to save cache to S3: ${outcome.error.message}`);
   }
 
   if (config.useFallback) {
@@ -71,12 +78,20 @@ async function saveSingleTier(
       config.uploadChunkSize,
       config.enableCrossOsArchive
     );
-    if (outcome.kind === 'saved') {
-      core.setOutput(Outputs.CacheSavedSources, 'github');
-      return;
-    }
-    if (outcome.kind === 'error') {
-      core.warning(`Failed to save cache to GitHub Actions Cache: ${outcome.error.message}`);
+    switch (outcome.kind) {
+      case 'saved':
+        core.setOutput(Outputs.CacheSavedSources, 'github');
+        return;
+      case 'error':
+        core.warning(`Failed to save cache to GitHub Actions Cache: ${outcome.error.message}`);
+        break;
+      case 'exists':
+      case 'skipped':
+        break;
+      default: {
+        const unreachable: never = outcome;
+        throw new Error(`Unhandled save outcome: ${JSON.stringify(unreachable)}`);
+      }
     }
   }
   core.setOutput(Outputs.CacheSavedSources, 'none');
@@ -91,7 +106,7 @@ async function saveBothTiers(
   const present = new Set<'s3' | 'github'>();
   const tierFailed = (tier: string, error: Error): void => {
     if (config.dualCacheStrict) {
-      throw new Error(`Saving to ${tier} failed: ${error.message}`);
+      throw new Error(`Saving to ${tier} failed: ${error.message}`, { cause: error });
     }
     core.warning(`Dual-cache ${tier} save error: ${error.message}`);
   };
@@ -108,11 +123,21 @@ async function saveBothTiers(
     present.add('s3');
   } else if (!skipBoth && s3) {
     const outcome = await saveToS3(s3, config.primaryKey, config.paths, config.uploadChunkSize);
-    if (outcome.kind === 'saved' || outcome.kind === 'exists') {
-      present.add('s3');
-      reportS3(outcome.s3);
-    } else if (outcome.kind === 'error') {
-      tierFailed('S3', outcome.error);
+    switch (outcome.kind) {
+      case 'saved':
+      case 'exists':
+        present.add('s3');
+        reportS3(outcome.s3);
+        break;
+      case 'skipped':
+        break;
+      case 'error':
+        tierFailed('S3', outcome.error);
+        break;
+      default: {
+        const unreachable: never = outcome;
+        throw new Error(`Unhandled save outcome: ${JSON.stringify(unreachable)}`);
+      }
     }
   }
 
@@ -141,10 +166,20 @@ async function saveBothTiers(
         config.uploadChunkSize,
         config.enableCrossOsArchive
       );
-      if (outcome.kind === 'saved') {
-        present.add('github');
-      } else if (outcome.kind === 'error') {
-        tierFailed('GitHub Actions Cache', outcome.error);
+      switch (outcome.kind) {
+        case 'saved':
+          present.add('github');
+          break;
+        case 'error':
+          tierFailed('GitHub Actions Cache', outcome.error);
+          break;
+        case 'exists':
+        case 'skipped':
+          break;
+        default: {
+          const unreachable: never = outcome;
+          throw new Error(`Unhandled save outcome: ${JSON.stringify(unreachable)}`);
+        }
       }
     }
   }

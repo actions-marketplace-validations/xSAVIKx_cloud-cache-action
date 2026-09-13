@@ -116,16 +116,25 @@ export async function restoreImpl(
 
     for (const source of restoreOrder(config)) {
       const outcome = await attempt(source, config, s3);
-      if (outcome.kind === 'hit') {
-        return reportHit(stateProvider, config, source, outcome);
-      }
-      if (outcome.kind === 'error') {
-        if (config.dualCache && config.dualCacheStrict) {
-          throw new Error(`Restoring from ${source} failed: ${outcome.error.message}`);
+      switch (outcome.kind) {
+        case 'hit':
+          return reportHit(stateProvider, config, source, outcome);
+        case 'miss':
+          break;
+        case 'error':
+          if (config.dualCache && config.dualCacheStrict) {
+            throw new Error(`Restoring from ${source} failed: ${outcome.error.message}`, {
+              cause: outcome.error,
+            });
+          }
+          core.warning(
+            `Restoring from ${source} failed, so it counts as a cache miss: ${outcome.error.message}`
+          );
+          break;
+        default: {
+          const unreachable: never = outcome;
+          throw new Error(`Unhandled restore outcome: ${JSON.stringify(unreachable)}`);
         }
-        core.warning(
-          `Restoring from ${source} failed, so it counts as a cache miss: ${outcome.error.message}`
-        );
       }
     }
 

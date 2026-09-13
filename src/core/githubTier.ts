@@ -68,6 +68,13 @@ export async function saveToGitHub(
     }
     return { kind: 'saved' };
   } catch (err) {
+    if (
+      err instanceof Error &&
+      err.name === 'ValidationError' &&
+      err.message.startsWith('Path Validation Error')
+    ) {
+      return { kind: 'skipped', reason: 'no paths matched' };
+    }
     return { kind: 'error', error: toError(err) };
   }
 }

@@ -181,13 +181,13 @@ export async function restoreFromS3(
     exact: found.exact,
     s3: { objectKey: found.objectKey, size: found.size, etag: found.etag },
   };
+  if (lookupOnly) {
+    return hit;
+  }
   const where = found.ref ? ` on ${found.ref}` : '';
   core.info(
     `S3 cache ${found.exact ? 'hit' : 'partial hit'} for key "${found.matchedKey}"${where} (${formatSize(found.size)})`
   );
-  if (lookupOnly) {
-    return hit;
-  }
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-restore-'));
   try {
