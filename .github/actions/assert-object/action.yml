@@ -1,0 +1,14 @@
+name: 'Assert cache object'
+description: 'Test helper. Place it before an action whose post step saves a cache: post steps run in reverse order, so this post step runs last and fails the job if no object exists for the key.'
+inputs:
+  key:
+    description: 'Cache key the post step must find'
+    required: true
+  ref:
+    description: 'Ref the cache was saved under'
+    required: false
+    default: '${{ github.ref }}'
+runs:
+  using: 'node24'
+  main: 'main.mjs'
+  post: 'post.mjs'
