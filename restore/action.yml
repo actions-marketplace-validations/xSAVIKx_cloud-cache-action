@@ -129,5 +129,5 @@ runs:
   main: '../dist/restore-only/index.js'
 
 branding:
-  icon: 'cloud-download'
+  icon: 'download-cloud'
   color: 'blue'

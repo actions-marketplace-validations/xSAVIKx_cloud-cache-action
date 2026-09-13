@@ -111,5 +111,5 @@ runs:
   main: '../dist/save-only/index.js'
 
 branding:
-  icon: 'cloud-upload'
+  icon: 'upload-cloud'
   color: 'blue'

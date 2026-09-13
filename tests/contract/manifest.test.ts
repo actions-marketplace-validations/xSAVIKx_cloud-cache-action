@@ -14,6 +14,7 @@ interface Manifest {
   inputs: Record<string, ManifestInput>;
   outputs: Record<string, { description: string }>;
   runs: { using: string; main: string; post?: string; 'post-if'?: string };
+  branding: { icon: string; color: string };
 }
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -89,5 +90,10 @@ describe('action manifests', () => {
       main: '../dist/restore-only/index.js',
     });
     expect(subActions[1][1].runs).toEqual({ using: 'node24', main: '../dist/save-only/index.js' });
+  });
+
+  it.each(allManifests)('%s uses a valid Feather branding icon', (_file, manifest) => {
+    const allowedIcons = ['cloud', 'upload-cloud', 'download-cloud'];
+    expect(allowedIcons).toContain(manifest.branding.icon);
   });
 });
