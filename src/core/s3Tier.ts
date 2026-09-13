@@ -438,6 +438,7 @@ async function saveToS3Streaming(
   const { client, bucket } = tier.storage;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
   let child: ChildProcess | undefined;
+  let tarClose: Promise<number> | undefined;
   try {
     const manifestPath = path.join(tempDir, 'manifest.txt');
     fs.writeFileSync(manifestPath, formatManifest(entries));
@@ -453,7 +454,7 @@ async function saveToS3Streaming(
 
     child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
     const stderrTail = captureStderrTail(child.stderr);
-    const tarClose = waitForExit(child);
+    tarClose = waitForExit(child);
     const counter = createByteCounter();
     // A stream this code may `destroy(err)` itself (below) needs a permanent error listener:
     // pipeline's own listener is only attached while it is in flight, and is gone by the time
@@ -480,6 +481,11 @@ async function saveToS3Streaming(
       }
       counter.stream.end();
     })();
+    // Keeps `finalized` "handled" from Node's perspective even if nothing below ever awaits it
+    // (a synchronous throw between here and the inner try, e.g. from createStreamUpload, would
+    // otherwise leave its eventual rejection unhandled, which is fatal on Node 24). The `finalized`
+    // binding itself is untouched, so the real await below still observes its outcome.
+    finalized.catch(() => undefined);
 
     const sendCondition = !tier.storage.conditionalWriteUnsupported;
     core.info(`Streaming upload to s3://${bucket}/${objectKey}...`);
@@ -495,12 +501,12 @@ async function saveToS3Streaming(
         s3: { objectKey, size: counter.count(), etag: (uploaded as { ETag?: string }).ETag },
       };
     } catch (err) {
-      // Whichever of the two rejected first, wait for the other to settle too, so the byte
-      // count below reflects everything tar actually produced, not a mid-flight snapshot.
-      await finalized.catch(() => undefined);
+      // Kill tar first (it may still be running, or even hung), then wait — bounded — for it
+      // and the pipe to settle, so no upload failure mode can block this step indefinitely.
+      // Only once that is done do we read the byte count or the final stderr tail below.
+      await waitForExitAfterKill(child, finalized);
       if (sendCondition && isPreconditionFailed(err)) {
         core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
-        await waitForExitAfterKill(child, tarClose);
         await upload.abort().catch(() => undefined);
         return { kind: 'exists', s3: { objectKey, size: counter.count(), etag: undefined } };
       }
@@ -509,11 +515,9 @@ async function saveToS3Streaming(
           `s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`
         );
         tier.storage.conditionalWriteUnsupported = true;
-        await waitForExitAfterKill(child, tarClose);
         await upload.abort().catch(() => undefined);
         return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
       }
-      await waitForExitAfterKill(child, tarClose);
       await upload.abort().catch(() => undefined);
       throw withStderrTail(err, stderrTail.lines());
     }
@@ -522,7 +526,11 @@ async function saveToS3Streaming(
     // synchronous throw right after spawning it, for example); that inner try always leaves
     // tar killed and waited for on every path of its own.
     if (child) {
-      killIfRunning(child);
+      if (tarClose) {
+        await waitForExitAfterKill(child, tarClose);
+      } else {
+        killIfRunning(child);
+      }
     }
     return { kind: 'error', error: toError(err) };
   } finally {
@@ -560,6 +568,10 @@ async function restoreFromS3Streaming(
     child = spawnArchiveCommand(command, ['pipe', 'ignore', 'pipe']);
     const stderrTail = captureStderrTail(child.stderr);
     const tarClose = waitForExit(child);
+    // Keeps `tarClose` "handled" from Node's perspective if a synchronous throw below (from
+    // createSha256Tap or the pipeline() call itself) reaches the outer catch before the
+    // Promise.all below ever attaches its own handler to it.
+    tarClose.catch(() => undefined);
     const tap = createSha256Tap();
     const pipePromise = pipeline(body, tap.stream, child.stdin as Writable);
 
@@ -592,13 +604,13 @@ async function restoreFromS3Streaming(
     return hit;
   } catch (err) {
     // Only reached by a failure before the inner try above took charge (a synchronous throw
-    // right after spawning tar, or one before tar was even spawned): kill tar if it exists, or
-    // otherwise release the GetObject body so its connection is not left dangling.
+    // right after spawning tar, before tar was even spawned, or one that happened before the
+    // pipeline below ever started reading it): kill tar if it exists, and always release the
+    // GetObject body so its connection is never left dangling regardless.
     if (child) {
       killIfRunning(child);
-    } else {
-      body?.destroy();
     }
+    body?.destroy();
     return { kind: 'error', error: toError(err) };
   }
 }

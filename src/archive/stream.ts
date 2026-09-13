@@ -44,16 +44,19 @@ export function killIfRunning(child: ChildProcess): void {
 }
 
 /**
- * Kills the process if it is still running, then waits (bounded) for it to actually close, so a
- * caller's cleanup — removing a temp directory, reading the final stderr tail — does not race
- * stdio that is still draining or a process that still has files open. Pass the same promise
- * `waitForExit` already returned for this child: a fresh call would attach a listener for a
- * one-shot event that may already have fired, and would then hang until the timeout. Never
+ * Kills the process if it is still running, then waits (bounded) for `settle` — typically the
+ * same promise `waitForExit` returned for this child, or a caller's own wrapper that depends on
+ * it (e.g. "tar closed and the pipe finished") — so a caller's cleanup (removing a temp
+ * directory, reading the final stderr tail) does not race stdio that is still draining or a
+ * process that still has open files. Pass the exact promise `waitForExit` returned rather than a
+ * fresh call: a fresh call would attach a listener for a one-shot event that may already have
+ * fired, and would then hang until the timeout. Kills first, so a process that never settles on
+ * its own (and anything only waiting on it) cannot hang this past `timeoutMs` either. Never
  * rejects: giving up on an orderly wait after `timeoutMs` is not a caller-visible failure.
  */
 export async function waitForExitAfterKill(
   child: ChildProcess,
-  exit: Promise<number>,
+  settle: Promise<unknown>,
   timeoutMs = 5000
 ): Promise<void> {
   killIfRunning(child);
@@ -63,7 +66,7 @@ export async function waitForExitAfterKill(
   });
   try {
     await Promise.race([
-      exit.then(
+      settle.then(
         () => undefined,
         () => undefined
       ),

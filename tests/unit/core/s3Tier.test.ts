@@ -4,7 +4,6 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PassThrough, Readable, Transform } from 'node:stream';
-import { finished } from 'node:stream/promises';
 import type { CompressionConfig } from '../../../src/archive/compression';
 import type { ResolvedCachePaths } from '../../../src/archive/paths';
 import type { ArchiveCommand, ArchivePlan, TarTool } from '../../../src/archive/tar';
@@ -98,7 +97,7 @@ const mockSpawnArchiveCommand = jest.fn<(command: ArchiveCommand, stdio: unknown
 const mockWaitForExit = jest.fn<(child: FakeChild) => Promise<number>>();
 const mockKillIfRunning = jest.fn<(child: FakeChild) => void>();
 const mockWaitForExitAfterKill =
-  jest.fn<(child: FakeChild, exit: Promise<number>) => Promise<void>>();
+  jest.fn<(child: FakeChild, settle: Promise<unknown>) => Promise<void>>();
 const mockCaptureStderrTail =
   jest.fn<(stream: unknown, maxLines?: number) => { lines(): string[] }>();
 
@@ -276,10 +275,15 @@ beforeEach(() => {
   mockFormatManifest.mockImplementation((entries) => `${entries.join('\n')}\n`);
   mockCaptureStderrTail.mockReturnValue({ lines: () => [] });
   mockKillIfRunning.mockImplementation(() => undefined);
-  // Delegates to killIfRunning so existing assertions on it still see the call; skips the real
-  // bounded wait, since these tests fully control when `exit` settles.
-  mockWaitForExitAfterKill.mockImplementation(async (child) => {
+  // Delegates to killIfRunning so existing assertions on it still see the call, and awaits the
+  // given `settle` promise (swallowing its outcome) so tests see the same "kill, then wait for
+  // it to actually settle" ordering production code relies on, without a real 5s timeout race.
+  mockWaitForExitAfterKill.mockImplementation(async (child, settle) => {
     mockKillIfRunning(child);
+    await settle.then(
+      () => undefined,
+      () => undefined
+    );
   });
   mockCreateStreamUpload.mockImplementation(() => ({
     done: jest.fn(async () => ({ ETag: '"streamed"' })),
@@ -859,17 +863,35 @@ describe('saveToS3 streaming', () => {
       return 2;
     });
     const abort = jest.fn(async () => undefined);
+    // A real Upload reads the body until it ends; actually consuming it here (rather than just
+    // attaching a `finished()` listener nobody drives) is what would let a `sawEnd = true`
+    // moment ever happen for a real, unread Transform, whose 'end' never fires without a reader.
+    let sawEnd = false;
+    // saveToS3Streaming only needs ONE of upload.done()/finalized to reject to return, so it can
+    // return before done()'s own consumption of the body has actually finished draining. Capture
+    // done()'s promise so the test can wait for it to fully settle before trusting `sawEnd`,
+    // rather than relying on which of the two happens to settle first.
+    let doneSettled: Promise<unknown> | undefined;
     mockCreateStreamUpload.mockImplementation((_client, _bucket, _key, body) => ({
-      done: jest.fn(async () => {
-        // A real Upload only resolves once it observes the body end; `finished` mirrors that.
-        await finished(body as Readable);
-        return { ETag: '"should-not-be-committed"' };
+      done: jest.fn(() => {
+        const settled = (async () => {
+          for await (const _chunk of body as Readable) {
+            // Drain it, exactly as the real Upload would while buffering parts.
+          }
+          // Only reached if the body ended cleanly, without the destroy(err) the fix requires.
+          sawEnd = true;
+          return { ETag: '"should-not-be-committed"' };
+        })();
+        doneSettled = settled;
+        return settled;
       }),
       abort,
     }));
 
     const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    await doneSettled?.catch(() => undefined);
 
+    expect(sawEnd).toBe(false);
     expect(outcome.kind).toBe('error');
     const message = outcome.kind === 'error' ? outcome.error.message : '';
     expect(message).toContain('tar exited with code 2');
@@ -1023,6 +1045,42 @@ describe('saveToS3 streaming', () => {
       platform: process.platform,
       compression: 'zstd',
     });
+  });
+
+  it('leaves no unhandled rejection when something throws synchronously right after spawning tar', async () => {
+    const onUnhandledRejection = jest.fn();
+    process.on('unhandledRejection', onUnhandledRejection);
+    try {
+      let child: FakeChild | undefined;
+      mockSpawnArchiveCommand.mockImplementation(() => {
+        child = makeFakeChild();
+        return child;
+      });
+      // tar itself would exit fine, but nothing ever awaits that outcome on this path: the
+      // throw below happens before createStreamUpload's caller ever reaches the inner try.
+      mockWaitForExit.mockImplementation(async (c) => {
+        c.stdout.end(Buffer.from('x'));
+        return 2;
+      });
+      mockCreateStreamUpload.mockImplementation(() => {
+        throw new Error('invalid upload configuration');
+      });
+
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+
+      expect(outcome.kind).toBe('error');
+      const message = outcome.kind === 'error' ? outcome.error.message : '';
+      expect(message).toContain('invalid upload configuration');
+      expect(mockKillIfRunning).toHaveBeenCalledWith(child);
+
+      // Give the orphaned `finalized` promise (driven by tar's mocked non-zero exit) a chance
+      // to actually settle and, if unhandled, surface as an 'unhandledRejection' event before
+      // asserting that it did not.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(onUnhandledRejection).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection);
+    }
   });
 });
 
