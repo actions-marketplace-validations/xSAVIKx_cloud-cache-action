@@ -86,6 +86,12 @@ describe('action manifests', () => {
     }
   });
 
+  it('prune/action.yml declares older-than-days as required with no default, and dry-run defaulting to false', () => {
+    expect(pruneManifest.inputs[Inputs.OlderThanDays].required).toBe(true);
+    expect(pruneManifest.inputs[Inputs.OlderThanDays].default).toBeUndefined();
+    expect(pruneManifest.inputs[Inputs.DryRun].default).toBe('false');
+  });
+
   it.each(allManifests)('%s uses the defaults the code falls back to', (_file, manifest) => {
     const expectDefault = (name: string, value: string): void => {
       if (name in manifest.inputs) {

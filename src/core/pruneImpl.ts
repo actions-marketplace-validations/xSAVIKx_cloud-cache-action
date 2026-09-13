@@ -6,6 +6,9 @@ import { compileKeyTemplate } from './keyTemplate';
 import { toError } from './outcomes';
 import { pruneCaches, type PruneTier } from './prune';
 
+const TRUE_VALUES = ['true', 'True', 'TRUE'];
+const FALSE_VALUES = ['false', 'False', 'FALSE'];
+
 /** Every input the prune step reads. `ref` empty means every ref. */
 export interface PruneConfig {
   olderThanDays: number;
@@ -19,11 +22,14 @@ export interface PruneConfig {
 }
 
 /**
- * s3-key-pattern text puts ${ref} before ${GITHUB_REPOSITORY} or ${prefix} places ${ref} before
- * ${prefix} while a prefix is configured, `KeyTemplate.scopePrefix(undefined)` truncates at the
- * ref placeholder and returns a prefix that does not include the repository or prefix segment --
- * broader than what the pattern really produces, so an all-refs prune could delete another
- * repository's caches. Checked against the raw, unresolved pattern text.
+ * True when pruning every ref (the `ref` input is empty) would be unsafe with this
+ * `s3-key-pattern`. If `${ref}` appears before `${GITHUB_REPOSITORY}` (while
+ * scoped-to-repository is true) or before `${prefix}` (while a prefix is configured),
+ * `KeyTemplate.scopePrefix(undefined)` truncates the listing prefix at the `${ref}` placeholder,
+ * so it resolves to a prefix that does not include the repository or configured prefix segment --
+ * broader than what the pattern really produces. An all-refs prune under that broader prefix
+ * could then delete another repository's (or another prefix's) caches. Checked against the raw,
+ * unresolved `s3-key-pattern` text.
  */
 function refPlacementIsUnsafeForAllRefs(
   pattern: string,
@@ -57,11 +63,29 @@ function parseOlderThanDays(raw: string): number {
   return Number(trimmed);
 }
 
+/**
+ * Unlike `getInputAsBool`, which warns and falls back to a default on an unrecognized value,
+ * an unrecognized `dry-run` value must fail the step: silently treating it as `false` would
+ * turn a typo (e.g. "Flase") into a real, unintended deletion.
+ */
+function parseDryRun(raw: string): boolean {
+  if (raw === '') {
+    return false;
+  }
+  if (TRUE_VALUES.includes(raw)) {
+    return true;
+  }
+  if (FALSE_VALUES.includes(raw)) {
+    return false;
+  }
+  throw new Error(`Invalid "dry-run" value "${raw}": use true or false.`);
+}
+
 export function readPruneConfig(): PruneConfig {
   return {
     olderThanDays: parseOlderThanDays(core.getInput(Inputs.OlderThanDays)),
     ref: core.getInput(Inputs.Ref).trim(),
-    dryRun: getInputAsBool(Inputs.DryRun),
+    dryRun: parseDryRun(core.getInput(Inputs.DryRun)),
     prefix: core.getInput(Inputs.Prefix),
     s3KeyPattern: core.getInput(Inputs.S3KeyPattern) || Defaults.DefaultS3KeyPattern,
     scopedToRepository: getInputAsBool(Inputs.ScopedToRepository, true),

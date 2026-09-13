@@ -101,6 +101,42 @@ describe('pruneImpl', () => {
     );
   });
 
+  it.each(['True', 'TRUE', 'true'])('accepts %s as a valid true dry-run value', async (value) => {
+    inputs.set(Inputs.DryRun, value);
+    await pruneImpl();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    expect(mockPruneCaches).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ dryRun: true })
+    );
+  });
+
+  it.each(['False', 'FALSE', 'false'])(
+    'accepts %s as a valid false dry-run value',
+    async (value) => {
+      inputs.set(Inputs.DryRun, value);
+      await pruneImpl();
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(mockPruneCaches).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ dryRun: false })
+      );
+    }
+  );
+
+  it.each(['Flase', 'yes', '1', 'no', 'TrUe'])(
+    'fails on an unrecognized dry-run value instead of silently defaulting to a real deletion (%s)',
+    async (value) => {
+      inputs.set(Inputs.DryRun, value);
+      await pruneImpl();
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        `Invalid "dry-run" value "${value}": use true or false.`
+      );
+      expect(mockCreateStorageContext).not.toHaveBeenCalled();
+      expect(mockPruneCaches).not.toHaveBeenCalled();
+    }
+  );
+
   it('fails when older-than-days is missing', async () => {
     inputs.delete(Inputs.OlderThanDays);
     await pruneImpl();
