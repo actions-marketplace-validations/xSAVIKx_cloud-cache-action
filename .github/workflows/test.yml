@@ -259,6 +259,40 @@ jobs:
       - name: Expect a miss on the first attempt
         run: test "${{ steps.cache.outputs.cache-hit }}" = "false"
 
+  dual-cache:
+    name: Dual-cache with the live GitHub Actions Cache
+    needs: unit
+    runs-on: ubuntu-latest
+    env:
+      AWS_ENDPOINT_URL: http://127.0.0.1:8333
+      AWS_S3_BUCKET: cloud-cache-test
+      AWS_ACCESS_KEY_ID: cloudcacheci
+      AWS_SECRET_ACCESS_KEY: cloudcachecisecret
+      KEY: dual-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node tests/ci/startSeaweedfs.ts
+      - name: Create a payload
+        run: mkdir -p payload && echo "${{ github.run_id }}" > payload/run.txt
+      - name: After the dual-cache post step, check that S3 received the object
+        uses: ./.github/actions/assert-object
+        with:
+          key: ${{ env.KEY }}
+      - name: Cache the payload in both tiers (restore now, post step saves to S3 and GitHub)
+        id: cache
+        uses: ./
+        with:
+          key: ${{ env.KEY }}
+          path: payload
+          dual-cache: true
+      - name: Expect a miss in both tiers on the first attempt
+        run: test "${{ steps.cache.outputs.cache-hit }}" = "false"
+
   strict-failure:
     name: Strict dual-cache save failure
     needs: unit
