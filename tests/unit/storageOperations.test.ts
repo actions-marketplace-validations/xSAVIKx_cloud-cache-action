@@ -5,12 +5,7 @@ import {
   ListObjectsV2Command,
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
-import {
-  checkObjectExists,
-  listObjectsWithPrefix,
-  downloadFile,
-  findNewestObject,
-} from '../../src/storage/operations';
+import { checkObjectExists, downloadFile, findNewestObject } from '../../src/storage/operations';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -78,42 +73,6 @@ describe('Storage Operations', () => {
       s3Mock.on(HeadObjectCommand).rejects(err);
 
       await expect(checkObjectExists(client, 'test-bucket', 'key')).rejects.toThrow('AccessDenied');
-    });
-  });
-
-  describe('listObjectsWithPrefix', () => {
-    it('returns filtered and mapped objects list', () => {
-      s3Mock.on(ListObjectsV2Command).resolves({
-        Contents: [
-          {
-            Key: 'prefix/test1/cache.tar.zst',
-            Size: 2048,
-            LastModified: new Date('2026-01-01'),
-            ETag: '"etag-1"',
-          },
-          {
-            Key: 'prefix/test2/cache.tar.zst',
-            Size: 4096,
-            LastModified: new Date('2026-01-02'),
-            ETag: '"etag-2"',
-          },
-        ],
-      });
-
-      return listObjectsWithPrefix(client, 'test-bucket', 'prefix/').then((items) => {
-        expect(items.length).toBe(2);
-        expect(items[0].key).toBe('prefix/test1/cache.tar.zst');
-        expect(items[0].size).toBe(2048);
-        expect(items[1].key).toBe('prefix/test2/cache.tar.zst');
-      });
-    });
-
-    it('returns empty array when no contents returned', () => {
-      s3Mock.on(ListObjectsV2Command).resolves({});
-
-      return listObjectsWithPrefix(client, 'test-bucket', 'empty/').then((items) => {
-        expect(items).toEqual([]);
-      });
     });
   });
 

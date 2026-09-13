@@ -77,7 +77,7 @@ export enum Events {
 
 export const Defaults = {
   DefaultRegion: 'us-east-1',
-  DefaultS3KeyPattern: '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}',
+  DefaultS3KeyPattern: '${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}',
   DefaultArchiveFilenameZstd: 'cache.tar.zst',
   DefaultArchiveFilenameGzip: 'cache.tar.gz',
   DefaultRetryCount: 3,

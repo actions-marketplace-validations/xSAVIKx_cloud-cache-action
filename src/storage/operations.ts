@@ -3,7 +3,6 @@ import {
   HeadObjectCommand,
   GetObjectCommand,
   ListObjectsV2Command,
-  _Object as S3Object,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import * as fs from 'fs';
@@ -47,33 +46,6 @@ export async function checkObjectExists(
     }
     throw err;
   }
-}
-
-export async function listObjectsWithPrefix(
-  client: S3Client,
-  bucket: string,
-  prefix: string,
-  maxKeys = 100
-): Promise<CacheObjectMetadata[]> {
-  const cmd = new ListObjectsV2Command({
-    Bucket: bucket,
-    Prefix: prefix,
-    MaxKeys: maxKeys,
-  });
-
-  const response = await client.send(cmd);
-  if (!response.Contents || response.Contents.length === 0) {
-    return [];
-  }
-
-  return response.Contents.filter((obj): obj is S3Object & { Key: string } => Boolean(obj.Key)).map(
-    (obj) => ({
-      key: obj.Key!,
-      size: obj.Size || 0,
-      lastModified: obj.LastModified,
-      etag: obj.ETag,
-    })
-  );
 }
 
 /**
