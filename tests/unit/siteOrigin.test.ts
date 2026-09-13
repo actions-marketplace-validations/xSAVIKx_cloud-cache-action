@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Guards the rule that SITE_ORIGIN is for URLs this site serves, and that
@@ -12,7 +13,7 @@ import path from 'node:path';
  *      same way to a visitor as a stale hostname does.
  */
 
-const REPO = path.resolve(__dirname, '../..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DEFINITION = path.join('docs', '.vitepress', 'site.mjs');
 const HOSTNAME = 'xsavikx.github.io';
 const DIST = path.join(REPO, 'docs', '.vitepress', 'dist');
