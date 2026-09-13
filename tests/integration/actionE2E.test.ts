@@ -1,4 +1,4 @@
-import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3';
+import { createTestS3Client, getTestS3Config, prepareTestBucket } from '../support/s3Server';
 import { saveToS3 } from '../../src/core/saveImpl';
 import { restoreFromS3 } from '../../src/core/restoreImpl';
 import { getCompressionConfig } from '../../src/archive/compression';
@@ -9,39 +9,17 @@ import * as path from 'path';
 import * as os from 'os';
 
 describe('End-to-End Cache Lifecycle against Local S3 Containers', () => {
-  const endpoint = process.env.TEST_S3_ENDPOINT || 'http://127.0.0.1:8333';
-  const bucket = 'action-e2e-test-bucket';
+  const s3 = getTestS3Config();
+  const bucket = s3.bucket;
   let isS3Available = false;
   let storageContext: StorageContext;
 
   beforeAll(async () => {
-    const providerConfig = resolveProviderDefaults(endpoint);
-    const client = new S3Client({
-      endpoint: providerConfig.endpoint,
-      region: providerConfig.region,
-      forcePathStyle: providerConfig.forcePathStyle,
-      credentials: {
-        accessKeyId: process.env.TEST_S3_ACCESS_KEY || 'minioadmin',
-        secretAccessKey: process.env.TEST_S3_SECRET_KEY || 'minioadmin',
-      },
-    });
-
-    try {
-      await client.send(new CreateBucketCommand({ Bucket: bucket }));
-      isS3Available = true;
-    } catch (err: unknown) {
-      const error = err as { name?: string };
-      if (error.name === 'BucketAlreadyOwnedByYou' || error.name === 'BucketAlreadyExists') {
-        isS3Available = true;
-      } else {
-        isS3Available = false;
-      }
-    }
-
+    isS3Available = await prepareTestBucket(s3);
     storageContext = {
-      client,
+      client: createTestS3Client(s3),
       bucket,
-      providerConfig,
+      providerConfig: resolveProviderDefaults(s3.endpoint, s3.region, true, s3.provider),
     };
   });
 
