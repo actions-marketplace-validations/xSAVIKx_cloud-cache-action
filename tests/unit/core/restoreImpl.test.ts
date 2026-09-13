@@ -1,0 +1,230 @@
+import { jest } from '@jest/globals';
+import { Inputs, State } from '../../../src/constants';
+import type { RestoreOutcome } from '../../../src/core/outcomes';
+import type { S3Tier } from '../../../src/core/s3Tier';
+import { MemoryState } from '../../support/memoryState';
+
+const inputs = new Map<string, string>();
+const outputs = new Map<string, string>();
+const mockSetFailed = jest.fn<(message: string) => void>();
+const mockWarning = jest.fn<(message: string) => void>();
+const mockBuildS3Tier = jest.fn<(config: unknown) => Promise<S3Tier>>();
+const mockRestoreFromS3 =
+  jest.fn<
+    (
+      tier: S3Tier,
+      primaryKey: string,
+      restoreKeys: readonly string[],
+      lookupOnly: boolean
+    ) => Promise<RestoreOutcome>
+  >();
+const mockRestoreFromGitHub =
+  jest.fn<
+    (
+      paths: readonly string[],
+      primaryKey: string,
+      restoreKeys: readonly string[],
+      lookupOnly: boolean,
+      crossOs: boolean
+    ) => Promise<RestoreOutcome>
+  >();
+
+jest.unstable_mockModule('@actions/core', () => ({
+  getInput: (name: string) => inputs.get(name) ?? '',
+  setOutput: (name: string, value: string) => {
+    outputs.set(name, value);
+  },
+  setFailed: mockSetFailed,
+  info: jest.fn(),
+  warning: mockWarning,
+  debug: jest.fn(),
+  saveState: jest.fn(),
+  getState: () => '',
+}));
+jest.unstable_mockModule('../../../src/core/s3Tier', () => ({
+  buildS3Tier: mockBuildS3Tier,
+  restoreFromS3: mockRestoreFromS3,
+}));
+jest.unstable_mockModule('../../../src/core/githubTier', () => ({
+  restoreFromGitHub: mockRestoreFromGitHub,
+}));
+
+const { restoreImpl, runRestore, runRestoreOnly } = await import('../../../src/core/restoreImpl');
+
+const tier = { storage: { providerConfig: { provider: 'seaweedfs' } } } as unknown as S3Tier;
+const s3Hit = (matchedKey: string, exact: boolean): RestoreOutcome => ({
+  kind: 'hit',
+  matchedKey,
+  exact,
+  s3: { objectKey: `octo/app/${matchedKey}/cache.tar.zst`, size: 2048, etag: '"etag"' },
+});
+const githubHit = (matchedKey: string, exact: boolean): RestoreOutcome => ({
+  kind: 'hit',
+  matchedKey,
+  exact,
+});
+const miss: RestoreOutcome = { kind: 'miss' };
+const failure = (message: string): RestoreOutcome => ({ kind: 'error', error: new Error(message) });
+
+describe('restoreImpl', () => {
+  let state: MemoryState;
+
+  beforeEach(() => {
+    inputs.clear();
+    outputs.clear();
+    jest.clearAllMocks();
+    state = new MemoryState();
+    process.env.GITHUB_EVENT_NAME = 'push';
+    inputs.set(Inputs.Key, 'Linux-npm-abc');
+    inputs.set(Inputs.Path, '~/.npm');
+    inputs.set(Inputs.RestoreKeys, 'Linux-npm-');
+    mockBuildS3Tier.mockResolvedValue(tier);
+    mockRestoreFromS3.mockResolvedValue(miss);
+    mockRestoreFromGitHub.mockResolvedValue(miss);
+  });
+
+  it('restores an exact S3 hit and records it for the post step', async () => {
+    mockRestoreFromS3.mockResolvedValue(s3Hit('Linux-npm-abc', true));
+
+    await expect(restoreImpl(state, false)).resolves.toBe('Linux-npm-abc');
+
+    expect(mockRestoreFromS3).toHaveBeenCalledWith(tier, 'Linux-npm-abc', ['Linux-npm-'], false);
+    expect(Object.fromEntries(outputs)).toEqual({
+      'cache-primary-key': 'Linux-npm-abc',
+      'cache-hit': 'true',
+      'cache-hit-source': 's3',
+      'cache-matched-key': 'Linux-npm-abc',
+      'cache-storage-provider': 'seaweedfs',
+      'cache-s3-key': 'octo/app/Linux-npm-abc/cache.tar.zst',
+      'cache-size': '2048',
+      'cache-etag': '"etag"',
+    });
+    expect(state.values.get(State.CacheS3ExactHit)).toBe('true');
+    expect(state.values.get(State.CacheMatchedKey)).toBe('Linux-npm-abc');
+    expect(state.values.get(State.CacheHitSource)).toBe('s3');
+    expect(mockRestoreFromGitHub).not.toHaveBeenCalled();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+  });
+
+  it('reports a partial hit as cache-hit false', async () => {
+    mockRestoreFromS3.mockResolvedValue(s3Hit('Linux-npm-old', false));
+    await expect(restoreImpl(state, false)).resolves.toBe('Linux-npm-old');
+    expect(outputs.get('cache-hit')).toBe('false');
+    expect(outputs.get('cache-matched-key')).toBe('Linux-npm-old');
+    expect(state.values.has(State.CacheS3ExactHit)).toBe(false);
+  });
+
+  it('persists the configuration the post step needs', async () => {
+    inputs.set(Inputs.RetryCount, '0');
+    inputs.set(Inputs.ScopedToRef, 'false');
+    await restoreImpl(state, false);
+    expect(state.values.get(State.CachePrimaryKey)).toBe('Linux-npm-abc');
+    expect(state.values.get(State.CacheRetryCount)).toBe('0');
+    expect(state.values.get(State.CacheScopedToRef)).toBe('false');
+    expect(state.values.get(State.CacheStorageProvider)).toBe('seaweedfs');
+  });
+
+  it('passes lookup-only through', async () => {
+    inputs.set(Inputs.LookupOnly, 'true');
+    await restoreImpl(state, false);
+    expect(mockRestoreFromS3).toHaveBeenCalledWith(tier, 'Linux-npm-abc', ['Linux-npm-'], true);
+  });
+
+  it('treats an S3 restore failure as a miss with a warning instead of failing the step', async () => {
+    mockRestoreFromS3.mockResolvedValue(failure('download interrupted'));
+    await expect(restoreImpl(state, false)).resolves.toBeUndefined();
+    expect(mockWarning).toHaveBeenCalledWith(expect.stringContaining('download interrupted'));
+    expect(outputs.get('cache-hit')).toBe('false');
+    expect(outputs.get('cache-hit-source')).toBe('none');
+    expect(mockSetFailed).not.toHaveBeenCalled();
+  });
+
+  it('fails on a miss when fail-on-cache-miss is set', async () => {
+    inputs.set(Inputs.FailOnCacheMiss, 'true');
+    await restoreImpl(state, false);
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('fail-on-cache-miss'));
+  });
+
+  it('asks GitHub only when use-fallback is set', async () => {
+    await restoreImpl(state, false);
+    expect(mockRestoreFromGitHub).not.toHaveBeenCalled();
+
+    inputs.set(Inputs.UseFallback, 'true');
+    mockRestoreFromGitHub.mockResolvedValue(githubHit('Linux-npm-abc', true));
+    await expect(restoreImpl(state, false)).resolves.toBe('Linux-npm-abc');
+    expect(mockRestoreFromGitHub).toHaveBeenCalledWith(
+      ['~/.npm'],
+      'Linux-npm-abc',
+      ['Linux-npm-'],
+      false,
+      false
+    );
+    expect(outputs.get('cache-hit-source')).toBe('github');
+    expect(state.values.get(State.CacheGithubExactHit)).toBe('true');
+    expect(state.values.has(State.CacheS3ExactHit)).toBe(false);
+  });
+
+  it('fails when S3 cannot be set up and no other tier can serve the restore', async () => {
+    mockBuildS3Tier.mockRejectedValue(new Error('Bucket name is required.'));
+    await restoreImpl(state, false);
+    expect(mockSetFailed).toHaveBeenCalledWith('Bucket name is required.');
+  });
+
+  it('continues with GitHub when S3 setup fails in non-strict dual-cache mode', async () => {
+    inputs.set(Inputs.DualCache, 'true');
+    mockBuildS3Tier.mockRejectedValue(new Error('Bucket name is required.'));
+    mockRestoreFromGitHub.mockResolvedValue(githubHit('Linux-npm-abc', true));
+    await expect(restoreImpl(state, false)).resolves.toBe('Linux-npm-abc');
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining('S3 client initialization failed')
+    );
+    expect(mockRestoreFromS3).not.toHaveBeenCalled();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+  });
+
+  it('stops at an S3 hit in s3-first dual-cache mode', async () => {
+    inputs.set(Inputs.DualCache, 'true');
+    mockRestoreFromS3.mockResolvedValue(s3Hit('Linux-npm-abc', true));
+    await restoreImpl(state, false);
+    expect(mockRestoreFromGitHub).not.toHaveBeenCalled();
+  });
+
+  it('asks GitHub first, then S3, in github-first dual-cache mode', async () => {
+    inputs.set(Inputs.DualCache, 'true');
+    inputs.set(Inputs.RestorePriority, 'github-first');
+    mockRestoreFromS3.mockResolvedValue(s3Hit('Linux-npm-abc', true));
+    await expect(restoreImpl(state, false)).resolves.toBe('Linux-npm-abc');
+    expect(mockRestoreFromGitHub.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRestoreFromS3.mock.invocationCallOrder[0]
+    );
+    expect(outputs.get('cache-hit-source')).toBe('s3');
+  });
+
+  it('warns and moves on to GitHub after an S3 error in non-strict dual-cache mode', async () => {
+    inputs.set(Inputs.DualCache, 'true');
+    mockRestoreFromS3.mockResolvedValue(failure('AccessDenied'));
+    mockRestoreFromGitHub.mockResolvedValue(githubHit('Linux-npm-abc', true));
+    await expect(restoreImpl(state, false)).resolves.toBe('Linux-npm-abc');
+    expect(mockWarning).toHaveBeenCalledWith(expect.stringContaining('AccessDenied'));
+  });
+
+  it('fails the step on an S3 error in strict dual-cache mode', async () => {
+    inputs.set(Inputs.DualCache, 'true');
+    inputs.set(Inputs.DualCacheStrict, 'true');
+    mockRestoreFromS3.mockResolvedValue(failure('AccessDenied'));
+    await restoreImpl(state, false);
+    expect(mockSetFailed).toHaveBeenCalledWith('Restoring from s3 failed: AccessDenied');
+    expect(mockRestoreFromGitHub).not.toHaveBeenCalled();
+  });
+
+  it('fails when the key input is missing', async () => {
+    inputs.delete(Inputs.Key);
+    await restoreImpl(state, false);
+    expect(mockSetFailed).toHaveBeenCalledWith('Input required and not supplied: key');
+  });
+
+  it('runs the wrappers without exiting when earlyExit is false', async () => {
+    await expect(runRestore(false)).resolves.toBeUndefined();
+    await expect(runRestoreOnly(false)).resolves.toBeUndefined();
+  });
+});
