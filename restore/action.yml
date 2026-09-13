@@ -71,6 +71,10 @@ inputs:
     description: 'Whether to prefix bucket cache paths with GITHUB_REPOSITORY (default: true)'
     required: false
     default: 'true'
+  scoped-to-ref:
+    description: 'Save caches under the current Git ref and restore from the current ref, then the pull request base branch, then the default branch (like actions/cache). Set to false to share caches across all refs.'
+    required: false
+    default: 'true'
   retry:
     description: 'Enable retries with exponential backoff on failure for S3 operations'
     required: false
