@@ -239,12 +239,14 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
 v1.1 changes how cache objects are named, so **caches saved by v1.0 are not found and are rebuilt once**.
 
 - **Key layout:** object keys now include the Git ref and a cache version: `${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}`. The version hashes `path`, the compression method and, on Windows, `enableCrossOsArchive`, so a cache is never restored into a job that caches different paths.
-- **Paths:** `path` supports globs, `~` and `!` exclusions like actions/cache, and archives store paths relative to `GITHUB_WORKSPACE`.
+- **Paths:** `path` supports globs, `~` and `!` exclusions like actions/cache, and archives store paths relative to `GITHUB_WORKSPACE`. See [Paths and exclusions](#paths-and-exclusions).
 - **Branch isolation:** restores search the current ref, then the pull request base branch, then the default branch. Set `scoped-to-ref: false` to share caches across all refs.
 - **`save-always`** was removed. **`dual-cache-strategy: independent`** now behaves as `backfill` and logs a warning.
 - **`dual-cache-strict: true`** now fails the step on any tier error during restore or save.
 
 The action never reads v1.0 objects again; let a bucket lifecycle rule expire them.
+
+Ref scoping stores a separate cache for every branch and pull request merge ref (`refs/pull/<n>/merge`), so the bucket grows with the number of active refs. **A lifecycle rule that expires old cache objects is strongly recommended.**
 
 ## Saving after failed steps
 
@@ -274,7 +276,7 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | -------------------------------- | :------: | :--------------------------------------------------------: | --------------------------------------------------------------------------- |
 | `bucket`                         | **Yes**  |                             —                              | Name of the S3 bucket                                                       |
 | `key`                            | **Yes**  |                             —                              | Explicit key for restoring and saving cache                                 |
-| `path`                           | **Yes**  |                             —                              | Multiline list of paths or files to cache                                   |
+| `path`                           | **Yes**  |                             —                              | Multiline list of paths, globs and `!` exclusions to cache (see [Paths and exclusions](#paths-and-exclusions)) |
 | `restore-keys`                   |    No    |                             —                              | Multiline string of prefix keys for fallback matching                       |
 | `endpoint`                       |    No    |                          Auto/AWS                          | Custom S3 endpoint URL                                                      |
 | `region`                         |    No    |                      Auto/`us-east-1`                      | AWS or S3 provider region                                                   |
@@ -298,6 +300,11 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | `restore-priority`               |    No    |                         `s3-first`                         | Cache source to query first: `s3-first` or `github-first`                   |
 | `dual-cache-strategy`            |    No    |                         `backfill`                         | `backfill` (upload to a tier only if it lacks the key) or `skip-on-hit` |
 | `dual-cache-strict`              |    No    |                          `false`                           | Fail the step when either tier errors during restore or save |
+
+### Paths and exclusions
+
+- **Exclusions only remove what the include patterns matched**, as in actions/cache. `path: logs` with `!logs/debug.txt` still caches the whole `logs` directory, because the directory is the match. To leave one file out, match the files instead: `logs/*` with `!logs/debug.txt`.
+- **Symbolic links are not followed while matching.** A pattern that wildcards through a symlinked directory, such as `linked-dir/*` where `linked-dir` is a symlink, matches nothing. A symlink that a pattern matches is archived as a link, not as the files it points to.
 
 ---
 

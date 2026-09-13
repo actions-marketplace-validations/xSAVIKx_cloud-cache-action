@@ -24,6 +24,20 @@ Add the following step to your GitHub Actions workflow:
       ${{ runner.os }}-node-
 ```
 
+## Paths and Exclusions
+
+`path` accepts files, directories, globs, `~` and `!` exclusions, one per line.
+
+- **Exclusions only remove what the include patterns matched**, as in `actions/cache`. `path: logs` with `!logs/debug.txt` still caches the whole `logs` directory, because the directory itself is the match. To leave one file out, match the files instead:
+
+  ```yaml
+  path: |
+    logs/*
+    !logs/debug.txt
+  ```
+
+- **Symbolic links are not followed while matching.** A pattern that wildcards through a symlinked directory, such as `linked-dir/*` where `linked-dir` is a symlink, matches nothing. A symlink that a pattern matches is archived as a link, not as the files it points to.
+
 ## How It Works
 
 1. **Restore Phase (Pre/Main)**:
