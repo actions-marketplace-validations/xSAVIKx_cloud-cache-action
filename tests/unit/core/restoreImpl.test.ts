@@ -227,4 +227,20 @@ describe('restoreImpl', () => {
     await expect(runRestore(false)).resolves.toBeUndefined();
     await expect(runRestoreOnly(false)).resolves.toBeUndefined();
   });
+
+  it('exits 0 from the wrappers after a restore that did not fail', async () => {
+    const exitCodes: Array<string | number | null | undefined> = [];
+    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(((
+      code?: string | number | null
+    ) => {
+      exitCodes.push(code);
+    }) as (code?: string | number | null) => never);
+    try {
+      await runRestore(true);
+      await runRestoreOnly(true);
+    } finally {
+      exitSpy.mockRestore();
+    }
+    expect(exitCodes).toEqual([0, 0]);
+  });
 });

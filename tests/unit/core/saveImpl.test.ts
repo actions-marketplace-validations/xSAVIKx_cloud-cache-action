@@ -6,7 +6,10 @@ import { MemoryState } from '../../support/memoryState';
 
 const inputs = new Map<string, string>();
 const outputs = new Map<string, string>();
-const mockSetFailed = jest.fn<(message: string) => void>();
+// Like the real core.setFailed, which only sets process.exitCode.
+const mockSetFailed = jest.fn<(message: string) => void>(() => {
+  process.exitCode = 1;
+});
 const mockWarning = jest.fn<(message: string) => void>();
 const mockBuildS3Tier = jest.fn<(config: unknown) => Promise<S3Tier>>();
 const mockSaveToS3 =
@@ -74,6 +77,11 @@ describe('saveImpl', () => {
     mockSaveToS3.mockResolvedValue(s3Saved);
     mockExistsInGitHub.mockResolvedValue(false);
     mockSaveToGitHub.mockResolvedValue(githubSaved);
+    process.exitCode = undefined;
+  });
+
+  afterEach(() => {
+    process.exitCode = undefined;
   });
 
   describe('pure S3 mode', () => {
@@ -246,5 +254,46 @@ describe('saveImpl', () => {
   it('runs the wrappers without exiting when earlyExit is false', async () => {
     await expect(runSave(false)).resolves.toBeUndefined();
     await expect(runSaveOnly(false)).resolves.toBeUndefined();
+  });
+
+  describe.each([
+    ['runSave', runSave],
+    ['runSaveOnly', runSaveOnly],
+  ])('%s with earlyExit', (_name, run) => {
+    let exitCodes: Array<string | number | null | undefined>;
+    let exitSpy: { mockRestore(): void };
+
+    beforeEach(() => {
+      exitCodes = [];
+      exitSpy = jest.spyOn(process, 'exit').mockImplementation(((code?: string | number | null) => {
+        exitCodes.push(code);
+      }) as (code?: string | number | null) => never);
+    });
+
+    afterEach(() => {
+      exitSpy.mockRestore();
+    });
+
+    it('exits 1 after a strict dual-cache S3 save error', async () => {
+      inputs.set(Inputs.DualCache, 'true');
+      inputs.set(Inputs.DualCacheStrict, 'true');
+      mockSaveToS3.mockResolvedValue(failure('AccessDenied'));
+      await run(true);
+      expect(mockSetFailed).toHaveBeenCalledWith('Saving to S3 failed: AccessDenied');
+      expect(exitCodes).toEqual([1]);
+    });
+
+    it('exits 0 after a successful save', async () => {
+      await run(true);
+      expect(exitCodes).toEqual([0]);
+    });
+
+    it('exits 0 after a save error that is not strict', async () => {
+      inputs.set(Inputs.DualCache, 'true');
+      mockSaveToS3.mockResolvedValue(failure('AccessDenied'));
+      await run(true);
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(exitCodes).toEqual([0]);
+    });
   });
 });

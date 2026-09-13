@@ -149,13 +149,15 @@ export async function restoreImpl(
 export async function runRestore(earlyExit = true): Promise<void> {
   await restoreImpl(new StateProvider(), earlyExit);
   if (earlyExit) {
-    process.exit(0);
+    // An explicit exit code overrides process.exitCode, so keep the one core.setFailed set.
+    process.exit(process.exitCode ?? 0);
   }
 }
 
 export async function runRestoreOnly(earlyExit = true): Promise<void> {
   await restoreImpl(new NullStateProvider(), earlyExit);
   if (earlyExit) {
-    process.exit(0);
+    // An explicit exit code overrides process.exitCode, so keep the one core.setFailed set.
+    process.exit(process.exitCode ?? 0);
   }
 }

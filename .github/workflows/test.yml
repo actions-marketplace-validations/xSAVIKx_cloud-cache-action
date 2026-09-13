@@ -259,6 +259,36 @@ jobs:
       - name: Expect a miss on the first attempt
         run: test "${{ steps.cache.outputs.cache-hit }}" = "false"
 
+  strict-failure:
+    name: Strict dual-cache save failure
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node tests/ci/startSeaweedfs.ts
+      - name: Create a payload
+        run: mkdir -p payload && echo "${{ github.run_id }}" > payload/run.txt
+      - name: Save with a wrong secret in strict dual-cache mode (must fail)
+        id: strict-save
+        continue-on-error: true
+        uses: ./save
+        with:
+          key: strict-${{ github.run_id }}-${{ github.run_attempt }}
+          path: payload
+          bucket: cloud-cache-test
+          endpoint: http://127.0.0.1:8333
+          access-key: cloudcacheci
+          secret-key: wrong-secret
+          dual-cache: true
+          dual-cache-strict: true
+      - name: Expect the strict save step to have failed
+        run: test "${{ steps.strict-save.outcome }}" = "failure"
+
   cross-os-seed:
     name: Cross-OS seed (Linux)
     needs: unit

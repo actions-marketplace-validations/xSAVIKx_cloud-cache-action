@@ -195,13 +195,15 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
 export async function runSave(earlyExit = true): Promise<void> {
   await saveImpl(new StateProvider());
   if (earlyExit) {
-    process.exit(0);
+    // An explicit exit code overrides process.exitCode, so keep the one core.setFailed set.
+    process.exit(process.exitCode ?? 0);
   }
 }
 
 export async function runSaveOnly(earlyExit = true): Promise<void> {
   await saveImpl(new NullStateProvider());
   if (earlyExit) {
-    process.exit(0);
+    // An explicit exit code overrides process.exitCode, so keep the one core.setFailed set.
+    process.exit(process.exitCode ?? 0);
   }
 }

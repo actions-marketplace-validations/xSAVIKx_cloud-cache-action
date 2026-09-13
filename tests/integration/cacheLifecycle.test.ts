@@ -137,9 +137,12 @@ beforeEach(() => {
     GITHUB_BASE_REF: undefined,
   });
   compression = { method: 'gzip', archiveFilename: 'cache.tar.gz' };
+  // core.setFailed only sets process.exitCode; clear it so one failure cannot fail later tests.
+  process.exitCode = undefined;
 });
 
 afterEach(() => {
+  process.exitCode = undefined;
   for (const key of Object.keys(process.env)) {
     if (key.startsWith('INPUT_')) {
       delete process.env[key];
