@@ -493,21 +493,28 @@ async function saveToS3Streaming(
       ifNoneMatch: sendCondition ? '*' : undefined,
     });
 
+    // Captured once so the failure path below can wait for it to settle.
+    const uploadDone = upload.done();
     try {
-      const [uploaded] = await Promise.all([upload.done(), finalized]);
+      const [uploaded] = await Promise.all([uploadDone, finalized]);
       core.info(`Cache saved to S3 with key: ${primaryKey}`);
       return {
         kind: 'saved',
-        s3: { objectKey, size: counter.count(), etag: (uploaded as { ETag?: string }).ETag },
+        s3: { objectKey, size: counter.count(), etag: uploaded.ETag },
       };
     } catch (err) {
+      // When tar failed first, the upload may still be running: stop it, then wait for done()
+      // to settle, which is where a multipart upload it created gets aborted (see
+      // createStreamUpload). abort() makes done() reject promptly, so this wait is short; when
+      // done() already rejected, it has already sent the abort and this does nothing.
+      await upload.abort().catch(() => undefined);
+      await uploadDone.catch(() => undefined);
       // Kill tar first (it may still be running, or even hung), then wait — bounded — for it
       // and the pipe to settle, so no upload failure mode can block this step indefinitely.
       // Only once that is done do we read the byte count or the final stderr tail below.
       await waitForExitAfterKill(child, finalized);
       if (sendCondition && isPreconditionFailed(err)) {
         core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
-        await upload.abort().catch(() => undefined);
         return { kind: 'exists', s3: { objectKey, size: counter.count(), etag: undefined } };
       }
       if (sendCondition && isConditionUnsupported(err)) {
@@ -515,10 +522,8 @@ async function saveToS3Streaming(
           `s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`
         );
         tier.storage.conditionalWriteUnsupported = true;
-        await upload.abort().catch(() => undefined);
         return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
       }
-      await upload.abort().catch(() => undefined);
       throw withStderrTail(err, stderrTail.lines());
     }
   } catch (err) {

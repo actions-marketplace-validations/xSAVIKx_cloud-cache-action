@@ -1,5 +1,6 @@
 import {
   S3Client,
+  AbortMultipartUploadCommand,
   HeadObjectCommand,
   GetObjectCommand,
   ListObjectsV2Command,
@@ -117,6 +118,63 @@ export interface UploadOptions {
   ifNoneMatch?: string;
 }
 
+/**
+ * What `createStreamUpload` hands back: the upload's outcome, and a way to stop it early. `done()`
+ * goes through the same abort-on-failure handling as `uploadFile`.
+ */
+export interface StreamUpload {
+  done(): Promise<{ ETag?: string }>;
+  /** Stops the upload: `done()` rejects promptly, and no further parts are sent. */
+  abort(): Promise<void>;
+}
+
+/**
+ * Awaits `upload.done()`. When it rejects after a multipart upload was created, sends
+ * AbortMultipartUpload for it before rethrowing the original error, unchanged.
+ *
+ * lib-storage aborts the multipart upload itself only when a part fails, the upload is aborted,
+ * or the part count is wrong; not when CompleteMultipartUpload itself fails (a 412 from a lost
+ * conditional-write race, or a 501 from a server that rejects `If-None-Match`). Without this,
+ * every such failure leaves its uploaded parts behind, stored and billed until a lifecycle rule
+ * removes them. When lib-storage has already aborted the upload, this second abort fails with
+ * NoSuchUpload, which is expected and only logged at debug level.
+ */
+async function completeOrAbort(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  upload: Upload
+): Promise<{ ETag?: string }> {
+  try {
+    return await upload.done();
+  } catch (err) {
+    const uploadId = upload.uploadId;
+    if (uploadId) {
+      try {
+        await client.send(
+          new AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId })
+        );
+        core.debug(`Aborted multipart upload ${uploadId} for s3://${bucket}/${key}.`);
+      } catch (abortErr) {
+        const error = abortErr as {
+          name?: string;
+          message?: string;
+          $metadata?: { httpStatusCode?: number };
+        };
+        const message = `Could not abort multipart upload ${uploadId} for s3://${bucket}/${key}: ${error.message ?? String(abortErr)}`;
+        if (error.name === 'NoSuchUpload' || error.$metadata?.httpStatusCode === 404) {
+          core.debug(`${message} (it was already aborted).`);
+        } else {
+          core.warning(
+            `${message}. Its parts stay stored until a bucket lifecycle rule (AbortIncompleteMultipartUpload) removes them.`
+          );
+        }
+      }
+    }
+    throw err;
+  }
+}
+
 export async function downloadFile(
   client: S3Client,
   bucket: string,
@@ -194,7 +252,7 @@ export async function uploadFile(
     }
   });
 
-  const result = await parallelUpload.done();
+  const result = await completeOrAbort(client, bucket, key, parallelUpload);
 
   return {
     size: stats.size,
@@ -204,8 +262,9 @@ export async function uploadFile(
 
 /**
  * Like `uploadFile`, but for streaming (Task 8): takes a readable stream body (tar's stdout,
- * via a byte counter) instead of a file path, and returns the `Upload` itself instead of
- * awaiting it, so the caller can race it against the archiving process and abort it on failure.
+ * via a byte counter) instead of a file path, and returns the upload instead of awaiting it, so
+ * the caller can race it against the archiving process and abort it on failure. Its `done()`
+ * aborts a multipart upload that fails, the same way `uploadFile` does.
  * Never sends `Metadata`: a streamed archive's sha256 cannot be known before it finishes.
  */
 export function createStreamUpload(
@@ -215,7 +274,7 @@ export function createStreamUpload(
   body: Readable,
   uploadChunkSize?: number,
   options?: Pick<UploadOptions, 'ifNoneMatch'>
-): Upload {
+): StreamUpload {
   const upload = new Upload({
     client,
     params: {
@@ -236,5 +295,8 @@ export function createStreamUpload(
     }
   });
 
-  return upload;
+  return {
+    done: () => completeOrAbort(client, bucket, key, upload),
+    abort: () => upload.abort(),
+  };
 }

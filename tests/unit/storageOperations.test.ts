@@ -8,6 +8,7 @@ import {
   CreateMultipartUploadCommand,
   UploadPartCommand,
   CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
 } from '@aws-sdk/client-s3';
 import { checkObjectExists, downloadFile, findNewestObject } from '../../src/storage/operations';
 import * as fs from 'fs';
@@ -335,6 +336,96 @@ describe('Storage Operations', () => {
       } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }
+    });
+  });
+
+  describe('aborting a multipart upload that fails to complete', () => {
+    const preconditionFailed = () =>
+      Object.assign(new Error('At least one of the pre-conditions you specified did not hold'), {
+        name: 'PreconditionFailed',
+        $metadata: { httpStatusCode: 412 },
+      });
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-upload-abort-'));
+      s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
+      s3Mock.on(UploadPartCommand).resolves({ ETag: '"part"' });
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    const largeFile = (): string => {
+      const file = path.join(tempDir, 'large.bin');
+      fs.writeFileSync(file, Buffer.alloc(12 * 1024 * 1024, 'a'));
+      return file;
+    };
+
+    it('uploadFile sends AbortMultipartUpload and rethrows the original error when Complete is rejected', async () => {
+      const { uploadFile } = await import('../../src/storage/operations');
+      const failure = preconditionFailed();
+      s3Mock.on(CompleteMultipartUploadCommand).rejects(failure);
+      s3Mock.on(AbortMultipartUploadCommand).resolves({});
+
+      await expect(
+        uploadFile(client, 'test-bucket', 'large-key', largeFile(), undefined, { ifNoneMatch: '*' })
+      ).rejects.toBe(failure);
+
+      const aborts = s3Mock.commandCalls(AbortMultipartUploadCommand);
+      expect(aborts).toHaveLength(1);
+      expect(aborts[0].args[0].input).toEqual({
+        Bucket: 'test-bucket',
+        Key: 'large-key',
+        UploadId: 'upload-1',
+      });
+    });
+
+    it('uploadFile still rethrows the original error when the abort itself fails', async () => {
+      const { uploadFile } = await import('../../src/storage/operations');
+      const failure = preconditionFailed();
+      s3Mock.on(CompleteMultipartUploadCommand).rejects(failure);
+      s3Mock.on(AbortMultipartUploadCommand).rejects(new Error('abort failed'));
+
+      await expect(
+        uploadFile(client, 'test-bucket', 'large-key', largeFile(), undefined, { ifNoneMatch: '*' })
+      ).rejects.toBe(failure);
+      expect(s3Mock.commandCalls(AbortMultipartUploadCommand)).toHaveLength(1);
+    });
+
+    it('uploadFile sends no AbortMultipartUpload when a single-part PutObject fails', async () => {
+      const { uploadFile } = await import('../../src/storage/operations');
+      const failure = preconditionFailed();
+      s3Mock.on(PutObjectCommand).rejects(failure);
+      const smallFile = path.join(tempDir, 'small.bin');
+      fs.writeFileSync(smallFile, Buffer.alloc(1024, 'a'));
+
+      await expect(
+        uploadFile(client, 'test-bucket', 'small-key', smallFile, undefined, { ifNoneMatch: '*' })
+      ).rejects.toBe(failure);
+      expect(s3Mock.commandCalls(AbortMultipartUploadCommand)).toHaveLength(0);
+    });
+
+    it('createStreamUpload sends AbortMultipartUpload and rethrows the original error when Complete is rejected', async () => {
+      const { createStreamUpload } = await import('../../src/storage/operations');
+      const failure = preconditionFailed();
+      s3Mock.on(CompleteMultipartUploadCommand).rejects(failure);
+      s3Mock.on(AbortMultipartUploadCommand).resolves({});
+
+      const body = Readable.from([Buffer.alloc(12 * 1024 * 1024, 'z')]);
+      const upload = createStreamUpload(client, 'test-bucket', 'stream-key', body, undefined, {
+        ifNoneMatch: '*',
+      });
+      await expect(upload.done()).rejects.toBe(failure);
+
+      const aborts = s3Mock.commandCalls(AbortMultipartUploadCommand);
+      expect(aborts).toHaveLength(1);
+      expect(aborts[0].args[0].input).toEqual({
+        Bucket: 'test-bucket',
+        Key: 'stream-key',
+        UploadId: 'upload-1',
+      });
     });
   });
 

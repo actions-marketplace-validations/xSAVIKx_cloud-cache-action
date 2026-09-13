@@ -11,9 +11,15 @@
  * on the same mutable `process.env`, which is a test-harness artifact, not the behaviour under
  * test.
  */
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { GetObjectCommand, PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  ListMultipartUploadsCommand,
+  PutObjectCommand,
+  type S3Client,
+} from '@aws-sdk/client-s3';
 import type { CompressionConfig } from '../../src/archive/compression';
 import { compileKeyTemplate } from '../../src/core/keyTemplate';
 import { restoreFromS3, saveToS3, type S3Tier } from '../../src/core/s3Tier';
@@ -105,7 +111,8 @@ async function readObjectBody(client: S3Client, bucket: string, key: string): Pr
  * Makes `client`'s conditional write lose a race deterministically: the moment the SDK sends a
  * command whose input carries `IfNoneMatch` (the only conditional write saveToS3 issues), this
  * middleware first puts a competing object for the same key through a separate client, then lets
- * the original request continue. That guarantees the competing write reaches the server before
+ * the original request continue (for a multipart upload, the first such command is
+ * CreateMultipartUpload, whose input lib-storage builds from the same params). That guarantees the competing write reaches the server before
  * the conditional one, with no sleep and no dependence on how long archiving takes.
  */
 function injectRaceOnFirstConditionalWrite(
@@ -220,5 +227,51 @@ describe('concurrent saves for the same key', () => {
         removeDir(ws);
       }
     }
+  );
+
+  itS3(
+    'a multipart save that loses the race reports exists and leaves no incomplete multipart upload',
+    async () => {
+      const key = `behind-back-multipart-${runId}`;
+      const ws = makeTempDir('behind-back-multipart');
+      // Random bytes do not compress, so the gzip archive stays well over the 5 MiB part size
+      // below and the upload is multipart, with CompleteMultipartUpload carrying the condition.
+      fs.writeFileSync(path.join(ws, 'payload.bin'), crypto.randomBytes(12 * 1024 * 1024));
+      const competitorBody = 'written-behind-the-multipart-tiers-back';
+      const raceClient = createTestS3Client(s3);
+
+      try {
+        const tier = buildTier(ws);
+        const objectKey = tier.template.objectKey('', key);
+        injectRaceOnFirstConditionalWrite(
+          tier.storage.client,
+          raceClient,
+          tier.storage.bucket,
+          objectKey,
+          competitorBody
+        );
+
+        const outcome = await saveToS3(tier, key, ['payload.bin'], 5 * 1024 * 1024);
+
+        expect(outcome.kind).not.toBe('error');
+        if (s3.provider === 'garage') {
+          expect(outcome.kind).toBe('saved');
+        } else {
+          expect(outcome.kind).toBe('exists');
+          const stored = await readObjectBody(tier.storage.client, tier.storage.bucket, objectKey);
+          expect(stored).toBe(competitorBody);
+        }
+
+        // Whichever way the race went, the failed CompleteMultipartUpload must not leave its
+        // uploaded parts behind.
+        const listing = await tier.storage.client.send(
+          new ListMultipartUploadsCommand({ Bucket: tier.storage.bucket, Prefix: objectKey })
+        );
+        expect((listing.Uploads ?? []).filter((upload) => upload.Key === objectKey)).toEqual([]);
+      } finally {
+        removeDir(ws);
+      }
+    },
+    120_000
   );
 });

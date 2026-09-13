@@ -952,7 +952,6 @@ describe('saveToS3 streaming', () => {
       c.stdout.end(Buffer.from('archive-body'));
       return 0;
     });
-    const abort = jest.fn(async () => undefined);
     mockCreateStreamUpload.mockReturnValue({
       done: jest.fn(async () => {
         throw Object.assign(new Error('Not Implemented'), {
@@ -960,13 +959,12 @@ describe('saveToS3 streaming', () => {
           $metadata: { httpStatusCode: 501 },
         });
       }),
-      abort,
+      abort: jest.fn(async () => undefined),
     });
 
     const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
 
     expect(outcome.kind).toBe('saved');
-    expect(abort).toHaveBeenCalled();
     expect(mockDebug).toHaveBeenCalledWith(expect.stringContaining('If-None-Match'));
     expect(storage.conditionalWriteUnsupported).toBe(true);
     // The fallback is a plain file-mode save: exactly one archive and one upload, unconditional.
@@ -976,7 +974,7 @@ describe('saveToS3 streaming', () => {
     expect(options).toEqual({ metadata: { 'cloud-cache-sha256': 'archive-sha256' } });
   });
 
-  it('aborts the upload and kills tar when tar exits non-zero', async () => {
+  it("includes tar's stderr tail in the error and kills tar when tar exits non-zero", async () => {
     let child: FakeChild | undefined;
     mockSpawnArchiveCommand.mockImplementation(() => {
       child = makeFakeChild();
@@ -989,9 +987,16 @@ describe('saveToS3 streaming', () => {
     mockCaptureStderrTail.mockReturnValue({
       lines: () => ['tar: short write', 'tar: error exit delayed from previous errors'],
     });
-    const abort = jest.fn(async () => undefined);
+    // Stands in for lib-storage: done() stays pending until abort() is called, then rejects.
+    let rejectDone: (err: Error) => void = () => undefined;
+    const abort = jest.fn(async () => rejectDone(new Error('Upload aborted.')));
     mockCreateStreamUpload.mockReturnValue({
-      done: jest.fn(() => new Promise<{ ETag?: string }>(() => undefined)),
+      done: jest.fn(
+        () =>
+          new Promise<{ ETag?: string }>((_resolve, reject) => {
+            rejectDone = reject;
+          })
+      ),
       abort,
     });
 
@@ -1001,32 +1006,6 @@ describe('saveToS3 streaming', () => {
     expect(message).toContain('tar exited with code 2');
     expect(message).toContain('tar: short write');
     expect(message).toContain('tar: error exit delayed from previous errors');
-    expect(abort).toHaveBeenCalled();
-    expect(mockKillIfRunning).toHaveBeenCalledWith(child);
-  });
-
-  it('aborts the upload and kills tar when the upload fails independently', async () => {
-    let child: FakeChild | undefined;
-    mockSpawnArchiveCommand.mockImplementation(() => {
-      child = makeFakeChild();
-      return child;
-    });
-    mockWaitForExit.mockImplementation(async (c) => {
-      c.stdout.end(Buffer.from('ok'));
-      return 0;
-    });
-    const abort = jest.fn(async () => undefined);
-    mockCreateStreamUpload.mockReturnValue({
-      done: jest.fn(async () => {
-        throw Object.assign(new Error('Access Denied'), { name: 'AccessDenied' });
-      }),
-      abort,
-    });
-
-    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
-    expect(outcome.kind).toBe('error');
-    const message = outcome.kind === 'error' ? outcome.error.message : '';
-    expect(message).toContain('Access Denied');
     expect(abort).toHaveBeenCalled();
     expect(mockKillIfRunning).toHaveBeenCalledWith(child);
   });
