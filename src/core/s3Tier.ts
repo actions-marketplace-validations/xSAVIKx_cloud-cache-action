@@ -56,6 +56,33 @@ export interface BuildS3TierOptions {
 /** Object metadata key holding the archive's sha256, verified before extracting on restore. */
 const SHA256_METADATA_KEY = 'cloud-cache-sha256';
 
+/** True when a failed conditional upload means another job already won the write. */
+function isPreconditionFailed(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const error = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return error.$metadata?.httpStatusCode === 412 || error.name === 'PreconditionFailed';
+}
+
+const CONDITION_REJECTED_NAMES = new Set(['NotImplemented', 'NotSupported', 'InvalidArgument']);
+
+/** True when the server rejected the `If-None-Match` header itself, rather than the condition. */
+function isConditionUnsupported(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const error = err as { name?: string; message?: string; $metadata?: { httpStatusCode?: number } };
+  if (error.$metadata?.httpStatusCode === 501) {
+    return true;
+  }
+  return (
+    error.name !== undefined &&
+    CONDITION_REJECTED_NAMES.has(error.name) &&
+    /if-none-match/i.test(error.message ?? '')
+  );
+}
+
 const COMPRESSION_CONFIGS: Record<CompressionMethod, CompressionConfig> = {
   zstd: { method: 'zstd', archiveFilename: Defaults.DefaultArchiveFilenameZstd },
   gzip: { method: 'gzip', archiveFilename: Defaults.DefaultArchiveFilenameGzip },
@@ -257,23 +284,45 @@ export async function saveToS3(
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
     await createArchive(archivePath, entries, tier.compression, tier.workspace);
-    core.info(
-      `Uploading ${formatSize(getArchiveSize(archivePath))} to s3://${bucket}/${objectKey}...`
-    );
+    const archiveSize = getArchiveSize(archivePath);
+    core.info(`Uploading ${formatSize(archiveSize)} to s3://${bucket}/${objectKey}...`);
     const checksum = await sha256File(archivePath);
-    const uploaded = await withRetry(
-      () =>
-        uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize, {
-          metadata: { [SHA256_METADATA_KEY]: checksum },
-        }),
-      {
-        retries: tier.streamRetries,
-        operationName: `Upload of ${objectKey}`,
-        shouldRetry: isRetryableStreamError,
+    const metadata = { [SHA256_METADATA_KEY]: checksum };
+    const attemptUpload = (ifNoneMatch: string | undefined) =>
+      withRetry(
+        () =>
+          uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize, {
+            metadata,
+            ifNoneMatch,
+          }),
+        {
+          retries: tier.streamRetries,
+          operationName: `Upload of ${objectKey}`,
+          shouldRetry: isRetryableStreamError,
+        }
+      );
+
+    const sendCondition = !tier.storage.conditionalWriteUnsupported;
+    try {
+      const uploaded = await attemptUpload(sendCondition ? '*' : undefined);
+      core.info(`Cache saved to S3 with key: ${primaryKey}`);
+      return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
+    } catch (err) {
+      if (sendCondition && isPreconditionFailed(err)) {
+        core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
+        return { kind: 'exists', s3: { objectKey, size: archiveSize, etag: undefined } };
       }
-    );
-    core.info(`Cache saved to S3 with key: ${primaryKey}`);
-    return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
+      if (sendCondition && isConditionUnsupported(err)) {
+        core.debug(
+          `s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`
+        );
+        tier.storage.conditionalWriteUnsupported = true;
+        const uploaded = await attemptUpload(undefined);
+        core.info(`Cache saved to S3 with key: ${primaryKey}`);
+        return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
+      }
+      throw err;
+    }
   } catch (err) {
     return { kind: 'error', error: toError(err) };
   } finally {

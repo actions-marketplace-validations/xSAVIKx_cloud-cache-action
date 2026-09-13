@@ -6,6 +6,8 @@ import {
   GetObjectCommand,
   PutObjectCommand,
   CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
 } from '@aws-sdk/client-s3';
 import { checkObjectExists, downloadFile, findNewestObject } from '../../src/storage/operations';
 import * as fs from 'fs';
@@ -309,6 +311,27 @@ describe('Storage Operations', () => {
         expect(call.args[0].input).toMatchObject({
           Metadata: { 'cloud-cache-sha256': 'feedface' },
         });
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    it('passes ifNoneMatch through to CompleteMultipartUploadCommand, where the condition takes effect', async () => {
+      const { uploadFile } = await import('../../src/storage/operations');
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-upload-'));
+      const sampleFile = path.join(tempDir, 'large-condition.bin');
+      fs.writeFileSync(sampleFile, Buffer.alloc(12 * 1024 * 1024, 'a'));
+      s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
+      s3Mock.on(UploadPartCommand).resolves({ ETag: '"part"' });
+      s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
+
+      try {
+        await uploadFile(client, 'test-bucket', 'large-condition-key', sampleFile, undefined, {
+          ifNoneMatch: '*',
+        });
+        const [call] = s3Mock.commandCalls(CompleteMultipartUploadCommand);
+        expect(call.args[0].input).toMatchObject({ IfNoneMatch: '*' });
       } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }

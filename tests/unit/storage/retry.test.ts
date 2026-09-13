@@ -44,6 +44,10 @@ describe('isRetryableError', () => {
     expect(isRetryableError(httpError(403, name))).toBe(false);
   });
 
+  it('does not retry a 412 precondition failure', () => {
+    expect(isRetryableError(httpError(412, 'PreconditionFailed'))).toBe(false);
+  });
+
   it('does not retry values that are not errors', () => {
     expect(isRetryableError(undefined)).toBe(false);
     expect(isRetryableError('boom')).toBe(false);
@@ -71,6 +75,10 @@ describe('isRetryableStreamError', () => {
   it('does not retry AccessDenied', () => {
     expect(isRetryableStreamError(namedError('AccessDenied'))).toBe(false);
     expect(isRetryableStreamError(httpError(403, 'AccessDenied'))).toBe(false);
+  });
+
+  it('does not retry a 412 precondition failure', () => {
+    expect(isRetryableStreamError(httpError(412, 'PreconditionFailed'))).toBe(false);
   });
 });
 

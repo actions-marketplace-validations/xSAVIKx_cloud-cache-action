@@ -8,6 +8,12 @@ export interface StorageContext {
   client: S3Client;
   providerConfig: ProviderConfig;
   bucket: string;
+  /**
+   * Set by `saveToS3` once this context's server has rejected a conditional (`If-None-Match`)
+   * upload as unsupported, so later uploads through the same context skip the condition instead
+   * of failing the same way again.
+   */
+  conditionalWriteUnsupported?: boolean;
 }
 
 export interface StorageClientOptions {

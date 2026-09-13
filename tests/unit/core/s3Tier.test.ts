@@ -149,6 +149,7 @@ const put = (ref: string, key: string, minute: number, version = VERSION): strin
 beforeEach(() => {
   objects.clear();
   jest.clearAllMocks();
+  delete storage.conditionalWriteUnsupported;
   mockCheckObjectExists.mockImplementation(async (_client, _bucket, key) => {
     const found = objects.get(key);
     return found ? { key, ...found } : null;
@@ -420,7 +421,7 @@ describe('saveToS3', () => {
       objectKey,
       archivePath,
       5_242_880,
-      { metadata: { 'cloud-cache-sha256': 'archive-sha256' } }
+      { metadata: { 'cloud-cache-sha256': 'archive-sha256' }, ifNoneMatch: '*' }
     );
     expect(fs.existsSync(path.dirname(archivePath))).toBe(false);
   });
@@ -437,7 +438,106 @@ describe('saveToS3', () => {
       metadata: {
         'cloud-cache-sha256': 'c0ffee0000000000000000000000000000000000000000000000000000ffee',
       },
+      ifNoneMatch: '*',
     });
+  });
+
+  it('sends the If-None-Match condition on the first upload of a tier', async () => {
+    await saveToS3(tier(), 'k', ['node_modules']);
+    const [, , , , , options] = mockUploadFile.mock.calls[0];
+    expect(options).toMatchObject({ ifNoneMatch: '*' });
+  });
+
+  it('returns exists and logs when the server reports a 412 precondition failure', async () => {
+    mockUploadFile.mockRejectedValue(
+      Object.assign(new Error('At least one of the pre-conditions you specified did not hold'), {
+        name: 'PreconditionFailed',
+        $metadata: { httpStatusCode: 412 },
+      })
+    );
+    const outcome = await saveToS3(tier(), 'k', ['node_modules']);
+    const objectKey = `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`;
+    expect(outcome).toEqual({
+      kind: 'exists',
+      s3: { objectKey, size: 2048, etag: undefined },
+    });
+    expect(mockInfo).toHaveBeenCalledWith(
+      `Another job saved s3://bucket/${objectKey} first; keeping its cache.`
+    );
+  });
+
+  it('recognizes a precondition failure identified only by name, without a 412 status', async () => {
+    mockUploadFile.mockRejectedValue(
+      Object.assign(new Error('Precondition Failed'), {
+        name: 'PreconditionFailed',
+      })
+    );
+    const outcome = await saveToS3(tier(), 'k', ['node_modules']);
+    expect(outcome.kind).toBe('exists');
+  });
+
+  it('retries once without the condition when the server rejects If-None-Match with a 501', async () => {
+    mockUploadFile
+      .mockRejectedValueOnce(
+        Object.assign(new Error('Not Implemented'), {
+          name: 'NotImplemented',
+          $metadata: { httpStatusCode: 501 },
+        })
+      )
+      .mockResolvedValueOnce({ size: 2048, etag: '"fallback"' });
+    const outcome = await saveToS3(tier(), 'k', ['node_modules']);
+    const objectKey = `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`;
+    expect(outcome).toEqual({ kind: 'saved', s3: { objectKey, size: 2048, etag: '"fallback"' } });
+    expect(mockUploadFile).toHaveBeenCalledTimes(2);
+    const [, , , , , firstOptions] = mockUploadFile.mock.calls[0];
+    const [, , , , , secondOptions] = mockUploadFile.mock.calls[1];
+    expect(firstOptions).toMatchObject({ ifNoneMatch: '*' });
+    expect(secondOptions).toEqual({ metadata: { 'cloud-cache-sha256': 'archive-sha256' } });
+    expect(mockDebug).toHaveBeenCalledWith(expect.stringContaining('If-None-Match'));
+  });
+
+  it('retries once without the condition when the server rejects it as InvalidArgument mentioning If-None-Match', async () => {
+    mockUploadFile
+      .mockRejectedValueOnce(
+        Object.assign(new Error('Header "If-None-Match" is not supported for this operation'), {
+          name: 'InvalidArgument',
+        })
+      )
+      .mockResolvedValueOnce({ size: 2048, etag: '"fallback"' });
+    const outcome = await saveToS3(tier(), 'k', ['node_modules']);
+    expect(outcome.kind).toBe('saved');
+  });
+
+  it('does not treat an unrelated InvalidArgument as an unsupported condition', async () => {
+    mockUploadFile.mockRejectedValue(
+      Object.assign(new Error('Some other invalid argument'), { name: 'InvalidArgument' })
+    );
+    const outcome = await saveToS3(tier(), 'k', ['node_modules']);
+    expect(outcome.kind).toBe('error');
+    expect(mockUploadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('remembers a server that rejects the condition, so a later save in the same tier skips it', async () => {
+    mockUploadFile
+      .mockRejectedValueOnce(
+        Object.assign(new Error('Not Implemented'), {
+          name: 'NotImplemented',
+          $metadata: { httpStatusCode: 501 },
+        })
+      )
+      .mockResolvedValueOnce({ size: 2048, etag: '"first"' })
+      .mockResolvedValueOnce({ size: 2048, etag: '"second"' });
+
+    const first = await saveToS3(tier(), 'k', ['node_modules']);
+    expect(first.kind).toBe('saved');
+    expect(mockUploadFile).toHaveBeenCalledTimes(2);
+
+    mockUploadFile.mockClear();
+    const second = await saveToS3(tier(), 'k2', ['node_modules']);
+    expect(second.kind).toBe('saved');
+    expect(mockUploadFile).toHaveBeenCalledTimes(1);
+    const [, , , , , options] = mockUploadFile.mock.calls[0];
+    expect(options).toEqual({ metadata: { 'cloud-cache-sha256': 'archive-sha256' } });
   });
 
   it('does not repeat an upload the SDK already retried', async () => {
