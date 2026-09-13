@@ -13,7 +13,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
 import type { CompressionConfig } from '../../src/archive/compression';
 import { compileKeyTemplate } from '../../src/core/keyTemplate';
 import { restoreFromS3, saveToS3, type S3Tier } from '../../src/core/s3Tier';
@@ -90,6 +90,46 @@ async function restorePayload(key: string): Promise<string> {
   }
 }
 
+/**
+ * Reads an object's body directly, without going through restoreFromS3 (which needs a full
+ * archive round trip); used to inspect exactly what a raw competing write left behind.
+ */
+async function readObjectBody(client: S3Client, bucket: string, key: string): Promise<string> {
+  const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (response.Body as any).transformToString();
+}
+
+/**
+ * Makes `client`'s conditional write lose a race deterministically: the moment the SDK sends a
+ * command whose input carries `IfNoneMatch` (the only conditional write saveToS3 issues), this
+ * middleware first puts a competing object for the same key through a separate client, then lets
+ * the original request continue. That guarantees the competing write reaches the server before
+ * the conditional one, with no sleep and no dependence on how long archiving takes.
+ */
+function injectRaceOnFirstConditionalWrite(
+  client: S3Client,
+  raceClient: S3Client,
+  bucket: string,
+  objectKey: string,
+  competitorBody: string
+): void {
+  let injected = false;
+  client.middlewareStack.add(
+    (next) => async (args) => {
+      const input = args.input as { IfNoneMatch?: string };
+      if (!injected && input.IfNoneMatch !== undefined) {
+        injected = true;
+        await raceClient.send(
+          new PutObjectCommand({ Bucket: bucket, Key: objectKey, Body: competitorBody })
+        );
+      }
+      return next(args);
+    },
+    { step: 'initialize' }
+  );
+}
+
 describe('concurrent saves for the same key', () => {
   itS3(
     'two racing saves both finish without error and the surviving object restores consistently',
@@ -97,8 +137,10 @@ describe('concurrent saves for the same key', () => {
       const key = `race-${runId}`;
       const wsA = makeTempDir('race-a');
       const wsB = makeTempDir('race-b');
-      writeFiles(wsA, { 'payload.txt': 'payload-from-job-A' });
-      writeFiles(wsB, { 'payload.txt': 'payload-from-job-B' });
+      const payloadA = 'payload-from-job-A';
+      const payloadB = 'payload-from-job-B';
+      writeFiles(wsA, { 'payload.txt': payloadA });
+      writeFiles(wsB, { 'payload.txt': payloadB });
 
       try {
         const [outcomeA, outcomeB] = await Promise.all([
@@ -113,14 +155,25 @@ describe('concurrent saves for the same key', () => {
           // Garage ignores If-None-Match: last writer wins, and both calls still report success.
           expect(['saved', 'exists']).toContain(outcomeA.kind);
           expect(['saved', 'exists']).toContain(outcomeB.kind);
-        } else {
-          // SeaweedFS and MinIO enforce the condition: exactly one upload wins.
-          expect([outcomeA.kind, outcomeB.kind].sort()).toEqual(['exists', 'saved']);
-        }
 
-        const first = await restorePayload(key);
-        expect(['payload-from-job-A', 'payload-from-job-B']).toContain(first);
-        expect(await restorePayload(key)).toBe(first);
+          const stored = await restorePayload(key);
+          expect(await restorePayload(key)).toBe(stored);
+        } else {
+          // SeaweedFS and MinIO enforce the condition: exactly one upload wins, whichever it is,
+          // and the restored bytes must be that winner's payload, not the loser's.
+          const candidates = [
+            { outcome: outcomeA, payload: payloadA },
+            { outcome: outcomeB, payload: payloadB },
+          ];
+          const winners = candidates.filter((c) => c.outcome.kind === 'saved');
+          const losers = candidates.filter((c) => c.outcome.kind === 'exists');
+          expect(winners).toHaveLength(1);
+          expect(losers).toHaveLength(1);
+
+          const restored = await restorePayload(key);
+          expect(restored).toBe(winners[0].payload);
+          expect(await restorePayload(key)).toBe(restored);
+        }
       } finally {
         removeDir(wsA);
         removeDir(wsB);
@@ -133,28 +186,34 @@ describe('concurrent saves for the same key', () => {
     async () => {
       const key = `behind-back-${runId}`;
       const ws = makeTempDir('behind-back');
-      // A few MB keeps archiving (real tar + gzip) reliably slower than the single HEAD round
-      // trip, so the direct write below lands between the tier's HEAD check and its own upload.
-      writeFiles(ws, { 'payload.txt': Buffer.alloc(4 * 1024 * 1024, 'a').toString() });
+      // Small enough to guarantee a single-part PutObject (not multipart), which is where the
+      // race is injected below.
+      writeFiles(ws, { 'payload.txt': 'payload-from-tier' });
+      const competitorBody = 'written-behind-the-tiers-back';
+      const raceClient = createTestS3Client(s3);
 
       try {
         const tier = buildTier(ws);
         const objectKey = tier.template.objectKey('', key);
-
-        const savePromise = saveToS3(tier, key, ['payload.txt']);
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        await tier.storage.client.send(
-          new PutObjectCommand({
-            Bucket: tier.storage.bucket,
-            Key: objectKey,
-            Body: 'written-behind-the-tiers-back',
-          })
+        injectRaceOnFirstConditionalWrite(
+          tier.storage.client,
+          raceClient,
+          tier.storage.bucket,
+          objectKey,
+          competitorBody
         );
 
-        const outcome = await savePromise;
+        const outcome = await saveToS3(tier, key, ['payload.txt']);
+
         expect(outcome.kind).not.toBe('error');
-        if (s3.provider !== 'garage') {
+        if (s3.provider === 'garage') {
+          // Garage ignores If-None-Match, so the tier's own upload simply overwrites the
+          // competitor's; there is nothing to detect.
+          expect(outcome.kind).toBe('saved');
+        } else {
           expect(outcome.kind).toBe('exists');
+          const stored = await readObjectBody(tier.storage.client, tier.storage.bucket, objectKey);
+          expect(stored).toBe(competitorBody);
         }
       } finally {
         removeDir(ws);

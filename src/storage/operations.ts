@@ -98,8 +98,9 @@ export interface UploadOptions {
   /** Stored as `x-amz-meta-*` headers and returned by HeadObject/GetObject. */
   metadata?: Record<string, string>;
   /**
-   * Pass-through for a conditional write (e.g. `'*'` to fail if the key already exists).
-   * Unused until Task 4 wires it into s3Tier's save path.
+   * Pass-through for a conditional write (`'*'` to fail if the key already exists). Set by
+   * saveToS3 to detect a concurrent save; forwarded to PutObjectCommand for a single-part
+   * upload and to CompleteMultipartUploadCommand (where S3 evaluates it) for a multipart one.
    */
   ifNoneMatch?: string;
 }
