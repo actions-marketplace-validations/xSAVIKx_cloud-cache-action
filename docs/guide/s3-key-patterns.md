@@ -31,6 +31,9 @@ Write special placeholders in braces. A pattern without `${ref}` or `${version}`
 
 - Without `${ref}`, every branch shares caches.
 - Without `${version}`, a cache saved with different paths or compression can be restored as a hit.
+- A bare form of a special placeholder, such as `$ref` instead of `${ref}`, is never expanded — it
+  is left in the object key literally, and the action warns `s3-key-pattern uses $ref; write
+  ${ref} to use the ref placeholder.` (one warning per placeholder used this way).
 
 ### Environment Variables
 
@@ -118,3 +121,10 @@ Object key: `my-org/my-repo/Linux/backend-api/refs%2Fheads%2Fmain/Linux-deps-abc
 
 > [!NOTE]
 > Object keys always use forward slashes (`/`), whether the runner is Linux, macOS or Windows.
+
+## Custom Patterns and Pruning
+
+If you use [`cloud-cache-action/prune`](./pruning.md) with a custom `s3-key-pattern`, keep
+`${ref}` after `${GITHUB_REPOSITORY}` (when repository scoping is on) and after `${prefix}` (when
+a prefix is set). A pattern that places `${ref}` earlier prevents pruning every ref at once safely,
+and the prune action refuses to run until you set its `ref` input to a single ref.

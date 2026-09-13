@@ -37,20 +37,45 @@ Add the following step to your GitHub Actions workflow:
       ${{ runner.os }}-node-
 ```
 
+## Paths and Exclusions
+
+`path` accepts files, directories, globs, `~` and `!` exclusions, one per line.
+
+- **Exclusions only remove what the include patterns matched**, as in `actions/cache`. `path: logs` with `!logs/debug.txt` still caches the whole `logs` directory, because the directory itself is the match. To leave one file out, match the files instead:
+
+  ```yaml
+  path: |
+    logs/*
+    !logs/debug.txt
+  ```
+
+- **Symbolic links are not followed while matching.** A pattern that wildcards through a symlinked directory, such as `linked-dir/*` where `linked-dir` is a symlink, matches nothing. A symlink that a pattern matches is archived as a link, not as the files it points to.
+
+### Symlinks
+
+Symlinks are archived as links, never followed and re-created as copies. On Windows, `windows-latest` runners use Git's bundled GNU `tar`, which this action runs with `MSYS=winsymlinks:nativestrict` (the same setting `actions/cache` uses) so that restored links come back as native NTFS symlinks rather than plain-text stand-ins. GitHub-hosted Windows runners allow creating these without extra privileges.
+
 ## How It Works
 
 1. **Restore Phase (Pre/Main)**:
    - Connects to your S3 bucket using modern `@aws-sdk/client-s3`.
    - Checks if an exact match exists for the `key` parameter.
    - If not found, evaluates `restore-keys` in order and downloads the most recently updated matching archive.
+   - Verifies the archive's sha256 checksum, when the object carries one, before extracting it.
    - Decompresses the archive using `zstd` (or `gzip` fallback) directly into your workspace.
    - Sets outputs (`cache-hit`, `cache-primary-key`, `cache-matched-key`, `cache-size`, `cache-storage-provider`, `cache-s3-key`).
+   - Writes a job summary table with the key, hit status, source and duration, unless `job-summary: false`.
 
 2. **Save Phase (Post)**:
    - If `read-only: true` or if an exact key match occurred during restore, saving is automatically skipped.
+   - Checks whether another job already saved the same object first; if so, keeps that job's cache instead of overwriting it, so concurrent saves for the same key never race.
    - Otherwise, archives the specified `path` directories using multi-threaded `zstd` compression.
-   - Streams the compressed archive to your S3 bucket using multipart uploads via `@aws-sdk/lib-storage`.
+   - Streams the compressed archive to your S3 bucket using multipart uploads via `@aws-sdk/lib-storage`, tagged with a sha256 checksum for later integrity verification.
    - Emits diagnostics and completes cleanly without breaking the build on non-fatal network interruptions.
+   - Writes a job summary table with the key, saved-to tiers, size and duration, unless `job-summary: false`.
+
+Cache archives are never deleted automatically; see [Pruning Caches](./pruning.md) for a
+scheduled cleanup sub-action.
 
 ## Standalone Restore and Save Actions
 
@@ -98,8 +123,6 @@ You can inspect the full action specification files directly in the repository:
 ::: details `save/action.yml` (Click to view save action definition)
 <<< ../../save/action.yml{yaml}
 :::
-
-
 
 
 <!-- ============================================================================ -->
@@ -302,6 +325,10 @@ If your team is migrating from `actions/cache` to Cloudflare R2 or AWS S3:
 | `dual-cache-strategy` | string  | `backfill` | Save synchronization mode: `backfill` or `skip-on-hit`.                                                                     |
 | `dual-cache-strict`   | boolean |  `false`   | When `false` (default), a tier error is a warning and the other tier continues. When `true`, an error from either tier fails the step, during restore and during save. |
 
+::: warning What `dual-cache-strict` can see
+Strict mode catches every S3 error. For the GitHub Actions Cache tier it only sees the failures `@actions/cache` reports: the library logs and swallows most cache service errors itself. When it does not save a key, because another job is creating the same entry, the cache mode forbids writes, or the service failed, the step logs the library's message, does not list `github` in `cache-saved-sources`, and does not fail. When none of `path` matches anything on disk, both tiers report the save as skipped instead of an error, so strict mode no longer fails the step for that case.
+:::
+
 ### Outputs
 
 | Output                |                  Values                   | Description                                                                      |
@@ -318,8 +345,6 @@ The dual-cache backfill and skip-on-hit strategies are exercised continuously wi
 ::: details `.github/workflows/test.yml` (Click to view full CI test workflow)
 <<< ../../.github/workflows/test.yml{yaml}
 :::
-
-
 
 
 <!-- ============================================================================ -->
@@ -359,6 +384,9 @@ Write special placeholders in braces. A pattern without `${ref}` or `${version}`
 
 - Without `${ref}`, every branch shares caches.
 - Without `${version}`, a cache saved with different paths or compression can be restored as a hit.
+- A bare form of a special placeholder, such as `$ref` instead of `${ref}`, is never expanded — it
+  is left in the object key literally, and the action warns `s3-key-pattern uses $ref; write
+  ${ref} to use the ref placeholder.` (one warning per placeholder used this way).
 
 ### Environment Variables
 
@@ -367,6 +395,7 @@ Reference any environment variable with `${VAR_NAME}`, `$VAR_NAME` or `${env.VAR
 - An unset `${VAR_NAME}` becomes empty.
 - An unset `$VAR_NAME` stays as written.
 - Values are inserted once and never expanded again.
+- The post step of the main action expands the pattern again when it saves. If a step changes a variable the pattern uses through `GITHUB_ENV`, the save writes to a different object than the restore looked up. Keep such variables fixed for the whole job. The compression method does not have this problem: the post step reuses the one the restore step used, even if `zstd` was installed in between.
 
 | Variable             | Description                           | Example Value               |
 | --------------------- | -------------------------------------- | ----------------------------- |
@@ -446,6 +475,121 @@ Object key: `my-org/my-repo/Linux/backend-api/refs%2Fheads%2Fmain/Linux-deps-abc
 > [!NOTE]
 > Object keys always use forward slashes (`/`), whether the runner is Linux, macOS or Windows.
 
+## Custom Patterns and Pruning
+
+If you use [`cloud-cache-action/prune`](./pruning.md) with a custom `s3-key-pattern`, keep
+`${ref}` after `${GITHUB_REPOSITORY}` (when repository scoping is on) and after `${prefix}` (when
+a prefix is set). A pattern that places `${ref}` earlier prevents pruning every ref at once safely,
+and the prune action refuses to run until you set its `ref` input to a single ref.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/pruning.md -->
+<!-- ============================================================================ -->
+
+# Pruning Caches
+
+Object storage has no built-in cache eviction like GitHub's 10 GB-per-repository limit: whatever
+you save to S3 stays there until something deletes it. `cloud-cache-action/prune` is a standalone
+sub-action that deletes cache archives older than a given age from any S3-compatible bucket, so you
+can run it on a schedule instead of relying only on a bucket lifecycle rule.
+
+## Usage
+
+Run it in its own scheduled workflow. **Start with `dry-run: true`** so you can read the logged
+output before anything is actually deleted, then flip it to `false` once it looks right:
+
+```yaml
+name: Prune old caches
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # Every Sunday at 03:00 UTC
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: xSAVIKx/cloud-cache-action/prune@v1
+        with:
+          bucket: my-ci-cache-bucket
+          endpoint: https://<account_id>.r2.cloudflarestorage.com # Or AWS, GCS, B2, MinIO, etc.
+          access-key: ${{ secrets.S3_ACCESS_KEY }}
+          secret-key: ${{ secrets.S3_SECRET_KEY }}
+          older-than-days: 30
+          dry-run: true # Flip to false once the logged output looks right.
+```
+
+Each candidate is logged at info level with its size and age (capped at 200 lines, followed by a
+totals line), so a dry run tells you exactly what a real run would delete.
+
+## Inputs
+
+The prune action shares its storage inputs with the main action, plus three inputs of its own:
+
+| Input                             | Required |          Default          | Description                                                                 |
+| ---------------------------------- | :------: | :------------------------: | ---------------------------------------------------------------------------- |
+| `bucket`                           | **Yes**  |             —              | Name of the S3 bucket                                                        |
+| `older-than-days`                  | **Yes**  |             —              | Delete cache archives whose last-modified time is older than this many days |
+| `ref`                               |    No    |     _(every ref)_          | Prune only caches under this Git ref; empty means every ref                 |
+| `dry-run`                           |    No    |          `false`           | List cache archives that would be pruned without deleting anything          |
+| `endpoint`                         |    No    |          Auto/AWS          | Custom S3-compatible endpoint URL                                           |
+| `region`                           |    No    |      Auto/`us-east-1`      | AWS or S3 provider region                                                    |
+| `provider`                         |    No    |            Auto            | Preset: `aws`, `r2`, `gcs`, `b2`, `fastly`, `garage`, `seaweedfs`, `minio`  |
+| `access-key` / `accessKey`         |    No    |    `AWS_ACCESS_KEY_ID`     | S3 Access Key ID                                                             |
+| `secret-key` / `secretKey`         |    No    |  `AWS_SECRET_ACCESS_KEY`   | S3 Secret Access Key                                                         |
+| `session-token` / `sessionToken`   |    No    |    `AWS_SESSION_TOKEN`     | S3 Session Token                                                             |
+| `force-path-style`                 |    No    |            Auto            | Force path-style S3 URLs                                                    |
+| `prefix`                           |    No    |            `""`            | Subfolder prefix path inside the bucket                                     |
+| `s3-key-pattern`                   |    No    | same default as the main action | Template for the S3 object key (see [S3 Key Templating](./s3-key-patterns.md)) |
+| `scoped-to-repository`             |    No    |           `true`           | Whether to prefix bucket cache paths with `GITHUB_REPOSITORY`               |
+| `retry`                            |    No    |           `true`           | Enable exponential backoff retries on S3 operations                        |
+| `retry-count`                      |    No    |            `3`              | Maximum number of S3 retries                                                |
+
+An invalid `older-than-days` (not a positive integer) or an unrecognized `dry-run` value (anything
+other than `true`/`false`, case-insensitively) fails the step immediately, rather than silently
+falling back to a default — a typo like `dry-run: Flase` must never turn into a real deletion.
+
+## Outputs
+
+| Output          | Description                                                                    |
+| ---------------- | ------------------------------------------------------------------------------- |
+| `pruned-count`   | The number of cache archives pruned (or that would be pruned in a dry run)      |
+| `pruned-bytes`   | The total size in bytes of the pruned cache archives                           |
+| `kept-count`     | The number of cache archives that matched the scope but were not old enough    |
+
+## What gets pruned
+
+A candidate is any object whose key ends with `cache.tar.zst` or `cache.tar.gz` — the two archive
+filenames the action ever produces — or with whatever suffix your `s3-key-pattern` produces for
+either one, regardless of the version segment in between. Objects that are not cache archives are
+never touched, no matter where they live under the scanned prefix.
+
+Among candidates, only those whose `LastModified` is older than `older-than-days` are deleted.
+Deletion happens one `DeleteObject` call per key (up to 8 in flight at a time), rather than a
+single batch delete: Google Cloud Storage's S3 interoperability layer does not support
+multi-object delete, and this keeps behavior identical across providers.
+
+## Scope: repository, prefix and ref
+
+By default (`scoped-to-repository: true`), pruning is scoped to the current repository, matching
+how caches are saved. Set `prefix` to further narrow it, exactly as with the main action.
+
+Leaving `ref` empty prunes caches under **every** ref in scope, not just the current branch — this
+is usually what you want for a scheduled cleanup job. Set `ref` to prune a single ref instead.
+
+The action refuses to run when the result would be unsafe:
+
+- **Empty prefix.** If `scoped-to-repository: false` and no `prefix` is set (and the
+  `s3-key-pattern` leaves nothing fixed before `${ref}`/`${key}`), the resolved prefix is empty,
+  which would scan and prune the whole bucket. The step fails with a message asking you to set
+  `prefix` or keep `scoped-to-repository` enabled.
+- **`${ref}` placed before the repository or prefix.** If your `s3-key-pattern` puts `${ref}`
+  ahead of `${GITHUB_REPOSITORY}` (while repository scoping is on) or ahead of `${prefix}` (while a
+  prefix is set), an all-refs prune cannot compute a safe listing prefix — it would have to scan a
+  prefix broader than what your pattern actually produces, potentially reaching other
+  repositories' or prefixes' caches. The step fails and asks you to set the `ref` input so a
+  single, safe prefix can be computed.
 
 
 <!-- ============================================================================ -->
@@ -592,6 +736,20 @@ Unlike GitHub's cache service, the bucket itself does not enforce this: **anyone
 - Prefer short-lived credentials (OIDC) scoped to the cache bucket or prefix.
 - Use a separate bucket or `prefix` for caches that must not be shared between repositories or trust levels.
 
+### Tag-triggered runs and refs
+
+The Git ref segment in the object key comes from whatever triggered the run. A run started by
+pushing a tag saves its cache under `refs/tags/<tag>`, which is a ref no pull request or branch
+build will ever restore from, since restores only search the current ref, the pull request base
+branch and the default branch — never arbitrary tags. If a release workflow triggered by a tag push
+is your only place that populates a cache other jobs expect to reuse, that cache will never be
+found.
+
+Prefer saving on the default branch instead — a `push` to `main` or a manual `workflow_dispatch`
+run there — so the cache is saved under a ref other jobs actually search. If you do need caches
+shared across tags, branches and pull requests, set `scoped-to-ref: false` together with the trust
+model warning above: every ref then reads and writes the same object, so anyone who can push a
+branch or tag can also overwrite what `main` restores.
 
 
 <!-- ============================================================================ -->
@@ -747,7 +905,6 @@ This action is tested continuously against a real Amazon S3 bucket. You can insp
 :::
 
 
-
 <!-- ============================================================================ -->
 <!-- FILE: docs/providers/cloudflare-r2.md -->
 <!-- ============================================================================ -->
@@ -841,7 +998,6 @@ This action is tested continuously against Cloudflare R2 with zero egress fees. 
 
 - **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
 - **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
-
 
 
 <!-- ============================================================================ -->
@@ -948,7 +1104,6 @@ This action is tested continuously against Google Cloud Storage using HMAC keys 
 - **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
 
 
-
 <!-- ============================================================================ -->
 <!-- FILE: docs/providers/backblaze-b2.md -->
 <!-- ============================================================================ -->
@@ -1028,7 +1183,6 @@ Backblaze will display your `applicationKey` **only once**:
 - **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
 
 
-
 <!-- ============================================================================ -->
 <!-- FILE: docs/providers/fastly-storage.md -->
 <!-- ============================================================================ -->
@@ -1095,7 +1249,6 @@ Store the credentials in your repository's **Settings** > **Secrets and variable
 ## Notes
 
 - **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
-
 
 
 <!-- ============================================================================ -->
@@ -1232,7 +1385,6 @@ docker exec -ti cloud-cache-garage /garage bucket allow ci-cache --read --write 
 - **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
 
 
-
 <!-- ============================================================================ -->
 <!-- FILE: docs/providers/seaweedfs.md -->
 <!-- ============================================================================ -->
@@ -1347,7 +1499,6 @@ Once running:
 
 - **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
 - **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
-
 
 
 <!-- ============================================================================ -->
@@ -1556,4 +1707,3 @@ The repository dogfoods MinIO directly inside the continuous integration test su
 
 - **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
 - **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
-

@@ -137,3 +137,18 @@ Unlike GitHub's cache service, the bucket itself does not enforce this: **anyone
 - Do not expose cache credentials to workflows that run untrusted code, such as `pull_request_target` jobs that check out fork code.
 - Prefer short-lived credentials (OIDC) scoped to the cache bucket or prefix.
 - Use a separate bucket or `prefix` for caches that must not be shared between repositories or trust levels.
+
+### Tag-triggered runs and refs
+
+The Git ref segment in the object key comes from whatever triggered the run. A run started by
+pushing a tag saves its cache under `refs/tags/<tag>`, which is a ref no pull request or branch
+build will ever restore from, since restores only search the current ref, the pull request base
+branch and the default branch — never arbitrary tags. If a release workflow triggered by a tag push
+is your only place that populates a cache other jobs expect to reuse, that cache will never be
+found.
+
+Prefer saving on the default branch instead — a `push` to `main` or a manual `workflow_dispatch`
+run there — so the cache is saved under a ref other jobs actually search. If you do need caches
+shared across tags, branches and pull requests, set `scoped-to-ref: false` together with the trust
+model warning above: every ref then reads and writes the same object, so anyone who can push a
+branch or tag can also overwrite what `main` restores.

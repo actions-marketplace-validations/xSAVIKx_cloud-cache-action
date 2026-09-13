@@ -23,6 +23,7 @@
   <a href="https://xsavikx.github.io/cloud-cache-action/">Documentation</a> •
   <a href="#supported-providers--examples">Supported Providers</a> •
   <a href="#dual-caching-lightweight-github-runner--heavy-remote-cloud-build">Dual Caching</a> •
+  <a href="#cache-pruning">Cache Pruning</a> •
   <a href="#inputs">Inputs & Outputs</a>
 </p>
 
@@ -50,7 +51,12 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 - **Safe Cross-Platform Keys**: Guarantees standard POSIX forward slashes (`/`) in object storage across Linux, macOS, and Windows runners (fixing legacy backslash bugs).
 - **Multi-Threaded `zstd` Compression**: Lightning-fast archiving with fallback to `gzip`.
 - **Dual Caching (Multi-Tier)**: Optionally cache across both remote S3 and GitHub Actions Cache simultaneously with configurable priority (`s3-first` or `github-first`) and automatic backfill synchronization.
-- **Standalone Sub-Actions**: Includes `cloud-cache-action/restore` and `cloud-cache-action/save` for decoupled cache stages.
+- **Standalone Sub-Actions**: Includes `cloud-cache-action/restore`, `cloud-cache-action/save` and `cloud-cache-action/prune` for decoupled cache stages and scheduled cleanup.
+- **Archive Integrity**: Every save writes a sha256 checksum as object metadata; restore verifies it before extracting, so a corrupted or truncated object is never silently unpacked. See [Archive Integrity](#archive-integrity).
+- **Safe Concurrent Saves**: Uploads use a conditional create (`If-None-Match`), so two jobs racing to save the same key never overwrite each other. See [Safe Concurrent Saves](#safe-concurrent-saves).
+- **Cache Pruning**: A dedicated `prune` sub-action deletes cache archives older than a given age from any S3-compatible bucket on a schedule. See [Cache Pruning](#cache-pruning).
+- **Job Summary**: Writes a step summary table after restore and save with the key, hit/source, size and duration (on by default; `job-summary: false` turns it off).
+- **Opt-in Streaming (Experimental)**: Stream archives directly between `tar` and S3 without a temporary file, with `streaming: true`. See [Streaming Archives](#streaming-archives-experimental).
 - **Resilient**: Automatic exponential backoff retries on transient network errors.
 
 ---
@@ -234,6 +240,103 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
 
 ---
 
+## Cache Pruning
+
+Object storage does not evict old caches the way GitHub's cache service does. The standalone
+`cloud-cache-action/prune` sub-action deletes cache archives older than a given age from any
+S3-compatible bucket, so you can run it on a schedule. **Run it with `dry-run: true` first** to see
+what it would delete before letting it delete anything:
+
+```yaml
+name: Prune old caches
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # Every Sunday at 03:00 UTC
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: xSAVIKx/cloud-cache-action/prune@v1
+        with:
+          bucket: my-ci-cache-bucket
+          endpoint: https://<account_id>.r2.cloudflarestorage.com
+          access-key: ${{ secrets.S3_ACCESS_KEY }}
+          secret-key: ${{ secrets.S3_SECRET_KEY }}
+          older-than-days: 30
+          dry-run: true # Flip to false once the logged output looks right.
+```
+
+Only cache archives (`cache.tar.zst` / `cache.tar.gz`) are ever deleted, one `DeleteObject` call
+per key (Google Cloud Storage's S3 interoperability has no multi-object delete). Leaving `ref`
+empty prunes every ref in scope; the action refuses to run when `s3-key-pattern` places `${ref}`
+before the repository or prefix, since an all-refs prune could then reach another repository's
+caches — set `ref` explicitly in that case. See the full [Pruning Caches guide](https://xsavikx.github.io/cloud-cache-action/guide/pruning.html) for inputs, outputs and safety details.
+
+---
+
+## Archive Integrity
+
+Every save computes the sha256 checksum of the archive and stores it as object metadata
+(`cloud-cache-sha256`). On restore, when the object carries that metadata, the downloaded (or
+streamed) archive is hashed again and compared before extraction; a mismatch fails the restore with
+an `Integrity check failed for s3://<bucket>/<key>: expected sha256 <expected>, got <actual>` error
+instead of extracting a corrupted archive. Objects saved without the checksum — caches from v1.1,
+or objects a storage provider stripped the metadata from — simply skip verification; this is not a
+breaking change.
+
+**Garage** does preserve this metadata, so integrity checks apply there like everywhere else.
+
+---
+
+## Safe Concurrent Saves
+
+Uploads use a conditional create (`If-None-Match: *`), so when two jobs race to save the same key,
+only the first upload succeeds; the second detects the precondition failure, logs `Another job
+saved s3://<bucket>/<key> first; keeping its cache.`, and finishes without overwriting it. Storage
+servers that reject the `If-None-Match` header outright are detected automatically and the upload
+is retried once without it, so this never breaks the action on providers with partial S3 API
+support.
+
+**Garage ignores `If-None-Match`**: it does not support conditional writes, so a race between two
+saves for the same key is last-writer-wins there, the same as v1.1's behavior. The existing HEAD
+check before archiving still avoids pointless work when the key already exists.
+
+---
+
+## Job Summary
+
+After both restore and save, a step summary table is written via `core.summary` — a "Cloud cache
+restore" table with the primary/matched key, cache hit, source and duration, and a "Cloud cache
+save" table with the key, tiers saved to, size and duration. This is on by default; set
+`job-summary: false` to turn it off. No summary is written when the step fails with an error, or
+when `GITHUB_STEP_SUMMARY` is not set.
+
+---
+
+## Streaming Archives (Experimental)
+
+Set `streaming: true` to stream archives directly between `tar` and S3 instead of writing a
+temporary archive file first. This applies to the S3 tier only (the GitHub Actions Cache tier is
+unaffected), uses less disk, and can be faster for large caches — but with two trade-offs:
+
+- **No whole-archive retry.** A streaming upload cannot be retried as a single unit if it fails
+  partway; only the S3 SDK's own per-part retries apply. Non-streaming (file-mode) saves are
+  unaffected and keep full retry support.
+- **No integrity checksum on upload.** A streamed archive carries no `cloud-cache-sha256`
+  metadata, so a streamed restore of a streamed save skips the integrity check. Restoring a
+  streamed object still verifies its checksum whenever one is present (for example, a cache
+  originally saved in file mode).
+
+Streaming is opt-in and defaults to `false`; disabling it (or leaving it unset) is identical to
+v1.1 behavior. It automatically falls back to file mode — logging
+`Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.` —
+when the plan requires the two-step BSD-tar-plus-zstd path on Windows. It follows the same
+conditional-create and Garage fallback rules as [Safe Concurrent Saves](#safe-concurrent-saves).
+
+---
+
 ## Upgrading to v1.1
 
 v1.1 changes how cache objects are named, so **caches saved by v1.0 are not found and are rebuilt once**.
@@ -247,6 +350,17 @@ v1.1 changes how cache objects are named, so **caches saved by v1.0 are not foun
 The action never reads v1.0 objects again; let a bucket lifecycle rule expire them.
 
 Ref scoping stores a separate cache for every branch and pull request merge ref (`refs/pull/<n>/merge`), so the bucket grows with the number of active refs. **A lifecycle rule that expires old cache objects is strongly recommended.**
+
+## Upgrading to v1.2
+
+**There are no breaking changes in v1.2.** Caches saved by v1.1 remain valid and continue to
+restore normally; objects saved without a sha256 checksum (any v1.1 cache) simply skip the new
+integrity check.
+
+- **New, all opt-in or on-by-default without changing existing behavior:** [Cache Pruning](#cache-pruning) (a new `prune` sub-action, run separately — nothing changes for existing `restore`/`save` steps), [Archive Integrity](#archive-integrity) (automatic; only skips when a checksum is absent), [Safe Concurrent Saves](#safe-concurrent-saves) (automatic; falls back cleanly on servers that reject the condition), [Job Summary](#job-summary) (on by default — set `job-summary: false` to keep the old, summary-free behavior), and [Streaming Archives](#streaming-archives-experimental) (opt-in via `streaming: true`; default `false` keeps the v1.1 file-based path).
+- **Windows symlinks** are now restored as native NTFS symlinks via Git's bundled GNU `tar`, matching Linux/macOS behavior, instead of the plain-text stand-ins earlier Windows tar produced.
+- **Tag-triggered runs:** if a run started by pushing a tag is the only place that saves a given cache, no pull request or branch build will ever restore it — restores never search `refs/tags/*`. Save on the default branch instead (a `push` there, or `workflow_dispatch`), or see [Tag-triggered runs and refs](https://xsavikx.github.io/cloud-cache-action/guide/migration.html#tag-triggered-runs-and-refs) for using `scoped-to-ref: false`.
+- **Maintenance:** Dependabot now keeps npm and GitHub Actions dependencies up to date, and publishing a GitHub release runs `.github/workflows/release.yml` automatically — see [Releasing](#releasing).
 
 ## Saving after failed steps
 
@@ -300,6 +414,8 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | `restore-priority`               |    No    |                         `s3-first`                         | Cache source to query first: `s3-first` or `github-first`                   |
 | `dual-cache-strategy`            |    No    |                         `backfill`                         | `backfill` (upload to a tier only if it lacks the key) or `skip-on-hit` |
 | `dual-cache-strict`              |    No    |                          `false`                           | Fail the step when either tier errors during restore or save |
+| `streaming`                      |    No    |                          `false`                           | Stream archives directly between `tar` and S3 without a temporary file (experimental; see [Streaming Archives](#streaming-archives-experimental)) |
+| `job-summary`                    |    No    |                           `true`                           | Write a job summary table with the cache keys, hit, source, size and duration |
 
 ### Paths and exclusions
 
@@ -326,6 +442,21 @@ The post step only runs when the job succeeds. To save a cache even when a later
 
 - **Restore Only**: `uses: xSAVIKx/cloud-cache-action/restore@v1`
 - **Save Only**: `uses: xSAVIKx/cloud-cache-action/save@v1`
+- **Prune**: `uses: xSAVIKx/cloud-cache-action/prune@v1` — deletes old cache archives on a schedule; see [Cache Pruning](#cache-pruning).
+
+---
+
+## Releasing
+
+Publishing a GitHub release for a tag `vX.Y.Z` runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which:
+
+- Verifies that `package.json`'s `version` matches the tag (without its `v` prefix), failing the run otherwise.
+- Verifies that `dist/` is up to date by rebuilding it and diffing the result, failing the run if it is stale.
+- Moves the major version tag (e.g. `v1`) to point at the release, so `uses: xSAVIKx/cloud-cache-action@v1` picks up the new release automatically.
+
+Pre-releases skip moving the major tag, so marking a release as a pre-release lets you publish it without affecting existing `@v1` consumers.
+
+Dependency updates (npm and GitHub Actions) are proposed automatically by [Dependabot](.github/dependabot.yml), grouped into a single minor/patch PR per ecosystem so routine bumps do not create review noise; major version bumps are still proposed individually.
 
 ---
 

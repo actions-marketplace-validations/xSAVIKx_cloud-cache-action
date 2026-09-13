@@ -48,14 +48,21 @@ Symlinks are archived as links, never followed and re-created as copies. On Wind
    - Connects to your S3 bucket using modern `@aws-sdk/client-s3`.
    - Checks if an exact match exists for the `key` parameter.
    - If not found, evaluates `restore-keys` in order and downloads the most recently updated matching archive.
+   - Verifies the archive's sha256 checksum, when the object carries one, before extracting it.
    - Decompresses the archive using `zstd` (or `gzip` fallback) directly into your workspace.
    - Sets outputs (`cache-hit`, `cache-primary-key`, `cache-matched-key`, `cache-size`, `cache-storage-provider`, `cache-s3-key`).
+   - Writes a job summary table with the key, hit status, source and duration, unless `job-summary: false`.
 
 2. **Save Phase (Post)**:
    - If `read-only: true` or if an exact key match occurred during restore, saving is automatically skipped.
+   - Checks whether another job already saved the same object first; if so, keeps that job's cache instead of overwriting it, so concurrent saves for the same key never race.
    - Otherwise, archives the specified `path` directories using multi-threaded `zstd` compression.
-   - Streams the compressed archive to your S3 bucket using multipart uploads via `@aws-sdk/lib-storage`.
+   - Streams the compressed archive to your S3 bucket using multipart uploads via `@aws-sdk/lib-storage`, tagged with a sha256 checksum for later integrity verification.
    - Emits diagnostics and completes cleanly without breaking the build on non-fatal network interruptions.
+   - Writes a job summary table with the key, saved-to tiers, size and duration, unless `job-summary: false`.
+
+Cache archives are never deleted automatically; see [Pruning Caches](./pruning.md) for a
+scheduled cleanup sub-action.
 
 ## Standalone Restore and Save Actions
 
