@@ -49,7 +49,18 @@ export interface FixtureOptions {
 const WORKSPACE_DIR = 'cache-fixture';
 const OUTSIDE_DIR = 'tool';
 const HOME_DIR = '.cloud-cache-fixture';
-const supportsPosixFiles = process.platform !== 'win32';
+const isWindows = process.platform === 'win32';
+/** Executable bits only mean something on POSIX filesystems; Windows has no equivalent. */
+const supportsExecutableBit = !isWindows;
+
+/**
+ * Normalises a symlink target for comparison across platforms. Windows can report a restored
+ * symlink's target with `\` separators even when it was created with `/`, so verification
+ * compares targets after folding both to `/`.
+ */
+export function normalizeLinkTarget(target: string): string {
+  return target.replace(/\\/g, '/');
+}
 
 const sha256 = (content: string | Buffer): string =>
   createHash('sha256').update(content).digest('hex');
@@ -105,7 +116,7 @@ export function buildFixtureTree(
     const target = resolveIn(roots, root, relative);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, content);
-    const markExecutable = executable && supportsPosixFiles;
+    const markExecutable = executable && supportsExecutableBit;
     if (markExecutable) {
       fs.chmodSync(target, 0o755);
     }
@@ -122,7 +133,15 @@ export function buildFixtureTree(
     entries.push({ root, path: relative, type: 'dir' });
   };
   const symlink = (root: RootName, relative: string, target: string): void => {
-    fs.symlinkSync(target, resolveIn(roots, root, relative));
+    const linkPath = resolveIn(roots, root, relative);
+    // Both current targets are files (one dangling); Windows needs an explicit link type since
+    // it cannot infer one for a target that does not exist, and defaults to POSIX behaviour
+    // (no type argument) everywhere else.
+    if (isWindows) {
+      fs.symlinkSync(target, linkPath, 'file');
+    } else {
+      fs.symlinkSync(target, linkPath);
+    }
     entries.push({ root, path: relative, type: 'symlink', target });
   };
 
@@ -153,10 +172,8 @@ export function buildFixtureTree(
   ];
 
   if (!options.portable) {
-    if (supportsPosixFiles) {
-      symlink('workspace', w('app/link-to-index'), 'src/index.js');
-      symlink('workspace', w('app/link-outside'), '../../outside-target-does-not-exist');
-    }
+    symlink('workspace', w('app/link-to-index'), 'src/index.js');
+    symlink('workspace', w('app/link-outside'), '../../outside-target-does-not-exist');
     file('outside', `${OUTSIDE_DIR}/config.json`, '{"cached":true}\n');
     file('home', `${HOME_DIR}/settings.txt`, 'home\n');
     patterns.push(path.join(roots.outside, OUTSIDE_DIR), `~/${HOME_DIR}`);
@@ -172,12 +189,9 @@ export function verifyFixtureTree(manifest: FixtureManifest, roots: FixtureRoots
     const label = `${entry.root}:${entry.path}`;
 
     if (entry.type === 'symlink') {
-      if (!supportsPosixFiles) {
-        continue;
-      }
       try {
         const actual = fs.readlinkSync(target);
-        if (actual !== entry.target) {
+        if (normalizeLinkTarget(actual) !== normalizeLinkTarget(entry.target ?? '')) {
           problems.push(`${label}: symlink points to ${actual}, expected ${entry.target}`);
         }
       } catch {
@@ -206,7 +220,7 @@ export function verifyFixtureTree(manifest: FixtureManifest, roots: FixtureRoots
     if (sha256(fs.readFileSync(target)) !== entry.sha256) {
       problems.push(`${label}: content differs`);
     }
-    if (entry.executable && supportsPosixFiles && (stat.mode & 0o111) === 0) {
+    if (entry.executable && supportsExecutableBit && (stat.mode & 0o111) === 0) {
       problems.push(`${label}: lost its executable bit`);
     }
   }
