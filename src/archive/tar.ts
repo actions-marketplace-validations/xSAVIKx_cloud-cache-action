@@ -1,87 +1,232 @@
 import * as exec from '@actions/exec';
 import * as io from '@actions/io';
-import * as core from '@actions/core';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { CompressionConfig } from './compression';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import type { CompressionConfig, CompressionMethod } from './compression';
+
+export type TarFlavor = 'gnu' | 'bsd';
+
+export interface TarTool {
+  path: string;
+  flavor: TarFlavor;
+}
+
+export interface ArchiveCommand {
+  tool: string;
+  args: string[];
+}
+
+export interface ToolLookup {
+  platform: NodeJS.Platform;
+  env: NodeJS.ProcessEnv;
+  /** Resolves a tool on PATH; '' when absent. */
+  which: (tool: string) => Promise<string>;
+  exists: (file: string) => boolean;
+}
+
+export interface ArchivePlan {
+  tar: TarTool;
+  platform: NodeJS.Platform;
+  compression: CompressionMethod;
+  archivePath: string;
+  workspace: string;
+  /** Scratch directory; BSD tar on Windows writes its intermediate .tar here. */
+  tempDir: string;
+}
+
+const ZSTD_COMPRESS = 'zstd -T0 --long=30';
+const ZSTD_DECOMPRESS = 'zstd -d --long=30';
+
+function systemLookup(): ToolLookup {
+  return {
+    platform: process.platform,
+    env: process.env,
+    which: (tool) => io.which(tool, false),
+    exists: (file) => fs.existsSync(file),
+  };
+}
+
+/** Picks tar the way actions/cache does: GNU tar where available, BSD tar otherwise. */
+export async function findTar(lookup: ToolLookup = systemLookup()): Promise<TarTool> {
+  if (lookup.platform === 'win32') {
+    const programFiles = lookup.env.ProgramFiles || 'C:\\Program Files';
+    const gnuTar = path.win32.join(programFiles, 'Git', 'usr', 'bin', 'tar.exe');
+    if (lookup.exists(gnuTar)) {
+      return { path: gnuTar, flavor: 'gnu' };
+    }
+    const systemRoot = lookup.env.SystemRoot || 'C:\\Windows';
+    const systemTar = path.win32.join(systemRoot, 'System32', 'tar.exe');
+    if (lookup.exists(systemTar)) {
+      return { path: systemTar, flavor: 'bsd' };
+    }
+    throw new Error(`tar was not found at ${gnuTar} or ${systemTar}`);
+  }
+
+  if (lookup.platform === 'darwin') {
+    const gtar = await lookup.which('gtar');
+    if (gtar) {
+      return { path: gtar, flavor: 'gnu' };
+    }
+  }
+
+  const tar = await lookup.which('tar');
+  if (!tar) {
+    throw new Error('tar was not found on PATH');
+  }
+  return { path: tar, flavor: lookup.platform === 'darwin' ? 'bsd' : 'gnu' };
+}
+
+const slashes = (value: string): string => value.replace(/\\/g, '/');
+
+/** BSD tar on Windows cannot pipe through zstd reliably, so zstd runs as its own command. */
+function usesSeparateZstd(plan: ArchivePlan): boolean {
+  return plan.tar.flavor === 'bsd' && plan.platform === 'win32' && plan.compression === 'zstd';
+}
+
+function platformFlags(plan: ArchivePlan): string[] {
+  if (plan.tar.flavor !== 'gnu') {
+    return [];
+  }
+  if (plan.platform === 'win32') {
+    return ['--force-local'];
+  }
+  if (plan.platform === 'darwin') {
+    return ['--delay-directory-restore'];
+  }
+  return [];
+}
+
+function compressionFlags(method: CompressionMethod, program: string): string[] {
+  return method === 'zstd' ? ['--use-compress-program', program] : ['-z'];
+}
+
+/** One entry per line; entries starting with '-' get './' so no tar treats them as options. */
+export function formatManifest(entries: readonly string[]): string {
+  return `${entries.map((entry) => (entry.startsWith('-') ? `./${entry}` : entry)).join('\n')}\n`;
+}
+
+export function buildCreateCommands(
+  plan: ArchivePlan & { manifestPath: string }
+): ArchiveCommand[] {
+  const separateZstd = usesSeparateZstd(plan);
+  const tarFile = separateZstd ? path.join(plan.tempDir, 'cache.tar') : plan.archivePath;
+
+  const args: string[] = [];
+  if (plan.tar.flavor === 'gnu') {
+    args.push('--posix');
+  }
+  args.push('-cf', slashes(tarFile), '-P', '-C', slashes(plan.workspace));
+  if (plan.tar.flavor === 'gnu') {
+    args.push('--verbatim-files-from');
+  }
+  args.push('-T', slashes(plan.manifestPath), ...platformFlags(plan));
+
+  if (!separateZstd) {
+    args.push(...compressionFlags(plan.compression, ZSTD_COMPRESS));
+    return [{ tool: plan.tar.path, args }];
+  }
+  return [
+    { tool: plan.tar.path, args },
+    {
+      tool: 'zstd',
+      args: ['-T0', '--long=30', '--force', '-o', slashes(plan.archivePath), slashes(tarFile)],
+    },
+  ];
+}
+
+export function buildExtractCommands(plan: ArchivePlan): ArchiveCommand[] {
+  if (usesSeparateZstd(plan)) {
+    const tarFile = path.join(plan.tempDir, 'cache.tar');
+    return [
+      {
+        tool: 'zstd',
+        args: ['-d', '--long=30', '--force', '-o', slashes(tarFile), slashes(plan.archivePath)],
+      },
+      {
+        tool: plan.tar.path,
+        args: ['-xf', slashes(tarFile), '-P', '-C', slashes(plan.workspace)],
+      },
+    ];
+  }
+  return [
+    {
+      tool: plan.tar.path,
+      args: [
+        '-xf',
+        slashes(plan.archivePath),
+        '-P',
+        '-C',
+        slashes(plan.workspace),
+        ...platformFlags(plan),
+        ...compressionFlags(plan.compression, ZSTD_DECOMPRESS),
+      ],
+    },
+  ];
+}
+
+async function run(commands: ArchiveCommand[]): Promise<void> {
+  for (const command of commands) {
+    // exec parses its first argument as a command line, so quote paths that contain spaces.
+    await exec.exec(`"${command.tool}"`, command.args);
+  }
+}
 
 export async function createArchive(
   archivePath: string,
-  paths: string[],
+  entries: readonly string[],
   compression: CompressionConfig,
-  enableCrossOsArchive = false
+  workspace: string
 ): Promise<void> {
-  const tarPath = await io.which('tar', true);
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cache-archive-'));
-  const manifestFile = path.join(tempDir, 'manifest.txt');
-
-  // Normalize all input paths
-  const normalizedPaths = paths.map((p) => {
-    let norm = p.trim().replace(/\\+/g, '/');
-    if (enableCrossOsArchive && /^[a-zA-Z]:\//.test(norm)) {
-      // Strip Windows drive letter for cross-os archive compatibility
-      norm = norm.replace(/^[a-zA-Z]:\//, '/');
-    }
-    return norm;
-  });
-
-  fs.writeFileSync(manifestFile, normalizedPaths.join('\n'));
-
-  // Ensure target folder exists
-  const targetDir = path.dirname(archivePath);
-  if (!fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true });
-  }
-
-  const args: string[] = [];
-
-  // Compression flag
-  if (compression.method === 'zstd') {
-    args.push('--use-compress-program', 'zstd -T0 -3');
-  } else {
-    args.push('-z');
-  }
-
-  args.push('-cf', archivePath, '-P', '-T', manifestFile);
-
-  core.debug(`Creating tar archive using command: ${tarPath} ${args.join(' ')}`);
-
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-tar-'));
   try {
-    await exec.exec(`"${tarPath}"`, args);
+    const manifestPath = path.join(tempDir, 'manifest.txt');
+    fs.writeFileSync(manifestPath, formatManifest(entries));
+    fs.mkdirSync(path.dirname(archivePath), { recursive: true });
+    const tar = await findTar();
+    await run(
+      buildCreateCommands({
+        tar,
+        platform: process.platform,
+        compression: compression.method,
+        archivePath,
+        workspace,
+        tempDir,
+        manifestPath,
+      })
+    );
   } finally {
-    try {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup error
-    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
 export async function extractArchive(
   archivePath: string,
   compression: CompressionConfig,
-  workingDirectory = process.cwd()
+  workspace: string
 ): Promise<void> {
-  const tarPath = await io.which('tar', true);
-  const args: string[] = [];
-
-  if (compression.method === 'zstd') {
-    args.push('--use-compress-program', 'zstd -d');
-  } else {
-    args.push('-z');
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-tar-'));
+  try {
+    fs.mkdirSync(workspace, { recursive: true });
+    const tar = await findTar();
+    await run(
+      buildExtractCommands({
+        tar,
+        platform: process.platform,
+        compression: compression.method,
+        archivePath,
+        workspace,
+        tempDir,
+      })
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
   }
-
-  args.push('-xf', archivePath, '-P', '-C', workingDirectory);
-
-  core.debug(`Extracting tar archive using command: ${tarPath} ${args.join(' ')}`);
-  await exec.exec(`"${tarPath}"`, args);
 }
 
 export function getArchiveSize(archivePath: string): number {
   try {
-    const stats = fs.statSync(archivePath);
-    return stats.size;
+    return fs.statSync(archivePath).size;
   } catch {
     return 0;
   }

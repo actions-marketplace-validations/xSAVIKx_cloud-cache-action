@@ -18,6 +18,7 @@ import { checkObjectExists, listObjectsWithPrefix, downloadFile } from '../stora
 import { withRetry } from '../storage/retry';
 import { getCompressionConfig, CompressionConfig } from '../archive/compression';
 import { extractArchive } from '../archive/tar';
+import { getWorkspace } from '../archive/paths';
 import { fallbackRestore } from '../utils/fallback';
 
 export interface S3RestoreResult {
@@ -78,7 +79,7 @@ export async function restoreFromS3(
         });
 
         core.info(`Extracting cache archive to working directory...`);
-        await extractArchive(localArchive, compression);
+        await extractArchive(localArchive, compression, getWorkspace());
         core.info(`Cache restored successfully from S3 key: ${primaryKey}`);
       } finally {
         try {
@@ -148,7 +149,7 @@ export async function restoreFromS3(
             });
 
             core.info(`Extracting cache archive to working directory...`);
-            await extractArchive(localArchive, compression);
+            await extractArchive(localArchive, compression, getWorkspace());
             core.info(`Cache restored successfully from S3 key: ${matchedKey}`);
           } finally {
             try {

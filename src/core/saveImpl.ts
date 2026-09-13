@@ -18,6 +18,7 @@ import { checkObjectExists, uploadFile } from '../storage/operations';
 import { withRetry } from '../storage/retry';
 import { getCompressionConfig, CompressionConfig } from '../archive/compression';
 import { createArchive, getArchiveSize } from '../archive/tar';
+import { getWorkspace } from '../archive/paths';
 import { fallbackSave } from '../utils/fallback';
 
 // Prevent unhandled rejection leaks from failing the workflow
@@ -72,7 +73,7 @@ export async function saveToS3(
 
   try {
     core.info(`Creating cache archive for paths: ${cachePaths.join(', ')}...`);
-    await createArchive(localArchive, cachePaths, compression, enableCrossOsArchive);
+    await createArchive(localArchive, cachePaths, compression, getWorkspace());
 
     const archiveSize = getArchiveSize(localArchive);
     core.info(
