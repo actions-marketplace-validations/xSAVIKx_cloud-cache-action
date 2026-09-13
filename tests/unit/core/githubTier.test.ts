@@ -112,4 +112,24 @@ describe('saveToGitHub', () => {
     const outcome = await saveToGitHub(['a'], 'k', undefined, false);
     expect(outcome.kind === 'error' && outcome.error.message).toBe('quota exceeded');
   });
+
+  it('treats a path validation error as skipped, consistent with the S3 tier', async () => {
+    const error = new Error(
+      'Path Validation Error: At least one directory or file path is required'
+    );
+    error.name = 'ValidationError';
+    mockSaveCache.mockRejectedValue(error);
+    await expect(saveToGitHub(['a'], 'k', undefined, false)).resolves.toEqual({
+      kind: 'skipped',
+      reason: 'no paths matched',
+    });
+  });
+
+  it('still reports another validation error as an error', async () => {
+    const error = new Error('Key Validation Error: k cannot contain commas.');
+    error.name = 'ValidationError';
+    mockSaveCache.mockRejectedValue(error);
+    const outcome = await saveToGitHub(['a'], 'k', undefined, false);
+    expect(outcome).toEqual({ kind: 'error', error });
+  });
 });

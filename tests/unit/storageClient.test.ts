@@ -138,4 +138,16 @@ describe('Storage Client Context Factory', () => {
       expect.stringContaining('Only one of access-key and secret-key is set')
     );
   });
+
+  it('warns when only secret-key is set', () => {
+    delete process.env.AWS_ACCESS_KEY_ID;
+    delete process.env.AWS_SECRET_ACCESS_KEY;
+    mockGetInput.mockImplementation(
+      inputsOf({ [Inputs.Bucket]: 'bucket', [Inputs.SecretKey]: 'only-the-secret' })
+    );
+    createStorageContext({ maxAttempts: 1 });
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining('Only one of access-key and secret-key is set')
+    );
+  });
 });

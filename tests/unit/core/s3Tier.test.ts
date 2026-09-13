@@ -54,9 +54,11 @@ const mockUploadFile =
     ) => Promise<{ size: number; etag?: string }>
   >();
 
+const mockInfo = jest.fn<(message: string) => void>();
+
 jest.unstable_mockModule('@actions/core', () => ({
   debug: jest.fn(),
-  info: jest.fn(),
+  info: mockInfo,
   warning: mockWarning,
 }));
 jest.unstable_mockModule('../../../src/storage/client', () => ({
@@ -262,6 +264,18 @@ describe('restoreFromS3', () => {
       s3: { objectKey, size: 101, etag: '"k"' },
     });
     expect(mockDownloadFile).not.toHaveBeenCalled();
+  });
+
+  it('does not log its own info line on a lookup-only hit, since restoreImpl already reports it', async () => {
+    put(FEATURE, 'k', 1);
+    await restoreFromS3(tier(), 'k', [], true);
+    expect(mockInfo).not.toHaveBeenCalled();
+  });
+
+  it('logs an info line on a real restore', async () => {
+    put(FEATURE, 'k', 1);
+    await restoreFromS3(tier(), 'k', [], false);
+    expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('S3 cache hit'));
   });
 
   it('downloads to a temporary directory, extracts into the workspace and cleans up', async () => {

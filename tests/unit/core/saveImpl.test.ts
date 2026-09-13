@@ -273,6 +273,15 @@ describe('saveImpl', () => {
       expect(outputs.get('cache-saved-sources')).toBe('s3');
     });
 
+    it('does not fail the step in strict mode when GitHub skips because no paths matched', async () => {
+      inputs.set(Inputs.DualCacheStrict, 'true');
+      mockSaveToGitHub.mockResolvedValue({ kind: 'skipped', reason: 'no paths matched' });
+      await saveImpl(state);
+      expect(mockSaveToGitHub).toHaveBeenCalled();
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(outputs.get('cache-saved-sources')).toBe('s3');
+    });
+
     it('fails the step on a GitHub save error when strict', async () => {
       inputs.set(Inputs.DualCacheStrict, 'true');
       mockSaveToGitHub.mockResolvedValue(failure('quota exceeded'));
