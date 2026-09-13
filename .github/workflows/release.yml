@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Verify release and move the major tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Verify package.json version matches the release tag
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::package.json version ($PKG_VERSION) does not match the release tag ($TAG)"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Verify dist is up to date
+        run: |
+          if ! git diff --exit-code -- dist; then
+            echo "::error::dist is stale for this release. Run npm run build and commit the result before publishing."
+            exit 1
+          fi
+      - name: Move the major version tag
+        if: ${{ !github.event.release.prerelease }}
+        run: |
+          MAJOR="v${VERSION%%.*}"
+          RELEASE_SHA="$(git rev-parse HEAD)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898828+github-actions[bot]@users.noreply.github.com"
+          git tag -fa "$MAJOR" -m "Release $MAJOR" "$RELEASE_SHA"
+          git push --force origin "$MAJOR"
