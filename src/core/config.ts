@@ -84,7 +84,9 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
         : (getInputAsInt(Inputs.RetryCount) ?? Defaults.DefaultRetryCount),
     useFallback: getInputAsBool(Inputs.UseFallback),
     dualCache: bool(State.CacheDualCache, () => getInputAsBool(Inputs.DualCache)),
-    restorePriority: getInputAsEnum(Inputs.RestorePriority, RESTORE_PRIORITIES, 's3-first'),
+    restorePriority: text(State.CacheRestorePriority, () =>
+      getInputAsEnum(Inputs.RestorePriority, RESTORE_PRIORITIES, 's3-first')
+    ),
     dualCacheStrategy: text(State.CacheDualCacheStrategy, readDualCacheStrategy),
     dualCacheStrict: bool(State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
   };

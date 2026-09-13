@@ -77,16 +77,19 @@ describe('readCacheConfig', () => {
       retryCount: 0,
       scopedToRef: false,
       dualCacheStrategy: 'skip-on-hit',
+      restorePriority: 'github-first',
       readOnly: true,
     });
     inputs.set(Inputs.Key, 'post-step-key');
     inputs.set(Inputs.DualCacheStrategy, 'independent');
+    inputs.set(Inputs.RestorePriority, 'bogus');
 
     expect(readCacheConfig(state)).toMatchObject({
       primaryKey: 'restored-key',
       retryCount: 0,
       scopedToRef: false,
       dualCacheStrategy: 'skip-on-hit',
+      restorePriority: 'github-first',
       readOnly: true,
     });
     expect(mockWarning).not.toHaveBeenCalled();
