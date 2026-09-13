@@ -94,6 +94,18 @@ export interface DownloadResult {
   metadata?: Record<string, string>;
 }
 
+export interface ObjectStreamResult {
+  /** The raw GetObject response body; the caller pipes it, rather than a file on disk. */
+  body: Readable;
+  /** Object metadata from the GetObject response; undefined when the object carries none. */
+  metadata?: Record<string, string>;
+}
+
+/** S3 parts must be at least 5 MiB; a smaller or unset chunk size uses 10 MiB parts. */
+function resolvePartSize(uploadChunkSize?: number): number {
+  return uploadChunkSize && uploadChunkSize >= 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024;
+}
+
 export interface UploadOptions {
   /** Stored as `x-amz-meta-*` headers and returned by HeadObject/GetObject. */
   metadata?: Record<string, string>;
@@ -133,6 +145,22 @@ export async function downloadFile(
   return { metadata: response.Metadata };
 }
 
+/**
+ * Like `downloadFile`, but for streaming (Task 8): returns the response body stream itself
+ * instead of writing it to a file, so the caller can pipe it straight into a tar extract.
+ */
+export async function getObjectStream(
+  client: S3Client,
+  bucket: string,
+  key: string
+): Promise<ObjectStreamResult> {
+  const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  if (!response.Body) {
+    throw new Error(`Empty response body received from S3 for key: ${key}`);
+  }
+  return { body: response.Body as Readable, metadata: response.Metadata };
+}
+
 export async function uploadFile(
   client: S3Client,
   bucket: string,
@@ -143,10 +171,7 @@ export async function uploadFile(
 ): Promise<{ size: number; etag?: string }> {
   const stats = fs.statSync(sourcePath);
   const fileStream = fs.createReadStream(sourcePath);
-
-  // S3 parts must be at least 5 MiB; a smaller or unset chunk size uses 10 MiB parts.
-  const partSize =
-    uploadChunkSize && uploadChunkSize >= 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024;
+  const partSize = resolvePartSize(uploadChunkSize);
 
   const parallelUpload = new Upload({
     client,
@@ -175,4 +200,41 @@ export async function uploadFile(
     size: stats.size,
     etag: result.ETag,
   };
+}
+
+/**
+ * Like `uploadFile`, but for streaming (Task 8): takes a readable stream body (tar's stdout,
+ * via a byte counter) instead of a file path, and returns the `Upload` itself instead of
+ * awaiting it, so the caller can race it against the archiving process and abort it on failure.
+ * Never sends `Metadata`: a streamed archive's sha256 cannot be known before it finishes.
+ */
+export function createStreamUpload(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  body: Readable,
+  uploadChunkSize?: number,
+  options?: Pick<UploadOptions, 'ifNoneMatch'>
+): Upload {
+  const upload = new Upload({
+    client,
+    params: {
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      IfNoneMatch: options?.ifNoneMatch,
+    },
+    partSize: resolvePartSize(uploadChunkSize),
+    queueSize: 4,
+    leavePartsOnError: false,
+  });
+
+  upload.on('httpUploadProgress', (progress) => {
+    if (progress.total && progress.loaded) {
+      const pct = Math.round((progress.loaded / progress.total) * 100);
+      core.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
+    }
+  });
+
+  return upload;
 }

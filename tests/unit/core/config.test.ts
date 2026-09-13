@@ -41,8 +41,14 @@ describe('readCacheConfig', () => {
       restorePriority: 's3-first',
       dualCacheStrategy: 'backfill',
       dualCacheStrict: false,
+      streaming: false,
     });
     expect(mockWarning).not.toHaveBeenCalled();
+  });
+
+  it('reads the streaming input', () => {
+    inputs.set(Inputs.Streaming, 'true');
+    expect(readCacheConfig().streaming).toBe(true);
   });
 
   it('honours retry-count: 0', () => {
@@ -79,10 +85,12 @@ describe('readCacheConfig', () => {
       dualCacheStrategy: 'skip-on-hit',
       restorePriority: 'github-first',
       readOnly: true,
+      streaming: true,
     });
     inputs.set(Inputs.Key, 'post-step-key');
     inputs.set(Inputs.DualCacheStrategy, 'independent');
     inputs.set(Inputs.RestorePriority, 'bogus');
+    inputs.set(Inputs.Streaming, 'false');
 
     expect(readCacheConfig(state)).toMatchObject({
       primaryKey: 'restored-key',
@@ -91,6 +99,7 @@ describe('readCacheConfig', () => {
       dualCacheStrategy: 'skip-on-hit',
       restorePriority: 'github-first',
       readOnly: true,
+      streaming: true,
     });
     expect(mockWarning).not.toHaveBeenCalled();
   });

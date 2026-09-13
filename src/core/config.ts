@@ -34,6 +34,7 @@ export interface CacheConfig {
   restorePriority: RestorePriority;
   dualCacheStrategy: DualCacheStrategy;
   dualCacheStrict: boolean;
+  streaming: boolean;
 }
 
 function readDualCacheStrategy(): DualCacheStrategy {
@@ -89,6 +90,7 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     ),
     dualCacheStrategy: text(State.CacheDualCacheStrategy, readDualCacheStrategy),
     dualCacheStrict: bool(State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
+    streaming: bool(State.CacheStreaming, () => getInputAsBool(Inputs.Streaming)),
   };
 }
 
@@ -106,4 +108,5 @@ export function persistCacheConfig(state: IStateProvider, config: CacheConfig): 
   state.setState(State.CacheRestorePriority, config.restorePriority);
   state.setState(State.CacheDualCacheStrategy, config.dualCacheStrategy);
   state.setState(State.CacheDualCacheStrict, String(config.dualCacheStrict));
+  state.setState(State.CacheStreaming, String(config.streaming));
 }

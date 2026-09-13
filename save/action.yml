@@ -79,6 +79,10 @@ inputs:
     description: 'Fall back to official GitHub Actions Cache service if S3 save fails'
     required: false
     default: 'false'
+  streaming:
+    description: 'Stream archives directly between tar and S3 without a temporary archive file (experimental; default false). Uses less disk and can be faster for large caches, but uploads cannot be retried as a whole and objects carry no integrity checksum.'
+    required: false
+    default: 'false'
 
   # Dual-cache inputs
   dual-cache:

@@ -76,6 +76,7 @@ function buildTier(workspace: string): S3Tier {
     compression,
     workspace,
     streamRetries: 0,
+    streaming: false,
   };
 }
 

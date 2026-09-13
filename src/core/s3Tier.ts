@@ -2,20 +2,41 @@ import * as core from '@actions/core';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import type { Readable, Writable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import {
   getCompressionConfig,
   type CompressionConfig,
   type CompressionMethod,
 } from '../archive/compression';
-import { sha256File } from '../archive/checksum';
+import { createSha256Tap, sha256File } from '../archive/checksum';
 import { getWorkspace, resolveCachePaths } from '../archive/paths';
-import { createArchive, extractArchive, getArchiveSize } from '../archive/tar';
+import {
+  buildCreateCommands,
+  buildExtractCommands,
+  createArchive,
+  extractArchive,
+  findTar,
+  formatManifest,
+  getArchiveSize,
+  usesSeparateZstd,
+  type TarTool,
+} from '../archive/tar';
+import {
+  captureStderrTail,
+  createByteCounter,
+  killIfRunning,
+  spawnArchiveCommand,
+  waitForExit,
+} from '../archive/stream';
 import { Defaults } from '../constants';
 import { createStorageContext, type StorageContext } from '../storage/client';
 import {
   checkObjectExists,
+  createStreamUpload,
   downloadFile,
   findNewestObject,
+  getObjectStream,
   uploadFile,
 } from '../storage/operations';
 import { isRetryableStreamError, withRetry } from '../storage/retry';
@@ -25,6 +46,10 @@ import { compileKeyTemplate, type KeyTemplate } from './keyTemplate';
 import { toError, type RestoreOutcome, type SaveOutcome } from './outcomes';
 import { resolveRefCandidates } from './refs';
 import { computeCacheVersion } from './version';
+
+/** Logged when streaming is requested but the plan needs the BSD-tar-plus-zstd two-step on Windows. */
+const STREAMING_FALLBACK_MESSAGE =
+  'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.';
 
 export interface S3Tier {
   storage: StorageContext;
@@ -37,6 +62,8 @@ export interface S3Tier {
   workspace: string;
   /** Extra attempts for download and upload streams, which the SDK does not retry itself. */
   streamRetries: number;
+  /** Stream archives directly between tar and S3 instead of using a temporary file (Task 8). */
+  streaming: boolean;
 }
 
 export interface S3Match {
@@ -135,6 +162,7 @@ export async function buildS3Tier(
     compression,
     workspace: getWorkspace(env),
     streamRetries: config.retryEnabled ? config.retryCount : 0,
+    streaming: config.streaming,
   };
 }
 
@@ -220,6 +248,16 @@ export async function restoreFromS3(
     `S3 cache ${found.exact ? 'hit' : 'partial hit'} for key "${found.matchedKey}"${where} (${formatSize(found.size)})`
   );
 
+  if (tier.streaming) {
+    const tar = await findTar();
+    if (
+      !usesSeparateZstd({ tar, platform: process.platform, compression: tier.compression.method })
+    ) {
+      return restoreFromS3Streaming(tier, found, tar, hit);
+    }
+    core.info(STREAMING_FALLBACK_MESSAGE);
+  }
+
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-restore-'));
   try {
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
@@ -281,6 +319,16 @@ export async function saveToS3(
       return { kind: 'skipped', reason: 'no paths matched' };
     }
 
+    if (tier.streaming) {
+      const tar = await findTar();
+      if (
+        !usesSeparateZstd({ tar, platform: process.platform, compression: tier.compression.method })
+      ) {
+        return await saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uploadChunkSize);
+      }
+      core.info(STREAMING_FALLBACK_MESSAGE);
+    }
+
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
     await createArchive(archivePath, entries, tier.compression, tier.workspace);
@@ -329,5 +377,144 @@ export async function saveToS3(
     if (tempDir) {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
+  }
+}
+
+/** Wraps a failure with tar's recent stderr output, for a clearer error message. */
+function withStderrTail(err: unknown, tail: readonly string[]): Error {
+  const base = toError(err);
+  if (tail.length === 0) {
+    return base;
+  }
+  return new Error(`${base.message}\n${tail.join('\n')}`, { cause: base });
+}
+
+/**
+ * Streaming save (Task 8): spawns tar writing the archive to stdout and pipes it, through a
+ * byte counter (there is no file to stat for the size), into an S3 multipart upload. Tar and
+ * the upload run concurrently; either one failing aborts the other, so a truncated or dropped
+ * archive can never look like a successful upload.
+ */
+async function saveToS3Streaming(
+  tier: S3Tier,
+  objectKey: string,
+  entries: readonly string[],
+  tar: TarTool,
+  primaryKey: string,
+  uploadChunkSize?: number
+): Promise<SaveOutcome> {
+  const { client, bucket } = tier.storage;
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+  try {
+    const manifestPath = path.join(tempDir, 'manifest.txt');
+    fs.writeFileSync(manifestPath, formatManifest(entries));
+    const [command] = buildCreateCommands({
+      tar,
+      platform: process.platform,
+      compression: tier.compression.method,
+      archivePath: '-',
+      workspace: tier.workspace,
+      tempDir,
+      manifestPath,
+    });
+
+    const child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
+    const stderrTail = captureStderrTail(child.stderr);
+    const counter = createByteCounter();
+    const pipePromise = pipeline(child.stdout as Readable, counter.stream);
+    const tarDone = waitForExit(child).then((code) => {
+      if (code !== 0) {
+        throw new Error(`tar exited with code ${code}`);
+      }
+    });
+
+    const sendCondition = !tier.storage.conditionalWriteUnsupported;
+    core.info(`Streaming upload to s3://${bucket}/${objectKey}...`);
+    const upload = createStreamUpload(client, bucket, objectKey, counter.stream, uploadChunkSize, {
+      ifNoneMatch: sendCondition ? '*' : undefined,
+    });
+
+    try {
+      const [uploaded] = await Promise.all([upload.done(), tarDone, pipePromise]);
+      core.info(`Cache saved to S3 with key: ${primaryKey}`);
+      return {
+        kind: 'saved',
+        s3: { objectKey, size: counter.count(), etag: (uploaded as { ETag?: string }).ETag },
+      };
+    } catch (err) {
+      if (sendCondition && isPreconditionFailed(err)) {
+        core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
+        await upload.abort().catch(() => undefined);
+        killIfRunning(child);
+        return { kind: 'exists', s3: { objectKey, size: counter.count(), etag: undefined } };
+      }
+      await upload.abort().catch(() => undefined);
+      killIfRunning(child);
+      throw withStderrTail(err, stderrTail.lines());
+    }
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Streaming restore (Task 8): pipes the GetObject body through the sha256 tap into a spawned
+ * tar extract reading from stdin, so nothing touches disk except the extracted files themselves.
+ */
+async function restoreFromS3Streaming(
+  tier: S3Tier,
+  found: S3Match,
+  tar: TarTool,
+  hit: RestoreOutcome
+): Promise<RestoreOutcome> {
+  const { client, bucket } = tier.storage;
+  try {
+    const { body, metadata } = await getObjectStream(client, bucket, found.objectKey);
+    fs.mkdirSync(tier.workspace, { recursive: true });
+    const [command] = buildExtractCommands({
+      tar,
+      platform: process.platform,
+      compression: tier.compression.method,
+      archivePath: '-',
+      workspace: tier.workspace,
+      tempDir: os.tmpdir(),
+    });
+
+    const child = spawnArchiveCommand(command, ['pipe', 'ignore', 'pipe']);
+    const stderrTail = captureStderrTail(child.stderr);
+    const tap = createSha256Tap();
+    const pipePromise = pipeline(body, tap.stream, child.stdin as Writable);
+    const tarDone = waitForExit(child).then((code) => {
+      if (code !== 0) {
+        throw new Error(`tar exited with code ${code}`);
+      }
+    });
+
+    try {
+      await Promise.all([pipePromise, tarDone]);
+    } catch (err) {
+      killIfRunning(child);
+      throw withStderrTail(err, stderrTail.lines());
+    }
+
+    const expectedSha256 = metadata?.[SHA256_METADATA_KEY];
+    if (expectedSha256) {
+      const actualSha256 = tap.digest();
+      if (actualSha256 !== expectedSha256) {
+        return {
+          kind: 'error',
+          error: new Error(
+            `Integrity check failed for s3://${bucket}/${found.objectKey}: expected sha256 ${expectedSha256}, got ${actualSha256}; files may already have been extracted`
+          ),
+        };
+      }
+    } else {
+      core.debug(
+        `s3://${bucket}/${found.objectKey} has no ${SHA256_METADATA_KEY} metadata; skipping integrity check.`
+      );
+    }
+    return hit;
+  } catch (err) {
+    return { kind: 'error', error: toError(err) };
   }
 }

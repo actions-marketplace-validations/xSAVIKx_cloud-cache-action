@@ -26,6 +26,7 @@ export enum Inputs {
   Retry = 'retry',
   RetryCount = 'retry-count',
   UseFallback = 'use-fallback',
+  Streaming = 'streaming',
 
   // Dual-cache inputs
   DualCache = 'dual-cache',
@@ -61,6 +62,7 @@ export enum State {
   CacheRetryCount = 'CACHE_RETRY_COUNT',
   CacheReadOnly = 'CACHE_READ_ONLY',
   CacheCompression = 'CACHE_COMPRESSION',
+  CacheStreaming = 'CACHE_STREAMING',
 
   // Dual-cache state
   CacheDualCache = 'CACHE_DUAL_CACHE',

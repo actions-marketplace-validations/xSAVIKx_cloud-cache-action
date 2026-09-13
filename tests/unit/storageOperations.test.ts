@@ -337,4 +337,78 @@ describe('Storage Operations', () => {
       }
     });
   });
+
+  describe('getObjectStream', () => {
+    it('returns the raw body stream and metadata, without writing anything to disk', async () => {
+      const mockStream = new Readable();
+      mockStream.push('raw-bytes');
+      mockStream.push(null);
+      s3Mock.on(GetObjectCommand).resolves({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        Body: mockStream as any,
+        Metadata: { 'cloud-cache-sha256': 'abc' },
+      });
+
+      const { getObjectStream } = await import('../../src/storage/operations');
+      const { body, metadata } = await getObjectStream(client, 'test-bucket', 'stream-key');
+      expect(metadata).toEqual({ 'cloud-cache-sha256': 'abc' });
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of body) {
+        chunks.push(chunk as Buffer);
+      }
+      expect(Buffer.concat(chunks).toString()).toBe('raw-bytes');
+    });
+
+    it('throws when the response body is empty', async () => {
+      s3Mock.on(GetObjectCommand).resolves({});
+      const { getObjectStream } = await import('../../src/storage/operations');
+      await expect(getObjectStream(client, 'test-bucket', 'empty-key')).rejects.toThrow(
+        'Empty response body received'
+      );
+    });
+  });
+
+  describe('createStreamUpload', () => {
+    it('uploads a readable stream body with no metadata by default', async () => {
+      const { createStreamUpload } = await import('../../src/storage/operations');
+      s3Mock.on(PutObjectCommand).resolves({ ETag: '"streamed"' });
+
+      const body = Readable.from([Buffer.alloc(1024, 'x')]);
+      const upload = createStreamUpload(client, 'test-bucket', 'stream-upload-key', body);
+      const result = await upload.done();
+
+      expect((result as { ETag?: string }).ETag).toBe('"streamed"');
+      const [call] = s3Mock.commandCalls(PutObjectCommand);
+      expect(call.args[0].input).toMatchObject({ Bucket: 'test-bucket', Key: 'stream-upload-key' });
+      expect(call.args[0].input.Metadata).toBeUndefined();
+    });
+
+    it('passes ifNoneMatch through when given', async () => {
+      const { createStreamUpload } = await import('../../src/storage/operations');
+      s3Mock.on(PutObjectCommand).resolves({ ETag: '"cond"' });
+
+      const body = Readable.from([Buffer.alloc(10, 'y')]);
+      const upload = createStreamUpload(client, 'test-bucket', 'cond-key', body, undefined, {
+        ifNoneMatch: '*',
+      });
+      await upload.done();
+
+      const [call] = s3Mock.commandCalls(PutObjectCommand);
+      expect(call.args[0].input).toMatchObject({ IfNoneMatch: '*' });
+    });
+
+    it('uses a larger part size for large uploads, same rule as uploadFile', async () => {
+      const { createStreamUpload } = await import('../../src/storage/operations');
+      s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
+      s3Mock.on(UploadPartCommand).resolves({ ETag: '"part"' });
+      s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
+
+      const body = Readable.from([Buffer.alloc(12 * 1024 * 1024, 'z')]);
+      const upload = createStreamUpload(client, 'test-bucket', 'large-stream-key', body);
+      await upload.done();
+
+      expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(2);
+    });
+  });
 });

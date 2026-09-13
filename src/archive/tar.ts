@@ -79,8 +79,14 @@ export async function findTar(lookup: ToolLookup = systemLookup()): Promise<TarT
 
 const slashes = (value: string): string => value.replace(/\\/g, '/');
 
-/** BSD tar on Windows cannot pipe through zstd reliably, so zstd runs as its own command. */
-function usesSeparateZstd(plan: ArchivePlan): boolean {
+/**
+ * BSD tar on Windows cannot pipe through zstd reliably, so zstd runs as its own command. This
+ * also means that combination cannot stream (Task 8): callers that want to stream check this
+ * first and fall back to a temporary archive file when it is true.
+ */
+export function usesSeparateZstd(
+  plan: Pick<ArchivePlan, 'tar' | 'platform' | 'compression'>
+): boolean {
   return plan.tar.flavor === 'bsd' && plan.platform === 'win32' && plan.compression === 'zstd';
 }
 

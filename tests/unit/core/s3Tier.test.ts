@@ -1,14 +1,17 @@
 import { jest } from '@jest/globals';
 import type { S3Client } from '@aws-sdk/client-s3';
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { PassThrough, Readable, Transform } from 'node:stream';
 import type { CompressionConfig } from '../../../src/archive/compression';
 import type { ResolvedCachePaths } from '../../../src/archive/paths';
+import type { ArchiveCommand, ArchivePlan, TarTool } from '../../../src/archive/tar';
 import type { CacheConfig } from '../../../src/core/config';
 import { compileKeyTemplate } from '../../../src/core/keyTemplate';
 import { computeCacheVersion } from '../../../src/core/version';
 import type { StorageContext } from '../../../src/storage/client';
-import type { CacheObjectMetadata } from '../../../src/storage/operations';
+import type { CacheObjectMetadata, ObjectStreamResult } from '../../../src/storage/operations';
 import { makeTempDir, removeDir } from '../../support/tempTree';
 
 const mockWarning = jest.fn<(message: string) => void>();
@@ -66,6 +69,54 @@ const mockSha256File = jest.fn<(filePath: string) => Promise<string>>();
 const mockInfo = jest.fn<(message: string) => void>();
 const mockDebug = jest.fn<(message: string) => void>();
 
+// Streaming (Task 8) mocks.
+const mockFindTar = jest.fn<() => Promise<TarTool>>();
+const mockUsesSeparateZstd =
+  jest.fn<(plan: Pick<ArchivePlan, 'tar' | 'platform' | 'compression'>) => boolean>();
+const mockBuildCreateCommands = jest.fn<(plan: Record<string, unknown>) => ArchiveCommand[]>();
+const mockBuildExtractCommands = jest.fn<(plan: Record<string, unknown>) => ArchiveCommand[]>();
+const mockFormatManifest = jest.fn<(entries: readonly string[]) => string>();
+
+interface FakeChild {
+  stdout: PassThrough;
+  stderr: PassThrough;
+  stdin: PassThrough;
+  kill: (signal?: string) => void;
+  exitCode: number | null;
+  signalCode: string | null;
+}
+const makeFakeChild = (): FakeChild => ({
+  stdout: new PassThrough(),
+  stderr: new PassThrough(),
+  stdin: new PassThrough(),
+  kill: jest.fn(),
+  exitCode: null,
+  signalCode: null,
+});
+const mockSpawnArchiveCommand = jest.fn<(command: ArchiveCommand, stdio: unknown) => FakeChild>();
+const mockWaitForExit = jest.fn<(child: FakeChild) => Promise<number>>();
+const mockKillIfRunning = jest.fn<(child: FakeChild) => void>();
+const mockCaptureStderrTail =
+  jest.fn<(stream: unknown, maxLines?: number) => { lines(): string[] }>();
+
+const mockGetObjectStream =
+  jest.fn<(client: S3Client, bucket: string, key: string) => Promise<ObjectStreamResult>>();
+interface FakeUpload {
+  done: () => Promise<{ ETag?: string }>;
+  abort: () => Promise<unknown>;
+}
+const mockCreateStreamUpload =
+  jest.fn<
+    (
+      client: S3Client,
+      bucket: string,
+      key: string,
+      body: Readable,
+      chunkSize?: number,
+      options?: { ifNoneMatch?: string }
+    ) => FakeUpload
+  >();
+
 jest.unstable_mockModule('@actions/core', () => ({
   debug: mockDebug,
   info: mockInfo,
@@ -85,15 +136,48 @@ jest.unstable_mockModule('../../../src/archive/tar', () => ({
   createArchive: mockCreateArchive,
   extractArchive: mockExtractArchive,
   getArchiveSize: mockGetArchiveSize,
+  findTar: mockFindTar,
+  usesSeparateZstd: mockUsesSeparateZstd,
+  buildCreateCommands: mockBuildCreateCommands,
+  buildExtractCommands: mockBuildExtractCommands,
+  formatManifest: mockFormatManifest,
+}));
+jest.unstable_mockModule('../../../src/archive/stream', () => ({
+  spawnArchiveCommand: mockSpawnArchiveCommand,
+  waitForExit: mockWaitForExit,
+  killIfRunning: mockKillIfRunning,
+  captureStderrTail: mockCaptureStderrTail,
+  createByteCounter: () => {
+    let total = 0;
+    const stream = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        total += chunk.length;
+        callback(null, chunk);
+      },
+    });
+    return { stream, count: () => total };
+  },
 }));
 jest.unstable_mockModule('../../../src/storage/operations', () => ({
   checkObjectExists: mockCheckObjectExists,
   findNewestObject: mockFindNewestObject,
   downloadFile: mockDownloadFile,
   uploadFile: mockUploadFile,
+  getObjectStream: mockGetObjectStream,
+  createStreamUpload: mockCreateStreamUpload,
 }));
 jest.unstable_mockModule('../../../src/archive/checksum', () => ({
   sha256File: mockSha256File,
+  createSha256Tap: () => {
+    const hash = crypto.createHash('sha256');
+    const stream = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        hash.update(chunk);
+        callback(null, chunk);
+      },
+    });
+    return { stream, digest: () => hash.digest('hex') };
+  },
 }));
 
 const { buildS3Tier, findS3Match, restoreFromS3, saveToS3 } = await import(
@@ -131,6 +215,7 @@ const tier = (overrides: Partial<S3Tier> = {}): S3Tier => ({
   compression: zstd,
   workspace: '/ws',
   streamRetries: 0,
+  streaming: false,
   ...overrides,
 });
 
@@ -174,6 +259,23 @@ beforeEach(() => {
   mockUploadFile.mockResolvedValue({ size: 2048, etag: '"new"' });
   mockResolveCachePaths.mockResolvedValue({ entries: ['node_modules'], skipped: [] });
   mockSha256File.mockResolvedValue('archive-sha256');
+
+  // Streaming (Task 8) defaults: GNU tar on Linux, a single-command plan, no fallback.
+  mockFindTar.mockResolvedValue({ path: '/usr/bin/tar', flavor: 'gnu' });
+  mockUsesSeparateZstd.mockReturnValue(false);
+  mockBuildCreateCommands.mockImplementation((plan) => [
+    { tool: (plan.tar as TarTool).path, args: ['-cf', plan.archivePath as string] },
+  ]);
+  mockBuildExtractCommands.mockImplementation((plan) => [
+    { tool: (plan.tar as TarTool).path, args: ['-xf', plan.archivePath as string] },
+  ]);
+  mockFormatManifest.mockImplementation((entries) => `${entries.join('\n')}\n`);
+  mockCaptureStderrTail.mockReturnValue({ lines: () => [] });
+  mockKillIfRunning.mockImplementation(() => undefined);
+  mockCreateStreamUpload.mockImplementation(() => ({
+    done: jest.fn(async () => ({ ETag: '"streamed"' })),
+    abort: jest.fn(async () => undefined),
+  }));
 });
 
 describe('findS3Match', () => {
@@ -581,6 +683,7 @@ describe('buildS3Tier', () => {
     restorePriority: 's3-first',
     dualCacheStrategy: 'backfill',
     dualCacheStrict: false,
+    streaming: false,
   };
   let eventDir: string;
   let env: NodeJS.ProcessEnv;
@@ -680,5 +783,262 @@ describe('buildS3Tier', () => {
     await expect(
       buildS3Tier({ ...config, s3KeyPattern: '${archive_filename}' }, env)
     ).rejects.toThrow('exactly once');
+  });
+
+  it.each([true, false])('carries the streaming config flag through (%s)', async (streaming) => {
+    const built = await buildS3Tier({ ...config, streaming }, env);
+    expect(built.streaming).toBe(streaming);
+  });
+});
+
+describe('saveToS3 streaming', () => {
+  it('streams the archive from tar straight into the upload, without a temporary file', async () => {
+    let child: FakeChild | undefined;
+    mockSpawnArchiveCommand.mockImplementation(() => {
+      child = makeFakeChild();
+      return child;
+    });
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('streamed-archive-bytes'));
+      return 0;
+    });
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules'], 5_242_880);
+
+    const objectKey = `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`;
+    expect(outcome).toEqual({
+      kind: 'saved',
+      s3: { objectKey, size: 'streamed-archive-bytes'.length, etag: '"streamed"' },
+    });
+    expect(mockCreateArchive).not.toHaveBeenCalled();
+    expect(mockGetArchiveSize).not.toHaveBeenCalled();
+    expect(mockSha256File).not.toHaveBeenCalled();
+
+    expect(mockFindTar).toHaveBeenCalled();
+    const [command, stdio] = mockSpawnArchiveCommand.mock.calls[0];
+    expect(command.tool).toBe('/usr/bin/tar');
+    expect(stdio).toEqual(['ignore', 'pipe', 'pipe']);
+    const [plan] = mockBuildCreateCommands.mock.calls[0];
+    expect(plan).toMatchObject({ archivePath: '-', workspace: '/ws', compression: 'zstd' });
+
+    const call = mockCreateStreamUpload.mock.calls[0];
+    expect(call[1]).toBe('bucket');
+    expect(call[2]).toBe(objectKey);
+    expect(call[4]).toBe(5_242_880);
+    expect(call[5]).toEqual({ ifNoneMatch: '*' });
+  });
+
+  it('does not spawn tar when the object already exists', async () => {
+    const objectKey = put(FEATURE, 'k', 1);
+    await expect(saveToS3(tier({ streaming: true }), 'k', ['node_modules'])).resolves.toEqual({
+      kind: 'exists',
+      s3: { objectKey, size: 101, etag: '"k"' },
+    });
+    expect(mockSpawnArchiveCommand).not.toHaveBeenCalled();
+  });
+
+  it('skips the If-None-Match condition once the tier has learned it is unsupported', async () => {
+    storage.conditionalWriteUnsupported = true;
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('x'));
+      return 0;
+    });
+    await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    const [, , , , , options] = mockCreateStreamUpload.mock.calls[0];
+    expect(options).toEqual({ ifNoneMatch: undefined });
+  });
+
+  it('returns exists and logs when the server reports a 412 precondition failure', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    mockCreateStreamUpload.mockReturnValue({
+      done: jest.fn(async () => {
+        throw Object.assign(new Error('At least one of the pre-conditions did not hold'), {
+          name: 'PreconditionFailed',
+          $metadata: { httpStatusCode: 412 },
+        });
+      }),
+      abort: jest.fn(async () => undefined),
+    });
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    const objectKey = `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`;
+    expect(outcome).toEqual({
+      kind: 'exists',
+      s3: { objectKey, size: 'archive-body'.length, etag: undefined },
+    });
+    expect(mockInfo).toHaveBeenCalledWith(
+      `Another job saved s3://bucket/${objectKey} first; keeping its cache.`
+    );
+  });
+
+  it('aborts the upload and kills tar when tar exits non-zero', async () => {
+    let child: FakeChild | undefined;
+    mockSpawnArchiveCommand.mockImplementation(() => {
+      child = makeFakeChild();
+      return child;
+    });
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end();
+      return 2;
+    });
+    mockCaptureStderrTail.mockReturnValue({
+      lines: () => ['tar: short write', 'tar: error exit delayed from previous errors'],
+    });
+    const abort = jest.fn(async () => undefined);
+    mockCreateStreamUpload.mockReturnValue({
+      done: jest.fn(() => new Promise<{ ETag?: string }>(() => undefined)),
+      abort,
+    });
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    expect(outcome.kind).toBe('error');
+    const message = outcome.kind === 'error' ? outcome.error.message : '';
+    expect(message).toContain('tar exited with code 2');
+    expect(message).toContain('tar: short write');
+    expect(message).toContain('tar: error exit delayed from previous errors');
+    expect(abort).toHaveBeenCalled();
+    expect(mockKillIfRunning).toHaveBeenCalledWith(child);
+  });
+
+  it('aborts the upload and kills tar when the upload fails independently', async () => {
+    let child: FakeChild | undefined;
+    mockSpawnArchiveCommand.mockImplementation(() => {
+      child = makeFakeChild();
+      return child;
+    });
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('ok'));
+      return 0;
+    });
+    const abort = jest.fn(async () => undefined);
+    mockCreateStreamUpload.mockReturnValue({
+      done: jest.fn(async () => {
+        throw Object.assign(new Error('Access Denied'), { name: 'AccessDenied' });
+      }),
+      abort,
+    });
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    expect(outcome.kind).toBe('error');
+    const message = outcome.kind === 'error' ? outcome.error.message : '';
+    expect(message).toContain('Access Denied');
+    expect(abort).toHaveBeenCalled();
+    expect(mockKillIfRunning).toHaveBeenCalledWith(child);
+  });
+
+  it('falls back to file mode when BSD tar and zstd on Windows would be needed', async () => {
+    mockUsesSeparateZstd.mockReturnValue(true);
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    expect(outcome.kind).toBe('saved');
+    expect(mockCreateArchive).toHaveBeenCalled();
+    expect(mockSpawnArchiveCommand).not.toHaveBeenCalled();
+    expect(mockInfo).toHaveBeenCalledWith(
+      'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.'
+    );
+  });
+});
+
+describe('restoreFromS3 streaming', () => {
+  let workspace: string;
+
+  beforeEach(() => {
+    workspace = makeTempDir('stream-restore-ws');
+  });
+
+  afterEach(() => removeDir(workspace));
+
+  it('streams the download straight into a piped tar extract and verifies its sha256', async () => {
+    put(FEATURE, 'k', 1);
+    const payload = Buffer.from('archive-payload');
+    const expectedSha256 = crypto.createHash('sha256').update(payload).digest('hex');
+    mockGetObjectStream.mockResolvedValue({
+      body: Readable.from([payload]),
+      metadata: { 'cloud-cache-sha256': expectedSha256 },
+    });
+    let child: FakeChild | undefined;
+    mockSpawnArchiveCommand.mockImplementation(() => {
+      child = makeFakeChild();
+      return child;
+    });
+    mockWaitForExit.mockResolvedValue(0);
+
+    const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
+
+    expect(outcome).toMatchObject({ kind: 'hit', matchedKey: 'k' });
+    expect(mockDownloadFile).not.toHaveBeenCalled();
+    expect(mockExtractArchive).not.toHaveBeenCalled();
+    expect(mockSha256File).not.toHaveBeenCalled();
+
+    const [command, stdio] = mockSpawnArchiveCommand.mock.calls[0];
+    expect(command.tool).toBe('/usr/bin/tar');
+    expect(stdio).toEqual(['pipe', 'ignore', 'pipe']);
+    const [plan] = mockBuildExtractCommands.mock.calls[0];
+    expect(plan).toMatchObject({ archivePath: '-', workspace, compression: 'zstd' });
+    expect(fs.existsSync(workspace)).toBe(true);
+  });
+
+  it('returns an integrity error, noting files may already be extracted, on a sha256 mismatch', async () => {
+    const objectKey = put(FEATURE, 'k', 1);
+    mockGetObjectStream.mockResolvedValue({
+      body: Readable.from([Buffer.from('archive-payload')]),
+      metadata: { 'cloud-cache-sha256': 'expected-hash' },
+    });
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockResolvedValue(0);
+
+    const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
+    expect(outcome.kind).toBe('error');
+    const message = outcome.kind === 'error' ? outcome.error.message : '';
+    expect(message).toContain(`Integrity check failed for s3://bucket/${objectKey}`);
+    expect(message).toContain('expected sha256 expected-hash');
+    expect(message).toContain('files may already have been extracted');
+  });
+
+  it('skips verification when the object carries no checksum metadata', async () => {
+    put(FEATURE, 'k', 1);
+    mockGetObjectStream.mockResolvedValue({ body: Readable.from([Buffer.from('data')]) });
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockResolvedValue(0);
+
+    const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
+    expect(outcome.kind).toBe('hit');
+    expect(mockDebug).toHaveBeenCalledWith(expect.stringContaining('sha256'));
+  });
+
+  it('kills tar and returns an error, with its stderr tail, when tar fails', async () => {
+    put(FEATURE, 'k', 1);
+    mockGetObjectStream.mockResolvedValue({ body: Readable.from([Buffer.from('data')]) });
+    let child: FakeChild | undefined;
+    mockSpawnArchiveCommand.mockImplementation(() => {
+      child = makeFakeChild();
+      return child;
+    });
+    mockWaitForExit.mockResolvedValue(2);
+    mockCaptureStderrTail.mockReturnValue({ lines: () => ['tar: corrupt input'] });
+
+    const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
+    expect(outcome.kind).toBe('error');
+    const message = outcome.kind === 'error' ? outcome.error.message : '';
+    expect(message).toContain('tar exited with code 2');
+    expect(message).toContain('tar: corrupt input');
+    expect(mockKillIfRunning).toHaveBeenCalledWith(child);
+  });
+
+  it('falls back to file mode when BSD tar and zstd on Windows would be needed', async () => {
+    put(FEATURE, 'k', 1);
+    mockUsesSeparateZstd.mockReturnValue(true);
+
+    const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
+    expect(outcome.kind).toBe('hit');
+    expect(mockDownloadFile).toHaveBeenCalled();
+    expect(mockSpawnArchiveCommand).not.toHaveBeenCalled();
+    expect(mockInfo).toHaveBeenCalledWith(
+      'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.'
+    );
   });
 });
