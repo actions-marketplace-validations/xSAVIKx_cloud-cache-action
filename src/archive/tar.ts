@@ -165,10 +165,25 @@ export function buildExtractCommands(plan: ArchivePlan): ArchiveCommand[] {
   ];
 }
 
+/**
+ * Options for every tar and zstd command. Like actions/cache, sets MSYS so Git's MSYS tar on
+ * Windows extracts symlinks as native links instead of copies; other platforms ignore it.
+ */
+export function archiveExecOptions(env: NodeJS.ProcessEnv = process.env): exec.ExecOptions {
+  const inherited: Record<string, string> = {};
+  for (const [name, value] of Object.entries(env)) {
+    if (value !== undefined) {
+      inherited[name] = value;
+    }
+  }
+  return { env: { ...inherited, MSYS: 'winsymlinks:nativestrict' } };
+}
+
 async function run(commands: ArchiveCommand[]): Promise<void> {
+  const options = archiveExecOptions();
   for (const command of commands) {
     // exec parses its first argument as a command line, so quote paths that contain spaces.
-    await exec.exec(`"${command.tool}"`, command.args);
+    await exec.exec(`"${command.tool}"`, command.args, options);
   }
 }
 
