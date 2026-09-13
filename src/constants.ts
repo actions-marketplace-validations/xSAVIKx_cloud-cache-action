@@ -7,7 +7,6 @@ export enum Inputs {
   FailOnCacheMiss = 'fail-on-cache-miss',
   LookupOnly = 'lookup-only',
   ReadOnly = 'read-only',
-  SaveAlways = 'save-always',
 
   Bucket = 'bucket',
   Endpoint = 'endpoint',

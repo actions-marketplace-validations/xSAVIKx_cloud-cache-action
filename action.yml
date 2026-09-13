@@ -32,10 +32,6 @@ inputs:
     description: 'Restore cache but do not save cache in post step'
     default: 'false'
     required: false
-  save-always:
-    description: 'Run the post step to save the cache even if another step before fails'
-    default: 'false'
-    required: false
 
   # S3 Storage inputs
   bucket:
