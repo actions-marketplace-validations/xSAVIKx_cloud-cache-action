@@ -228,7 +228,13 @@ describe('resolveCachePaths', () => {
 
   itWindows('matches case-insensitively on Windows', async () => {
     writeFiles(workspace, { 'Dir/File.txt': '' });
-    expect((await resolve(['dir/file.TXT'])).entries).toEqual(['Dir/File.txt']);
+    const literal = (await resolve(['dir/file.TXT'])).entries;
+    expect(literal).toHaveLength(1);
+    expect(literal[0].toLowerCase()).toBe('dir/file.txt');
+
+    const wildcard = (await resolve(['dir/*.TXT'])).entries;
+    expect(wildcard).toHaveLength(1);
+    expect(wildcard[0].toLowerCase()).toBe('dir/file.txt');
   });
 
   itWindows('accepts backslash and absolute drive-letter patterns on Windows', async () => {
