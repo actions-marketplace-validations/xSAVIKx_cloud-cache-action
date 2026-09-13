@@ -2,7 +2,9 @@ import { jest } from '@jest/globals';
 
 jest.unstable_mockModule('@actions/core', () => ({ info: jest.fn() }));
 
-const { isRetryableError, withRetry } = await import('../../../src/storage/retry');
+const { isRetryableError, isRetryableStreamError, withRetry } = await import(
+  '../../../src/storage/retry'
+);
 
 const httpError = (status: number, name = 'Error'): Error =>
   Object.assign(new Error(`HTTP ${status}`), { name, $metadata: { httpStatusCode: status } });
@@ -45,6 +47,30 @@ describe('isRetryableError', () => {
   it('does not retry values that are not errors', () => {
     expect(isRetryableError(undefined)).toBe(false);
     expect(isRetryableError('boom')).toBe(false);
+  });
+});
+
+describe('isRetryableStreamError', () => {
+  it('retries a dropped connection the SDK never saw', () => {
+    expect(isRetryableStreamError(networkError('ECONNRESET'))).toBe(true);
+  });
+
+  it('retries a prematurely closed stream', () => {
+    expect(isRetryableStreamError(new Error('Premature close'))).toBe(true);
+  });
+
+  it('does not retry an HTTP 503 the SDK already retried', () => {
+    expect(isRetryableStreamError(httpError(503))).toBe(false);
+  });
+
+  it('does not retry a network error that carries SDK retry metadata', () => {
+    const retried = Object.assign(networkError('ECONNRESET'), { $metadata: { attempts: 4 } });
+    expect(isRetryableStreamError(retried)).toBe(false);
+  });
+
+  it('does not retry AccessDenied', () => {
+    expect(isRetryableStreamError(namedError('AccessDenied'))).toBe(false);
+    expect(isRetryableStreamError(httpError(403, 'AccessDenied'))).toBe(false);
   });
 });
 

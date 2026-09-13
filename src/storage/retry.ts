@@ -55,6 +55,20 @@ export function isRetryableError(err: unknown): boolean {
   return /socket hang up|premature close/i.test(error.message ?? '');
 }
 
+/**
+ * True only for network and stream failures the SDK has not retried itself. Errors that passed
+ * through the SDK carry `$metadata` (an HTTP status or an attempt count) and already used every
+ * attempt the client allows, so retrying the whole stream again would multiply the requests.
+ */
+export function isRetryableStreamError(err: unknown): boolean {
+  if (!isRetryableError(err)) {
+    return false;
+  }
+  const metadata = (err as { $metadata?: { httpStatusCode?: number; attempts?: number } })
+    .$metadata;
+  return metadata?.httpStatusCode === undefined && metadata?.attempts === undefined;
+}
+
 export async function withRetry<T>(operation: () => Promise<T>, options: RetryOptions): Promise<T> {
   const retries = Math.max(0, options.retries);
   const minTimeout = options.minTimeoutMs ?? 1000;

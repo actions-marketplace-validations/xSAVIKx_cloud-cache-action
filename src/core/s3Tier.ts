@@ -12,7 +12,7 @@ import {
   findNewestObject,
   uploadFile,
 } from '../storage/operations';
-import { withRetry } from '../storage/retry';
+import { isRetryableStreamError, withRetry } from '../storage/retry';
 import { formatSize, isExactKeyMatch } from '../utils/inputUtils';
 import type { CacheConfig } from './config';
 import { compileKeyTemplate, type KeyTemplate } from './keyTemplate';
@@ -170,6 +170,7 @@ export async function restoreFromS3(
     await withRetry(() => downloadFile(client, bucket, found.objectKey, archivePath), {
       retries: tier.streamRetries,
       operationName: `Download of ${found.objectKey}`,
+      shouldRetry: isRetryableStreamError,
     });
     await extractArchive(archivePath, tier.compression, tier.workspace);
     return hit;
@@ -212,7 +213,11 @@ export async function saveToS3(
     );
     const uploaded = await withRetry(
       () => uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize),
-      { retries: tier.streamRetries, operationName: `Upload of ${objectKey}` }
+      {
+        retries: tier.streamRetries,
+        operationName: `Upload of ${objectKey}`,
+        shouldRetry: isRetryableStreamError,
+      }
     );
     core.info(`Cache saved to S3 with key: ${primaryKey}`);
     return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };

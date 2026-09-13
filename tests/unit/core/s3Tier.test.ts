@@ -284,6 +284,18 @@ describe('restoreFromS3', () => {
     expect(fs.existsSync(path.dirname(mockDownloadFile.mock.calls[0][3]))).toBe(false);
   });
 
+  it('does not repeat a download the SDK already retried', async () => {
+    put(FEATURE, 'k', 1);
+    mockDownloadFile.mockRejectedValue(
+      Object.assign(new Error('Service Unavailable'), {
+        $metadata: { httpStatusCode: 503, attempts: 4 },
+      })
+    );
+    const outcome = await restoreFromS3(tier({ streamRetries: 3 }), 'k', [], false);
+    expect(outcome.kind === 'error' && outcome.error.message).toBe('Service Unavailable');
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1);
+  });
+
   it('returns a listing failure as an error', async () => {
     mockFindNewestObject.mockRejectedValue(
       Object.assign(new Error('Access Denied'), { name: 'AccessDenied' })
@@ -346,6 +358,18 @@ describe('saveToS3', () => {
       5_242_880
     );
     expect(fs.existsSync(path.dirname(archivePath))).toBe(false);
+  });
+
+  it('does not repeat an upload the SDK already retried', async () => {
+    mockUploadFile.mockRejectedValue(
+      Object.assign(new Error('Service Unavailable'), {
+        $metadata: { httpStatusCode: 503, attempts: 4 },
+      })
+    );
+    await expect(
+      saveToS3(tier({ streamRetries: 3 }), 'k', ['node_modules'])
+    ).resolves.toMatchObject({ kind: 'error' });
+    expect(mockUploadFile).toHaveBeenCalledTimes(1);
   });
 
   it('returns an upload failure as an error', async () => {
