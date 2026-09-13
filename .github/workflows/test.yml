@@ -173,6 +173,7 @@ jobs:
       - name: Save (save-only)
         uses: ./save
         with:
+          bucket: cloud-cache-test
           key: ${{ env.KEY }}-v1
           path: ${{ steps.fixture.outputs.paths }}
       - name: Remove the fixture tree
@@ -181,6 +182,7 @@ jobs:
         id: exact
         uses: ./restore
         with:
+          bucket: cloud-cache-test
           key: ${{ env.KEY }}-v1
           path: ${{ steps.fixture.outputs.paths }}
           fail-on-cache-miss: true
@@ -192,6 +194,7 @@ jobs:
         id: prefix
         uses: ./restore
         with:
+          bucket: cloud-cache-test
           key: ${{ env.KEY }}-v
           path: ${{ steps.fixture.outputs.paths }}
           lookup-only: true
@@ -199,6 +202,7 @@ jobs:
         id: restore-keys
         uses: ./restore
         with:
+          bucket: cloud-cache-test
           key: ${{ env.KEY }}-other
           restore-keys: ${{ env.KEY }}-v
           path: ${{ steps.fixture.outputs.paths }}
@@ -207,6 +211,7 @@ jobs:
         id: mismatch
         uses: ./restore
         with:
+          bucket: cloud-cache-test
           key: ${{ env.KEY }}-v1
           path: |
             ${{ steps.fixture.outputs.paths }}
@@ -256,6 +261,7 @@ jobs:
         id: cache
         uses: ./
         with:
+          bucket: cloud-cache-test
           key: ${{ env.KEY }}
           path: payload
       - name: Expect a miss on the first attempt
@@ -289,6 +295,7 @@ jobs:
         id: cache
         uses: ./
         with:
+          bucket: cloud-cache-test
           key: ${{ env.KEY }}
           path: payload
           dual-cache: true
@@ -349,6 +356,7 @@ jobs:
       - name: Save with enableCrossOsArchive
         uses: ./save
         with:
+          bucket: cloud-cache-test
           key: ${{ env.KEY }}
           path: ${{ steps.fixture.outputs.paths }}
           enableCrossOsArchive: true
@@ -404,6 +412,7 @@ jobs:
         id: plain
         uses: ./restore
         with:
+          bucket: cloud-cache-test
           key: ${{ env.KEY }}
           path: ${{ steps.seed.outputs.paths }}
           lookup-only: true
@@ -411,6 +420,7 @@ jobs:
         id: cross
         uses: ./restore
         with:
+          bucket: cloud-cache-test
           key: ${{ env.KEY }}
           path: ${{ steps.seed.outputs.paths }}
           enableCrossOsArchive: true
