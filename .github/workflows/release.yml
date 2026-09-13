@@ -23,8 +23,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Verify package.json version matches the release tag
+        env:
+          TAG: ${{ github.event.release.tag_name }}
         run: |
-          TAG="${{ github.event.release.tag_name }}"
           VERSION="${TAG#v}"
           PKG_VERSION="$(node -p "require('./package.json').version")"
           if [ "$VERSION" != "$PKG_VERSION" ]; then
@@ -35,8 +36,9 @@ jobs:
       - run: npm run build
       - name: Verify dist is up to date
         run: |
-          if ! git diff --exit-code -- dist; then
+          if [ -n "$(git status --porcelain dist)" ]; then
             echo "::error::dist is stale for this release. Run npm run build and commit the result before publishing."
+            git status --porcelain dist
             exit 1
           fi
       - name: Move the major version tag
