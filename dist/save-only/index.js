@@ -72277,12 +72277,12 @@ const HttpResponseRetryCodes = [
 const RetryableHttpVerbs = ['OPTIONS', 'GET', 'DELETE', 'HEAD'];
 const ExponentialBackoffCeiling = 10;
 const ExponentialBackoffTimeSlice = 5;
-class lib_HttpClientError extends Error {
+class HttpClientError extends Error {
     constructor(message, statusCode) {
         super(message);
         this.name = 'HttpClientError';
         this.statusCode = statusCode;
-        Object.setPrototypeOf(this, lib_HttpClientError.prototype);
+        Object.setPrototypeOf(this, HttpClientError.prototype);
     }
 }
 class HttpClientResponse {
@@ -72883,7 +72883,7 @@ class lib_HttpClient {
                     else {
                         msg = `Failed request: (${statusCode})`;
                     }
-                    const err = new lib_HttpClientError(msg, statusCode);
+                    const err = new HttpClientError(msg, statusCode);
                     err.result = response.result;
                     reject(err);
                 }
@@ -74771,7 +74771,7 @@ function core_error(message, properties = {}) {
  * @param message warning issue message. Errors will be converted to string via toString()
  * @param properties optional properties to add to the annotation.
  */
-function warning(message, properties = {}) {
+function core_warning(message, properties = {}) {
     command_issueCommand('warning', utils_toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
 /**
@@ -74885,7 +74885,6 @@ var Inputs;
     Inputs["FailOnCacheMiss"] = "fail-on-cache-miss";
     Inputs["LookupOnly"] = "lookup-only";
     Inputs["ReadOnly"] = "read-only";
-    Inputs["SaveAlways"] = "save-always";
     Inputs["Bucket"] = "bucket";
     Inputs["Endpoint"] = "endpoint";
     Inputs["Region"] = "region";
@@ -74900,6 +74899,7 @@ var Inputs;
     Inputs["Prefix"] = "prefix";
     Inputs["S3KeyPattern"] = "s3-key-pattern";
     Inputs["ScopedToRepository"] = "scoped-to-repository";
+    Inputs["ScopedToRef"] = "scoped-to-ref";
     Inputs["Retry"] = "retry";
     Inputs["RetryCount"] = "retry-count";
     Inputs["UseFallback"] = "use-fallback";
@@ -74928,16 +74928,10 @@ var constants_State;
     State["CacheMatchedKey"] = "CACHE_MATCHED_KEY";
     State["CacheStorageProvider"] = "CACHE_STORAGE_PROVIDER";
     State["CacheS3Key"] = "CACHE_S3_KEY";
-    State["CacheBucket"] = "CACHE_BUCKET";
-    State["CacheEndpoint"] = "CACHE_ENDPOINT";
-    State["CacheRegion"] = "CACHE_REGION";
-    State["CacheAccessKey"] = "CACHE_ACCESS_KEY";
-    State["CacheSecretKey"] = "CACHE_SECRET_KEY";
-    State["CacheSessionToken"] = "CACHE_SESSION_TOKEN";
-    State["CacheForcePathStyle"] = "CACHE_FORCE_PATH_STYLE";
     State["CachePrefix"] = "CACHE_PREFIX";
     State["CacheS3KeyPattern"] = "CACHE_S3_KEY_PATTERN";
     State["CacheScopedToRepository"] = "CACHE_SCOPED_TO_REPOSITORY";
+    State["CacheScopedToRef"] = "CACHE_SCOPED_TO_REF";
     State["CacheRetry"] = "CACHE_RETRY";
     State["CacheRetryCount"] = "CACHE_RETRY_COUNT";
     State["CacheReadOnly"] = "CACHE_READ_ONLY";
@@ -74956,12 +74950,14 @@ var Events;
 })(Events || (Events = {}));
 const Defaults = {
     DefaultRegion: 'us-east-1',
-    DefaultS3KeyPattern: '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}',
+    DefaultS3KeyPattern: '${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}',
     DefaultArchiveFilenameZstd: 'cache.tar.zst',
     DefaultArchiveFilenameGzip: 'cache.tar.gz',
     DefaultRetryCount: 3,
     DefaultRestorePriority: 's3-first',
     DefaultDualCacheStrategy: 'backfill',
+    /** Mixed into every cache version; bump it when the archive format changes incompatibly. */
+    VersionSalt: 'cloud-cache-1',
 };
 
 ;// CONCATENATED MODULE: ./src/state.ts
@@ -75000,12 +74996,32 @@ function getInputAsArray(name, options) {
         .map((s) => s.trim())
         .filter((x) => x !== '');
 }
+const TRUE_VALUES = ['true', 'True', 'TRUE'];
+const FALSE_VALUES = ['false', 'False', 'FALSE'];
 function getInputAsBool(name, defaultValue = false, options) {
-    const value = getInput(name, options);
+    const value = getInput(name, options).trim();
     if (!value) {
         return defaultValue;
     }
-    return value.toLowerCase() === 'true';
+    if (TRUE_VALUES.includes(value)) {
+        return true;
+    }
+    if (FALSE_VALUES.includes(value)) {
+        return false;
+    }
+    core_warning(`Input "${name}" must be one of true, True, TRUE, false, False, FALSE; got "${value}". Using "${defaultValue}".`);
+    return defaultValue;
+}
+function getInputAsEnum(name, allowed, defaultValue) {
+    const value = getInput(name).trim();
+    if (!value) {
+        return defaultValue;
+    }
+    if (allowed.includes(value)) {
+        return value;
+    }
+    core_warning(`Input "${name}" must be one of ${allowed.join(', ')}; got "${value}". Using "${defaultValue}".`);
+    return defaultValue;
 }
 function getInputAsInt(name, defaultValue, options) {
     const value = getInput(name, options);
@@ -75040,7 +75056,7 @@ function getInputWithEnv(inputName, envVarNames = [], camelCaseInputName) {
     }
     return '';
 }
-function isExactKeyMatch(primaryKey, matchedKey) {
+function inputUtils_isExactKeyMatch(primaryKey, matchedKey) {
     if (!matchedKey) {
         return false;
     }
@@ -75052,7 +75068,7 @@ function isValidEvent() {
     // actions/cache warns if event is not ref-based, but allows execution
     return Boolean(event);
 }
-function formatSize(bytes) {
+function inputUtils_formatSize(bytes) {
     if (bytes === undefined || bytes === null || isNaN(bytes)) {
         return '0 B';
     }
@@ -75065,551 +75081,69 @@ function formatSize(bytes) {
     return `${size} ${units[unitIndex]}`;
 }
 
-;// CONCATENATED MODULE: ./src/utils/pathUtils.ts
+;// CONCATENATED MODULE: ./src/core/config.ts
 
-/**
- * Normalizes all path separators to POSIX forward slashes and collapses multiple slashes.
- */
-function normalizeS3Key(keyPath) {
-    // Replace backslashes with forward slashes
-    let normalized = keyPath.replace(/\\+/g, '/');
-    // Collapse consecutive forward slashes
-    normalized = normalized.replace(/\/+/g, '/');
-    // Strip leading slash if present
-    if (normalized.startsWith('/')) {
-        normalized = normalized.slice(1);
+
+
+const RESTORE_PRIORITIES = ['s3-first', 'github-first'];
+const DUAL_CACHE_STRATEGIES = ['backfill', 'skip-on-hit'];
+function readDualCacheStrategy() {
+    if (getInput(Inputs.DualCacheStrategy).trim() === 'independent') {
+        core_warning('dual-cache-strategy "independent" was removed in v1.1; using "backfill", which now checks each tier before uploading.');
+        return 'backfill';
     }
-    return normalized;
+    return getInputAsEnum(Inputs.DualCacheStrategy, DUAL_CACHE_STRATEGIES, 'backfill');
 }
 /**
- * Resolves the full S3 object key using the template pattern or default conventions.
+ * Reads the action inputs. When `state` is given (the post step), values the restore step
+ * persisted win, so both steps compute the same object keys and warnings are not repeated.
  */
-/**
- * Resolves placeholders from special variables and process.env.
- */
-function resolveTemplateVariables(template, specialVars, env = process.env) {
-    // First, resolve braced syntax: ${VAR_NAME} or ${env.VAR_NAME}
-    let result = template.replace(/\$\{([A-Za-z0-9_.-]+)\}/g, (_, varName) => {
-        if (varName in specialVars) {
-            return specialVars[varName];
-        }
-        if (varName.startsWith('env.')) {
-            const envKey = varName.slice(4);
-            return env[envKey] ?? '';
-        }
-        if (varName in env) {
-            return env[varName] ?? '';
-        }
-        return '';
-    });
-    // Second, resolve unbraced syntax: $VAR_NAME
-    result = result.replace(/\$([A-Za-z0-9_]+)/g, (_, varName) => {
-        if (varName in specialVars) {
-            return specialVars[varName];
-        }
-        if (varName in env) {
-            return env[varName] ?? '';
-        }
-        return '';
-    });
-    return result;
-}
-/**
- * Resolves the full S3 object key using the template pattern or default conventions.
- */
-function buildS3ObjectKey(params, env = process.env) {
-    const repository = params.repository || env.GITHUB_REPOSITORY || '';
-    const prefix = params.prefix ? normalizePrefix(params.prefix) : '';
-    const key = params.key.trim();
-    const archiveFilename = params.archiveFilename;
-    // If pattern is explicitly provided or using default pattern
-    let pattern = params.pattern || '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}';
-    // If repository scoping is explicitly turned off and user didn't provide custom pattern,
-    // remove ${GITHUB_REPOSITORY}/
-    if (params.scopedToRepository === false &&
-        (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
-        pattern = pattern.replace('${GITHUB_REPOSITORY}/', '').replace('${GITHUB_REPOSITORY}', '');
-    }
-    const specialVars = {
-        GITHUB_REPOSITORY: repository,
-        prefix,
-        key,
-        archive_filename: archiveFilename,
+function readCacheConfig(state) {
+    const persisted = (key) => state?.getState(key) ?? '';
+    const bool = (key, read) => {
+        const value = persisted(key);
+        return value === '' ? read() : value === 'true';
     };
-    const resolved = resolveTemplateVariables(pattern, specialVars, env);
-    return normalizeS3Key(resolved);
-}
-/**
- * Calculates the S3 prefix used for searching/listing objects for a given restoreKey.
- */
-function buildS3SearchPrefix(restoreKey, params, env = process.env) {
-    const repository = params.repository || env.GITHUB_REPOSITORY || '';
-    const prefix = params.prefix ? normalizePrefix(params.prefix) : '';
-    const trimmedRestoreKey = restoreKey.trim();
-    let pattern = params.pattern || '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}';
-    if (params.scopedToRepository === false &&
-        (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
-        pattern = pattern.replace('${GITHUB_REPOSITORY}/', '').replace('${GITHUB_REPOSITORY}', '');
-    }
-    // Find where ${key} or $key starts in the pattern
-    const keyMarkerIndex = pattern.indexOf('${key}') !== -1 ? pattern.indexOf('${key}') : pattern.indexOf('$key');
-    if (keyMarkerIndex !== -1) {
-        const beforeKey = pattern.slice(0, keyMarkerIndex);
-        const specialVars = {
-            GITHUB_REPOSITORY: repository,
-            prefix,
-        };
-        const resolvedBefore = resolveTemplateVariables(beforeKey, specialVars, env);
-        return normalizeS3Key(`${resolvedBefore}${trimmedRestoreKey}`);
-    }
-    // Fallback if no key placeholder
-    return normalizeS3Key(`${repository}/${prefix}${trimmedRestoreKey}`);
-}
-/**
- * Extracts the cache key name from a full S3 object key based on pattern and search prefix.
- */
-function extractKeyFromS3Object(objectKey, _searchPrefix, archiveFilename) {
-    const normalizedObject = normalizeS3Key(objectKey);
-    // Remove archive filename at the end
-    let candidate = normalizedObject;
-    if (candidate.endsWith(`/${archiveFilename}`)) {
-        candidate = candidate.slice(0, -(archiveFilename.length + 1));
-    }
-    else if (candidate.endsWith(archiveFilename)) {
-        candidate = candidate.slice(0, -archiveFilename.length);
-    }
-    // The base name of candidate is our key
-    const parts = candidate.split('/');
-    return parts[parts.length - 1] || candidate;
-}
-/**
- * Ensures prefix has trailing slash if non-empty, and strips leading slash.
- */
-function normalizePrefix(prefix) {
-    let p = prefix.replace(/\\+/g, '/').trim();
-    if (p.startsWith('/')) {
-        p = p.slice(1);
-    }
-    if (p && !p.endsWith('/')) {
-        p += '/';
-    }
-    return p;
-}
-/**
- * Resolves local file paths for archiving.
- */
-function resolveArchivePaths(patterns) {
-    const cwd = process.cwd();
-    return patterns.map((p) => {
-        if (path.isAbsolute(p)) {
-            return path.relative(cwd, p);
-        }
-        return p;
-    });
-}
-
-// EXTERNAL MODULE: ./node_modules/@aws-sdk/client-s3/dist-cjs/index.js
-var dist_cjs = __nccwpck_require__(3711);
-;// CONCATENATED MODULE: ./src/storage/providers.ts
-function detectProvider(endpointInput, explicitProvider) {
-    if (explicitProvider) {
-        const normalized = explicitProvider.toLowerCase().trim();
-        switch (normalized) {
-            case 'aws':
-            case 's3':
-                return 'aws';
-            case 'r2':
-            case 'cloudflare':
-                return 'r2';
-            case 'gcs':
-            case 'google':
-                return 'gcs';
-            case 'b2':
-            case 'backblaze':
-                return 'b2';
-            case 'fastly':
-                return 'fastly';
-            case 'garage':
-                return 'garage';
-            case 'seaweedfs':
-            case 'seaweed':
-                return 'seaweedfs';
-            case 'minio':
-                return 'minio';
-            default:
-                return 'generic-s3';
-        }
-    }
-    if (!endpointInput) {
-        return 'aws';
-    }
-    const ep = endpointInput.toLowerCase();
-    if (ep.includes('r2.cloudflarestorage.com')) {
-        return 'r2';
-    }
-    if (ep.includes('storage.googleapis.com')) {
-        return 'gcs';
-    }
-    if (ep.includes('backblazeb2.com')) {
-        return 'b2';
-    }
-    if (ep.includes('fastlystorage.com')) {
-        return 'fastly';
-    }
-    if (ep.includes('amazonaws.com')) {
-        return 'aws';
-    }
-    if (ep.includes(':3900')) {
-        return 'garage';
-    }
-    if (ep.includes(':8333')) {
-        return 'seaweedfs';
-    }
-    if (ep.includes(':9000')) {
-        return 'minio';
-    }
-    return 'generic-s3';
-}
-function resolveProviderDefaults(endpointInput, regionInput, forcePathStyleInput, explicitProvider) {
-    const provider = detectProvider(endpointInput, explicitProvider);
-    let endpoint = endpointInput?.trim();
-    if (endpoint && !endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
-        endpoint = `https://${endpoint}`;
-    }
-    let region = regionInput?.trim();
-    let forcePathStyle = forcePathStyleInput;
-    switch (provider) {
-        case 'aws':
-            region = region || process.env.AWS_REGION || 'us-east-1';
-            if (forcePathStyle === undefined)
-                forcePathStyle = false;
-            break;
-        case 'r2':
-            region = region || 'auto';
-            if (forcePathStyle === undefined)
-                forcePathStyle = false;
-            break;
-        case 'gcs':
-            endpoint = endpoint || 'https://storage.googleapis.com';
-            region = region || 'auto';
-            if (forcePathStyle === undefined)
-                forcePathStyle = true;
-            break;
-        case 'b2':
-            if (!region && endpoint) {
-                // e.g. https://s3.us-west-004.backblazeb2.com
-                const match = endpoint.match(/s3\.([a-z0-9-]+)\.backblazeb2\.com/i);
-                if (match && match[1]) {
-                    region = match[1];
-                }
-            }
-            region = region || 'us-east-1';
-            if (forcePathStyle === undefined)
-                forcePathStyle = false;
-            break;
-        case 'fastly':
-            region = region || 'us-east-1';
-            if (forcePathStyle === undefined)
-                forcePathStyle = true;
-            break;
-        case 'garage':
-            region = region || 'garage';
-            if (forcePathStyle === undefined)
-                forcePathStyle = true;
-            break;
-        case 'seaweedfs':
-            region = region || 'auto';
-            if (forcePathStyle === undefined)
-                forcePathStyle = true;
-            break;
-        case 'minio':
-        case 'generic-s3':
-        default:
-            region = region || 'us-east-1';
-            if (forcePathStyle === undefined)
-                forcePathStyle = true;
-            break;
-    }
+    const text = (key, read) => persisted(key) || read();
+    const retryCountState = persisted(constants_State.CacheRetryCount);
     return {
-        provider,
-        endpoint,
-        region,
-        forcePathStyle: Boolean(forcePathStyle),
+        primaryKey: text(constants_State.CachePrimaryKey, () => getInput(Inputs.Key).trim()),
+        paths: getInputAsArray(Inputs.Path),
+        restoreKeys: getInputAsArray(Inputs.RestoreKeys),
+        lookupOnly: getInputAsBool(Inputs.LookupOnly),
+        failOnCacheMiss: getInputAsBool(Inputs.FailOnCacheMiss),
+        readOnly: bool(constants_State.CacheReadOnly, () => getInputAsBool(Inputs.ReadOnly)),
+        enableCrossOsArchive: getInputAsBool(Inputs.EnableCrossOsArchive),
+        uploadChunkSize: getInputAsInt(Inputs.UploadChunkSize),
+        s3KeyPattern: text(constants_State.CacheS3KeyPattern, () => getInput(Inputs.S3KeyPattern) || Defaults.DefaultS3KeyPattern),
+        prefix: text(constants_State.CachePrefix, () => getInput(Inputs.Prefix)),
+        scopedToRepository: bool(constants_State.CacheScopedToRepository, () => getInputAsBool(Inputs.ScopedToRepository, true)),
+        scopedToRef: bool(constants_State.CacheScopedToRef, () => getInputAsBool(Inputs.ScopedToRef, true)),
+        retryEnabled: bool(constants_State.CacheRetry, () => getInputAsBool(Inputs.Retry, true)),
+        retryCount: retryCountState !== ''
+            ? Number(retryCountState)
+            : (getInputAsInt(Inputs.RetryCount) ?? Defaults.DefaultRetryCount),
+        useFallback: getInputAsBool(Inputs.UseFallback),
+        dualCache: bool(constants_State.CacheDualCache, () => getInputAsBool(Inputs.DualCache)),
+        restorePriority: text(constants_State.CacheRestorePriority, () => getInputAsEnum(Inputs.RestorePriority, RESTORE_PRIORITIES, 's3-first')),
+        dualCacheStrategy: text(constants_State.CacheDualCacheStrategy, readDualCacheStrategy),
+        dualCacheStrict: bool(constants_State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
     };
 }
-
-;// CONCATENATED MODULE: ./src/storage/client.ts
-
-
-
-
-
-function createStorageContext() {
-    const bucket = getInputWithEnv(Inputs.Bucket, ['AWS_S3_BUCKET', 'S3_BUCKET']);
-    if (!bucket) {
-        throw new Error('Bucket name is required. Please set "bucket" input or AWS_S3_BUCKET environment variable.');
-    }
-    const endpointInput = getInputWithEnv(Inputs.Endpoint, [
-        'AWS_ENDPOINT_URL',
-        'AWS_ENDPOINT_URL_S3',
-    ]);
-    const regionInput = getInputWithEnv(Inputs.Region, ['AWS_REGION', 'AWS_DEFAULT_REGION']);
-    const providerInput = getInput(Inputs.Provider);
-    const forcePathStyleRaw = getInput(Inputs.ForcePathStyle);
-    const forcePathStyleInput = forcePathStyleRaw !== '' ? getInputAsBool(Inputs.ForcePathStyle) : undefined;
-    const providerConfig = resolveProviderDefaults(endpointInput, regionInput, forcePathStyleInput, providerInput);
-    const accessKey = getInputWithEnv(Inputs.AccessKey, ['AWS_ACCESS_KEY_ID'], Inputs.AccessKeyCamel);
-    const secretKey = getInputWithEnv(Inputs.SecretKey, ['AWS_SECRET_ACCESS_KEY'], Inputs.SecretKeyCamel);
-    const sessionToken = getInputWithEnv(Inputs.SessionToken, ['AWS_SESSION_TOKEN'], Inputs.SessionTokenCamel);
-    const clientConfig = {
-        region: providerConfig.region,
-        forcePathStyle: providerConfig.forcePathStyle,
-    };
-    if (providerConfig.endpoint) {
-        clientConfig.endpoint = providerConfig.endpoint;
-    }
-    if (accessKey && secretKey) {
-        clientConfig.credentials = {
-            accessKeyId: accessKey,
-            secretAccessKey: secretKey,
-            sessionToken: sessionToken || undefined,
-        };
-    }
-    core_debug(`Configuring S3 client for provider: ${providerConfig.provider} (endpoint: ${providerConfig.endpoint || 'AWS default'}, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle})`);
-    const client = new dist_cjs.S3Client(clientConfig);
-    return {
-        client,
-        providerConfig,
-        bucket,
-    };
-}
-
-// EXTERNAL MODULE: ./node_modules/@aws-sdk/lib-storage/dist-cjs/index.js
-var lib_storage_dist_cjs = __nccwpck_require__(2358);
-;// CONCATENATED MODULE: external "stream/promises"
-const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("stream/promises");
-;// CONCATENATED MODULE: ./src/storage/operations.ts
-
-
-
-
-
-
-async function checkObjectExists(client, bucket, key) {
-    try {
-        const cmd = new dist_cjs.HeadObjectCommand({
-            Bucket: bucket,
-            Key: key,
-        });
-        const response = await client.send(cmd);
-        return {
-            key,
-            size: response.ContentLength || 0,
-            lastModified: response.LastModified,
-            etag: response.ETag,
-        };
-    }
-    catch (err) {
-        const error = err;
-        if (error.name === 'NotFound' ||
-            error.name === 'NoSuchKey' ||
-            error.$metadata?.httpStatusCode === 404) {
-            return null;
-        }
-        throw err;
-    }
-}
-async function listObjectsWithPrefix(client, bucket, prefix, maxKeys = 100) {
-    const cmd = new ListObjectsV2Command({
-        Bucket: bucket,
-        Prefix: prefix,
-        MaxKeys: maxKeys,
-    });
-    const response = await client.send(cmd);
-    if (!response.Contents || response.Contents.length === 0) {
-        return [];
-    }
-    return response.Contents.filter((obj) => Boolean(obj.Key)).map((obj) => ({
-        key: obj.Key,
-        size: obj.Size || 0,
-        lastModified: obj.LastModified,
-        etag: obj.ETag,
-    }));
-}
-async function downloadFile(client, bucket, key, destinationPath) {
-    // Ensure target folder exists
-    const dir = path.dirname(destinationPath);
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
-    const cmd = new GetObjectCommand({
-        Bucket: bucket,
-        Key: key,
-    });
-    const response = await client.send(cmd);
-    if (!response.Body) {
-        throw new Error(`Empty response body received from S3 for key: ${key}`);
-    }
-    const fileStream = fs.createWriteStream(destinationPath);
-    await pipeline(response.Body, fileStream);
-}
-async function uploadFile(client, bucket, key, sourcePath, uploadChunkSize) {
-    const stats = external_fs_namespaceObject.statSync(sourcePath);
-    const fileStream = external_fs_namespaceObject.createReadStream(sourcePath);
-    const partSize = uploadChunkSize && uploadChunkSize > 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024; // 10MB default part size
-    const parallelUpload = new lib_storage_dist_cjs/* Upload */._({
-        client,
-        params: {
-            Bucket: bucket,
-            Key: key,
-            Body: fileStream,
-        },
-        partSize,
-        queueSize: 4,
-        leavePartsOnError: false,
-    });
-    parallelUpload.on('httpUploadProgress', (progress) => {
-        if (progress.total && progress.loaded) {
-            const pct = Math.round((progress.loaded / progress.total) * 100);
-            core_debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
-        }
-    });
-    const result = await parallelUpload.done();
-    return {
-        size: stats.size,
-        etag: result.ETag,
-    };
-}
-
-;// CONCATENATED MODULE: ./src/storage/retry.ts
-
-async function withRetry(operation, options) {
-    const retries = Math.max(0, options.retries);
-    const minTimeout = options.minTimeoutMs ?? 1000;
-    const factor = options.factor ?? 2;
-    const opName = options.operationName || 'S3 operation';
-    let lastError;
-    for (let attempt = 1; attempt <= retries + 1; attempt++) {
-        try {
-            return await operation();
-        }
-        catch (err) {
-            lastError = err;
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            if (attempt > retries) {
-                break;
-            }
-            // Calculate exponential backoff with jitter
-            const delay = Math.round(minTimeout * Math.pow(factor, attempt - 1) + Math.random() * 500);
-            info(`Failed to ${opName}. Attempt ${attempt}/${retries + 1} failed: ${errorMessage}. Retrying in ${delay}ms...`);
-            await new Promise((resolve) => setTimeout(resolve, delay));
-        }
-    }
-    throw lastError;
-}
-
-;// CONCATENATED MODULE: ./src/archive/compression.ts
-
-
-let cachedConfig = null;
-async function getCompressionConfig() {
-    if (cachedConfig) {
-        return cachedConfig;
-    }
-    try {
-        const zstdPath = await which('zstd', false);
-        if (zstdPath) {
-            core_debug(`zstd binary found at: ${zstdPath}`);
-            cachedConfig = {
-                method: 'zstd',
-                archiveFilename: 'cache.tar.zst',
-            };
-            return cachedConfig;
-        }
-    }
-    catch (err) {
-        core_debug(`zstd detection error: ${err}`);
-    }
-    core_debug('zstd binary not found; falling back to gzip');
-    cachedConfig = {
-        method: 'gzip',
-        archiveFilename: 'cache.tar.gz',
-    };
-    return cachedConfig;
-}
-function resetCompressionConfigCache() {
-    cachedConfig = null;
-}
-
-;// CONCATENATED MODULE: ./src/archive/tar.ts
-
-
-
-
-
-
-async function createArchive(archivePath, paths, compression, enableCrossOsArchive = false) {
-    const tarPath = await which('tar', true);
-    const tempDir = external_fs_namespaceObject.mkdtempSync(external_path_.join(external_os_.tmpdir(), 'cache-archive-'));
-    const manifestFile = external_path_.join(tempDir, 'manifest.txt');
-    // Normalize all input paths
-    const normalizedPaths = paths.map((p) => {
-        let norm = p.trim().replace(/\\+/g, '/');
-        if (enableCrossOsArchive && /^[a-zA-Z]:\//.test(norm)) {
-            // Strip Windows drive letter for cross-os archive compatibility
-            norm = norm.replace(/^[a-zA-Z]:\//, '/');
-        }
-        return norm;
-    });
-    external_fs_namespaceObject.writeFileSync(manifestFile, normalizedPaths.join('\n'));
-    // Ensure target folder exists
-    const targetDir = external_path_.dirname(archivePath);
-    if (!external_fs_namespaceObject.existsSync(targetDir)) {
-        external_fs_namespaceObject.mkdirSync(targetDir, { recursive: true });
-    }
-    const args = [];
-    // Compression flag
-    if (compression.method === 'zstd') {
-        args.push('--use-compress-program', 'zstd -T0 -3');
-    }
-    else {
-        args.push('-z');
-    }
-    args.push('-cf', archivePath, '-P', '-T', manifestFile);
-    core_debug(`Creating tar archive using command: ${tarPath} ${args.join(' ')}`);
-    try {
-        await exec_exec(`"${tarPath}"`, args);
-    }
-    finally {
-        try {
-            external_fs_namespaceObject.rmSync(tempDir, { recursive: true, force: true });
-        }
-        catch {
-            // Ignore cleanup error
-        }
-    }
-}
-async function extractArchive(archivePath, compression, workingDirectory = process.cwd()) {
-    const tarPath = await io.which('tar', true);
-    const args = [];
-    if (compression.method === 'zstd') {
-        args.push('--use-compress-program', 'zstd -d');
-    }
-    else {
-        args.push('-z');
-    }
-    args.push('-xf', archivePath, '-P', '-C', workingDirectory);
-    core.debug(`Extracting tar archive using command: ${tarPath} ${args.join(' ')}`);
-    await exec.exec(`"${tarPath}"`, args);
-}
-function getArchiveSize(archivePath) {
-    try {
-        const stats = external_fs_namespaceObject.statSync(archivePath);
-        return stats.size;
-    }
-    catch {
-        return 0;
-    }
+/** Saves what the post step must agree on with the restore step. */
+function persistCacheConfig(state, config) {
+    state.setState(State.CachePrimaryKey, config.primaryKey);
+    state.setState(State.CacheReadOnly, String(config.readOnly));
+    state.setState(State.CacheS3KeyPattern, config.s3KeyPattern);
+    state.setState(State.CachePrefix, config.prefix);
+    state.setState(State.CacheScopedToRepository, String(config.scopedToRepository));
+    state.setState(State.CacheScopedToRef, String(config.scopedToRef));
+    state.setState(State.CacheRetry, String(config.retryEnabled));
+    state.setState(State.CacheRetryCount, String(config.retryCount));
+    state.setState(State.CacheDualCache, String(config.dualCache));
+    state.setState(State.CacheRestorePriority, config.restorePriority);
+    state.setState(State.CacheDualCacheStrategy, config.dualCacheStrategy);
+    state.setState(State.CacheDualCacheStrict, String(config.dualCacheStrict));
 }
 
 ;// CONCATENATED MODULE: ./node_modules/@actions/glob/lib/internal-glob-options-helper.js
@@ -76603,7 +76137,7 @@ const DefaultRetryDelay = 5000;
 // Socket timeout in milliseconds during download.  If no traffic is received
 // over the socket during this period, the socket is destroyed and the download
 // is aborted.
-const constants_SocketTimeout = 5000;
+const SocketTimeout = 5000;
 // The default path of GNUtar on hosted Windows runners
 const GnuTarPathOnWindows = `${process.env['PROGRAMFILES']}\\Git\\usr\\bin\\tar.exe`;
 // The default path of BSDtar on hosted Windows runners
@@ -76614,7 +76148,7 @@ const CacheFileSizeLimit = 10 * Math.pow(1024, 3); // 10GiB per repository
 // Prefix the cache backend embeds in a read-denial message (v2 twirp
 // GetCacheEntryDownloadURL error or the GHES v1 `_apis/artifactcache` 403 body).
 // Shared so cache.ts and cacheHttpClient.ts match the same contract value.
-const constants_CacheReadDeniedMessagePrefix = 'cache read denied:';
+const CacheReadDeniedMessagePrefix = 'cache read denied:';
 //# sourceMappingURL=constants.js.map
 ;// CONCATENATED MODULE: ./node_modules/@actions/cache/lib/internal/cacheUtils.js
 var cacheUtils_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
@@ -120018,7 +119552,7 @@ class BlobClient extends StorageClient_StorageClient {
      *
      */
     getBlockBlobClient() {
-        return new Clients_BlockBlobClient(this.url, this.pipeline, this.blobClientConfig);
+        return new BlockBlobClient(this.url, this.pipeline, this.blobClientConfig);
     }
     /**
      * Creates a PageBlobClient object.
@@ -121332,7 +120866,7 @@ class AppendBlobClient extends BlobClient {
 /**
  * BlockBlobClient defines a set of operations applicable to block blobs.
  */
-class Clients_BlockBlobClient extends BlobClient {
+class BlockBlobClient extends BlobClient {
     /**
      * blobContext provided by protocol layer.
      *
@@ -121426,7 +120960,7 @@ class Clients_BlockBlobClient extends BlobClient {
      * @returns A new BlockBlobClient object identical to the source but with the specified snapshot timestamp.
      */
     withSnapshot(snapshot) {
-        return new Clients_BlockBlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.SNAPSHOT, snapshot.length === 0 ? undefined : snapshot), this.pipeline, this.blobClientConfig);
+        return new BlockBlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.SNAPSHOT, snapshot.length === 0 ? undefined : snapshot), this.pipeline, this.blobClientConfig);
     }
     /**
      * ONLY AVAILABLE IN NODE.JS RUNTIME.
@@ -123652,7 +123186,7 @@ class ContainerClient extends StorageClient_StorageClient {
      * ```
      */
     getBlockBlobClient(blobName) {
-        return new Clients_BlockBlobClient(utils_common_appendToURLPath(this.url, utils_common_EscapePath(blobName)), this.pipeline, this.blobClientConfig);
+        return new BlockBlobClient(utils_common_appendToURLPath(this.url, utils_common_EscapePath(blobName)), this.pipeline, this.blobClientConfig);
     }
     /**
      * Creates a {@link PageBlobClient}
@@ -126146,7 +125680,7 @@ function uploadCacheArchiveSDK(signedUploadURL, archivePath, options) {
             return response;
         }
         catch (error) {
-            warning(`uploadCacheArchiveSDK: internal error uploading cache archive: ${error.message}`);
+            core_warning(`uploadCacheArchiveSDK: internal error uploading cache archive: ${error.message}`);
             throw error;
         }
         finally {
@@ -126168,7 +125702,7 @@ var requestUtils_awaiter = (undefined && undefined.__awaiter) || function (thisA
 
 
 
-function requestUtils_isSuccessStatusCode(statusCode) {
+function isSuccessStatusCode(statusCode) {
     if (!statusCode) {
         return false;
     }
@@ -126235,13 +125769,13 @@ function retry(name_1, method_1, getStatusCode_1) {
         throw Error(`${name} failed: ${errorMessage}`);
     });
 }
-function requestUtils_retryTypedResponse(name_1, method_1) {
+function retryTypedResponse(name_1, method_1) {
     return requestUtils_awaiter(this, arguments, void 0, function* (name, method, maxAttempts = DefaultRetryAttempts, delay = DefaultRetryDelay) {
         return yield retry(name, method, (response) => response.statusCode, maxAttempts, delay, 
         // If the error object contains the statusCode property, extract it and return
         // an TypedResponse<T> so it can be processed by the retry logic.
         (error) => {
-            if (error instanceof lib_HttpClientError) {
+            if (error instanceof HttpClientError) {
                 return {
                     statusCode: error.statusCode,
                     result: null,
@@ -126255,7 +125789,7 @@ function requestUtils_retryTypedResponse(name_1, method_1) {
         });
     });
 }
-function requestUtils_retryHttpClientResponse(name_1, method_1) {
+function retryHttpClientResponse(name_1, method_1) {
     return requestUtils_awaiter(this, arguments, void 0, function* (name, method, maxAttempts = DefaultRetryAttempts, delay = DefaultRetryDelay) {
         return yield retry(name, method, (response) => response.message.statusCode, maxAttempts, delay);
     });
@@ -126289,7 +125823,7 @@ var downloadUtils_awaiter = (undefined && undefined.__awaiter) || function (this
  */
 function pipeResponseToStream(response, output) {
     return downloadUtils_awaiter(this, void 0, void 0, function* () {
-        const pipeline = util.promisify(stream.pipeline);
+        const pipeline = external_util_.promisify(external_stream_.pipeline);
         yield pipeline(response.message, output);
     });
 }
@@ -126317,7 +125851,7 @@ class DownloadProgress {
         this.segmentIndex = this.segmentIndex + 1;
         this.segmentSize = segmentSize;
         this.receivedBytes = 0;
-        core.debug(`Downloading segment at offset ${this.segmentOffset} with length ${this.segmentSize}...`);
+        core_debug(`Downloading segment at offset ${this.segmentOffset} with length ${this.segmentSize}...`);
     }
     /**
      * Sets the number of bytes received for the current segment.
@@ -126353,7 +125887,7 @@ class DownloadProgress {
         const downloadSpeed = (transferredBytes /
             (1024 * 1024) /
             (elapsedTime / 1000)).toFixed(1);
-        core.info(`Received ${transferredBytes} of ${this.contentLength} (${percentage}%), ${downloadSpeed} MBs/sec`);
+        info(`Received ${transferredBytes} of ${this.contentLength} (${percentage}%), ${downloadSpeed} MBs/sec`);
         if (this.isDone()) {
             this.displayedComplete = true;
         }
@@ -126399,28 +125933,28 @@ class DownloadProgress {
  * @param archiveLocation the URL for the cache
  * @param archivePath the local path where the cache is saved
  */
-function downloadUtils_downloadCacheHttpClient(archiveLocation, archivePath) {
+function downloadCacheHttpClient(archiveLocation, archivePath) {
     return downloadUtils_awaiter(this, void 0, void 0, function* () {
-        const writeStream = fs.createWriteStream(archivePath);
-        const httpClient = new HttpClient('actions/cache');
+        const writeStream = external_fs_namespaceObject.createWriteStream(archivePath);
+        const httpClient = new lib_HttpClient('actions/cache');
         const downloadResponse = yield retryHttpClientResponse('downloadCache', () => downloadUtils_awaiter(this, void 0, void 0, function* () { return httpClient.get(archiveLocation); }));
         // Abort download if no traffic received over the socket.
         downloadResponse.message.socket.setTimeout(SocketTimeout, () => {
             downloadResponse.message.destroy();
-            core.debug(`Aborting download, socket timed out after ${SocketTimeout} ms`);
+            core_debug(`Aborting download, socket timed out after ${SocketTimeout} ms`);
         });
         yield pipeResponseToStream(downloadResponse, writeStream);
         // Validate download size.
         const contentLengthHeader = downloadResponse.message.headers['content-length'];
         if (contentLengthHeader) {
             const expectedLength = parseInt(contentLengthHeader);
-            const actualLength = utils.getArchiveFileSizeInBytes(archivePath);
+            const actualLength = getArchiveFileSizeInBytes(archivePath);
             if (actualLength !== expectedLength) {
                 throw new Error(`Incomplete download. Expected file size: ${expectedLength}, actual file size: ${actualLength}`);
             }
         }
         else {
-            core.debug('Unable to validate download, no Content-Length header');
+            core_debug('Unable to validate download, no Content-Length header');
         }
     });
 }
@@ -126430,11 +125964,11 @@ function downloadUtils_downloadCacheHttpClient(archiveLocation, archivePath) {
  * @param archiveLocation the URL for the cache
  * @param archivePath the local path where the cache is saved
  */
-function downloadUtils_downloadCacheHttpClientConcurrent(archiveLocation, archivePath, options) {
+function downloadCacheHttpClientConcurrent(archiveLocation, archivePath, options) {
     return downloadUtils_awaiter(this, void 0, void 0, function* () {
         var _a;
-        const archiveDescriptor = yield fs.promises.open(archivePath, 'w');
-        const httpClient = new HttpClient('actions/cache', undefined, {
+        const archiveDescriptor = yield external_fs_namespaceObject.promises.open(archivePath, 'w');
+        const httpClient = new lib_HttpClient('actions/cache', undefined, {
             socketTimeout: options.timeoutInMs,
             keepAlive: true
         });
@@ -126540,7 +126074,7 @@ function downloadSegment(httpClient, archiveLocation, offset, count) {
  * @param archivePath the local path where the cache is saved
  * @param options the download options with the defaults set
  */
-function downloadUtils_downloadCacheStorageSDK(archiveLocation, archivePath, options) {
+function downloadCacheStorageSDK(archiveLocation, archivePath, options) {
     return downloadUtils_awaiter(this, void 0, void 0, function* () {
         var _a;
         const client = new BlockBlobClient(archiveLocation, undefined, {
@@ -126555,8 +126089,8 @@ function downloadUtils_downloadCacheStorageSDK(archiveLocation, archivePath, opt
         if (contentLength < 0) {
             // We should never hit this condition, but just in case fall back to downloading the
             // file as one large stream
-            core.debug('Unable to determine content length, downloading file with http-client...');
-            yield downloadUtils_downloadCacheHttpClient(archiveLocation, archivePath);
+            core_debug('Unable to determine content length, downloading file with http-client...');
+            yield downloadCacheHttpClient(archiveLocation, archivePath);
         }
         else {
             // Use downloadToBuffer for faster downloads, since internally it splits the
@@ -126566,9 +126100,9 @@ function downloadUtils_downloadCacheStorageSDK(archiveLocation, archivePath, opt
             // on 64-bit systems), split the download into multiple segments
             // ~2 GB = 2147483647, beyond this, we start getting out of range error. So, capping it accordingly.
             // Updated segment size to 128MB = 134217728 bytes, to complete a segment faster and fail fast
-            const maxSegmentSize = Math.min(134217728, buffer.constants.MAX_LENGTH);
+            const maxSegmentSize = Math.min(134217728, external_buffer_.constants.MAX_LENGTH);
             const downloadProgress = new DownloadProgress(contentLength);
-            const fd = fs.openSync(archivePath, 'w');
+            const fd = external_fs_namespaceObject.openSync(archivePath, 'w');
             try {
                 downloadProgress.startDisplayTimer();
                 const controller = new AbortController();
@@ -126587,13 +126121,13 @@ function downloadUtils_downloadCacheStorageSDK(archiveLocation, archivePath, opt
                         throw new Error('Aborting cache download as the download time exceeded the timeout.');
                     }
                     else if (Buffer.isBuffer(result)) {
-                        fs.writeFileSync(fd, result);
+                        external_fs_namespaceObject.writeFileSync(fd, result);
                     }
                 }
             }
             finally {
                 downloadProgress.stopDisplayTimer();
-                fs.closeSync(fd);
+                external_fs_namespaceObject.closeSync(fd);
             }
         }
     });
@@ -126655,7 +126189,7 @@ function getUploadOptions(copy) {
  *
  * @param copy the original download options
  */
-function options_getDownloadOptions(copy) {
+function getDownloadOptions(copy) {
     const result = {
         useAzureSdk: false,
         concurrentBlobDownloads: true,
@@ -126690,12 +126224,12 @@ function options_getDownloadOptions(copy) {
         isFinite(Number(segmentDownloadTimeoutMins))) {
         result.segmentTimeoutInMs = Number(segmentDownloadTimeoutMins) * 60 * 1000;
     }
-    core.debug(`Use Azure SDK: ${result.useAzureSdk}`);
-    core.debug(`Download concurrency: ${result.downloadConcurrency}`);
-    core.debug(`Request timeout (ms): ${result.timeoutInMs}`);
-    core.debug(`Cache segment download timeout mins env var: ${process.env['SEGMENT_DOWNLOAD_TIMEOUT_MINS']}`);
-    core.debug(`Segment download timeout (ms): ${result.segmentTimeoutInMs}`);
-    core.debug(`Lookup only: ${result.lookupOnly}`);
+    core_debug(`Use Azure SDK: ${result.useAzureSdk}`);
+    core_debug(`Download concurrency: ${result.downloadConcurrency}`);
+    core_debug(`Request timeout (ms): ${result.timeoutInMs}`);
+    core_debug(`Cache segment download timeout mins env var: ${process.env['SEGMENT_DOWNLOAD_TIMEOUT_MINS']}`);
+    core_debug(`Segment download timeout (ms): ${result.segmentTimeoutInMs}`);
+    core_debug(`Lookup only: ${result.lookupOnly}`);
     return result;
 }
 //# sourceMappingURL=options.js.map
@@ -126719,11 +126253,11 @@ function config_getCacheServiceVersion() {
 // write-only}, none = neither.
 const KNOWN_CACHE_MODES = ['none', 'read', 'write', 'write-only'];
 // The effective cache-mode exported by the runner, or '' when not set.
-function config_getCacheMode() {
+function getCacheMode() {
     return (process.env['ACTIONS_CACHE_MODE'] || '').trim().toLowerCase();
 }
 // Unset or unrecognized modes are permissive so behavior matches today.
-function config_isCacheReadable(mode) {
+function isCacheReadable(mode) {
     if (!KNOWN_CACHE_MODES.includes(mode))
         return true;
     return mode === 'read' || mode === 'write';
@@ -126812,13 +126346,13 @@ function getCacheEntry(keys, paths, options) {
     return cacheHttpClient_awaiter(this, void 0, void 0, function* () {
         var _a;
         const httpClient = createHttpClient();
-        const version = utils.getCacheVersion(paths, options === null || options === void 0 ? void 0 : options.compressionMethod, options === null || options === void 0 ? void 0 : options.enableCrossOsArchive);
+        const version = getCacheVersion(paths, options === null || options === void 0 ? void 0 : options.compressionMethod, options === null || options === void 0 ? void 0 : options.enableCrossOsArchive);
         const resource = `cache?keys=${encodeURIComponent(keys.join(','))}&version=${version}`;
         const response = yield retryTypedResponse('getCacheEntry', () => cacheHttpClient_awaiter(this, void 0, void 0, function* () { return httpClient.getJson(getCacheApiUrl(resource)); }));
         // Cache not found
         if (response.statusCode === 204) {
             // List cache for primary key only if cache miss occurs
-            if (core.isDebug()) {
+            if (isDebug()) {
                 yield printCachesListForDiagnostics(keys[0], httpClient, version);
             }
             return null;
@@ -126838,9 +126372,9 @@ function getCacheEntry(keys, paths, options) {
             // Cache achiveLocation not found. This should never happen, and hence bail out.
             throw new Error('Cache not found.');
         }
-        core.setSecret(cacheDownloadUrl);
-        core.debug(`Cache Result:`);
-        core.debug(JSON.stringify(cacheResult));
+        core_setSecret(cacheDownloadUrl);
+        core_debug(`Cache Result:`);
+        core_debug(JSON.stringify(cacheResult));
         return cacheResult;
     });
 }
@@ -126852,9 +126386,9 @@ function printCachesListForDiagnostics(key, httpClient, version) {
             const cacheListResult = response.result;
             const totalCount = cacheListResult === null || cacheListResult === void 0 ? void 0 : cacheListResult.totalCount;
             if (totalCount && totalCount > 0) {
-                core.debug(`No matching cache found for cache key '${key}', version '${version} and scope ${process.env['GITHUB_REF']}. There exist one or more cache(s) with similar key but they have different version or scope. See more info on cache matching here: https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#matching-a-cache-key \nOther caches with similar key:`);
+                core_debug(`No matching cache found for cache key '${key}', version '${version} and scope ${process.env['GITHUB_REF']}. There exist one or more cache(s) with similar key but they have different version or scope. See more info on cache matching here: https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#matching-a-cache-key \nOther caches with similar key:`);
                 for (const cacheEntry of (cacheListResult === null || cacheListResult === void 0 ? void 0 : cacheListResult.artifactCaches) || []) {
-                    core.debug(`Cache Key: ${cacheEntry === null || cacheEntry === void 0 ? void 0 : cacheEntry.cacheKey}, Cache Version: ${cacheEntry === null || cacheEntry === void 0 ? void 0 : cacheEntry.cacheVersion}, Cache Scope: ${cacheEntry === null || cacheEntry === void 0 ? void 0 : cacheEntry.scope}, Cache Created: ${cacheEntry === null || cacheEntry === void 0 ? void 0 : cacheEntry.creationTime}`);
+                    core_debug(`Cache Key: ${cacheEntry === null || cacheEntry === void 0 ? void 0 : cacheEntry.cacheKey}, Cache Version: ${cacheEntry === null || cacheEntry === void 0 ? void 0 : cacheEntry.cacheVersion}, Cache Scope: ${cacheEntry === null || cacheEntry === void 0 ? void 0 : cacheEntry.scope}, Cache Created: ${cacheEntry === null || cacheEntry === void 0 ? void 0 : cacheEntry.creationTime}`);
                 }
             }
         }
@@ -126862,7 +126396,7 @@ function printCachesListForDiagnostics(key, httpClient, version) {
 }
 function downloadCache(archiveLocation, archivePath, options) {
     return cacheHttpClient_awaiter(this, void 0, void 0, function* () {
-        const archiveUrl = new URL(archiveLocation);
+        const archiveUrl = new external_url_.URL(archiveLocation);
         const downloadOptions = getDownloadOptions(options);
         if (archiveUrl.hostname.endsWith('.blob.core.windows.net')) {
             if (downloadOptions.useAzureSdk) {
@@ -126893,7 +126427,7 @@ function reserveCache(key, paths, options) {
             version,
             cacheSize: options === null || options === void 0 ? void 0 : options.cacheSize
         };
-        const response = yield requestUtils_retryTypedResponse('reserveCache', () => cacheHttpClient_awaiter(this, void 0, void 0, function* () {
+        const response = yield retryTypedResponse('reserveCache', () => cacheHttpClient_awaiter(this, void 0, void 0, function* () {
             return httpClient.postJson(getCacheApiUrl('caches'), reserveCacheRequest);
         }));
         return response;
@@ -126914,15 +126448,15 @@ function uploadChunk(httpClient, resourceUrl, openStream, start, end) {
             'Content-Type': 'application/octet-stream',
             'Content-Range': getContentRange(start, end)
         };
-        const uploadChunkResponse = yield requestUtils_retryHttpClientResponse(`uploadChunk (start: ${start}, end: ${end})`, () => cacheHttpClient_awaiter(this, void 0, void 0, function* () {
+        const uploadChunkResponse = yield retryHttpClientResponse(`uploadChunk (start: ${start}, end: ${end})`, () => cacheHttpClient_awaiter(this, void 0, void 0, function* () {
             return httpClient.sendStream('PATCH', resourceUrl, openStream(), additionalHeaders);
         }));
-        if (!requestUtils_isSuccessStatusCode(uploadChunkResponse.message.statusCode)) {
+        if (!isSuccessStatusCode(uploadChunkResponse.message.statusCode)) {
             throw new Error(`Cache service responded with ${uploadChunkResponse.message.statusCode} during upload chunk.`);
         }
     });
 }
-function cacheHttpClient_uploadFile(httpClient, cacheId, archivePath, options) {
+function uploadFile(httpClient, cacheId, archivePath, options) {
     return cacheHttpClient_awaiter(this, void 0, void 0, function* () {
         // Upload Chunks
         const fileSize = getArchiveFileSizeInBytes(archivePath);
@@ -126962,7 +126496,7 @@ function cacheHttpClient_uploadFile(httpClient, cacheId, archivePath, options) {
 function commitCache(httpClient, cacheId, filesize) {
     return cacheHttpClient_awaiter(this, void 0, void 0, function* () {
         const commitCacheRequest = { size: filesize };
-        return yield requestUtils_retryTypedResponse('commitCache', () => cacheHttpClient_awaiter(this, void 0, void 0, function* () {
+        return yield retryTypedResponse('commitCache', () => cacheHttpClient_awaiter(this, void 0, void 0, function* () {
             return httpClient.postJson(getCacheApiUrl(`caches/${cacheId.toString()}`), commitCacheRequest);
         }));
     });
@@ -126980,13 +126514,13 @@ function saveCache(cacheId, archivePath, signedUploadURL, options) {
         else {
             const httpClient = createHttpClient();
             core_debug('Upload cache');
-            yield cacheHttpClient_uploadFile(httpClient, cacheId, archivePath, options);
+            yield uploadFile(httpClient, cacheId, archivePath, options);
             // Commit Cache
             core_debug('Commiting cache');
             const cacheSize = getArchiveFileSizeInBytes(archivePath);
             info(`Cache Size: ~${Math.round(cacheSize / (1024 * 1024))} MB (${cacheSize} B)`);
             const commitCacheResponse = yield commitCache(httpClient, cacheId, cacheSize);
-            if (!requestUtils_isSuccessStatusCode(commitCacheResponse.statusCode)) {
+            if (!isSuccessStatusCode(commitCacheResponse.statusCode)) {
                 throw new Error(`Cache service responded with ${commitCacheResponse.statusCode} during commit cache.`);
             }
             info('Cache saved successfully');
@@ -127753,7 +127287,7 @@ class CacheServiceClient {
                         if (retryAfterHeader) {
                             const parsedSeconds = parseInt(retryAfterHeader, 10);
                             if (!isNaN(parsedSeconds) && parsedSeconds > 0) {
-                                warning(`You've hit a rate limit, your rate limit will reset in ${parsedSeconds} seconds`);
+                                core_warning(`You've hit a rate limit, your rate limit will reset in ${parsedSeconds} seconds`);
                             }
                         }
                         throw new RateLimitError(`Rate limited: ${errorMessage}`);
@@ -128046,18 +127580,18 @@ function execCommands(commands, cwd) {
     });
 }
 // List the contents of a tar
-function tar_listTar(archivePath, compressionMethod) {
+function listTar(archivePath, compressionMethod) {
     return tar_awaiter(this, void 0, void 0, function* () {
         const commands = yield getCommands(compressionMethod, 'list', archivePath);
         yield execCommands(commands);
     });
 }
 // Extract a tar
-function tar_extractTar(archivePath, compressionMethod) {
+function extractTar(archivePath, compressionMethod) {
     return tar_awaiter(this, void 0, void 0, function* () {
         // Create directory to extract tar into
         const workingDirectory = getWorkingDirectory();
-        yield io.mkdirP(workingDirectory);
+        yield mkdirP(workingDirectory);
         const commands = yield getCommands(compressionMethod, 'extract', archivePath);
         yield execCommands(commands);
     });
@@ -128137,7 +127671,7 @@ class CacheWriteDeniedError extends ReserveCacheError {
 }
 // Re-exported from constants so consumers keep referencing it here; the shared
 // value also drives detection in cacheHttpClient without duplicating the string.
-const CACHE_READ_DENIED_PREFIX = (/* unused pure expression or super */ null && (CacheReadDeniedMessagePrefix));
+const CACHE_READ_DENIED_PREFIX = CacheReadDeniedMessagePrefix;
 // Raised when the cache backend denies a download URL because the run's token
 // has no readable cache scopes. Caching is best-effort, so restoreCache logs a
 // warning and reports a cache miss rather than rethrowing this.
@@ -128199,13 +127733,13 @@ function isFeatureAvailable() {
  */
 function restoreCache(paths_1, primaryKey_1, restoreKeys_1, options_1) {
     return cache_awaiter(this, arguments, void 0, function* (paths, primaryKey, restoreKeys, options, enableCrossOsArchive = false) {
-        const cacheServiceVersion = getCacheServiceVersion();
-        core.debug(`Cache service version: ${cacheServiceVersion}`);
+        const cacheServiceVersion = config_getCacheServiceVersion();
+        core_debug(`Cache service version: ${cacheServiceVersion}`);
         checkPaths(paths);
         const cacheMode = getCacheMode();
         if (!isCacheReadable(cacheMode)) {
-            core.info(`Cache restore skipped: the effective cache-mode '${cacheMode}' does not permit reads.`);
-            core.debug(`Skipped restore for paths [${paths.join(', ')}] with primary key '${primaryKey}'.`);
+            info(`Cache restore skipped: the effective cache-mode '${cacheMode}' does not permit reads.`);
+            core_debug(`Skipped restore for paths [${paths.join(', ')}] with primary key '${primaryKey}'.`);
             return undefined;
         }
         switch (cacheServiceVersion) {
@@ -128232,21 +127766,21 @@ function restoreCacheV1(paths_1, primaryKey_1, restoreKeys_1, options_1) {
         var _a;
         restoreKeys = restoreKeys || [];
         const keys = [primaryKey, ...restoreKeys];
-        core.debug('Resolved Keys:');
-        core.debug(JSON.stringify(keys));
+        core_debug('Resolved Keys:');
+        core_debug(JSON.stringify(keys));
         if (keys.length > 10) {
             throw new ValidationError(`Key Validation Error: Keys are limited to a maximum of 10.`);
         }
         for (const key of keys) {
             checkKey(key);
         }
-        const compressionMethod = yield utils.getCompressionMethod();
+        const compressionMethod = yield getCompressionMethod();
         let archivePath = '';
         try {
             // path are needed to compute version
             let cacheEntry;
             try {
-                cacheEntry = yield cacheHttpClient.getCacheEntry(keys, paths, {
+                cacheEntry = yield getCacheEntry(keys, paths, {
                     compressionMethod,
                     enableCrossOsArchive
                 });
@@ -128269,20 +127803,20 @@ function restoreCacheV1(paths_1, primaryKey_1, restoreKeys_1, options_1) {
                 return undefined;
             }
             if (options === null || options === void 0 ? void 0 : options.lookupOnly) {
-                core.info('Lookup only - skipping download');
+                info('Lookup only - skipping download');
                 return cacheEntry.cacheKey;
             }
-            archivePath = path.join(yield utils.createTempDirectory(), utils.getCacheFileName(compressionMethod));
-            core.debug(`Archive Path: ${archivePath}`);
+            archivePath = external_path_.join(yield createTempDirectory(), getCacheFileName(compressionMethod));
+            core_debug(`Archive Path: ${archivePath}`);
             // Download the cache from the cache entry
-            yield cacheHttpClient.downloadCache(cacheEntry.archiveLocation, archivePath, options);
-            if (core.isDebug()) {
+            yield downloadCache(cacheEntry.archiveLocation, archivePath, options);
+            if (isDebug()) {
                 yield listTar(archivePath, compressionMethod);
             }
-            const archiveFileSize = utils.getArchiveFileSizeInBytes(archivePath);
-            core.info(`Cache Size: ~${Math.round(archiveFileSize / (1024 * 1024))} MB (${archiveFileSize} B)`);
+            const archiveFileSize = getArchiveFileSizeInBytes(archivePath);
+            info(`Cache Size: ~${Math.round(archiveFileSize / (1024 * 1024))} MB (${archiveFileSize} B)`);
             yield extractTar(archivePath, compressionMethod);
-            core.info('Cache restored successfully');
+            info('Cache restored successfully');
             return cacheEntry.cacheKey;
         }
         catch (error) {
@@ -128298,20 +127832,20 @@ function restoreCacheV1(paths_1, primaryKey_1, restoreKeys_1, options_1) {
                 if (typedError instanceof HttpClientError &&
                     typeof typedError.statusCode === 'number' &&
                     typedError.statusCode >= 500) {
-                    core.error(`Failed to restore: ${error.message}`);
+                    core_error(`Failed to restore: ${error.message}`);
                 }
                 else {
-                    core.warning(`Failed to restore: ${error.message}`);
+                    core_warning(`Failed to restore: ${error.message}`);
                 }
             }
         }
         finally {
             // Try to delete the archive to save space
             try {
-                yield utils.unlinkFile(archivePath);
+                yield unlinkFile(archivePath);
             }
             catch (error) {
-                core.debug(`Failed to delete archive: ${error}`);
+                core_debug(`Failed to delete archive: ${error}`);
             }
         }
         return undefined;
@@ -128334,8 +127868,8 @@ function restoreCacheV2(paths_1, primaryKey_1, restoreKeys_1, options_1) {
         options = Object.assign(Object.assign({}, options), { useAzureSdk: true });
         restoreKeys = restoreKeys || [];
         const keys = [primaryKey, ...restoreKeys];
-        core.debug('Resolved Keys:');
-        core.debug(JSON.stringify(keys));
+        core_debug('Resolved Keys:');
+        core_debug(JSON.stringify(keys));
         if (keys.length > 10) {
             throw new ValidationError(`Key Validation Error: Keys are limited to a maximum of 10.`);
         }
@@ -128344,12 +127878,12 @@ function restoreCacheV2(paths_1, primaryKey_1, restoreKeys_1, options_1) {
         }
         let archivePath = '';
         try {
-            const twirpClient = cacheTwirpClient.internalCacheTwirpClient();
-            const compressionMethod = yield utils.getCompressionMethod();
+            const twirpClient = internalCacheTwirpClient();
+            const compressionMethod = yield getCompressionMethod();
             const request = {
                 key: primaryKey,
                 restoreKeys,
-                version: utils.getCacheVersion(paths, compressionMethod, enableCrossOsArchive)
+                version: getCacheVersion(paths, compressionMethod, enableCrossOsArchive)
             };
             let response;
             try {
@@ -128366,31 +127900,31 @@ function restoreCacheV2(paths_1, primaryKey_1, restoreKeys_1, options_1) {
                 throw error;
             }
             if (!response.ok) {
-                core.debug(`Cache not found for version ${request.version} of keys: ${keys.join(', ')}`);
+                core_debug(`Cache not found for version ${request.version} of keys: ${keys.join(', ')}`);
                 return undefined;
             }
             const isRestoreKeyMatch = request.key !== response.matchedKey;
             if (isRestoreKeyMatch) {
-                core.info(`Cache hit for restore-key: ${response.matchedKey}`);
+                info(`Cache hit for restore-key: ${response.matchedKey}`);
             }
             else {
-                core.info(`Cache hit for: ${response.matchedKey}`);
+                info(`Cache hit for: ${response.matchedKey}`);
             }
             if (options === null || options === void 0 ? void 0 : options.lookupOnly) {
-                core.info('Lookup only - skipping download');
+                info('Lookup only - skipping download');
                 return response.matchedKey;
             }
-            archivePath = path.join(yield utils.createTempDirectory(), utils.getCacheFileName(compressionMethod));
-            core.debug(`Archive path: ${archivePath}`);
-            core.debug(`Starting download of archive to: ${archivePath}`);
-            yield cacheHttpClient.downloadCache(response.signedDownloadUrl, archivePath, options);
-            const archiveFileSize = utils.getArchiveFileSizeInBytes(archivePath);
-            core.info(`Cache Size: ~${Math.round(archiveFileSize / (1024 * 1024))} MB (${archiveFileSize} B)`);
-            if (core.isDebug()) {
+            archivePath = external_path_.join(yield createTempDirectory(), getCacheFileName(compressionMethod));
+            core_debug(`Archive path: ${archivePath}`);
+            core_debug(`Starting download of archive to: ${archivePath}`);
+            yield downloadCache(response.signedDownloadUrl, archivePath, options);
+            const archiveFileSize = getArchiveFileSizeInBytes(archivePath);
+            info(`Cache Size: ~${Math.round(archiveFileSize / (1024 * 1024))} MB (${archiveFileSize} B)`);
+            if (isDebug()) {
                 yield listTar(archivePath, compressionMethod);
             }
             yield extractTar(archivePath, compressionMethod);
-            core.info('Cache restored successfully');
+            info('Cache restored successfully');
             return response.matchedKey;
         }
         catch (error) {
@@ -128406,21 +127940,21 @@ function restoreCacheV2(paths_1, primaryKey_1, restoreKeys_1, options_1) {
                 if (typedError instanceof HttpClientError &&
                     typeof typedError.statusCode === 'number' &&
                     typedError.statusCode >= 500) {
-                    core.error(`Failed to restore: ${error.message}`);
+                    core_error(`Failed to restore: ${error.message}`);
                 }
                 else {
-                    core.warning(`Failed to restore: ${error.message}`);
+                    core_warning(`Failed to restore: ${error.message}`);
                 }
             }
         }
         finally {
             try {
                 if (archivePath) {
-                    yield utils.unlinkFile(archivePath);
+                    yield unlinkFile(archivePath);
                 }
             }
             catch (error) {
-                core.debug(`Failed to delete archive: ${error}`);
+                core_debug(`Failed to delete archive: ${error}`);
             }
         }
         return undefined;
@@ -128441,7 +127975,7 @@ function cache_saveCache(paths_1, key_1, options_1) {
         core_debug(`Cache service version: ${cacheServiceVersion}`);
         checkPaths(paths);
         checkKey(key);
-        const cacheMode = config_getCacheMode();
+        const cacheMode = getCacheMode();
         if (!isCacheWritable(cacheMode)) {
             info(`Cache save skipped: the effective cache-mode '${cacheMode}' does not permit writes.`);
             core_debug(`Skipped save for paths [${paths.join(', ')}] with key '${key}'.`);
@@ -128482,7 +128016,7 @@ function saveCacheV1(paths_1, key_1, options_1) {
         try {
             yield createTar(archiveFolder, cachePaths, compressionMethod);
             if (isDebug()) {
-                yield tar_listTar(archivePath, compressionMethod);
+                yield listTar(archivePath, compressionMethod);
             }
             const fileSizeLimit = 10 * 1024 * 1024 * 1024; // 10GB per repo limit
             const archiveFileSize = getArchiveFileSizeInBytes(archivePath);
@@ -128532,13 +128066,13 @@ function saveCacheV1(paths_1, key_1, options_1) {
                 // A write denied by policy (CacheWriteDeniedError) is not an
                 // HttpClientError and its name does not match the ReserveCacheError arm,
                 // so it falls here and is warned without failing the run.
-                if (typedError instanceof lib_HttpClientError &&
+                if (typedError instanceof HttpClientError &&
                     typeof typedError.statusCode === 'number' &&
                     typedError.statusCode >= 500) {
                     core_error(`Failed to save: ${typedError.message}`);
                 }
                 else {
-                    warning(`Failed to save: ${typedError.message}`);
+                    core_warning(`Failed to save: ${typedError.message}`);
                 }
             }
         }
@@ -128585,7 +128119,7 @@ function saveCacheV2(paths_1, key_1, options_1) {
         try {
             yield createTar(archiveFolder, cachePaths, compressionMethod);
             if (isDebug()) {
-                yield tar_listTar(archivePath, compressionMethod);
+                yield listTar(archivePath, compressionMethod);
             }
             const archiveFileSize = getArchiveFileSizeInBytes(archivePath);
             core_debug(`File Size: ${archiveFileSize}`);
@@ -128606,7 +128140,7 @@ function saveCacheV2(paths_1, key_1, options_1) {
                     // customer-facing warning.
                     if (response.message &&
                         !response.message.startsWith(CACHE_WRITE_DENIED_PREFIX)) {
-                        warning(`Cache reservation failed: ${response.message}`);
+                        core_warning(`Cache reservation failed: ${response.message}`);
                     }
                     throw new Error(response.message || 'Response was not ok');
                 }
@@ -128646,20 +128180,20 @@ function saveCacheV2(paths_1, key_1, options_1) {
                 info(`Failed to save: ${typedError.message}`);
             }
             else if (typedError.name === FinalizeCacheError.name) {
-                warning(typedError.message);
+                core_warning(typedError.message);
             }
             else {
                 // Log server errors (5xx) as errors, all other errors as warnings.
                 // A write denied by policy (CacheWriteDeniedError) is not an
                 // HttpClientError and its name does not match the ReserveCacheError arm,
                 // so it falls here and is warned without failing the run.
-                if (typedError instanceof lib_HttpClientError &&
+                if (typedError instanceof HttpClientError &&
                     typeof typedError.statusCode === 'number' &&
                     typedError.statusCode >= 500) {
                     core_error(`Failed to save: ${typedError.message}`);
                 }
                 else {
-                    warning(`Failed to save: ${typedError.message}`);
+                    core_warning(`Failed to save: ${typedError.message}`);
                 }
             }
         }
@@ -128676,27 +128210,1044 @@ function saveCacheV2(paths_1, key_1, options_1) {
     });
 }
 //# sourceMappingURL=cache.js.map
-;// CONCATENATED MODULE: ./src/utils/fallback.ts
+;// CONCATENATED MODULE: ./src/core/outcomes.ts
+function outcomes_toError(err) {
+    return err instanceof Error ? err : new Error(String(err));
+}
+
+;// CONCATENATED MODULE: ./src/core/githubTier.ts
 
 
-async function fallbackRestore(paths, primaryKey, restoreKeys, options, enableCrossOsArchive) {
-    core.info('Attempting fallback restore using official GitHub Actions Cache service...');
+
+async function restoreFromGitHub(paths, primaryKey, restoreKeys, lookupOnly, enableCrossOsArchive) {
     try {
-        const matchedKey = await cache.restoreCache(paths, primaryKey, restoreKeys, options, enableCrossOsArchive);
-        return matchedKey;
+        const matchedKey = await cache.restoreCache([...paths], primaryKey, [...restoreKeys], { lookupOnly }, enableCrossOsArchive);
+        if (!matchedKey) {
+            return { kind: 'miss' };
+        }
+        return { kind: 'hit', matchedKey, exact: isExactKeyMatch(primaryKey, matchedKey) };
     }
     catch (err) {
-        core.warning(`GitHub Actions Cache fallback restore failed: ${err instanceof Error ? err.message : String(err)}`);
+        return { kind: 'error', error: toError(err) };
+    }
+}
+/**
+ * Whether GitHub Actions Cache already holds exactly `key`. A lookup also returns prefix
+ * matches, which do not count. Service failures throw so callers can apply strict mode.
+ */
+async function existsInGitHub(paths, key, enableCrossOsArchive) {
+    const matchedKey = await restoreCache([...paths], key, [], { lookupOnly: true }, enableCrossOsArchive);
+    return inputUtils_isExactKeyMatch(key, matchedKey);
+}
+async function saveToGitHub(paths, key, uploadChunkSize, enableCrossOsArchive) {
+    try {
+        const cacheId = await cache_saveCache([...paths], key, { uploadChunkSize }, enableCrossOsArchive);
+        if (cacheId === -1) {
+            return {
+                kind: 'error',
+                error: new Error(`GitHub Actions Cache did not save key "${key}"; see the messages above.`),
+            };
+        }
+        return { kind: 'saved' };
+    }
+    catch (err) {
+        return { kind: 'error', error: outcomes_toError(err) };
+    }
+}
+
+// EXTERNAL MODULE: external "node:path"
+var external_node_path_ = __nccwpck_require__(6760);
+;// CONCATENATED MODULE: ./src/archive/compression.ts
+
+
+let cachedConfig = null;
+async function getCompressionConfig() {
+    if (cachedConfig) {
+        return cachedConfig;
+    }
+    try {
+        const zstdPath = await which('zstd', false);
+        if (zstdPath) {
+            core_debug(`zstd binary found at: ${zstdPath}`);
+            cachedConfig = {
+                method: 'zstd',
+                archiveFilename: 'cache.tar.zst',
+            };
+            return cachedConfig;
+        }
+    }
+    catch (err) {
+        core_debug(`zstd detection error: ${err}`);
+    }
+    core_debug('zstd binary not found; falling back to gzip');
+    cachedConfig = {
+        method: 'gzip',
+        archiveFilename: 'cache.tar.gz',
+    };
+    return cachedConfig;
+}
+function resetCompressionConfigCache() {
+    cachedConfig = null;
+}
+
+;// CONCATENATED MODULE: ./src/archive/paths.ts
+
+
+
+
+function getWorkspace(env = process.env) {
+    return env.GITHUB_WORKSPACE || process.cwd();
+}
+/**
+ * Mirrors `os.homedir()`'s own documented resolution (`$HOME`/`%USERPROFILE%` first, native
+ * lookup otherwise) but reads the environment variable directly rather than delegating to the
+ * native binding. The native binding reads the process's real environment, which under Jest's
+ * `node` test environment is a snapshot disconnected from the `process.env` object tests mutate;
+ * reading the variable in plain JS keeps it overridable in tests while matching real behaviour.
+ */
+function defaultHomedir(platform) {
+    const fromEnv = platform === 'win32' ? process.env.USERPROFILE : process.env.HOME;
+    return fromEnv || external_node_os_.homedir();
+}
+/** Escapes glob metacharacters in a literal path so it can prefix a pattern. */
+function globEscape(value, platform = process.platform) {
+    const escaped = platform === 'win32' ? value : value.replace(/\\/g, '\\\\');
+    return escaped.replace(/\[/g, '[[]').replace(/\?/g, '[?]').replace(/\*/g, '[*]');
+}
+/**
+ * Makes one `path` line absolute and free of `.`/`..` segments, which @actions/glob rejects.
+ * `~` expands to the home directory; relative patterns are anchored at the workspace.
+ */
+function preparePattern(raw, workspace, platform = process.platform, homedir = defaultHomedir(platform)) {
+    const p = platform === 'win32' ? external_node_path_.win32 : external_node_path_.posix;
+    let pattern = raw.trim();
+    const negate = pattern.startsWith('!');
+    if (negate) {
+        pattern = pattern.slice(1).trim();
+    }
+    if (pattern === '~' || pattern.startsWith('~/') || pattern.startsWith('~\\')) {
+        pattern = p.join(globEscape(homedir, platform), pattern.slice(1));
+    }
+    else if (p.isAbsolute(pattern)) {
+        pattern = p.normalize(pattern);
+    }
+    else {
+        pattern = p.join(globEscape(workspace, platform), pattern);
+    }
+    return negate ? `!${pattern}` : pattern;
+}
+/** True when an ancestor of `entry` is itself an entry, so tar already archives it. */
+function isCovered(entry, entries) {
+    const insideWorkspace = entry !== '..' && !entry.startsWith('../') && !external_node_path_.isAbsolute(entry);
+    if (entry !== '.' && insideWorkspace && entries.has('.')) {
+        return true;
+    }
+    const segments = entry.split('/');
+    for (let length = 1; length < segments.length; length++) {
+        if (entries.has(segments.slice(0, length).join('/'))) {
+            return true;
+        }
+    }
+    return false;
+}
+/** Expands `path` patterns like actions/cache: globs, `~`, and ordered `!` exclusions. */
+async function resolveCachePaths(patterns, workspace = getWorkspace()) {
+    const prepared = patterns
+        .map((line) => line.trim())
+        .filter((line) => line !== '')
+        .map((line) => preparePattern(line, workspace));
+    if (prepared.length === 0) {
+        return { entries: [], skipped: [] };
+    }
+    const globber = await create(prepared.join('\n'), {
+        implicitDescendants: false,
+        followSymbolicLinks: false,
+    });
+    const found = new Set();
+    const skipped = [];
+    for await (const match of globber.globGenerator()) {
+        const relative = external_node_path_.relative(workspace, match).split(external_node_path_.sep).join('/');
+        const entry = relative === '' ? '.' : relative;
+        if (/[\r\n]/.test(entry)) {
+            skipped.push(entry);
+            core_warning(`Skipping ${JSON.stringify(entry)}: file names containing line breaks cannot be cached.`);
+            continue;
+        }
+        found.add(entry);
+    }
+    const entries = [...found].filter((entry) => !isCovered(entry, found)).sort();
+    return { entries, skipped };
+}
+
+;// CONCATENATED MODULE: ./src/archive/tar.ts
+
+
+
+
+
+const ZSTD_COMPRESS = 'zstd -T0 --long=30';
+const ZSTD_DECOMPRESS = 'zstd -d --long=30';
+function systemLookup() {
+    return {
+        platform: process.platform,
+        env: process.env,
+        which: (tool) => which(tool, false),
+        exists: (file) => external_node_fs_.existsSync(file),
+    };
+}
+/** Picks tar the way actions/cache does: GNU tar where available, BSD tar otherwise. */
+async function findTar(lookup = systemLookup()) {
+    if (lookup.platform === 'win32') {
+        const programFiles = lookup.env.ProgramFiles || 'C:\\Program Files';
+        const gnuTar = external_node_path_.win32.join(programFiles, 'Git', 'usr', 'bin', 'tar.exe');
+        if (lookup.exists(gnuTar)) {
+            return { path: gnuTar, flavor: 'gnu' };
+        }
+        const systemRoot = lookup.env.SystemRoot || 'C:\\Windows';
+        const systemTar = external_node_path_.win32.join(systemRoot, 'System32', 'tar.exe');
+        if (lookup.exists(systemTar)) {
+            return { path: systemTar, flavor: 'bsd' };
+        }
+        throw new Error(`tar was not found at ${gnuTar} or ${systemTar}`);
+    }
+    if (lookup.platform === 'darwin') {
+        const gtar = await lookup.which('gtar');
+        if (gtar) {
+            return { path: gtar, flavor: 'gnu' };
+        }
+    }
+    const tar = await lookup.which('tar');
+    if (!tar) {
+        throw new Error('tar was not found on PATH');
+    }
+    return { path: tar, flavor: lookup.platform === 'darwin' ? 'bsd' : 'gnu' };
+}
+const slashes = (value) => value.replace(/\\/g, '/');
+/** BSD tar on Windows cannot pipe through zstd reliably, so zstd runs as its own command. */
+function usesSeparateZstd(plan) {
+    return plan.tar.flavor === 'bsd' && plan.platform === 'win32' && plan.compression === 'zstd';
+}
+function platformFlags(plan) {
+    if (plan.tar.flavor !== 'gnu') {
+        return [];
+    }
+    if (plan.platform === 'win32') {
+        return ['--force-local'];
+    }
+    if (plan.platform === 'darwin') {
+        return ['--delay-directory-restore'];
+    }
+    return [];
+}
+function compressionFlags(method, program) {
+    return method === 'zstd' ? ['--use-compress-program', program] : ['-z'];
+}
+/** One entry per line; entries starting with '-' get './' so no tar treats them as options. */
+function formatManifest(entries) {
+    return `${entries.map((entry) => (entry.startsWith('-') ? `./${entry}` : entry)).join('\n')}\n`;
+}
+function buildCreateCommands(plan) {
+    const separateZstd = usesSeparateZstd(plan);
+    const tarFile = separateZstd ? external_node_path_.join(plan.tempDir, 'cache.tar') : plan.archivePath;
+    const args = [];
+    if (plan.tar.flavor === 'gnu') {
+        args.push('--posix');
+    }
+    args.push('-cf', slashes(tarFile), '-P', '-C', slashes(plan.workspace));
+    if (plan.tar.flavor === 'gnu') {
+        args.push('--verbatim-files-from');
+    }
+    args.push('-T', slashes(plan.manifestPath), ...platformFlags(plan));
+    if (!separateZstd) {
+        args.push(...compressionFlags(plan.compression, ZSTD_COMPRESS));
+        return [{ tool: plan.tar.path, args }];
+    }
+    return [
+        { tool: plan.tar.path, args },
+        {
+            tool: 'zstd',
+            args: ['-T0', '--long=30', '--force', '-o', slashes(plan.archivePath), slashes(tarFile)],
+        },
+    ];
+}
+function buildExtractCommands(plan) {
+    if (usesSeparateZstd(plan)) {
+        const tarFile = path.join(plan.tempDir, 'cache.tar');
+        return [
+            {
+                tool: 'zstd',
+                args: ['-d', '--long=30', '--force', '-o', slashes(tarFile), slashes(plan.archivePath)],
+            },
+            {
+                tool: plan.tar.path,
+                args: ['-xf', slashes(tarFile), '-P', '-C', slashes(plan.workspace)],
+            },
+        ];
+    }
+    return [
+        {
+            tool: plan.tar.path,
+            args: [
+                '-xf',
+                slashes(plan.archivePath),
+                '-P',
+                '-C',
+                slashes(plan.workspace),
+                ...platformFlags(plan),
+                ...compressionFlags(plan.compression, ZSTD_DECOMPRESS),
+            ],
+        },
+    ];
+}
+async function run(commands) {
+    for (const command of commands) {
+        // exec parses its first argument as a command line, so quote paths that contain spaces.
+        await exec_exec(`"${command.tool}"`, command.args);
+    }
+}
+async function createArchive(archivePath, entries, compression, workspace) {
+    const tempDir = external_node_fs_.mkdtempSync(external_node_path_.join(external_node_os_.tmpdir(), 'cloud-cache-tar-'));
+    try {
+        const manifestPath = external_node_path_.join(tempDir, 'manifest.txt');
+        external_node_fs_.writeFileSync(manifestPath, formatManifest(entries));
+        external_node_fs_.mkdirSync(external_node_path_.dirname(archivePath), { recursive: true });
+        const tar = await findTar();
+        await run(buildCreateCommands({
+            tar,
+            platform: process.platform,
+            compression: compression.method,
+            archivePath,
+            workspace,
+            tempDir,
+            manifestPath,
+        }));
+    }
+    finally {
+        external_node_fs_.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+async function tar_extractArchive(archivePath, compression, workspace) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-tar-'));
+    try {
+        fs.mkdirSync(workspace, { recursive: true });
+        const tar = await findTar();
+        await run(buildExtractCommands({
+            tar,
+            platform: process.platform,
+            compression: compression.method,
+            archivePath,
+            workspace,
+            tempDir,
+        }));
+    }
+    finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+function getArchiveSize(archivePath) {
+    try {
+        return external_node_fs_.statSync(archivePath).size;
+    }
+    catch {
+        return 0;
+    }
+}
+
+// EXTERNAL MODULE: ./node_modules/@aws-sdk/client-s3/dist-cjs/index.js
+var dist_cjs = __nccwpck_require__(3711);
+;// CONCATENATED MODULE: ./src/storage/providers.ts
+const KNOWN_PROVIDERS = [
+    'aws',
+    's3',
+    'r2',
+    'cloudflare',
+    'gcs',
+    'google',
+    'b2',
+    'backblaze',
+    'fastly',
+    'garage',
+    'seaweedfs',
+    'seaweed',
+    'minio',
+];
+function isKnownProvider(name) {
+    return KNOWN_PROVIDERS.includes(name.toLowerCase().trim());
+}
+function detectProvider(endpointInput, explicitProvider) {
+    if (explicitProvider) {
+        const normalized = explicitProvider.toLowerCase().trim();
+        switch (normalized) {
+            case 'aws':
+            case 's3':
+                return 'aws';
+            case 'r2':
+            case 'cloudflare':
+                return 'r2';
+            case 'gcs':
+            case 'google':
+                return 'gcs';
+            case 'b2':
+            case 'backblaze':
+                return 'b2';
+            case 'fastly':
+                return 'fastly';
+            case 'garage':
+                return 'garage';
+            case 'seaweedfs':
+            case 'seaweed':
+                return 'seaweedfs';
+            case 'minio':
+                return 'minio';
+            default:
+                return 'generic-s3';
+        }
+    }
+    if (!endpointInput) {
+        return 'aws';
+    }
+    const ep = endpointInput.toLowerCase();
+    if (ep.includes('r2.cloudflarestorage.com')) {
+        return 'r2';
+    }
+    if (ep.includes('storage.googleapis.com')) {
+        return 'gcs';
+    }
+    if (ep.includes('backblazeb2.com')) {
+        return 'b2';
+    }
+    if (ep.includes('fastlystorage.com')) {
+        return 'fastly';
+    }
+    if (ep.includes('amazonaws.com')) {
+        return 'aws';
+    }
+    if (ep.includes(':3900')) {
+        return 'garage';
+    }
+    if (ep.includes(':8333')) {
+        return 'seaweedfs';
+    }
+    if (ep.includes(':9000')) {
+        return 'minio';
+    }
+    return 'generic-s3';
+}
+function resolveProviderDefaults(endpointInput, regionInput, forcePathStyleInput, explicitProvider) {
+    const provider = detectProvider(endpointInput, explicitProvider);
+    let endpoint = endpointInput?.trim();
+    if (endpoint && !endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+        endpoint = `https://${endpoint}`;
+    }
+    let region = regionInput?.trim();
+    let forcePathStyle = forcePathStyleInput;
+    switch (provider) {
+        case 'aws':
+            region = region || process.env.AWS_REGION || 'us-east-1';
+            if (forcePathStyle === undefined)
+                forcePathStyle = false;
+            break;
+        case 'r2':
+            region = region || 'auto';
+            if (forcePathStyle === undefined)
+                forcePathStyle = false;
+            break;
+        case 'gcs':
+            endpoint = endpoint || 'https://storage.googleapis.com';
+            region = region || 'auto';
+            if (forcePathStyle === undefined)
+                forcePathStyle = true;
+            break;
+        case 'b2':
+            if (!region && endpoint) {
+                // e.g. https://s3.us-west-004.backblazeb2.com
+                const match = endpoint.match(/s3\.([a-z0-9-]+)\.backblazeb2\.com/i);
+                if (match && match[1]) {
+                    region = match[1];
+                }
+            }
+            region = region || 'us-east-1';
+            if (forcePathStyle === undefined)
+                forcePathStyle = false;
+            break;
+        case 'fastly':
+            region = region || 'us-east-1';
+            if (forcePathStyle === undefined)
+                forcePathStyle = true;
+            break;
+        case 'garage':
+            region = region || 'garage';
+            if (forcePathStyle === undefined)
+                forcePathStyle = true;
+            break;
+        case 'seaweedfs':
+            region = region || 'auto';
+            if (forcePathStyle === undefined)
+                forcePathStyle = true;
+            break;
+        case 'minio':
+        case 'generic-s3':
+        default:
+            region = region || 'us-east-1';
+            if (forcePathStyle === undefined)
+                forcePathStyle = true;
+            break;
+    }
+    return {
+        provider,
+        endpoint,
+        region,
+        forcePathStyle: Boolean(forcePathStyle),
+    };
+}
+
+;// CONCATENATED MODULE: ./src/storage/client.ts
+
+
+
+
+
+function createStorageContext(options) {
+    const bucket = getInputWithEnv(Inputs.Bucket, ['AWS_S3_BUCKET', 'S3_BUCKET']);
+    if (!bucket) {
+        throw new Error('Bucket name is required. Please set "bucket" input or AWS_S3_BUCKET environment variable.');
+    }
+    const endpointInput = getInputWithEnv(Inputs.Endpoint, [
+        'AWS_ENDPOINT_URL',
+        'AWS_ENDPOINT_URL_S3',
+    ]);
+    const regionInput = getInputWithEnv(Inputs.Region, ['AWS_REGION', 'AWS_DEFAULT_REGION']);
+    const providerInput = getInput(Inputs.Provider);
+    if (providerInput && !isKnownProvider(providerInput)) {
+        core_warning(`Unknown provider "${providerInput}"; using generic S3-compatible defaults.`);
+    }
+    const forcePathStyleRaw = getInput(Inputs.ForcePathStyle);
+    const forcePathStyleInput = forcePathStyleRaw !== '' ? getInputAsBool(Inputs.ForcePathStyle) : undefined;
+    const providerConfig = resolveProviderDefaults(endpointInput, regionInput, forcePathStyleInput, providerInput);
+    const accessKey = getInputWithEnv(Inputs.AccessKey, ['AWS_ACCESS_KEY_ID'], Inputs.AccessKeyCamel);
+    const secretKey = getInputWithEnv(Inputs.SecretKey, ['AWS_SECRET_ACCESS_KEY'], Inputs.SecretKeyCamel);
+    const sessionToken = getInputWithEnv(Inputs.SessionToken, ['AWS_SESSION_TOKEN'], Inputs.SessionTokenCamel);
+    const clientConfig = {
+        region: providerConfig.region,
+        forcePathStyle: providerConfig.forcePathStyle,
+        maxAttempts: Math.max(1, options.maxAttempts),
+        retryMode: 'standard',
+    };
+    if (providerConfig.endpoint) {
+        clientConfig.endpoint = providerConfig.endpoint;
+    }
+    if (providerConfig.provider !== 'aws') {
+        // Several S3-compatible services reject the CRC checksums the SDK sends by default.
+        clientConfig.requestChecksumCalculation = 'WHEN_REQUIRED';
+        clientConfig.responseChecksumValidation = 'WHEN_REQUIRED';
+    }
+    if (accessKey && secretKey) {
+        clientConfig.credentials = {
+            accessKeyId: accessKey,
+            secretAccessKey: secretKey,
+            sessionToken: sessionToken || undefined,
+        };
+    }
+    else if (accessKey || secretKey) {
+        core_warning('Only one of access-key and secret-key is set; ignoring it and using the default AWS credential chain.');
+    }
+    core_debug(`Configuring S3 client for provider: ${providerConfig.provider} (endpoint: ${providerConfig.endpoint || 'AWS default'}, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle}, maxAttempts: ${clientConfig.maxAttempts})`);
+    return {
+        client: new dist_cjs.S3Client(clientConfig),
+        providerConfig,
+        bucket,
+    };
+}
+
+// EXTERNAL MODULE: ./node_modules/@aws-sdk/lib-storage/dist-cjs/index.js
+var lib_storage_dist_cjs = __nccwpck_require__(2358);
+;// CONCATENATED MODULE: external "stream/promises"
+const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("stream/promises");
+;// CONCATENATED MODULE: ./src/storage/operations.ts
+
+
+
+
+
+
+async function operations_checkObjectExists(client, bucket, key) {
+    try {
+        const cmd = new dist_cjs.HeadObjectCommand({
+            Bucket: bucket,
+            Key: key,
+        });
+        const response = await client.send(cmd);
+        return {
+            key,
+            size: response.ContentLength || 0,
+            lastModified: response.LastModified,
+            etag: response.ETag,
+        };
+    }
+    catch (err) {
+        const error = err;
+        if (error.name === 'NotFound' ||
+            error.name === 'NoSuchKey' ||
+            error.$metadata?.httpStatusCode === 404) {
+            return null;
+        }
+        throw err;
+    }
+}
+/**
+ * Lists every object under `prefix`, following continuation tokens, and returns the most
+ * recently modified one that `accept` allows. When timestamps tie, the first object listed wins.
+ */
+async function operations_findNewestObject(client, bucket, prefix, accept, pageSize = 1000) {
+    let newest;
+    let continuationToken;
+    do {
+        const page = await client.send(new ListObjectsV2Command({
+            Bucket: bucket,
+            Prefix: prefix,
+            MaxKeys: pageSize,
+            ContinuationToken: continuationToken,
+        }));
+        for (const object of page.Contents ?? []) {
+            if (!object.Key || !accept(object.Key)) {
+                continue;
+            }
+            const modified = object.LastModified?.getTime() ?? 0;
+            if (!newest || modified > (newest.lastModified?.getTime() ?? 0)) {
+                newest = {
+                    key: object.Key,
+                    size: object.Size ?? 0,
+                    lastModified: object.LastModified,
+                    etag: object.ETag,
+                };
+            }
+        }
+        continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (continuationToken);
+    return newest;
+}
+async function operations_downloadFile(client, bucket, key, destinationPath) {
+    // Ensure target folder exists
+    const dir = path.dirname(destinationPath);
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+    const cmd = new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+    });
+    const response = await client.send(cmd);
+    if (!response.Body) {
+        throw new Error(`Empty response body received from S3 for key: ${key}`);
+    }
+    const fileStream = fs.createWriteStream(destinationPath);
+    await pipeline(response.Body, fileStream);
+}
+async function operations_uploadFile(client, bucket, key, sourcePath, uploadChunkSize) {
+    const stats = external_fs_namespaceObject.statSync(sourcePath);
+    const fileStream = external_fs_namespaceObject.createReadStream(sourcePath);
+    const partSize = uploadChunkSize && uploadChunkSize > 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024; // 10MB default part size
+    const parallelUpload = new lib_storage_dist_cjs/* Upload */._({
+        client,
+        params: {
+            Bucket: bucket,
+            Key: key,
+            Body: fileStream,
+        },
+        partSize,
+        queueSize: 4,
+        leavePartsOnError: false,
+    });
+    parallelUpload.on('httpUploadProgress', (progress) => {
+        if (progress.total && progress.loaded) {
+            const pct = Math.round((progress.loaded / progress.total) * 100);
+            core_debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
+        }
+    });
+    const result = await parallelUpload.done();
+    return {
+        size: stats.size,
+        etag: result.ETag,
+    };
+}
+
+;// CONCATENATED MODULE: ./src/storage/retry.ts
+
+const RETRYABLE_ERROR_NAMES = new Set([
+    'SlowDown',
+    'Throttling',
+    'ThrottlingException',
+    'RequestTimeout',
+    'RequestTimeoutException',
+    'TimeoutError',
+]);
+const RETRYABLE_NETWORK_CODES = new Set([
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'EPIPE',
+    'ECONNREFUSED',
+    'EAI_AGAIN',
+    'ERR_STREAM_PREMATURE_CLOSE',
+]);
+/** True for failures worth another attempt: 5xx, 429, throttling and dropped connections. */
+function isRetryableError(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    const status = error.$metadata?.httpStatusCode;
+    if (status !== undefined && (status >= 500 || status === 429)) {
+        return true;
+    }
+    if (error.$retryable) {
+        return true;
+    }
+    if (error.name !== undefined && RETRYABLE_ERROR_NAMES.has(error.name)) {
+        return true;
+    }
+    if (error.code !== undefined && RETRYABLE_NETWORK_CODES.has(error.code)) {
+        return true;
+    }
+    return /socket hang up|premature close/i.test(error.message ?? '');
+}
+async function retry_withRetry(operation, options) {
+    const retries = Math.max(0, options.retries);
+    const minTimeout = options.minTimeoutMs ?? 1000;
+    const factor = options.factor ?? 2;
+    const maxJitter = options.maxJitterMs ?? 500;
+    const shouldRetry = options.shouldRetry ?? isRetryableError;
+    const opName = options.operationName || 'S3 operation';
+    for (let attempt = 1;; attempt++) {
+        try {
+            return await operation();
+        }
+        catch (err) {
+            if (attempt > retries || !shouldRetry(err)) {
+                throw err;
+            }
+            const delay = Math.round(minTimeout * factor ** (attempt - 1) + Math.random() * maxJitter);
+            const message = err instanceof Error ? err.message : String(err);
+            info(`${opName}: attempt ${attempt}/${retries + 1} failed: ${message}. Retrying in ${delay}ms...`);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+    }
+}
+
+;// CONCATENATED MODULE: ./src/core/keyTemplate.ts
+/**
+ * Turns `s3-key-pattern` into object keys, listing prefixes and key extraction.
+ *
+ * The pattern is split around its single `${key}`. The text before it (the base) and after it
+ * (the suffix) is resolved without the key, so a key is inserted verbatim and can be read back
+ * by slicing the base and suffix off an object key, even when the key contains `/` or `$`.
+ */
+const SPECIAL_VARIABLES = new Set([
+    'GITHUB_REPOSITORY',
+    'prefix',
+    'ref',
+    'key',
+    'version',
+    'archive_filename',
+]);
+const KEY_PLACEHOLDER = '${key}';
+/** Encodes a Git ref as one path segment: refs/heads/main becomes refs%2Fheads%2Fmain. */
+function encodeRef(ref) {
+    return encodeURIComponent(ref);
+}
+/** Forward slashes, no leading slash, and a trailing slash when non-empty. */
+function normalizePrefix(prefix) {
+    const trimmed = prefix.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+    return trimmed && !trimmed.endsWith('/') ? `${trimmed}/` : trimmed;
+}
+/**
+ * Expands `${env.NAME}`, `${NAME}` and `$NAME` in a single pass, so an expanded value is never
+ * expanded again. Unset braced names become empty; unset bare names stay literal. Special
+ * variables such as `${key}` are left for compileKeyTemplate.
+ */
+function expandEnvironment(text, env) {
+    return text.replace(/\$\{([A-Za-z0-9_.-]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, braced, bare) => {
+        if (braced !== undefined) {
+            if (SPECIAL_VARIABLES.has(braced)) {
+                return match;
+            }
+            const name = braced.startsWith('env.') ? braced.slice(4) : braced;
+            return env[name] ?? '';
+        }
+        return env[bare] ?? match;
+    });
+}
+function removePlaceholder(pattern, name) {
+    return pattern.split(`\${${name}}/`).join('').split(`\${${name}}`).join('');
+}
+function tidy(text) {
+    return text.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
+}
+function compileKeyTemplate(options) {
+    const keyCount = options.pattern.split(KEY_PLACEHOLDER).length - 1;
+    if (keyCount !== 1) {
+        throw new Error(`s3-key-pattern must contain \${key} exactly once (found ${keyCount}): "${options.pattern}"`);
+    }
+    let pattern = options.pattern;
+    if (!options.scopedToRepository) {
+        pattern = removePlaceholder(pattern, 'GITHUB_REPOSITORY');
+    }
+    if (!options.scopedToRef) {
+        pattern = removePlaceholder(pattern, 'ref');
+    }
+    const warnings = [];
+    if (options.scopedToRef && !pattern.includes('${ref}')) {
+        warnings.push('s3-key-pattern has no ${ref}, so caches are shared by every branch and pull request.');
+    }
+    if (!pattern.includes('${version}')) {
+        warnings.push('s3-key-pattern has no ${version}, so a cache saved with different paths or compression can be restored as a hit.');
+    }
+    const [before, after] = expandEnvironment(pattern, options.env ?? process.env).split(KEY_PLACEHOLDER);
+    const prefix = normalizePrefix(options.prefix);
+    const fill = (text, ref) => text.replace(/\$\{(GITHUB_REPOSITORY|prefix|ref|version|archive_filename)\}/g, (_match, name) => {
+        switch (name) {
+            case 'GITHUB_REPOSITORY':
+                return options.repository;
+            case 'prefix':
+                return prefix;
+            case 'ref':
+                return encodeRef(ref);
+            case 'version':
+                return options.version;
+            default:
+                return options.archiveFilename;
+        }
+    });
+    const baseOf = (ref) => tidy(fill(before, ref)).replace(/^\//, '');
+    const suffixOf = (ref) => tidy(fill(after, ref));
+    return {
+        warnings,
+        objectKey: (ref, key) => `${baseOf(ref)}${key}${suffixOf(ref)}`,
+        searchPrefix: (ref, keyPrefix) => `${baseOf(ref)}${keyPrefix}`,
+        extractKey: (ref, objectKey) => {
+            const head = baseOf(ref);
+            const tail = suffixOf(ref);
+            if (!objectKey.startsWith(head) ||
+                !objectKey.endsWith(tail) ||
+                objectKey.length <= head.length + tail.length) {
+                return undefined;
+            }
+            return objectKey.slice(head.length, objectKey.length - tail.length);
+        },
+    };
+}
+
+;// CONCATENATED MODULE: ./src/core/refs.ts
+
+function readDefaultBranch(eventPath, readFile) {
+    if (!eventPath) {
+        return undefined;
+    }
+    try {
+        const payload = JSON.parse(readFile(eventPath));
+        const branch = payload.repository?.default_branch;
+        return typeof branch === 'string' && branch ? branch : undefined;
+    }
+    catch {
         return undefined;
     }
 }
-async function fallbackSave(paths, key, options, enableCrossOsArchive) {
-    info('Attempting fallback save using official GitHub Actions Cache service...');
+/** Mirrors actions/cache: a run may restore from its own ref, its PR base, and the default branch. */
+function resolveRefCandidates(env = process.env, readFile = (file) => (0,external_node_fs_.readFileSync)(file, 'utf8')) {
+    const current = env.GITHUB_REF?.trim() || undefined;
+    if (!current) {
+        return { current: undefined, restore: [] };
+    }
+    const candidates = [current];
+    const baseRef = env.GITHUB_BASE_REF?.trim();
+    if (baseRef) {
+        candidates.push(`refs/heads/${baseRef}`);
+    }
+    const defaultBranch = readDefaultBranch(env.GITHUB_EVENT_PATH, readFile);
+    if (defaultBranch) {
+        candidates.push(`refs/heads/${defaultBranch}`);
+    }
+    return { current, restore: [...new Set(candidates)] };
+}
+
+;// CONCATENATED MODULE: ./src/core/version.ts
+
+
+const VERSION_LENGTH = 16;
+/**
+ * Identifies what a cache archive contains, as actions/cache does: the raw `path` patterns
+ * (not the files they match, so `~/.npm` is stable across machines), the compression
+ * method, and whether a Windows cache may be shared with other operating systems.
+ */
+function computeCacheVersion(paths, compression, enableCrossOsArchive, platform = process.platform) {
+    const components = paths.map((p) => p.trim());
+    components.push(compression);
+    if (platform === 'win32' && !enableCrossOsArchive) {
+        components.push('windows-only');
+    }
+    components.push(Defaults.VersionSalt);
+    return (0,external_node_crypto_.createHash)('sha256').update(components.join('|')).digest('hex').slice(0, VERSION_LENGTH);
+}
+
+;// CONCATENATED MODULE: ./src/core/s3Tier.ts
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+async function buildS3Tier(config, env = process.env) {
+    const storage = createStorageContext({
+        maxAttempts: config.retryEnabled ? config.retryCount + 1 : 1,
+    });
+    const compression = await getCompressionConfig();
+    const refs = resolveRefCandidates(env);
+    const scopedToRef = config.scopedToRef && refs.current !== undefined;
+    if (config.scopedToRef && !scopedToRef) {
+        core_debug('GITHUB_REF is not set, so caches are not scoped to a ref.');
+    }
+    const template = compileKeyTemplate({
+        pattern: config.s3KeyPattern,
+        repository: env.GITHUB_REPOSITORY ?? '',
+        prefix: config.prefix,
+        scopedToRepository: config.scopedToRepository,
+        scopedToRef,
+        version: computeCacheVersion(config.paths, compression.method, config.enableCrossOsArchive),
+        archiveFilename: compression.archiveFilename,
+        env,
+    });
+    for (const warning of template.warnings) {
+        core_warning(warning);
+    }
+    return {
+        storage,
+        template,
+        restoreRefs: scopedToRef ? refs.restore : [''],
+        saveRef: scopedToRef ? refs.current : '',
+        compression,
+        workspace: getWorkspace(env),
+        streamRetries: config.retryEnabled ? config.retryCount : 0,
+    };
+}
+/**
+ * For each ref in order: the exact key, then the primary key as a prefix, then each restore
+ * key as a prefix, taking the newest object for a prefix. Only objects the template accepts
+ * (same version and archive format) count. The first hit wins.
+ */
+async function findS3Match(tier, primaryKey, restoreKeys) {
+    const { client, bucket } = tier.storage;
+    for (const ref of tier.restoreRefs) {
+        const exactKey = tier.template.objectKey(ref, primaryKey);
+        core.debug(`Checking s3://${bucket}/${exactKey}`);
+        const exact = await checkObjectExists(client, bucket, exactKey);
+        if (exact) {
+            return {
+                matchedKey: primaryKey,
+                exact: true,
+                objectKey: exactKey,
+                size: exact.size,
+                etag: exact.etag,
+                ref,
+            };
+        }
+        for (const keyPrefix of [primaryKey, ...restoreKeys]) {
+            const searchPrefix = tier.template.searchPrefix(ref, keyPrefix);
+            core.debug(`Listing s3://${bucket}/${searchPrefix}`);
+            const newest = await findNewestObject(client, bucket, searchPrefix, (objectKey) => tier.template.extractKey(ref, objectKey) !== undefined);
+            if (newest) {
+                const matchedKey = tier.template.extractKey(ref, newest.key);
+                return {
+                    matchedKey,
+                    exact: isExactKeyMatch(primaryKey, matchedKey),
+                    objectKey: newest.key,
+                    size: newest.size,
+                    etag: newest.etag,
+                    ref,
+                };
+            }
+        }
+    }
+    return undefined;
+}
+async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
+    let match;
     try {
-        return await cache_saveCache(paths, key, options, enableCrossOsArchive);
+        match = await findS3Match(tier, primaryKey, restoreKeys);
     }
     catch (err) {
-        warning(`GitHub Actions Cache fallback save failed: ${err instanceof Error ? err.message : String(err)}`);
+        return { kind: 'error', error: toError(err) };
+    }
+    if (!match) {
+        return { kind: 'miss' };
+    }
+    const found = match;
+    const hit = {
+        kind: 'hit',
+        matchedKey: found.matchedKey,
+        exact: found.exact,
+        s3: { objectKey: found.objectKey, size: found.size, etag: found.etag },
+    };
+    const where = found.ref ? ` on ${found.ref}` : '';
+    core.info(`S3 cache ${found.exact ? 'hit' : 'partial hit'} for key "${found.matchedKey}"${where} (${formatSize(found.size)})`);
+    if (lookupOnly) {
+        return hit;
+    }
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-restore-'));
+    try {
+        const archivePath = path.join(tempDir, tier.compression.archiveFilename);
+        const { client, bucket } = tier.storage;
+        await withRetry(() => downloadFile(client, bucket, found.objectKey, archivePath), {
+            retries: tier.streamRetries,
+            operationName: `Download of ${found.objectKey}`,
+        });
+        await extractArchive(archivePath, tier.compression, tier.workspace);
+        return hit;
+    }
+    catch (err) {
+        return { kind: 'error', error: toError(err) };
+    }
+    finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+async function saveToS3(tier, primaryKey, patterns, uploadChunkSize) {
+    const { client, bucket } = tier.storage;
+    const objectKey = tier.template.objectKey(tier.saveRef, primaryKey);
+    let tempDir;
+    try {
+        const existing = await operations_checkObjectExists(client, bucket, objectKey);
+        if (existing) {
+            info(`Cache already exists at s3://${bucket}/${objectKey}; not uploading it again.`);
+            return { kind: 'exists', s3: { objectKey, size: existing.size, etag: existing.etag } };
+        }
+        const { entries } = await resolveCachePaths(patterns, tier.workspace);
+        if (entries.length === 0) {
+            core_warning('Path Validation Error: Path(s) specified in the action for caching do(es) not exist, hence no cache is being saved.');
+            return { kind: 'skipped', reason: 'no paths matched' };
+        }
+        tempDir = external_node_fs_.mkdtempSync(external_node_path_.join(external_node_os_.tmpdir(), 'cloud-cache-save-'));
+        const archivePath = external_node_path_.join(tempDir, tier.compression.archiveFilename);
+        await createArchive(archivePath, entries, tier.compression, tier.workspace);
+        info(`Uploading ${inputUtils_formatSize(getArchiveSize(archivePath))} to s3://${bucket}/${objectKey}...`);
+        const uploaded = await retry_withRetry(() => operations_uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize), { retries: tier.streamRetries, operationName: `Upload of ${objectKey}` });
+        info(`Cache saved to S3 with key: ${primaryKey}`);
+        return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
+    }
+    catch (err) {
+        return { kind: 'error', error: outcomes_toError(err) };
+    }
+    finally {
+        if (tempDir) {
+            external_node_fs_.rmSync(tempDir, { recursive: true, force: true });
+        }
     }
 }
 
@@ -128709,230 +129260,155 @@ async function fallbackSave(paths, key, options, enableCrossOsArchive) {
 
 
 
-
-
-
-
-
-
-// Prevent unhandled rejection leaks from failing the workflow
-process.on('uncaughtException', (err) => {
-    warning(`Unhandled cache save exception: ${err instanceof Error ? err.message : String(err)}`);
-});
-async function saveToS3(storageContext, primaryKey, cachePaths, s3KeyPattern, prefix, scopedToRepository, retryEnabled, retryCount, uploadChunkSize, enableCrossOsArchive, compression) {
-    const { client, bucket } = storageContext;
-    const s3ObjectKey = buildS3ObjectKey({
-        key: primaryKey,
-        prefix,
-        archiveFilename: compression.archiveFilename,
-        pattern: s3KeyPattern,
-        scopedToRepository,
-    });
-    core_debug(`Target S3 key for save: ${s3ObjectKey} in bucket: ${bucket}`);
-    // Check if object already exists in S3 (e.g. concurrent race)
-    try {
-        const existing = await checkObjectExists(client, bucket, s3ObjectKey);
-        if (existing) {
-            info(`Cache object already exists at "${s3ObjectKey}". Skipping upload.`);
-            return {
-                size: existing.size,
-                s3ObjectKey,
-                etag: existing.etag,
-            };
-        }
+function reportS3(info) {
+    if (!info) {
+        return;
     }
-    catch (err) {
-        core_debug(`Object existence check error: ${err}`);
-    }
-    const tempDir = external_fs_namespaceObject.mkdtempSync(external_path_.join(external_os_.tmpdir(), 'cloud-cache-save-'));
-    const localArchive = external_path_.join(tempDir, compression.archiveFilename);
-    try {
-        info(`Creating cache archive for paths: ${cachePaths.join(', ')}...`);
-        await createArchive(localArchive, cachePaths, compression, enableCrossOsArchive);
-        const archiveSize = getArchiveSize(localArchive);
-        info(`Archive created successfully. Size: ${formatSize(archiveSize)} (${archiveSize} bytes)`);
-        info(`Uploading cache archive to s3://${bucket}/${s3ObjectKey}...`);
-        const uploadResult = await withRetry(() => uploadFile(client, bucket, s3ObjectKey, localArchive, uploadChunkSize), {
-            retries: retryEnabled ? retryCount : 0,
-            operationName: `uploadFile (${s3ObjectKey})`,
-        });
-        info(`Cache saved to S3 successfully with key: ${primaryKey}`);
-        return {
-            size: uploadResult.size,
-            s3ObjectKey,
-            etag: uploadResult.etag,
-        };
-    }
-    finally {
-        try {
-            external_fs_namespaceObject.rmSync(tempDir, { recursive: true, force: true });
-        }
-        catch {
-            // Ignore cleanup error
-        }
+    setOutput(Outputs.CacheS3Key, info.objectKey);
+    setOutput(Outputs.CacheSize, String(info.size));
+    if (info.etag) {
+        setOutput(Outputs.CacheETag, info.etag);
     }
 }
-async function saveImpl(stateProvider) {
+async function setUpS3(config) {
     try {
-        if (!isValidEvent()) {
-            warning(`Event Validation Warning: The event type ${process.env.GITHUB_EVENT_NAME} may not be tied to a branch or tag ref.`);
+        const tier = await buildS3Tier(config);
+        setOutput(Outputs.CacheStorageProvider, tier.storage.providerConfig.provider);
+        return tier;
+    }
+    catch (err) {
+        const otherTierMayServe = config.dualCache ? !config.dualCacheStrict : config.useFallback;
+        if (!otherTierMayServe) {
+            throw err;
         }
-        const readOnlyState = stateProvider.getState(constants_State.CacheReadOnly);
-        const readOnly = readOnlyState === 'true' || getInputAsBool(Inputs.ReadOnly);
-        if (readOnly) {
-            info('Read-only mode enabled. Skipping cache save.');
-            return;
+        core_warning(`S3 client initialization failed during save: ${outcomes_toError(err).message}`);
+        return undefined;
+    }
+}
+async function saveSingleTier(config, s3, s3ExactHit) {
+    if (s3ExactHit) {
+        info(`Cache hit occurred on the primary key ${config.primaryKey}, not saving cache.`);
+        setOutput(Outputs.CacheSavedSources, 'none');
+        return;
+    }
+    if (s3) {
+        const outcome = await saveToS3(s3, config.primaryKey, config.paths, config.uploadChunkSize);
+        if (outcome.kind === 'saved' || outcome.kind === 'exists') {
+            reportS3(outcome.s3);
+            setOutput(Outputs.CacheSavedSources, 's3');
+            return outcome.s3?.size;
         }
-        const primaryKey = stateProvider.getState(constants_State.CachePrimaryKey) || getInput(Inputs.Key);
-        if (!primaryKey) {
-            warning('Key is not specified. Skipping cache save.');
-            return;
-        }
-        const cachePaths = getInputAsArray(Inputs.Path, { required: true });
-        if (cachePaths.length === 0) {
-            warning('No paths specified to cache. Skipping save.');
-            return;
-        }
-        const s3KeyPattern = stateProvider.getState(constants_State.CacheS3KeyPattern) ||
-            getInput(Inputs.S3KeyPattern) ||
-            Defaults.DefaultS3KeyPattern;
-        const prefix = stateProvider.getState(constants_State.CachePrefix) || getInput(Inputs.Prefix) || '';
-        const scopedToRepoState = stateProvider.getState(constants_State.CacheScopedToRepository);
-        const scopedToRepository = scopedToRepoState !== ''
-            ? scopedToRepoState === 'true'
-            : getInputAsBool(Inputs.ScopedToRepository, true);
-        const retryState = stateProvider.getState(constants_State.CacheRetry);
-        const retryEnabled = retryState !== '' ? retryState === 'true' : getInputAsBool(Inputs.Retry, true);
-        const retryCountState = stateProvider.getState(constants_State.CacheRetryCount);
-        const retryCount = Number(retryCountState) || getInputAsInt(Inputs.RetryCount, Defaults.DefaultRetryCount) || 3;
-        const uploadChunkSize = getInputAsInt(Inputs.UploadChunkSize);
-        const enableCrossOsArchive = getInputAsBool(Inputs.EnableCrossOsArchive);
-        const useFallback = getInputAsBool(Inputs.UseFallback, false);
-        // Dual-cache configuration and restore states
-        const dualCacheState = stateProvider.getState(constants_State.CacheDualCache);
-        const dualCache = dualCacheState !== '' ? dualCacheState === 'true' : getInputAsBool(Inputs.DualCache, false);
-        const dualCacheStrategy = stateProvider.getState(constants_State.CacheDualCacheStrategy) ||
-            getInput(Inputs.DualCacheStrategy) ||
-            Defaults.DefaultDualCacheStrategy;
-        const dualCacheStrictState = stateProvider.getState(constants_State.CacheDualCacheStrict);
-        const dualCacheStrict = dualCacheStrictState !== ''
-            ? dualCacheStrictState === 'true'
-            : getInputAsBool(Inputs.DualCacheStrict, false);
-        const s3ExactHit = stateProvider.getState(constants_State.CacheS3ExactHit) === 'true';
-        const ghExactHit = stateProvider.getState(constants_State.CacheGithubExactHit) === 'true';
-        const restoredKey = stateProvider.getCacheState();
-        let storageContext = null;
-        try {
-            storageContext = createStorageContext();
-            setOutput(Outputs.CacheStorageProvider, storageContext.providerConfig.provider);
-        }
-        catch (err) {
-            if (useFallback || dualCache) {
-                warning(`S3 client initialization failed during save: ${err instanceof Error ? err.message : String(err)}`);
-            }
-            else {
-                throw err;
-            }
-        }
-        const compression = await getCompressionConfig();
-        const savedSources = [];
-        if (dualCache) {
-            info(`Dual-cache save executing (strategy: ${dualCacheStrategy})`);
-            // Determine S3 save necessity
-            let shouldSaveS3 = true;
-            if (s3ExactHit) {
-                info(`Exact hit already occurred in S3 for key "${primaryKey}", skipping S3 save.`);
-                shouldSaveS3 = false;
-                savedSources.push('s3');
-            }
-            else if (dualCacheStrategy === 'skip-on-hit' && (s3ExactHit || ghExactHit)) {
-                info('Cache hit occurred on another tier; strategy is skip-on-hit, skipping S3 save.');
-                shouldSaveS3 = false;
-            }
-            // Determine GitHub Cache save necessity
-            let shouldSaveGH = true;
-            if (ghExactHit) {
-                info(`Exact hit already occurred in GitHub Cache for key "${primaryKey}", skipping GitHub save.`);
-                shouldSaveGH = false;
-                savedSources.push('github');
-            }
-            else if (dualCacheStrategy === 'skip-on-hit' && (s3ExactHit || ghExactHit)) {
-                info('Cache hit occurred on another tier; strategy is skip-on-hit, skipping GitHub save.');
-                shouldSaveGH = false;
-            }
-            // 1. Save to S3 if needed
-            if (shouldSaveS3 && storageContext) {
-                try {
-                    info(`Saving/backfilling cache to S3...`);
-                    const s3Res = await saveToS3(storageContext, primaryKey, cachePaths, s3KeyPattern, prefix, scopedToRepository, retryEnabled, retryCount, uploadChunkSize, enableCrossOsArchive, compression);
-                    savedSources.push('s3');
-                    setOutput(Outputs.CacheS3Key, s3Res.s3ObjectKey);
-                    setOutput(Outputs.CacheSize, s3Res.size.toString());
-                    if (s3Res.etag)
-                        setOutput(Outputs.CacheETag, s3Res.etag);
-                }
-                catch (err) {
-                    if (dualCacheStrict)
-                        throw err;
-                    warning(`Dual-cache S3 save error: ${err instanceof Error ? err.message : String(err)}`);
-                }
-            }
-            // 2. Save to GitHub Cache if needed
-            if (shouldSaveGH) {
-                try {
-                    info(`Saving/backfilling cache to GitHub Actions Cache...`);
-                    const ghRes = await fallbackSave(cachePaths, primaryKey, { uploadChunkSize }, enableCrossOsArchive);
-                    if (ghRes !== undefined) {
-                        savedSources.push('github');
-                    }
-                }
-                catch (err) {
-                    if (dualCacheStrict)
-                        throw err;
-                    warning(`Dual-cache GitHub save error: ${err instanceof Error ? err.message : String(err)}`);
-                }
-            }
-            const finalSaved = Array.from(new Set(savedSources));
-            setOutput(Outputs.CacheSavedSources, finalSaved.join(',') || 'none');
-            info(`Dual-cache save complete. Active cache sources: ${finalSaved.join(', ') || 'none'}`);
-            return;
-        }
-        // Standard Pure-S3 Save
-        if (restoredKey && isExactKeyMatch(primaryKey, restoredKey)) {
-            info(`Cache hit occurred on primary key "${primaryKey}", not saving cache.`);
+        if (outcome.kind === 'skipped') {
             setOutput(Outputs.CacheSavedSources, 'none');
             return;
         }
-        if (storageContext) {
-            try {
-                const s3Res = await saveToS3(storageContext, primaryKey, cachePaths, s3KeyPattern, prefix, scopedToRepository, retryEnabled, retryCount, uploadChunkSize, enableCrossOsArchive, compression);
-                setOutput(Outputs.CacheS3Key, s3Res.s3ObjectKey);
-                setOutput(Outputs.CacheSize, s3Res.size.toString());
-                setOutput(Outputs.CacheSavedSources, 's3');
-                if (s3Res.etag)
-                    setOutput(Outputs.CacheETag, s3Res.etag);
-                return s3Res.size;
-            }
-            catch (err) {
-                const msg = err instanceof Error ? err.message : String(err);
-                if (useFallback) {
-                    warning(`S3 save failed: ${msg}. Attempting fallback save to GitHub...`);
-                    await fallbackSave(cachePaths, primaryKey, { uploadChunkSize }, enableCrossOsArchive);
-                    setOutput(Outputs.CacheSavedSources, 'github');
-                }
-                else {
-                    warning(`Failed to save cache to S3: ${msg}`);
-                    setOutput(Outputs.CacheSavedSources, 'none');
-                }
-            }
-        }
-        else if (useFallback) {
-            await fallbackSave(cachePaths, primaryKey, { uploadChunkSize }, enableCrossOsArchive);
+        core_warning(`Failed to save cache to S3: ${outcome.error.message}`);
+    }
+    if (config.useFallback) {
+        info('Saving to GitHub Actions Cache instead (use-fallback).');
+        const outcome = await saveToGitHub(config.paths, config.primaryKey, config.uploadChunkSize, config.enableCrossOsArchive);
+        if (outcome.kind === 'saved') {
             setOutput(Outputs.CacheSavedSources, 'github');
+            return;
+        }
+        if (outcome.kind === 'error') {
+            core_warning(`Failed to save cache to GitHub Actions Cache: ${outcome.error.message}`);
         }
     }
+    setOutput(Outputs.CacheSavedSources, 'none');
+}
+async function saveBothTiers(config, s3, s3ExactHit, githubExactHit) {
+    const present = new Set();
+    const tierFailed = (tier, error) => {
+        if (config.dualCacheStrict) {
+            throw new Error(`Saving to ${tier} failed: ${error.message}`);
+        }
+        core_warning(`Dual-cache ${tier} save error: ${error.message}`);
+    };
+    info(`Dual-cache save (strategy: ${config.dualCacheStrategy})`);
+    const skipBoth = config.dualCacheStrategy === 'skip-on-hit' && (s3ExactHit || githubExactHit);
+    if (skipBoth) {
+        info('An exact hit occurred on one tier and dual-cache-strategy is skip-on-hit; not saving.');
+    }
+    if (s3ExactHit) {
+        present.add('s3');
+    }
+    else if (!skipBoth && s3) {
+        const outcome = await saveToS3(s3, config.primaryKey, config.paths, config.uploadChunkSize);
+        if (outcome.kind === 'saved' || outcome.kind === 'exists') {
+            present.add('s3');
+            reportS3(outcome.s3);
+        }
+        else if (outcome.kind === 'error') {
+            tierFailed('S3', outcome.error);
+        }
+    }
+    if (githubExactHit) {
+        present.add('github');
+    }
+    else if (!skipBoth) {
+        let alreadyThere = false;
+        try {
+            alreadyThere = await existsInGitHub(config.paths, config.primaryKey, config.enableCrossOsArchive);
+        }
+        catch (err) {
+            tierFailed('GitHub Actions Cache', outcomes_toError(err));
+        }
+        if (alreadyThere) {
+            info(`GitHub Actions Cache already has key "${config.primaryKey}"; not uploading it again.`);
+            present.add('github');
+        }
+        else {
+            const outcome = await saveToGitHub(config.paths, config.primaryKey, config.uploadChunkSize, config.enableCrossOsArchive);
+            if (outcome.kind === 'saved') {
+                present.add('github');
+            }
+            else if (outcome.kind === 'error') {
+                tierFailed('GitHub Actions Cache', outcome.error);
+            }
+        }
+    }
+    const sources = ['s3', 'github'].filter((source) => present.has(source));
+    setOutput(Outputs.CacheSavedSources, sources.join(',') || 'none');
+    info(`Dual-cache save complete. Cache present in: ${sources.join(', ') || 'none'}`);
+}
+async function saveImpl(stateProvider) {
+    let strict = false;
+    try {
+        if (!isValidEvent()) {
+            core_warning(`Event Validation Warning: The event type ${process.env.GITHUB_EVENT_NAME} may not be tied to a branch or tag ref.`);
+        }
+        const config = readCacheConfig(stateProvider);
+        strict = config.dualCache && config.dualCacheStrict;
+        if (config.readOnly) {
+            info('Read-only mode enabled. Skipping cache save.');
+            return;
+        }
+        if (!config.primaryKey) {
+            core_warning('Key is not specified. Skipping cache save.');
+            return;
+        }
+        if (config.paths.length === 0) {
+            core_warning('No paths specified to cache. Skipping save.');
+            return;
+        }
+        const s3ExactHit = stateProvider.getState(constants_State.CacheS3ExactHit) === 'true';
+        const githubExactHit = stateProvider.getState(constants_State.CacheGithubExactHit) === 'true';
+        const s3 = await setUpS3(config);
+        if (config.dualCache) {
+            await saveBothTiers(config, s3, s3ExactHit, githubExactHit);
+            return;
+        }
+        return await saveSingleTier(config, s3, s3ExactHit);
+    }
     catch (err) {
-        warning(`Save cache encountered error: ${err instanceof Error ? err.message : String(err)}`);
+        const message = outcomes_toError(err).message;
+        if (strict) {
+            setFailed(message);
+        }
+        else {
+            core_warning(`Save cache encountered error: ${message}`);
+        }
     }
 }
 async function runSave(earlyExit = true) {

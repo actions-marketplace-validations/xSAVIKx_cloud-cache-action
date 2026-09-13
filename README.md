@@ -34,7 +34,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 
 ## Features
 
-- **1:1 Parity with `actions/cache` (v4–v6)**: Drop-in replacement for official inputs (`key`, `path`, `restore-keys`, `lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `read-only`, `save-always`) and outputs (`cache-hit`, `cache-primary-key`, `cache-matched-key`).
+- **actions/cache (v4–v6) compatible**: the same inputs (`key`, `path` with globs, `~` and `!` exclusions, `restore-keys`, `lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `upload-chunk-size`) and outputs (`cache-hit`, `cache-primary-key`, `cache-matched-key`); the same key matching (exact key, then key prefix, then restore keys); and the same branch isolation (current ref, then pull request base, then default branch). `save-always` is not supported; see [Saving after failed steps](#saving-after-failed-steps).
 - **No Deprecation Warnings**: Built natively for modern GitHub Actions runners (`runs: using: 'node24'`).
 - **Universal S3 Compatibility**: First-class support for:
   - **AWS S3** (IAM static credentials or OIDC `aws-actions/configure-aws-credentials`)
@@ -46,7 +46,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
   - **SeaweedFS S3**
   - **MinIO / LocalStack / Ceph**
 - **Smart Provider Auto-Detection**: Automatically determines optimal regions and path-style addressing from your endpoint URL.
-- **Custom S3 Key & Environment Templating**: Default pattern `${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}` with full override capability and support for dynamic environment variables (`${RUNNER_OS}`, `${GITHUB_JOB}`, `${WORKLOAD_TYPE}`).
+- **Custom S3 Key & Environment Templating**: Default pattern `${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}` with full override capability and support for dynamic environment variables (`${RUNNER_OS}`, `${GITHUB_JOB}`, `${WORKLOAD_TYPE}`).
 - **Safe Cross-Platform Keys**: Guarantees standard POSIX forward slashes (`/`) in object storage across Linux, macOS, and Windows runners (fixing legacy backslash bugs).
 - **Multi-Threaded `zstd` Compression**: Lightning-fast archiving with fallback to `gzip`.
 - **Dual Caching (Multi-Tier)**: Optionally cache across both remote S3 and GitHub Actions Cache simultaneously with configurable priority (`s3-first` or `github-first`) and automatic backfill synchronization.
@@ -234,6 +234,40 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
 
 ---
 
+## Upgrading to v1.1
+
+v1.1 changes how cache objects are named, so **caches saved by v1.0 are not found and are rebuilt once**.
+
+- **Key layout:** object keys now include the Git ref and a cache version: `${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}`. The version hashes `path`, the compression method and, on Windows, `enableCrossOsArchive`, so a cache is never restored into a job that caches different paths.
+- **Paths:** `path` supports globs, `~` and `!` exclusions like actions/cache, and archives store paths relative to `GITHUB_WORKSPACE`.
+- **Branch isolation:** restores search the current ref, then the pull request base branch, then the default branch. Set `scoped-to-ref: false` to share caches across all refs.
+- **`save-always`** was removed. **`dual-cache-strategy: independent`** now behaves as `backfill` and logs a warning.
+- **`dual-cache-strict: true`** now fails the step on any tier error during restore or save.
+
+The action never reads v1.0 objects again; let a bucket lifecycle rule expire them.
+
+## Saving after failed steps
+
+The post step only runs when the job succeeds. To save a cache even when a later step fails, use the separate actions with `if: always()`:
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action/restore@v1
+  id: cache
+  with:
+    bucket: my-bucket
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: ~/.cache
+
+- run: make build
+
+- uses: xSAVIKx/cloud-cache-action/save@v1
+  if: always() && steps.cache.outputs.cache-hit != 'true'
+  with:
+    bucket: my-bucket
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: ~/.cache
+```
+
 ## Inputs
 
 | Input                            | Required |                          Default                           | Description                                                                 |
@@ -250,20 +284,20 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
 | `session-token` / `sessionToken` |    No    |                    `AWS_SESSION_TOKEN`                     | S3 Session Token                                                            |
 | `force-path-style`               |    No    |                            Auto                            | Force path-style S3 URLs                                                    |
 | `prefix`                         |    No    |                            `""`                            | Subfolder prefix path inside bucket                                         |
-| `s3-key-pattern`                 |    No    | `${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}` | Custom S3 key template pattern (supports `${ENV_VARS}`)                     |
+| `s3-key-pattern`                 |    No    | `${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}` | Custom S3 key template pattern (supports `${ENV_VARS}`)                     |
 | `scoped-to-repository`           |    No    |                           `true`                           | Prefix bucket cache paths with repository name                              |
+| `scoped-to-ref`                  |    No    |                           `true`                            | Restore from the current ref, then the PR base, then the default branch; `false` shares caches across refs |
 | `lookup-only`                    |    No    |                          `false`                           | Check existence without downloading                                         |
 | `fail-on-cache-miss`             |    No    |                          `false`                           | Fail workflow if cache is not found                                         |
 | `enableCrossOsArchive`           |    No    |                          `false`                           | Allow Windows runners to save/restore cross-OS caches                       |
 | `read-only`                      |    No    |                          `false`                           | Restore cache but never save in post step                                   |
-| `save-always`                    |    No    |                          `false`                           | Run post-save even if prior steps failed                                    |
 | `retry`                          |    No    |                           `true`                           | Enable exponential backoff retries on S3 operations                         |
 | `retry-count`                    |    No    |                            `3`                             | Maximum number of S3 retries                                                |
 | `use-fallback`                   |    No    |                          `false`                           | Fallback to GitHub Actions cache service if S3 fails                        |
 | `dual-cache`                     |    No    |                          `false`                           | Cache to both S3 and GitHub Actions Cache simultaneously                    |
 | `restore-priority`               |    No    |                         `s3-first`                         | Cache source to query first: `s3-first` or `github-first`                   |
-| `dual-cache-strategy`            |    No    |                         `backfill`                         | Sync strategy: `backfill` (sync missing tier), `independent`, `skip-on-hit` |
-| `dual-cache-strict`              |    No    |                          `false`                           | Fail step if either tier encounters an error                                |
+| `dual-cache-strategy`            |    No    |                         `backfill`                         | `backfill` (upload to a tier only if it lacks the key) or `skip-on-hit` |
+| `dual-cache-strict`              |    No    |                          `false`                           | Fail the step when either tier errors during restore or save |
 
 ---
 

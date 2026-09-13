@@ -50,9 +50,10 @@ When `dual-cache: true` is enabled, the post-run step evaluates both tiers accor
 
 | Strategy                   | Behavior                                                                                                                                                           |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`backfill`** _(default)_ | If one tier hit but the other missed (e.g. GitHub Cache hit, S3 missed), post-save automatically **backfills** the missing tier so both systems stay synchronized. |
-| **`independent`**          | Verifies existence in S3 and GitHub independently, uploading to any tier where the key is absent.                                                                  |
-| **`skip-on-hit`**          | If an exact match hit occurred on _either_ tier during restore, saving is skipped on both.                                                                         |
+| **`backfill`** _(default)_ | Before uploading to a tier that did not serve the exact key, checks whether that tier already has it (an S3 `HEAD` request or a GitHub lookup) and uploads only if it is missing. |
+| **`skip-on-hit`**          | If an exact hit occurred on _either_ tier during restore, saving is skipped on both.                                                                                              |
+
+`independent` was removed in v1.1; it now behaves as `backfill` and logs a warning.
 
 ---
 
@@ -190,8 +191,8 @@ If your team is migrating from `actions/cache` to Cloudflare R2 or AWS S3:
 | --------------------- | :-----: | :--------: | --------------------------------------------------------------------------------------------------------------------------- |
 | `dual-cache`          | boolean |  `false`   | Enables simultaneous caching across S3-compatible storage and GitHub Actions Cache.                                         |
 | `restore-priority`    | string  | `s3-first` | Order to check caches during restore: `s3-first` or `github-first`.                                                         |
-| `dual-cache-strategy` | string  | `backfill` | Save synchronization mode: `backfill` (sync missing tier), `independent`, or `skip-on-hit`.                                 |
-| `dual-cache-strict`   | boolean |  `false`   | When `false` (default), errors in one tier emit warnings without failing the job. When `true`, any failure halts execution. |
+| `dual-cache-strategy` | string  | `backfill` | Save synchronization mode: `backfill` or `skip-on-hit`.                                                                     |
+| `dual-cache-strict`   | boolean |  `false`   | When `false` (default), a tier error is a warning and the other tier continues. When `true`, an error from either tier fails the step, during restore and during save. |
 
 ### Outputs
 

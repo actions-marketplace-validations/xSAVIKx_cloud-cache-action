@@ -158,9 +158,10 @@ When `dual-cache: true` is enabled, the post-run step evaluates both tiers accor
 
 | Strategy                   | Behavior                                                                                                                                                           |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`backfill`** _(default)_ | If one tier hit but the other missed (e.g. GitHub Cache hit, S3 missed), post-save automatically **backfills** the missing tier so both systems stay synchronized. |
-| **`independent`**          | Verifies existence in S3 and GitHub independently, uploading to any tier where the key is absent.                                                                  |
-| **`skip-on-hit`**          | If an exact match hit occurred on _either_ tier during restore, saving is skipped on both.                                                                         |
+| **`backfill`** _(default)_ | Before uploading to a tier that did not serve the exact key, checks whether that tier already has it (an S3 `HEAD` request or a GitHub lookup) and uploads only if it is missing. |
+| **`skip-on-hit`**          | If an exact hit occurred on _either_ tier during restore, saving is skipped on both.                                                                                              |
+
+`independent` was removed in v1.1; it now behaves as `backfill` and logs a warning.
 
 ---
 
@@ -298,8 +299,8 @@ If your team is migrating from `actions/cache` to Cloudflare R2 or AWS S3:
 | --------------------- | :-----: | :--------: | --------------------------------------------------------------------------------------------------------------------------- |
 | `dual-cache`          | boolean |  `false`   | Enables simultaneous caching across S3-compatible storage and GitHub Actions Cache.                                         |
 | `restore-priority`    | string  | `s3-first` | Order to check caches during restore: `s3-first` or `github-first`.                                                         |
-| `dual-cache-strategy` | string  | `backfill` | Save synchronization mode: `backfill` (sync missing tier), `independent`, or `skip-on-hit`.                                 |
-| `dual-cache-strict`   | boolean |  `false`   | When `false` (default), errors in one tier emit warnings without failing the job. When `true`, any failure halts execution. |
+| `dual-cache-strategy` | string  | `backfill` | Save synchronization mode: `backfill` or `skip-on-hit`.                                                                     |
+| `dual-cache-strict`   | boolean |  `false`   | When `false` (default), a tier error is a warning and the other tier continues. When `true`, an error from either tier fails the step, during restore and during save. |
 
 ### Outputs
 
@@ -327,44 +328,62 @@ The dual-cache backfill and skip-on-hit strategies are exercised continuously wi
 
 # S3 Key Templating & Overrides
 
-Cloud Cache Action gives you complete control over where and how cache archives are named and organized in your storage bucket.
+Cloud Cache Action gives you complete control over where cache archives are stored in your bucket.
 
 ## Default Key Pattern
 
-By default, the S3 key is constructed using:
-
 ```text
-${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}
+${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}
 ```
 
-For example, for repository `my-org/my-project` with primary key `linux-node-18-a1b2c3`, the resulting object in the bucket will be:
+For repository `my-org/my-project`, branch `main` and key `linux-node-18-a1b2c3`, the object is:
 
 ```text
-my-org/my-project/linux-node-18-a1b2c3/cache.tar.zst
+my-org/my-project/refs%2Fheads%2Fmain/linux-node-18-a1b2c3/27747e0d22df7792/cache.tar.zst
 ```
 
 ## Available Template Placeholders
 
 ### Special Placeholders
 
-| Variable               | Description                                       | Example                           |
-| ---------------------- | ------------------------------------------------- | --------------------------------- |
-| `${GITHUB_REPOSITORY}` | Repository name in `owner/repo` format            | `xSAVIKx/cloud-cache-action`      |
-| `${prefix}`            | Subfolder prefix with trailing slash if non-empty | `frontend/`                       |
-| `${key}`               | The primary or matched cache key                  | `linux-node-a1b2c3`               |
-| `${archive_filename}`  | Compressed archive filename                       | `cache.tar.zst` or `cache.tar.gz` |
+| Variable               | Description                                                                                 | Example                           |
+| ---------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `${GITHUB_REPOSITORY}` | Repository in `owner/repo` format; removed when `scoped-to-repository: false`               | `xSAVIKx/cloud-cache-action`      |
+| `${prefix}`            | The `prefix` input with a trailing slash, or empty                                          | `frontend/`                       |
+| `${ref}`               | The Git ref, encoded as one path segment; removed when `scoped-to-ref: false`               | `refs%2Fheads%2Fmain`             |
+| `${key}`               | The cache key. Must appear exactly once. Inserted as written, so keys may contain `/`       | `linux-node-a1b2c3`               |
+| `${version}`           | 16-character hash of `path`, the compression method and (on Windows) `enableCrossOsArchive` | `27747e0d22df7792`                |
+| `${archive_filename}`  | Archive name                                                                                 | `cache.tar.zst` or `cache.tar.gz` |
+
+Write special placeholders in braces. A pattern without `${ref}` or `${version}` works, but the action warns:
+
+- Without `${ref}`, every branch shares caches.
+- Without `${version}`, a cache saved with different paths or compression can be restored as a hit.
 
 ### Environment Variables
 
-You can also reference **any environment variable** using `${VAR_NAME}`, `$VAR_NAME`, or `${env.VAR_NAME}`. This enables isolation per workload, job, matrix runner, or workflow run:
+Reference any environment variable with `${VAR_NAME}`, `$VAR_NAME` or `${env.VAR_NAME}`:
+
+- An unset `${VAR_NAME}` becomes empty.
+- An unset `$VAR_NAME` stays as written.
+- Values are inserted once and never expanded again.
 
 | Variable             | Description                           | Example Value               |
-| -------------------- | ------------------------------------- | --------------------------- |
+| --------------------- | -------------------------------------- | ----------------------------- |
 | `${RUNNER_OS}`       | Runner operating system               | `Linux`, `Windows`, `macOS` |
 | `${GITHUB_JOB}`      | Current job ID in the workflow        | `build-frontend`            |
 | `${GITHUB_RUN_ID}`   | Unique ID of the workflow run         | `1234567890`                |
-| `${GITHUB_REF_NAME}` | Branch or tag name                    | `main`, `feature-auth`      |
 | `${CUSTOM_WORKLOAD}` | Any user-defined environment variable | `api-service`               |
+
+## How Restore Finds a Cache
+
+For each ref in order (the current ref, the pull request base branch, then the default branch), restore tries:
+
+1. The exact `key`.
+2. The newest object whose key starts with `key`.
+3. For each `restore-keys` entry in order, the newest object whose key starts with it.
+
+Only objects with the same `${version}` and archive format count, and the first match wins.
 
 ## Common Configuration Patterns
 
@@ -379,42 +398,37 @@ You can also reference **any environment variable** using `${VAR_NAME}`, `$VAR_N
     path: node_modules
 ```
 
-Object key: `my-org/my-repo/web-app/linux-node-12345/cache.tar.zst`
+Object key: `my-org/my-repo/web-app/refs%2Fheads%2Fmain/Linux-node-12345/<version>/cache.tar.zst`
 
-### 2. Disabling Repository Scoping (Global Shared Cache)
-
-If multiple repositories share the exact same pre-built toolchains or caches across an organization:
+### 2. Global Shared Cache (No Repository or Ref Scoping)
 
 ```yaml
 - uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: shared-org-cache
     scoped-to-repository: false
+    scoped-to-ref: false
     key: global-rust-toolchain-v1
     path: ~/.cargo
 ```
 
-Object key: `global-rust-toolchain-v1/cache.tar.zst`
+Object key: `global-rust-toolchain-v1/<version>/cache.tar.zst`
 
 ### 3. Fully Custom S3 Key Pattern
-
-You can define any pattern using `s3-key-pattern`:
 
 ```yaml
 - uses: xSAVIKx/cloud-cache-action@v1
   with:
     bucket: my-bucket
-    s3-key-pattern: 'builds/${GITHUB_REPOSITORY}/${prefix}${key}.tar.zst'
+    s3-key-pattern: 'builds/${GITHUB_REPOSITORY}/${ref}/${prefix}${key}/${version}.tar.zst'
     prefix: release-v1/
     key: app-bundle
     path: dist/
 ```
 
-Object key: `builds/my-org/my-repo/release-v1/app-bundle.tar.zst`
+Object key: `builds/my-org/my-repo/refs%2Fheads%2Fmain/release-v1/app-bundle/<version>.tar.zst`
 
-### 4. Per-Workload / Per-Job Isolated Cache
-
-You can isolate caches across parallel matrix jobs, workloads, or workflow runs using environment variables:
+### 4. Per-Workload Isolated Cache
 
 ```yaml
 - uses: xSAVIKx/cloud-cache-action@v1
@@ -422,15 +436,15 @@ You can isolate caches across parallel matrix jobs, workloads, or workflow runs 
     WORKLOAD_TYPE: backend-api
   with:
     bucket: my-bucket
-    s3-key-pattern: '${GITHUB_REPOSITORY}/${RUNNER_OS}/${WORKLOAD_TYPE}/${key}/${archive_filename}'
+    s3-key-pattern: '${GITHUB_REPOSITORY}/${RUNNER_OS}/${WORKLOAD_TYPE}/${ref}/${key}/${version}/${archive_filename}'
     key: ${{ runner.os }}-deps-${{ hashFiles('go.sum') }}
     path: ~/go/pkg/mod
 ```
 
-Object key: `my-org/my-repo/Linux/backend-api/Linux-deps-abc123/cache.tar.zst`
+Object key: `my-org/my-repo/Linux/backend-api/refs%2Fheads%2Fmain/Linux-deps-abc123/<version>/cache.tar.zst`
 
 > [!NOTE]
-> Regardless of whether the runner is running on Windows, Linux, or macOS, all S3 keys are guaranteed to be normalized with standard POSIX forward slashes (`/`), avoiding invalid backslashes in object storage.
+> Object keys always use forward slashes (`/`), whether the runner is Linux, macOS or Windows.
 
 
 
@@ -485,7 +499,7 @@ Please migrate all GitHub Actions caching steps in this repository to `xSAVIKx/c
    - Replace `actions/cache@v...` with `xSAVIKx/cloud-cache-action@v1`.
    - Replace `actions/cache/restore@v...` with `xSAVIKx/cloud-cache-action/restore@v1`.
    - Replace `actions/cache/save@v...` with `xSAVIKx/cloud-cache-action/save@v1`.
-   - Preserve all existing cache keys and options: `path`, `key`, `restore-keys`, `lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `save-always`, `read-only`.
+   - Preserve all existing cache keys and options: `path`, `key`, `restore-keys`, `lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `read-only`.
    - Add the required provider inputs (`bucket`, `endpoint`, `access-key`, `secret-key`) referencing GitHub Secrets (`${{ secrets.<SECRET_NAME> }}`).
 
 4. **Verify & Summarize**:
@@ -549,7 +563,7 @@ Because `cloud-cache-action` maintains 1:1 input and output parity, you simply c
       ${{ runner.os }}-node-
 ```
 
-All existing features (`lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `save-always`, `read-only`) continue to work identically.
+All existing features (`lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `read-only`) continue to work identically. `save-always` is not supported: use `cloud-cache-action/save` with `if: always()` instead.
 
 ---
 
@@ -567,6 +581,16 @@ If you are using legacy `tespkg/actions-cache`, migrating to `cloud-cache-action
 - All legacy inputs (`bucket`, `endpoint`, `region`, `insecure`, `accessKey`, `secretKey`, `sessionToken`) remain supported for backward compatibility.
 - Kebab-case aliases are also supported (`access-key`, `secret-key`, `session-token`, `force-path-style`).
 - **Fallback Behavior**: `use-fallback` is `false` by default in `cloud-cache-action` rather than `true`. If you want automatic GitHub Actions Cache fallback on S3 errors or cache miss, set `use-fallback: true`.
+
+## Branch Isolation and Trust Model
+
+Like actions/cache, restores only use caches from the current ref, the pull request's base branch and the default branch. A feature branch can reuse `main`'s cache, but `main` never restores a cache that a feature branch saved. Set `scoped-to-ref: false` to share caches across every ref.
+
+Unlike GitHub's cache service, the bucket itself does not enforce this: **anyone who holds the bucket's write credentials can write any cache object**, including ones `main` will restore. Archives are extracted with absolute paths allowed, as actions/cache does. So:
+
+- Do not expose cache credentials to workflows that run untrusted code, such as `pull_request_target` jobs that check out fork code.
+- Prefer short-lived credentials (OIDC) scoped to the cache bucket or prefix.
+- Use a separate bucket or `prefix` for caches that must not be shared between repositories or trust levels.
 
 
 
@@ -813,6 +837,11 @@ This action is tested continuously against Cloudflare R2 with zero egress fees. 
 <<< ../../.github/workflows/provider-r2.yml{yaml}
 :::
 
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
+
 
 
 <!-- ============================================================================ -->
@@ -913,6 +942,11 @@ This action is tested continuously against Google Cloud Storage using HMAC keys 
 <<< ../../.github/workflows/provider-gcs.yml{yaml}
 :::
 
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
+
 
 
 <!-- ============================================================================ -->
@@ -988,6 +1022,11 @@ Backblaze will display your `applicationKey` **only once**:
 > [!TIP]
 > **Automatic Region Detection**: Cloud Cache Action automatically parses the AWS-compatible region (e.g. `us-west-004` or `eu-central-003`) directly from your Backblaze endpoint URL, so you do not need to specify `region` manually.
 
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
+
 
 
 <!-- ============================================================================ -->
@@ -1052,6 +1091,10 @@ Store the credentials in your repository's **Settings** > **Secrets and variable
       ~/.cargo/registry/cache/
       target/
 ```
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
 
 
 
@@ -1183,6 +1226,11 @@ docker exec -ti cloud-cache-garage /garage bucket create ci-cache
 docker exec -ti cloud-cache-garage /garage bucket allow ci-cache --read --write --key ci-cache-key
 ```
 
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
+
 
 
 <!-- ============================================================================ -->
@@ -1294,6 +1342,11 @@ Once running:
 - **S3 API**: `http://localhost:8333`
 - **Master UI**: `http://localhost:9333`
 - Pre-configured with automatic bucket creation on first write.
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
 
 
 
@@ -1498,4 +1551,9 @@ The repository dogfoods MinIO directly inside the continuous integration test su
 ::: details `.github/workflows/test.yml` (Click to view test workflow)
 <<< ../../.github/workflows/test.yml{yaml}
 :::
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
 

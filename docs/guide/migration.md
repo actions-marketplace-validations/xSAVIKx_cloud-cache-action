@@ -45,7 +45,7 @@ Please migrate all GitHub Actions caching steps in this repository to `xSAVIKx/c
    - Replace `actions/cache@v...` with `xSAVIKx/cloud-cache-action@v1`.
    - Replace `actions/cache/restore@v...` with `xSAVIKx/cloud-cache-action/restore@v1`.
    - Replace `actions/cache/save@v...` with `xSAVIKx/cloud-cache-action/save@v1`.
-   - Preserve all existing cache keys and options: `path`, `key`, `restore-keys`, `lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `save-always`, `read-only`.
+   - Preserve all existing cache keys and options: `path`, `key`, `restore-keys`, `lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `read-only`.
    - Add the required provider inputs (`bucket`, `endpoint`, `access-key`, `secret-key`) referencing GitHub Secrets (`${{ secrets.<SECRET_NAME> }}`).
 
 4. **Verify & Summarize**:
@@ -109,7 +109,7 @@ Because `cloud-cache-action` maintains 1:1 input and output parity, you simply c
       ${{ runner.os }}-node-
 ```
 
-All existing features (`lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `save-always`, `read-only`) continue to work identically.
+All existing features (`lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `read-only`) continue to work identically. `save-always` is not supported: use `cloud-cache-action/save` with `if: always()` instead.
 
 ---
 
@@ -127,3 +127,13 @@ If you are using legacy `tespkg/actions-cache`, migrating to `cloud-cache-action
 - All legacy inputs (`bucket`, `endpoint`, `region`, `insecure`, `accessKey`, `secretKey`, `sessionToken`) remain supported for backward compatibility.
 - Kebab-case aliases are also supported (`access-key`, `secret-key`, `session-token`, `force-path-style`).
 - **Fallback Behavior**: `use-fallback` is `false` by default in `cloud-cache-action` rather than `true`. If you want automatic GitHub Actions Cache fallback on S3 errors or cache miss, set `use-fallback: true`.
+
+## Branch Isolation and Trust Model
+
+Like actions/cache, restores only use caches from the current ref, the pull request's base branch and the default branch. A feature branch can reuse `main`'s cache, but `main` never restores a cache that a feature branch saved. Set `scoped-to-ref: false` to share caches across every ref.
+
+Unlike GitHub's cache service, the bucket itself does not enforce this: **anyone who holds the bucket's write credentials can write any cache object**, including ones `main` will restore. Archives are extracted with absolute paths allowed, as actions/cache does. So:
+
+- Do not expose cache credentials to workflows that run untrusted code, such as `pull_request_target` jobs that check out fork code.
+- Prefer short-lived credentials (OIDC) scoped to the cache bucket or prefix.
+- Use a separate bucket or `prefix` for caches that must not be shared between repositories or trust levels.
