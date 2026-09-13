@@ -125,8 +125,9 @@ export async function uploadFile(
   const stats = fs.statSync(sourcePath);
   const fileStream = fs.createReadStream(sourcePath);
 
+  // S3 parts must be at least 5 MiB; a smaller or unset chunk size uses 10 MiB parts.
   const partSize =
-    uploadChunkSize && uploadChunkSize > 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024; // 10MB default part size
+    uploadChunkSize && uploadChunkSize >= 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024;
 
   const parallelUpload = new Upload({
     client,

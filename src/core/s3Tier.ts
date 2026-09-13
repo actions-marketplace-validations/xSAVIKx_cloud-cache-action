@@ -93,12 +93,14 @@ export async function buildS3Tier(
   for (const warning of template.warnings) {
     core.warning(warning);
   }
+  // A pattern without ${ref} gives every ref the same object keys; search them only once.
+  const usesRef = scopedToRef && template.objectKey('a', '') !== template.objectKey('b', '');
 
   return {
     storage,
     template,
-    restoreRefs: scopedToRef ? refs.restore : [''],
-    saveRef: scopedToRef ? (refs.current as string) : '',
+    restoreRefs: usesRef ? refs.restore : [''],
+    saveRef: usesRef ? (refs.current as string) : '',
     compression,
     workspace: getWorkspace(env),
     streamRetries: config.retryEnabled ? config.retryCount : 0,

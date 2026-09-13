@@ -469,6 +469,23 @@ describe('buildS3Tier', () => {
     expect(mockGetCompressionConfig).toHaveBeenCalledTimes(3);
   });
 
+  it('searches one ref when the pattern has no ${ref}, instead of repeating each lookup', async () => {
+    const built = await buildS3Tier(
+      { ...config, s3KeyPattern: '${GITHUB_REPOSITORY}/${key}/${version}/${archive_filename}' },
+      env
+    );
+    expect(built).toMatchObject({ restoreRefs: [''], saveRef: '' });
+    expect(built.template.objectKey('', 'k')).toBe(`octo/app/k/${VERSION}/cache.tar.zst`);
+
+    objects.set(`octo/app/k-1/${VERSION}/cache.tar.zst`, {
+      size: 7,
+      lastModified: new Date(),
+      etag: '"k-1"',
+    });
+    await expect(findS3Match(built, 'k', ['k-'])).resolves.toMatchObject({ matchedKey: 'k-1' });
+    expect(mockCheckObjectExists).toHaveBeenCalledTimes(1);
+  });
+
   it('makes a single attempt when retries are disabled', async () => {
     const built = await buildS3Tier({ ...config, retryEnabled: false }, env);
     expect(mockCreateStorageContext).toHaveBeenCalledWith({ maxAttempts: 1 });

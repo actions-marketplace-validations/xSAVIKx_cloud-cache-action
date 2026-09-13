@@ -200,5 +200,29 @@ describe('Storage Operations', () => {
 
       fs.rmSync(tempDir, { recursive: true, force: true });
     });
+
+    it.each([
+      ['at exactly 5 MiB, the S3 minimum, as 5 MiB parts', 5 * 1024 * 1024, 3],
+      ['just under 5 MiB as 10 MiB parts', 5 * 1024 * 1024 - 1, 2],
+      ['unset as 10 MiB parts', undefined, 2],
+    ])('uploads 12 MiB with the chunk size %s', async (_label, chunkSize, parts) => {
+      const { CompleteMultipartUploadCommand, CreateMultipartUploadCommand, UploadPartCommand } =
+        await import('@aws-sdk/client-s3');
+      const { uploadFile } = await import('../../src/storage/operations');
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-upload-'));
+      const sampleFile = path.join(tempDir, 'large.bin');
+      fs.writeFileSync(sampleFile, Buffer.alloc(12 * 1024 * 1024, 'a'));
+      s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
+      s3Mock.on(UploadPartCommand).resolves({ ETag: '"part"' });
+      s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
+
+      try {
+        await uploadFile(client, 'test-bucket', 'large-key', sampleFile, chunkSize);
+        expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(parts);
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
   });
 });
