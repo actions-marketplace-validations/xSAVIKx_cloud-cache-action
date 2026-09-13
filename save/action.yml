@@ -86,7 +86,7 @@ inputs:
     required: false
     default: 'false'
   dual-cache-strategy:
-    description: 'Sync strategy for saving in dual-cache mode: backfill, independent, or skip-on-hit'
+    description: 'Sync strategy for saving in dual-cache mode: backfill or skip-on-hit'
     required: false
     default: 'backfill'
   dual-cache-strict:

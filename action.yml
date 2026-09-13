@@ -106,7 +106,7 @@ inputs:
     required: false
     default: 's3-first'
   dual-cache-strategy:
-    description: 'Sync strategy for saving in dual-cache mode: backfill (sync missing tier), independent, or skip-on-hit'
+    description: 'Sync strategy for saving in dual-cache mode: backfill (upload to a tier only if it lacks the key) or skip-on-hit'
     required: false
     default: 'backfill'
   dual-cache-strict:
