@@ -270,6 +270,55 @@ jobs:
       - name: Expect a miss on the first attempt
         run: test "${{ steps.cache.outputs.cache-hit }}" = "false"
 
+  prune:
+    name: Prune sub-action
+    needs: unit
+    runs-on: ubuntu-latest
+    env:
+      AWS_ENDPOINT_URL: http://127.0.0.1:8333
+      AWS_S3_BUCKET: cloud-cache-test
+      AWS_ACCESS_KEY_ID: cloudcacheci
+      AWS_SECRET_ACCESS_KEY: cloudcachecisecret
+      KEY: prune-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node tests/ci/startSeaweedfs.ts
+      - name: Create two payloads
+        run: |
+          mkdir -p payload-a payload-b
+          echo "a-${{ github.run_id }}" > payload-a/data.txt
+          echo "b-${{ github.run_id }}" > payload-b/data.txt
+      - name: Save the first key
+        uses: ./save
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}-a
+          path: payload-a
+      - name: Save the second key
+        uses: ./save
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}-b
+          path: payload-b
+      - name: Dry-run prune of caches older than 1 day
+        id: prune
+        uses: ./prune
+        with:
+          bucket: cloud-cache-test
+          older-than-days: 1
+          dry-run: true
+      - name: Expect nothing pruned, since the objects are brand new
+        run: test "${{ steps.prune.outputs.pruned-count }}" = "0"
+      - name: Confirm both objects still exist
+        run: |
+          count=$(node tests/ci/s3Objects.ts count "$GITHUB_REPOSITORY/" "/$KEY-")
+          test "$count" -eq 2
+
   dual-cache:
     name: Dual-cache with the live GitHub Actions Cache
     needs: unit

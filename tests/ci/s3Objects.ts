@@ -5,6 +5,7 @@
  *   node tests/ci/s3Objects.ts export <dir> <prefix> <contains>
  *   node tests/ci/s3Objects.ts import <dir>
  *   node tests/ci/s3Objects.ts delete <prefix> <contains>
+ *   node tests/ci/s3Objects.ts count <prefix> <contains>
  */
 import {
   DeleteObjectCommand,
@@ -88,9 +89,13 @@ async function main(argv: string[]): Promise<void> {
         await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
       }
       console.log(`Deleted ${keys.length} object(s)`);
+    } else if (command === 'count') {
+      const [prefix, contains] = args;
+      const keys = await listKeys(client, bucket, prefix, contains);
+      console.log(String(keys.length));
     } else {
       throw new Error(
-        'Usage: s3Objects.ts export <dir> <prefix> <contains> | import <dir> | delete <prefix> <contains>'
+        'Usage: s3Objects.ts export <dir> <prefix> <contains> | import <dir> | delete <prefix> <contains> | count <prefix> <contains>'
       );
     }
   } finally {

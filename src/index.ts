@@ -17,3 +17,5 @@ export * from './core/githubTier';
 export * from './core/s3Tier';
 export * from './core/restoreImpl';
 export * from './core/saveImpl';
+export * from './core/prune';
+export * from './core/pruneImpl';

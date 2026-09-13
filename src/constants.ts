@@ -28,6 +28,11 @@ export enum Inputs {
   UseFallback = 'use-fallback',
   Streaming = 'streaming',
 
+  // Prune-only inputs
+  OlderThanDays = 'older-than-days',
+  Ref = 'ref',
+  DryRun = 'dry-run',
+
   // Dual-cache inputs
   DualCache = 'dual-cache',
   RestorePriority = 'restore-priority',
@@ -47,6 +52,11 @@ export enum Outputs {
   // Dual-cache outputs
   CacheHitSource = 'cache-hit-source',
   CacheSavedSources = 'cache-saved-sources',
+
+  // Prune-only outputs
+  PrunedCount = 'pruned-count',
+  PrunedBytes = 'pruned-bytes',
+  KeptCount = 'kept-count',
 }
 
 export enum State {

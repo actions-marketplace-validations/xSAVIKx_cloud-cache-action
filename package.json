@@ -5,7 +5,7 @@
   "main": "dist/restore/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit && ncc build -o dist/restore src/restore.ts && ncc build -o dist/save src/save.ts && ncc build -o dist/restore-only src/restoreOnly.ts && ncc build -o dist/save-only src/saveOnly.ts",
+    "build": "tsc --noEmit && ncc build -o dist/restore src/restore.ts && ncc build -o dist/save src/save.ts && ncc build -o dist/restore-only src/restoreOnly.ts && ncc build -o dist/save-only src/saveOnly.ts && ncc build -o dist/prune src/prune.ts",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "test:contract": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/contract",

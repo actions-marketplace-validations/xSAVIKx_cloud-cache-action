@@ -22,15 +22,26 @@ const load = (relative: string): Manifest =>
   parse(readFileSync(path.join(REPO, relative), 'utf8')) as Manifest;
 
 const root = load('action.yml');
+const pruneManifest = load('prune/action.yml');
 const subActions: Array<[string, Manifest]> = [
   ['restore/action.yml', load('restore/action.yml')],
   ['save/action.yml', load('save/action.yml')],
 ];
-const allManifests: Array<[string, Manifest]> = [['action.yml', root], ...subActions];
+const allManifests: Array<[string, Manifest]> = [
+  ['action.yml', root],
+  ...subActions,
+  ['prune/action.yml', pruneManifest],
+];
+
+// Inputs/outputs that exist only for the prune sub-action and are exempt from the root manifest.
+const PRUNE_ONLY_INPUTS: string[] = [Inputs.OlderThanDays, Inputs.Ref, Inputs.DryRun];
+const PRUNE_ONLY_OUTPUTS: string[] = [Outputs.PrunedCount, Outputs.PrunedBytes, Outputs.KeptCount];
 
 describe('action manifests', () => {
   it('declare every input the code reads', () => {
-    const missing = Object.values(Inputs).filter((name) => !(name in root.inputs));
+    const missing = Object.values(Inputs)
+      .filter((name) => !PRUNE_ONLY_INPUTS.includes(name))
+      .filter((name) => !(name in root.inputs));
     expect(missing).toEqual([]);
   });
 
@@ -43,7 +54,9 @@ describe('action manifests', () => {
   });
 
   it('declare every output the code sets', () => {
-    const missing = Object.values(Outputs).filter((name) => !(name in root.outputs));
+    const missing = Object.values(Outputs)
+      .filter((name) => !PRUNE_ONLY_OUTPUTS.includes(name))
+      .filter((name) => !(name in root.outputs));
     expect(missing).toEqual([]);
   });
 
@@ -57,6 +70,19 @@ describe('action manifests', () => {
     }
     for (const name of Object.keys(m.outputs)) {
       expect({ name, inRoot: name in root.outputs }).toEqual({ name, inRoot: true });
+    }
+  });
+
+  it("prune/action.yml's shared inputs are a subset of the root manifest with the same defaults", () => {
+    for (const [name, input] of Object.entries(pruneManifest.inputs)) {
+      if (PRUNE_ONLY_INPUTS.includes(name)) {
+        continue;
+      }
+      expect({ name, inRoot: name in root.inputs }).toEqual({ name, inRoot: true });
+      expect({ name, default: input.default }).toEqual({
+        name,
+        default: root.inputs[name].default,
+      });
     }
   });
 
@@ -90,10 +116,11 @@ describe('action manifests', () => {
       main: '../dist/restore-only/index.js',
     });
     expect(subActions[1][1].runs).toEqual({ using: 'node24', main: '../dist/save-only/index.js' });
+    expect(pruneManifest.runs).toEqual({ using: 'node24', main: '../dist/prune/index.js' });
   });
 
   it.each(allManifests)('%s uses a valid Feather branding icon', (_file, manifest) => {
-    const allowedIcons = ['cloud', 'upload-cloud', 'download-cloud'];
+    const allowedIcons = ['cloud', 'upload-cloud', 'download-cloud', 'trash-2'];
     expect(allowedIcons).toContain(manifest.branding.icon);
   });
 });
