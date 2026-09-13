@@ -60,6 +60,10 @@ const tier = { storage: { providerConfig: { provider: 'seaweedfs' } } } as unkno
 const s3Info = { objectKey: 'octo/app/k/cache.tar.zst', size: 2048, etag: '"new"' };
 const s3Saved: SaveOutcome = { kind: 'saved', s3: s3Info };
 const githubSaved: SaveOutcome = { kind: 'saved' };
+const githubSkipped: SaveOutcome = {
+  kind: 'skipped',
+  reason: 'GitHub Actions Cache did not save this key (see the messages above)',
+};
 const failure = (message: string): SaveOutcome => ({ kind: 'error', error: new Error(message) });
 
 describe('saveImpl', () => {
@@ -144,6 +148,16 @@ describe('saveImpl', () => {
       await saveImpl(state);
       expect(mockSaveToGitHub).toHaveBeenCalledWith(['~/.npm'], 'Linux-npm-abc', undefined, true);
       expect(outputs.get('cache-saved-sources')).toBe('github');
+    });
+
+    it('reports no saved source, without a warning, when the GitHub fallback skips', async () => {
+      inputs.set(Inputs.UseFallback, 'true');
+      mockSaveToS3.mockResolvedValue(failure('SlowDown'));
+      mockSaveToGitHub.mockResolvedValue(githubSkipped);
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledTimes(1);
+      expect(mockWarning).toHaveBeenCalledWith('Failed to save cache to S3: SlowDown');
+      expect(outputs.get('cache-saved-sources')).toBe('none');
     });
 
     it('warns without failing when S3 cannot be set up', async () => {
@@ -232,6 +246,25 @@ describe('saveImpl', () => {
       await saveImpl(state);
       expect(mockSetFailed).toHaveBeenCalledWith('Saving to S3 failed: boom');
       expect(mockSaveToGitHub).not.toHaveBeenCalled();
+    });
+
+    it('does not fail or warn in strict mode when GitHub skips the save', async () => {
+      inputs.set(Inputs.DualCacheStrict, 'true');
+      mockSaveToGitHub.mockResolvedValue(githubSkipped);
+      await saveImpl(state);
+      expect(mockSaveToGitHub).toHaveBeenCalled();
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(mockWarning).not.toHaveBeenCalled();
+      expect(outputs.get('cache-saved-sources')).toBe('s3');
+    });
+
+    it('fails the step on a GitHub save error when strict', async () => {
+      inputs.set(Inputs.DualCacheStrict, 'true');
+      mockSaveToGitHub.mockResolvedValue(failure('quota exceeded'));
+      await saveImpl(state);
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        'Saving to GitHub Actions Cache failed: quota exceeded'
+      );
     });
 
     it('fails the step when the strict GitHub existence check errors', async () => {

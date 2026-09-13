@@ -58,10 +58,12 @@ export async function saveToGitHub(
       { uploadChunkSize },
       enableCrossOsArchive
     );
+    // -1 means @actions/cache did not save and already logged why: another job is creating
+    // the entry, the cache mode forbids writes, or it swallowed a service error itself.
     if (cacheId === -1) {
       return {
-        kind: 'error',
-        error: new Error(`GitHub Actions Cache did not save key "${key}"; see the messages above.`),
+        kind: 'skipped',
+        reason: 'GitHub Actions Cache did not save this key (see the messages above)',
       };
     }
     return { kind: 'saved' };

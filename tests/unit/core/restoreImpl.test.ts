@@ -217,6 +217,18 @@ describe('restoreImpl', () => {
     expect(mockRestoreFromGitHub).not.toHaveBeenCalled();
   });
 
+  it('fails the step on a GitHub error in strict dual-cache mode', async () => {
+    inputs.set(Inputs.DualCache, 'true');
+    inputs.set(Inputs.DualCacheStrict, 'true');
+    inputs.set(Inputs.RestorePriority, 'github-first');
+    mockRestoreFromGitHub.mockResolvedValue(failure('Cache service responded with 503'));
+    await expect(restoreImpl(state, false)).resolves.toBeUndefined();
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'Restoring from github failed: Cache service responded with 503'
+    );
+    expect(mockRestoreFromS3).not.toHaveBeenCalled();
+  });
+
   it('fails when the key input is missing', async () => {
     inputs.delete(Inputs.Key);
     await restoreImpl(state, false);

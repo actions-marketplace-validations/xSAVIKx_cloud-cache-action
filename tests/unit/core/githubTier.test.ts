@@ -99,11 +99,12 @@ describe('saveToGitHub', () => {
     expect(mockSaveCache).toHaveBeenCalledWith(['a'], 'k', { uploadChunkSize: 1024 }, true);
   });
 
-  it('treats the -1 cache id as a failure', async () => {
+  it('treats the -1 cache id as skipped, because @actions/cache already logged why', async () => {
     mockSaveCache.mockResolvedValue(-1);
-    const outcome = await saveToGitHub(['a'], 'k', undefined, false);
-    expect(outcome).toEqual({ kind: 'error', error: expect.any(Error) });
-    expect(outcome.kind === 'error' && outcome.error.message).toContain('did not save key "k"');
+    await expect(saveToGitHub(['a'], 'k', undefined, false)).resolves.toEqual({
+      kind: 'skipped',
+      reason: 'GitHub Actions Cache did not save this key (see the messages above)',
+    });
   });
 
   it('returns thrown failures', async () => {
