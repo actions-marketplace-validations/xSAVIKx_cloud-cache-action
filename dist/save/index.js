@@ -74935,6 +74935,7 @@ var constants_State;
     State["CacheRetry"] = "CACHE_RETRY";
     State["CacheRetryCount"] = "CACHE_RETRY_COUNT";
     State["CacheReadOnly"] = "CACHE_READ_ONLY";
+    State["CacheCompression"] = "CACHE_COMPRESSION";
     // Dual-cache state
     State["CacheDualCache"] = "CACHE_DUAL_CACHE";
     State["CacheRestorePriority"] = "CACHE_RESTORE_PRIORITY";
@@ -128242,10 +128243,12 @@ async function existsInGitHub(paths, key, enableCrossOsArchive) {
 async function saveToGitHub(paths, key, uploadChunkSize, enableCrossOsArchive) {
     try {
         const cacheId = await cache_saveCache([...paths], key, { uploadChunkSize }, enableCrossOsArchive);
+        // -1 means @actions/cache did not save and already logged why: another job is creating
+        // the entry, the cache mode forbids writes, or it swallowed a service error itself.
         if (cacheId === -1) {
             return {
-                kind: 'error',
-                error: new Error(`GitHub Actions Cache did not save key "${key}"; see the messages above.`),
+                kind: 'skipped',
+                reason: 'GitHub Actions Cache did not save this key (see the messages above)',
             };
         }
         return { kind: 'saved' };
@@ -128499,10 +128502,24 @@ function buildExtractCommands(plan) {
         },
     ];
 }
+/**
+ * Options for every tar and zstd command. Like actions/cache, sets MSYS so Git's MSYS tar on
+ * Windows extracts symlinks as native links instead of copies; other platforms ignore it.
+ */
+function archiveExecOptions(env = process.env) {
+    const inherited = {};
+    for (const [name, value] of Object.entries(env)) {
+        if (value !== undefined) {
+            inherited[name] = value;
+        }
+    }
+    return { env: { ...inherited, MSYS: 'winsymlinks:nativestrict' } };
+}
 async function run(commands) {
+    const options = archiveExecOptions();
     for (const command of commands) {
         // exec parses its first argument as a command line, so quote paths that contain spaces.
-        await exec_exec(`"${command.tool}"`, command.args);
+        await exec_exec(`"${command.tool}"`, command.args, options);
     }
 }
 async function createArchive(archivePath, entries, compression, workspace) {
@@ -128846,7 +128863,8 @@ async function operations_downloadFile(client, bucket, key, destinationPath) {
 async function operations_uploadFile(client, bucket, key, sourcePath, uploadChunkSize) {
     const stats = external_fs_namespaceObject.statSync(sourcePath);
     const fileStream = external_fs_namespaceObject.createReadStream(sourcePath);
-    const partSize = uploadChunkSize && uploadChunkSize > 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024; // 10MB default part size
+    // S3 parts must be at least 5 MiB; a smaller or unset chunk size uses 10 MiB parts.
+    const partSize = uploadChunkSize && uploadChunkSize >= 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024;
     const parallelUpload = new lib_storage_dist_cjs/* Upload */._({
         client,
         params: {
@@ -128909,6 +128927,19 @@ function isRetryableError(err) {
         return true;
     }
     return /socket hang up|premature close/i.test(error.message ?? '');
+}
+/**
+ * True only for network and stream failures the SDK has not retried itself. Errors that passed
+ * through the SDK carry `$metadata` (an HTTP status or an attempt count) and already used every
+ * attempt the client allows, so retrying the whole stream again would multiply the requests.
+ */
+function retry_isRetryableStreamError(err) {
+    if (!isRetryableError(err)) {
+        return false;
+    }
+    const metadata = err
+        .$metadata;
+    return metadata?.httpStatusCode === undefined && metadata?.attempts === undefined;
 }
 async function retry_withRetry(operation, options) {
     const retries = Math.max(0, options.retries);
@@ -129104,11 +129135,23 @@ function computeCacheVersion(paths, compression, enableCrossOsArchive, platform 
 
 
 
-async function buildS3Tier(config, env = process.env) {
+
+const COMPRESSION_CONFIGS = {
+    zstd: { method: 'zstd', archiveFilename: Defaults.DefaultArchiveFilenameZstd },
+    gzip: { method: 'gzip', archiveFilename: Defaults.DefaultArchiveFilenameGzip },
+};
+async function resolveCompression(persisted) {
+    if (persisted === 'zstd' || persisted === 'gzip') {
+        core_debug(`Using the ${persisted} compression the restore step used.`);
+        return COMPRESSION_CONFIGS[persisted];
+    }
+    return getCompressionConfig();
+}
+async function buildS3Tier(config, env = process.env, options = {}) {
     const storage = createStorageContext({
         maxAttempts: config.retryEnabled ? config.retryCount + 1 : 1,
     });
-    const compression = await getCompressionConfig();
+    const compression = await resolveCompression(options.compression);
     const refs = resolveRefCandidates(env);
     const scopedToRef = config.scopedToRef && refs.current !== undefined;
     if (config.scopedToRef && !scopedToRef) {
@@ -129127,11 +129170,13 @@ async function buildS3Tier(config, env = process.env) {
     for (const warning of template.warnings) {
         core_warning(warning);
     }
+    // A pattern without ${ref} gives every ref the same object keys; search them only once.
+    const usesRef = scopedToRef && template.objectKey('a', '') !== template.objectKey('b', '');
     return {
         storage,
         template,
-        restoreRefs: scopedToRef ? refs.restore : [''],
-        saveRef: scopedToRef ? refs.current : '',
+        restoreRefs: usesRef ? refs.restore : [''],
+        saveRef: usesRef ? refs.current : '',
         compression,
         workspace: getWorkspace(env),
         streamRetries: config.retryEnabled ? config.retryCount : 0,
@@ -129207,6 +129252,7 @@ async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
         await withRetry(() => downloadFile(client, bucket, found.objectKey, archivePath), {
             retries: tier.streamRetries,
             operationName: `Download of ${found.objectKey}`,
+            shouldRetry: isRetryableStreamError,
         });
         await extractArchive(archivePath, tier.compression, tier.workspace);
         return hit;
@@ -129237,7 +129283,11 @@ async function saveToS3(tier, primaryKey, patterns, uploadChunkSize) {
         const archivePath = external_node_path_.join(tempDir, tier.compression.archiveFilename);
         await createArchive(archivePath, entries, tier.compression, tier.workspace);
         info(`Uploading ${inputUtils_formatSize(getArchiveSize(archivePath))} to s3://${bucket}/${objectKey}...`);
-        const uploaded = await retry_withRetry(() => operations_uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize), { retries: tier.streamRetries, operationName: `Upload of ${objectKey}` });
+        const uploaded = await retry_withRetry(() => operations_uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize), {
+            retries: tier.streamRetries,
+            operationName: `Upload of ${objectKey}`,
+            shouldRetry: retry_isRetryableStreamError,
+        });
         info(`Cache saved to S3 with key: ${primaryKey}`);
         return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
     }
@@ -129270,9 +129320,11 @@ function reportS3(info) {
         setOutput(Outputs.CacheETag, info.etag);
     }
 }
-async function setUpS3(config) {
+async function setUpS3(config, stateProvider) {
     try {
-        const tier = await buildS3Tier(config);
+        const tier = await buildS3Tier(config, process.env, {
+            compression: stateProvider.getState(constants_State.CacheCompression),
+        });
         setOutput(Outputs.CacheStorageProvider, tier.storage.providerConfig.provider);
         return tier;
     }
@@ -129394,7 +129446,7 @@ async function saveImpl(stateProvider) {
         }
         const s3ExactHit = stateProvider.getState(constants_State.CacheS3ExactHit) === 'true';
         const githubExactHit = stateProvider.getState(constants_State.CacheGithubExactHit) === 'true';
-        const s3 = await setUpS3(config);
+        const s3 = await setUpS3(config, stateProvider);
         if (config.dualCache) {
             await saveBothTiers(config, s3, s3ExactHit, githubExactHit);
             return;
@@ -129414,13 +129466,15 @@ async function saveImpl(stateProvider) {
 async function runSave(earlyExit = true) {
     await saveImpl(new StateProvider());
     if (earlyExit) {
-        process.exit(0);
+        // An explicit exit code overrides process.exitCode, so keep the one core.setFailed set.
+        process.exit(process.exitCode ?? 0);
     }
 }
 async function runSaveOnly(earlyExit = true) {
     await saveImpl(new NullStateProvider());
     if (earlyExit) {
-        process.exit(0);
+        // An explicit exit code overrides process.exitCode, so keep the one core.setFailed set.
+        process.exit(process.exitCode ?? 0);
     }
 }
 
