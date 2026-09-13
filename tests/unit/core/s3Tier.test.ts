@@ -90,6 +90,7 @@ const FEATURE = 'refs/heads/feature';
 const MAIN = 'refs/heads/main';
 const PATTERN = '${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}';
 const zstd: CompressionConfig = { method: 'zstd', archiveFilename: 'cache.tar.zst' };
+const gzip: CompressionConfig = { method: 'gzip', archiveFilename: 'cache.tar.gz' };
 const VERSION = computeCacheVersion(['~/.npm'], 'zstd', false);
 const storage = {
   client: {} as S3Client,
@@ -445,6 +446,27 @@ describe('buildS3Tier', () => {
       expect(built).toMatchObject({ restoreRefs: [''], saveRef: '' });
       expect(built.template.objectKey('', 'k')).toBe(`octo/app/k/${VERSION}/cache.tar.zst`);
     }
+  });
+
+  it('uses the compression method the restore step persisted instead of detecting it', async () => {
+    for (const persisted of ['gzip', 'zstd'] as const) {
+      mockGetCompressionConfig.mockResolvedValue(persisted === 'gzip' ? zstd : gzip);
+      const built = await buildS3Tier(config, env, { compression: persisted });
+      expect(built.compression).toEqual(persisted === 'gzip' ? gzip : zstd);
+      const version = computeCacheVersion(['~/.npm'], persisted, false);
+      expect(built.template.objectKey(FEATURE, 'k')).toBe(
+        `octo/app/refs%2Fheads%2Ffeature/k/${version}/${built.compression.archiveFilename}`
+      );
+    }
+    expect(mockGetCompressionConfig).not.toHaveBeenCalled();
+  });
+
+  it('detects compression when nothing usable was persisted', async () => {
+    for (const persisted of [undefined, '', 'brotli']) {
+      const built = await buildS3Tier(config, env, { compression: persisted });
+      expect(built.compression).toEqual(zstd);
+    }
+    expect(mockGetCompressionConfig).toHaveBeenCalledTimes(3);
   });
 
   it('makes a single attempt when retries are disabled', async () => {

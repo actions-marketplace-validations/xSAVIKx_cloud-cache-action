@@ -11,7 +11,14 @@ const mockSetFailed = jest.fn<(message: string) => void>(() => {
   process.exitCode = 1;
 });
 const mockWarning = jest.fn<(message: string) => void>();
-const mockBuildS3Tier = jest.fn<(config: unknown) => Promise<S3Tier>>();
+const mockBuildS3Tier =
+  jest.fn<
+    (
+      config: unknown,
+      env?: NodeJS.ProcessEnv,
+      options?: { compression?: string }
+    ) => Promise<S3Tier>
+  >();
 const mockSaveToS3 =
   jest.fn<
     (
@@ -101,6 +108,14 @@ describe('saveImpl', () => {
         'cache-saved-sources': 's3',
       });
       expect(mockSaveToGitHub).not.toHaveBeenCalled();
+    });
+
+    it('builds the S3 tier with the compression method the restore step used', async () => {
+      state.setState(State.CacheCompression, 'gzip');
+      await saveImpl(state);
+      expect(mockBuildS3Tier).toHaveBeenCalledWith(expect.anything(), process.env, {
+        compression: 'gzip',
+      });
     });
 
     it('skips when the restore step had an exact S3 hit', async () => {

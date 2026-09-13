@@ -39,6 +39,7 @@ Reference any environment variable with `${VAR_NAME}`, `$VAR_NAME` or `${env.VAR
 - An unset `${VAR_NAME}` becomes empty.
 - An unset `$VAR_NAME` stays as written.
 - Values are inserted once and never expanded again.
+- The post step of the main action expands the pattern again when it saves. If a step changes a variable the pattern uses through `GITHUB_ENV`, the save writes to a different object than the restore looked up. Keep such variables fixed for the whole job. The compression method does not have this problem: the post step reuses the one the restore step used, even if `zstd` was installed in between.
 
 | Variable             | Description                           | Example Value               |
 | --------------------- | -------------------------------------- | ----------------------------- |

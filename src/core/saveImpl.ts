@@ -18,9 +18,14 @@ function reportS3(info: S3ObjectInfo | undefined): void {
   }
 }
 
-async function setUpS3(config: CacheConfig): Promise<S3Tier | undefined> {
+async function setUpS3(
+  config: CacheConfig,
+  stateProvider: IStateProvider
+): Promise<S3Tier | undefined> {
   try {
-    const tier = await buildS3Tier(config);
+    const tier = await buildS3Tier(config, process.env, {
+      compression: stateProvider.getState(State.CacheCompression),
+    });
     core.setOutput(Outputs.CacheStorageProvider, tier.storage.providerConfig.provider);
     return tier;
   } catch (err) {
@@ -175,7 +180,7 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
 
     const s3ExactHit = stateProvider.getState(State.CacheS3ExactHit) === 'true';
     const githubExactHit = stateProvider.getState(State.CacheGithubExactHit) === 'true';
-    const s3 = await setUpS3(config);
+    const s3 = await setUpS3(config, stateProvider);
 
     if (config.dualCache) {
       await saveBothTiers(config, s3, s3ExactHit, githubExactHit);

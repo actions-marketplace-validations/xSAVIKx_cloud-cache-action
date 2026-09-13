@@ -24,6 +24,8 @@ async function setUpS3(config: CacheConfig, state: IStateProvider): Promise<S3Ti
     const tier = await buildS3Tier(config);
     core.setOutput(Outputs.CacheStorageProvider, tier.storage.providerConfig.provider);
     state.setState(State.CacheStorageProvider, tier.storage.providerConfig.provider);
+    // The post step reuses this method, so zstd appearing mid-job cannot change the keys.
+    state.setState(State.CacheCompression, tier.compression.method);
     return tier;
   } catch (err) {
     const otherTierMayServe = config.dualCache ? !config.dualCacheStrict : config.useFallback;

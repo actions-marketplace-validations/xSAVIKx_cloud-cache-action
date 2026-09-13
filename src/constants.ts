@@ -60,6 +60,7 @@ export enum State {
   CacheRetry = 'CACHE_RETRY',
   CacheRetryCount = 'CACHE_RETRY_COUNT',
   CacheReadOnly = 'CACHE_READ_ONLY',
+  CacheCompression = 'CACHE_COMPRESSION',
 
   // Dual-cache state
   CacheDualCache = 'CACHE_DUAL_CACHE',

@@ -2,9 +2,14 @@ import * as core from '@actions/core';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { getCompressionConfig, type CompressionConfig } from '../archive/compression';
+import {
+  getCompressionConfig,
+  type CompressionConfig,
+  type CompressionMethod,
+} from '../archive/compression';
 import { getWorkspace, resolveCachePaths } from '../archive/paths';
 import { createArchive, extractArchive, getArchiveSize } from '../archive/tar';
+import { Defaults } from '../constants';
 import { createStorageContext, type StorageContext } from '../storage/client';
 import {
   checkObjectExists,
@@ -42,14 +47,33 @@ export interface S3Match {
   ref: string;
 }
 
+export interface BuildS3TierOptions {
+  /** Compression method the restore step used; detected again when absent or unknown. */
+  compression?: string;
+}
+
+const COMPRESSION_CONFIGS: Record<CompressionMethod, CompressionConfig> = {
+  zstd: { method: 'zstd', archiveFilename: Defaults.DefaultArchiveFilenameZstd },
+  gzip: { method: 'gzip', archiveFilename: Defaults.DefaultArchiveFilenameGzip },
+};
+
+async function resolveCompression(persisted: string | undefined): Promise<CompressionConfig> {
+  if (persisted === 'zstd' || persisted === 'gzip') {
+    core.debug(`Using the ${persisted} compression the restore step used.`);
+    return COMPRESSION_CONFIGS[persisted];
+  }
+  return getCompressionConfig();
+}
+
 export async function buildS3Tier(
   config: CacheConfig,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  options: BuildS3TierOptions = {}
 ): Promise<S3Tier> {
   const storage = createStorageContext({
     maxAttempts: config.retryEnabled ? config.retryCount + 1 : 1,
   });
-  const compression = await getCompressionConfig();
+  const compression = await resolveCompression(options.compression);
   const refs = resolveRefCandidates(env);
   const scopedToRef = config.scopedToRef && refs.current !== undefined;
   if (config.scopedToRef && !scopedToRef) {

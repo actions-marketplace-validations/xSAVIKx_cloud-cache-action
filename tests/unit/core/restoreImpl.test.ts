@@ -51,7 +51,10 @@ jest.unstable_mockModule('../../../src/core/githubTier', () => ({
 
 const { restoreImpl, runRestore, runRestoreOnly } = await import('../../../src/core/restoreImpl');
 
-const tier = { storage: { providerConfig: { provider: 'seaweedfs' } } } as unknown as S3Tier;
+const tier = {
+  storage: { providerConfig: { provider: 'seaweedfs' } },
+  compression: { method: 'zstd', archiveFilename: 'cache.tar.zst' },
+} as unknown as S3Tier;
 const s3Hit = (matchedKey: string, exact: boolean): RestoreOutcome => ({
   kind: 'hit',
   matchedKey,
@@ -122,6 +125,7 @@ describe('restoreImpl', () => {
     expect(state.values.get(State.CacheRetryCount)).toBe('0');
     expect(state.values.get(State.CacheScopedToRef)).toBe('false');
     expect(state.values.get(State.CacheStorageProvider)).toBe('seaweedfs');
+    expect(state.values.get(State.CacheCompression)).toBe('zstd');
   });
 
   it('passes lookup-only through', async () => {
