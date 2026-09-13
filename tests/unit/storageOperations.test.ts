@@ -9,6 +9,7 @@ import {
   checkObjectExists,
   listObjectsWithPrefix,
   downloadFile,
+  findNewestObject,
 } from '../../src/storage/operations';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -113,6 +114,72 @@ describe('Storage Operations', () => {
       return listObjectsWithPrefix(client, 'test-bucket', 'empty/').then((items) => {
         expect(items).toEqual([]);
       });
+    });
+  });
+
+  describe('findNewestObject', () => {
+    const object = (key: string, minute: number) => ({
+      Key: key,
+      Size: 10 + minute,
+      ETag: `"${minute}"`,
+      LastModified: new Date(Date.UTC(2026, 8, 13, 10, minute)),
+    });
+    const pages: Record<string, object> = {
+      start: {
+        Contents: [object('p/a/cache.tar.zst', 1), object('p/b/cache.tar.zst', 5)],
+        IsTruncated: true,
+        NextContinuationToken: 't1',
+      },
+      t1: {
+        Contents: [object('p/c/cache.tar.gz', 30)],
+        IsTruncated: true,
+        NextContinuationToken: 't2',
+      },
+      t2: { Contents: [object('p/d/cache.tar.zst', 20)], IsTruncated: false },
+    };
+
+    it('follows continuation tokens and returns the newest accepted object', async () => {
+      s3Mock
+        .on(ListObjectsV2Command)
+        .callsFake(
+          (input: { ContinuationToken?: string }) => pages[input.ContinuationToken ?? 'start']
+        );
+
+      const newest = await findNewestObject(client, 'bucket', 'p/', (key) => key.endsWith('.zst'));
+
+      expect(newest).toEqual({
+        key: 'p/d/cache.tar.zst',
+        size: 30,
+        etag: '"20"',
+        lastModified: new Date(Date.UTC(2026, 8, 13, 10, 20)),
+      });
+      const calls = s3Mock.commandCalls(ListObjectsV2Command).map((call) => call.args[0].input);
+      expect(calls.map((input) => input.ContinuationToken)).toEqual([undefined, 't1', 't2']);
+      expect(calls[0]).toMatchObject({ Bucket: 'bucket', Prefix: 'p/', MaxKeys: 1000 });
+    });
+
+    it('returns undefined when no object is accepted', async () => {
+      s3Mock
+        .on(ListObjectsV2Command)
+        .callsFake(
+          (input: { ContinuationToken?: string }) => pages[input.ContinuationToken ?? 'start']
+        );
+      await expect(findNewestObject(client, 'bucket', 'p/', () => false)).resolves.toBeUndefined();
+    });
+
+    it('keeps the first object listed when timestamps tie', async () => {
+      s3Mock.on(ListObjectsV2Command).resolves({
+        Contents: [object('p/x/cache.tar.zst', 7), object('p/y/cache.tar.zst', 7)],
+        IsTruncated: false,
+      });
+      expect((await findNewestObject(client, 'bucket', 'p/', () => true))?.key).toBe(
+        'p/x/cache.tar.zst'
+      );
+    });
+
+    it('handles an empty listing', async () => {
+      s3Mock.on(ListObjectsV2Command).resolves({});
+      await expect(findNewestObject(client, 'bucket', 'p/', () => true)).resolves.toBeUndefined();
     });
   });
 

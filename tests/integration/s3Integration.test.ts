@@ -4,7 +4,7 @@ import {
   checkObjectExists,
   uploadFile,
   downloadFile,
-  listObjectsWithPrefix,
+  findNewestObject,
 } from '../../src/storage/operations';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -47,10 +47,15 @@ describe('S3 Storage Integration Tests (Garage / SeaweedFS / S3)', () => {
     expect(meta).not.toBeNull();
     expect(meta?.size).toBe(uploadRes.size);
 
-    // 3. List with prefix
-    const list = await listObjectsWithPrefix(client, bucket, 'test-repo/integration-test');
-    expect(list.length).toBeGreaterThan(0);
-    expect(list[0].key).toBe(testKey);
+    // 3. Find the newest matching object, one object per page to force pagination
+    const newest = await findNewestObject(
+      client,
+      bucket,
+      'test-repo/integration-test',
+      (key) => key.endsWith('.tar.gz'),
+      1
+    );
+    expect(newest?.key).toBe(testKey);
 
     // 4. Download
     await downloadFile(client, bucket, testKey, downloadedFile);

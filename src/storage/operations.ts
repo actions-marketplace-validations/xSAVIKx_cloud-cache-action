@@ -76,6 +76,47 @@ export async function listObjectsWithPrefix(
   );
 }
 
+/**
+ * Lists every object under `prefix`, following continuation tokens, and returns the most
+ * recently modified one that `accept` allows. When timestamps tie, the first object listed wins.
+ */
+export async function findNewestObject(
+  client: S3Client,
+  bucket: string,
+  prefix: string,
+  accept: (key: string) => boolean,
+  pageSize = 1000
+): Promise<CacheObjectMetadata | undefined> {
+  let newest: CacheObjectMetadata | undefined;
+  let continuationToken: string | undefined;
+  do {
+    const page = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix,
+        MaxKeys: pageSize,
+        ContinuationToken: continuationToken,
+      })
+    );
+    for (const object of page.Contents ?? []) {
+      if (!object.Key || !accept(object.Key)) {
+        continue;
+      }
+      const modified = object.LastModified?.getTime() ?? 0;
+      if (!newest || modified > (newest.lastModified?.getTime() ?? 0)) {
+        newest = {
+          key: object.Key,
+          size: object.Size ?? 0,
+          lastModified: object.LastModified,
+          etag: object.ETag,
+        };
+      }
+    }
+    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return newest;
+}
+
 export async function downloadFile(
   client: S3Client,
   bucket: string,
