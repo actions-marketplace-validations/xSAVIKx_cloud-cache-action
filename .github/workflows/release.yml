@@ -16,12 +16,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.release.tag_name }}
+          # All history and tags, so the major tag step can find the highest release.
           fetch-depth: 0
+          # Nothing before the push step gets a token in .git/config.
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      # The build needs no install scripts (no prepare or postinstall hook, and ncc needs none).
+      - run: npm ci --ignore-scripts
       - name: Verify package.json version matches the release tag
         env:
           TAG: ${{ github.event.release.tag_name }}
@@ -43,10 +47,20 @@ jobs:
           fi
       - name: Move the major version tag
         if: ${{ !github.event.release.prerelease }}
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           MAJOR="v${VERSION%%.*}"
           RELEASE_SHA="$(git rev-parse HEAD)"
+          REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --force --tags "$REMOTE"
+          HIGHEST="$(git tag -l "$MAJOR.*" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)"
+          if [ "$TAG" != "$HIGHEST" ]; then
+            echo "::notice::$TAG is not the highest $MAJOR release (${HIGHEST:-none found}); leaving the $MAJOR tag where it is."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898828+github-actions[bot]@users.noreply.github.com"
           git tag -fa "$MAJOR" -m "Release $MAJOR" "$RELEASE_SHA"
-          git push --force origin "$MAJOR"
+          git push --force "$REMOTE" "refs/tags/$MAJOR:refs/tags/$MAJOR"
