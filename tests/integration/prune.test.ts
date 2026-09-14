@@ -15,6 +15,7 @@ const runId = `${Date.now()}-${process.pid}`;
 let available = false;
 let client: S3Client;
 let workspace: string;
+let scratch: string;
 let outputFile: string;
 let restoreEnv: () => void;
 
@@ -111,7 +112,7 @@ afterAll(() => {
 
 beforeEach(() => {
   workspace = makeTempDir('prune-ws');
-  const scratch = makeTempDir('prune-run');
+  scratch = makeTempDir('prune-run');
   outputFile = path.join(scratch, 'output.txt');
   fs.writeFileSync(outputFile, '');
   const eventPath = path.join(scratch, 'event.json');
@@ -137,6 +138,7 @@ afterEach(() => {
   }
   restoreEnv();
   removeDir(workspace);
+  removeDir(scratch);
 });
 
 describe('pruneCaches integration', () => {
