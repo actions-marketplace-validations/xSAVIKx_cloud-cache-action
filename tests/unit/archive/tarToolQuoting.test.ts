@@ -21,6 +21,7 @@ const { createArchive, extractArchive } = await import('../../../src/archive/tar
 // produced by findTar for Git's bundled tar.exe on Windows) must be quoted, while the
 // remaining arguments are passed through as an array, unquoted and unchanged.
 const TOOL_WITH_SPACES = 'C:\\Program Files\\Git\\usr\\bin\\tar.exe';
+const forwardSlashes = (value: string): string => value.replace(/\\/g, '/');
 
 describe('tool paths containing spaces', () => {
   let dir: string;
@@ -64,6 +65,16 @@ describe('tool paths containing spaces', () => {
     for (const arg of args ?? []) {
       expect(arg.startsWith('"') && arg.endsWith('"')).toBe(false);
     }
-    expect(args).toEqual(['-xf', archivePath, '-P', '-C', dir, '-z']);
+    // GNU tar also gets a per-platform flag (--delay-directory-restore on macOS, --force-local on
+    // Windows) and forward-slash paths; only the order of the common arguments matters here.
+    const platformFlags = ['--delay-directory-restore', '--force-local'];
+    expect((args ?? []).filter((arg) => !platformFlags.includes(arg))).toEqual([
+      '-xf',
+      forwardSlashes(archivePath),
+      '-P',
+      '-C',
+      forwardSlashes(dir),
+      '-z',
+    ]);
   });
 });
