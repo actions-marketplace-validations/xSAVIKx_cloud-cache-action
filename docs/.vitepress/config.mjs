@@ -79,6 +79,7 @@ export default defineConfig({
       { text: 'Key Patterns', link: '/guide/s3-key-patterns' },
       { text: 'Pruning', link: '/guide/pruning' },
       { text: 'Migration', link: '/guide/migration' },
+      { text: 'Changelog', link: '/changelog' },
     ],
     sidebar: [
       {
@@ -103,6 +104,10 @@ export default defineConfig({
           { text: 'SeaweedFS S3', link: '/providers/seaweedfs' },
           { text: 'MinIO S3', link: '/providers/minio' },
         ],
+      },
+      {
+        text: 'Project',
+        items: [{ text: 'Changelog', link: '/changelog' }],
       },
     ],
     socialLinks: [{ icon: 'github', link: 'https://github.com/xSAVIKx/cloud-cache-action' }],

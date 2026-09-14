@@ -31,7 +31,9 @@ Key capabilities:
 - [Getting Started]({{SITE_URL}}guide/getting-started.html): Quickstart guide, cache lifecycle breakdown, and standalone restore/save workflows.
 - [Dual Caching Guide]({{SITE_URL}}guide/dual-caching.html): Multi-tier caching across S3 and GitHub Actions Cache with backfill synchronization.
 - [S3 Key Patterns]({{SITE_URL}}guide/s3-key-patterns.html): Custom object key templating, prefixing, and organization-wide cache sharing.
+- [Pruning Caches]({{SITE_URL}}guide/pruning.html): The prune sub-action, usage, key matching, dry runs, safety refusals and scoping.
 - [Migration Guide]({{SITE_URL}}guide/migration.html): 2-minute migration guide, copy-pastable AI agent migration prompt, and secrets cheat sheet.
+- [Changelog]({{SITE_URL}}changelog.html): Release history, including breaking changes and upgrade notes for every version.
 
 ## Storage Providers
 

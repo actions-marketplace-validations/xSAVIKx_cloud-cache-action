@@ -350,6 +350,10 @@ conditional-create and Garage fallback rules as [Safe Concurrent Saves](#safe-co
 
 ---
 
+## Changelog
+
+Every release is listed in [CHANGELOG.md](CHANGELOG.md), which is also published on the [documentation site](https://xsavikx.github.io/cloud-cache-action/changelog.html).
+
 ## Upgrading to v1.1
 
 v1.1 changes how cache objects are named, so **caches saved by v1.0 are not found and are rebuilt once**.
@@ -371,7 +375,7 @@ restore normally; objects saved without a sha256 checksum (any v1.1 cache) simpl
 integrity check.
 
 - **New, all opt-in or on-by-default without changing existing behavior:** [Cache Pruning](#cache-pruning) (a new `prune` sub-action, run separately — nothing changes for existing `restore`/`save` steps), [Archive Integrity](#archive-integrity) (automatic; only skips when a checksum is absent), [Safe Concurrent Saves](#safe-concurrent-saves) (automatic; falls back cleanly on servers that reject the condition), [Job Summary](#job-summary) (on by default — set `job-summary: false` to keep the old, summary-free behavior), and [Streaming Archives](#streaming-archives-experimental) (opt-in via `streaming: true`; default `false` keeps the v1.1 file-based path).
-- **Windows symlinks** are now restored as native NTFS symlinks via Git's bundled GNU `tar`, matching Linux/macOS behavior, instead of the plain-text stand-ins earlier Windows tar produced.
+- **Windows symlinks** are now covered by the Windows CI round trip: they restore as native symlinks through Git's GNU `tar` with `MSYS=winsymlinks:nativestrict`, as in v1.1.
 - **Tag-triggered runs:** if a run started by pushing a tag is the only place that saves a given cache, no pull request or branch build will ever restore it — restores never search `refs/tags/*`. Save on the default branch instead (a `push` there, or `workflow_dispatch`), or see [Tag-triggered runs and refs](https://xsavikx.github.io/cloud-cache-action/guide/migration.html#tag-triggered-runs-and-refs) for using `scoped-to-ref: false`.
 - **Maintenance:** Dependabot now keeps npm and GitHub Actions dependencies up to date, and publishing a GitHub release runs `.github/workflows/release.yml` automatically — see [Releasing](#releasing).
 
@@ -461,11 +465,13 @@ The post step only runs when the job succeeds. To save a cache even when a later
 
 ## Releasing
 
+Before releasing, move the `Unreleased` changes in [CHANGELOG.md](CHANGELOG.md) under the new version and bump `package.json`; the version's changelog entry doubles as the release notes.
+
 Publishing a GitHub release for a tag `vX.Y.Z` runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which:
 
 - Verifies that `package.json`'s `version` matches the tag (without its `v` prefix), failing the run otherwise.
 - Verifies that `dist/` is up to date by rebuilding it and diffing the result, failing the run if it is stale.
-- Moves the major version tag (e.g. `v1`) to point at the release, so `uses: xSAVIKx/cloud-cache-action@v1` picks up the new release automatically.
+- Moves the major version tag (e.g. `v1`) to point at the release, so `uses: xSAVIKx/cloud-cache-action@v1` picks up the new release automatically. It only does this when the release is the highest stable `vX.y.z` tag of its major, so publishing an older patch never moves the tag backwards.
 
 Pre-releases skip moving the major tag, so marking a release as a pre-release lets you publish it without affecting existing `@v1` consumers.
 
