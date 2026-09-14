@@ -541,13 +541,15 @@ async function saveToS3Streaming(
       // still buffered, so it never closes and tar's close never fires; destroying the body makes
       // pipeline destroy that stdout too. (When tar failed first, finalized already did this.)
       counter.stream.destroy(toError(err));
+      // Kill tar before any network wait below, so a hung tar never outlives a slow abort request.
+      killIfRunning(child);
       // When tar failed first, the upload may still be running: stop it, then wait for done()
       // to settle, which is where a multipart upload it created gets aborted (see
       // createStreamUpload). abort() makes done() reject promptly, so this wait is short; when
       // done() already rejected, it has already sent the abort and this does nothing.
       await upload.abort().catch(() => undefined);
       await uploadDone.catch(() => undefined);
-      // Kill tar (it may still be running, or even hung), then wait, bounded, for it to close,
+      // Kill tar again (a no-op when it has exited), then wait, bounded, for it to close,
       // so no failure mode can block this step indefinitely. Wait on tar's own close, not on
       // finalized: once the pipe has failed, finalized rejects while tar may still be alive,
       // and the temp directory must not be removed under a live tar. Only after this do we read
