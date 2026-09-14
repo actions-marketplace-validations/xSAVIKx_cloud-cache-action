@@ -478,10 +478,12 @@ Object key: `my-org/my-repo/Linux/backend-api/refs%2Fheads%2Fmain/Linux-deps-abc
 
 ## Custom Patterns and Pruning
 
-If you use [`cloud-cache-action/prune`](./pruning.md) with a custom `s3-key-pattern`, keep
-`${ref}` after `${GITHUB_REPOSITORY}` (when repository scoping is on) and after `${prefix}` (when
-a prefix is set). A pattern that places `${ref}` earlier prevents pruning every ref at once safely,
-and the prune action refuses to run until you set its `ref` input to a single ref.
+If you use [`cloud-cache-action/prune`](./pruning.md) with a custom `s3-key-pattern`, prune only
+deletes objects whose whole key matches the pattern. Keep `${GITHUB_REPOSITORY}` and `${ref}` in
+path segments of their own, separated from `${key}` and `${version}` by `/`: when they share a
+segment, keys from other repositories or refs could match, and the prune action refuses to run.
+Starting the pattern with `${ref}` also leaves no fixed listing prefix for pruning every ref, so
+set its `ref` input in that case.
 
 
 <!-- ============================================================================ -->
@@ -532,7 +534,7 @@ The prune action shares its storage inputs with the main action, plus three inpu
 | ---------------------------------- | :------: | :------------------------: | ---------------------------------------------------------------------------- |
 | `bucket`                           | **Yes**  |             —              | Name of the S3 bucket                                                        |
 | `older-than-days`                  | **Yes**  |             —              | Delete cache archives whose last-modified time is older than this many days |
-| `ref`                               |    No    |     _(every ref)_          | Prune only caches under this Git ref; empty means every ref                 |
+| `ref`                               |    No    |     _(every ref)_          | Prune only caches under this full Git ref (`refs/heads/main`); empty means every ref |
 | `dry-run`                           |    No    |          `false`           | List cache archives that would be pruned without deleting anything          |
 | `endpoint`                         |    No    |          Auto/AWS          | Custom S3-compatible endpoint URL                                           |
 | `region`                           |    No    |      Auto/`us-east-1`      | AWS or S3 provider region                                                    |
@@ -548,8 +550,9 @@ The prune action shares its storage inputs with the main action, plus three inpu
 | `retry-count`                      |    No    |            `3`              | Maximum number of S3 retries                                                |
 
 An invalid `older-than-days` (not a positive integer) or an unrecognized `dry-run` value (anything
-other than `true`/`false`, case-insensitively) fails the step immediately, rather than silently
-falling back to a default — a typo like `dry-run: Flase` must never turn into a real deletion.
+other than `true`, `True`, `TRUE`, `false`, `False` or `FALSE`) fails the step immediately, rather
+than silently falling back to a default — a typo like `dry-run: Flase` must never turn into a real
+deletion.
 
 ## Outputs
 
@@ -561,10 +564,13 @@ falling back to a default — a typo like `dry-run: Flase` must never turn into 
 
 ## What gets pruned
 
-A candidate is any object whose key ends with `cache.tar.zst` or `cache.tar.gz` — the two archive
-filenames the action ever produces — or with whatever suffix your `s3-key-pattern` produces for
-either one, regardless of the version segment in between. Objects that are not cache archives are
-never touched, no matter where they live under the scanned prefix.
+Prune lists objects under the fixed start of your `s3-key-pattern` and only treats an object as a
+candidate when its **whole key** matches the pattern: this repository, the configured prefix, the
+given ref (or any full ref such as `refs%2Fheads%2Fmain` when `ref` is empty), any cache key, any
+version, and either archive filename the action produces (`cache.tar.zst` or `cache.tar.gz`).
+Objects that are not cache archives, and objects that belong to another repository or another ref
+but happen to share the listing prefix, are never touched. Caches saved with `scoped-to-ref: false`
+have no ref in their key, so they do not match and are not pruned.
 
 Among candidates, only those whose `LastModified` is older than `older-than-days` are deleted.
 Deletion happens one `DeleteObject` call per key (up to 8 in flight at a time), rather than a
@@ -577,20 +583,26 @@ By default (`scoped-to-repository: true`), pruning is scoped to the current repo
 how caches are saved. Set `prefix` to further narrow it, exactly as with the main action.
 
 Leaving `ref` empty prunes caches under **every** ref in scope, not just the current branch — this
-is usually what you want for a scheduled cleanup job. Set `ref` to prune a single ref instead.
+is usually what you want for a scheduled cleanup job. Set `ref` to prune a single ref instead. It
+must be the full ref, such as `refs/heads/main` or `refs/pull/12/merge`: caches are saved under
+the full ref, so `main` matches nothing. The step warns when `ref` does not start with `refs/`.
 
 The action refuses to run when the result would be unsafe:
 
-- **Empty prefix.** If `scoped-to-repository: false` and no `prefix` is set (and the
-  `s3-key-pattern` leaves nothing fixed before `${ref}`/`${key}`), the resolved prefix is empty,
-  which would scan and prune the whole bucket. The step fails with a message asking you to set
-  `prefix` or keep `scoped-to-repository` enabled.
-- **`${ref}` placed before the repository or prefix.** If your `s3-key-pattern` puts `${ref}`
-  ahead of `${GITHUB_REPOSITORY}` (while repository scoping is on) or ahead of `${prefix}` (while a
-  prefix is set), an all-refs prune cannot compute a safe listing prefix — it would have to scan a
-  prefix broader than what your pattern actually produces, potentially reaching other
-  repositories' or prefixes' caches. The step fails and asks you to set the `ref` input so a
-  single, safe prefix can be computed.
+- **No fixed listing prefix.** If the `s3-key-pattern` leaves nothing fixed before the first part
+  that varies (for example `scoped-to-repository: false` with no `prefix`, or a pattern that starts
+  with `${ref}` while `ref` is empty), prune would have to scan the whole bucket. The step fails
+  and asks you to set `prefix`, keep `scoped-to-repository` enabled, or set `ref`.
+- **A repository that cannot be told apart.** If every `${GITHUB_REPOSITORY}` in the pattern shares
+  a path segment with `${key}`, `${version}` or a `${ref}` before it (for example
+  `${key}-${GITHUB_REPOSITORY}/`), another repository's object keys could match yours, so the step
+  fails. Separate `${GITHUB_REPOSITORY}` from them with `/`. `${GITHUB_REPOSITORY}-${ref}` is
+  fine: an encoded ref always starts with `refs%2F`, which no repository name contains.
+- **No `${archive_filename}`.** Without it in the pattern, prune cannot tell cache archives from
+  other objects, so the step fails.
+- **A ref that cannot be told apart.** With `ref` set, the step fails when the pattern has no
+  `${ref}`, or when every `${ref}` shares a path segment with `${key}`, `${version}` or another
+  `${ref}`. Leave `ref` empty to prune every ref instead.
 
 
 <!-- ============================================================================ -->

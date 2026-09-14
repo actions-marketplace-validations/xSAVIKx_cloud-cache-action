@@ -124,7 +124,9 @@ Object key: `my-org/my-repo/Linux/backend-api/refs%2Fheads%2Fmain/Linux-deps-abc
 
 ## Custom Patterns and Pruning
 
-If you use [`cloud-cache-action/prune`](./pruning.md) with a custom `s3-key-pattern`, keep
-`${ref}` after `${GITHUB_REPOSITORY}` (when repository scoping is on) and after `${prefix}` (when
-a prefix is set). A pattern that places `${ref}` earlier prevents pruning every ref at once safely,
-and the prune action refuses to run until you set its `ref` input to a single ref.
+If you use [`cloud-cache-action/prune`](./pruning.md) with a custom `s3-key-pattern`, prune only
+deletes objects whose whole key matches the pattern. Keep `${GITHUB_REPOSITORY}` and `${ref}` in
+path segments of their own, separated from `${key}` and `${version}` by `/`: when they share a
+segment, keys from other repositories or refs could match, and the prune action refuses to run.
+Starting the pattern with `${ref}` also leaves no fixed listing prefix for pruning every ref, so
+set its `ref` input in that case.

@@ -61,7 +61,7 @@ inputs:
     description: 'Delete cache archives whose last-modified time is older than this many days'
     required: true
   ref:
-    description: 'Prune only caches under this Git ref; every ref when omitted'
+    description: 'Prune only caches under this full Git ref, such as refs/heads/main (not main); every ref when omitted'
     required: false
   dry-run:
     description: 'List cache archives that would be pruned without deleting anything'
