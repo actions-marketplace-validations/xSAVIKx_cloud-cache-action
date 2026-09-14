@@ -52,8 +52,8 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 - **Multi-Threaded `zstd` Compression**: Lightning-fast archiving with fallback to `gzip`.
 - **Dual Caching (Multi-Tier)**: Optionally cache across both remote S3 and GitHub Actions Cache simultaneously with configurable priority (`s3-first` or `github-first`) and automatic backfill synchronization.
 - **Standalone Sub-Actions**: Includes `cloud-cache-action/restore`, `cloud-cache-action/save` and `cloud-cache-action/prune` for decoupled cache stages and scheduled cleanup.
-- **Archive Integrity**: Every save writes a sha256 checksum as object metadata; restore verifies it before extracting, so a corrupted or truncated object is never silently unpacked. See [Archive Integrity](#archive-integrity).
-- **Safe Concurrent Saves**: Uploads use a conditional create (`If-None-Match`), so two jobs racing to save the same key never overwrite each other. See [Safe Concurrent Saves](#safe-concurrent-saves).
+- **Archive Integrity**: Every save writes a sha256 checksum as object metadata; restore verifies it and treats a mismatch as a cache miss with a warning, so a corrupted or truncated object is never reported as a hit. See [Archive Integrity](#archive-integrity).
+- **Safe Concurrent Saves**: Uploads use a conditional create (`If-None-Match`), so on providers that enforce it, two jobs racing to save the same key never overwrite each other. See [Safe Concurrent Saves](#safe-concurrent-saves).
 - **Cache Pruning**: A dedicated `prune` sub-action deletes cache archives older than a given age from any S3-compatible bucket on a schedule. See [Cache Pruning](#cache-pruning).
 - **Job Summary**: Writes a step summary table after restore and save with the key, hit/source, size and duration (on by default; `job-summary: false` turns it off).
 - **Opt-in Streaming (Experimental)**: Stream archives directly between `tar` and S3 without a temporary file, with `streaming: true`. See [Streaming Archives](#streaming-archives-experimental).
@@ -279,12 +279,17 @@ caches — set `ref` explicitly in that case. See the full [Pruning Caches guide
 ## Archive Integrity
 
 Every save computes the sha256 checksum of the archive and stores it as object metadata
-(`cloud-cache-sha256`). On restore, when the object carries that metadata, the downloaded (or
-streamed) archive is hashed again and compared before extraction; a mismatch fails the restore with
-an `Integrity check failed for s3://<bucket>/<key>: expected sha256 <expected>, got <actual>` error
-instead of extracting a corrupted archive. Objects saved without the checksum — caches from v1.1,
-or objects a storage provider stripped the metadata from — simply skip verification; this is not a
-breaking change.
+(`cloud-cache-sha256`). On restore, when the object carries that metadata, the downloaded archive
+is hashed again and compared before extraction. A mismatch does not extract the archive: the S3
+tier reports an `Integrity check failed for s3://<bucket>/<key>: expected sha256 <expected>, got
+<actual>` error, which the restore logs as a warning (`Restoring from s3 failed, so it counts as a
+cache miss: ...`) and treats as a cache miss, like any other S3 tier failure. With dual-cache the
+GitHub tier is tried next, `fail-on-cache-miss: true` fails the step as it would for any miss, and
+only `dual-cache-strict: true` turns the mismatch itself into a step failure. With
+[streaming](#streaming-archives-experimental), the archive is hashed while it is extracted, so a
+mismatch is only detected at the end and files may already have been extracted. Objects saved
+without the checksum — caches from v1.1, streamed saves, or objects a storage provider stripped the
+metadata from — simply skip verification; this is not a breaking change.
 
 **Garage** does preserve this metadata, so integrity checks apply there like everywhere else.
 
@@ -292,16 +297,20 @@ breaking change.
 
 ## Safe Concurrent Saves
 
-Uploads use a conditional create (`If-None-Match: *`), so when two jobs race to save the same key,
-only the first upload succeeds; the second detects the precondition failure, logs `Another job
-saved s3://<bucket>/<key> first; keeping its cache.`, and finishes without overwriting it. Storage
-servers that reject the `If-None-Match` header outright are detected automatically and the upload
-is retried once without it, so this never breaks the action on providers with partial S3 API
-support.
+Uploads use a conditional create (`If-None-Match: *`). On providers that enforce it (verified on
+AWS S3, MinIO and SeaweedFS), when two jobs race to save the same key, only the first upload
+succeeds; the second detects the precondition failure, logs `Another job saved s3://<bucket>/<key>
+first; keeping its cache.`, and finishes without overwriting it. A `409 ConditionalRequestConflict`
+(a concurrent write or delete of the same key, such as a prune, landing mid-upload) is retried once
+with the same condition. Storage servers that reject the `If-None-Match` header outright are
+detected automatically and the upload is retried once without it, so this never breaks the action
+on providers with partial S3 API support.
 
-**Garage ignores `If-None-Match`**: it does not support conditional writes, so a race between two
-saves for the same key is last-writer-wins there, the same as v1.1's behavior. The existing HEAD
-check before archiving still avoids pointless work when the key already exists.
+**Providers that ignore `If-None-Match` keep last-writer-wins.** Garage (verified) does not support
+conditional writes, and Google Cloud Storage's S3 interoperability reportedly ignores the header
+too, so a race between two saves for the same key is last-writer-wins there, the same as v1.1's
+behavior. The existing HEAD check before archiving still avoids pointless work when the key already
+exists.
 
 ---
 
@@ -319,11 +328,15 @@ when `GITHUB_STEP_SUMMARY` is not set.
 
 Set `streaming: true` to stream archives directly between `tar` and S3 instead of writing a
 temporary archive file first. This applies to the S3 tier only (the GitHub Actions Cache tier is
-unaffected), uses less disk, and can be faster for large caches — but with two trade-offs:
+unaffected), uses less disk, and can be faster for large caches — but with these trade-offs:
 
 - **No whole-archive retry.** A streaming upload cannot be retried as a single unit if it fails
   partway; only the S3 SDK's own per-part retries apply. Non-streaming (file-mode) saves are
   unaffected and keep full retry support.
+- **No whole-download retry, and possibly partial extraction, on restore.** A streamed restore
+  extracts the archive as it downloads, so a network or `tar` failure mid-stream becomes a cache
+  miss (with a warning) and can leave the workspace partly extracted. File-mode restores download
+  to a temporary file first and retry the whole download before extracting anything.
 - **No integrity checksum on upload.** A streamed archive carries no `cloud-cache-sha256`
   metadata, so a streamed restore of a streamed save skips the integrity check. Restoring a
   streamed object still verifies its checksum whenever one is present (for example, a cache
@@ -349,7 +362,7 @@ v1.1 changes how cache objects are named, so **caches saved by v1.0 are not foun
 
 The action never reads v1.0 objects again; let a bucket lifecycle rule expire them.
 
-Ref scoping stores a separate cache for every branch and pull request merge ref (`refs/pull/<n>/merge`), so the bucket grows with the number of active refs. **A lifecycle rule that expires old cache objects is strongly recommended.**
+Ref scoping stores a separate cache for every branch and pull request merge ref (`refs/pull/<n>/merge`), so the bucket grows with the number of active refs. **A lifecycle rule that expires old cache objects is strongly recommended.** Add an `AbortIncompleteMultipartUpload` rule as well (for example, after 1 day): the action aborts the multipart uploads it sees fail, but a job that is cancelled or whose runner dies mid-upload leaves its uploaded parts behind, stored and billed until such a rule removes them.
 
 ## Upgrading to v1.2
 
