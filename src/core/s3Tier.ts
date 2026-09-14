@@ -439,6 +439,9 @@ async function saveToS3Streaming(
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
   let child: ChildProcess | undefined;
   let tarClose: Promise<number> | undefined;
+  // Set once the inner catch below has killed tar and waited for it, so the outer catch (which
+  // its rethrow also reaches) does not wait a second time.
+  let tarReaped = false;
   try {
     const manifestPath = path.join(tempDir, 'manifest.txt');
     fs.writeFileSync(manifestPath, formatManifest(entries));
@@ -503,16 +506,23 @@ async function saveToS3Streaming(
         s3: { objectKey, size: counter.count(), etag: uploaded.ETag },
       };
     } catch (err) {
+      // Fail the body first. When the upload stopped reading it, tar's stdout is paused with data
+      // still buffered, so it never closes and tar's close never fires; destroying the body makes
+      // pipeline destroy that stdout too. (When tar failed first, finalized already did this.)
+      counter.stream.destroy(toError(err));
       // When tar failed first, the upload may still be running: stop it, then wait for done()
       // to settle, which is where a multipart upload it created gets aborted (see
       // createStreamUpload). abort() makes done() reject promptly, so this wait is short; when
       // done() already rejected, it has already sent the abort and this does nothing.
       await upload.abort().catch(() => undefined);
       await uploadDone.catch(() => undefined);
-      // Kill tar first (it may still be running, or even hung), then wait — bounded — for it
-      // and the pipe to settle, so no upload failure mode can block this step indefinitely.
-      // Only once that is done do we read the byte count or the final stderr tail below.
-      await waitForExitAfterKill(child, finalized);
+      // Kill tar (it may still be running, or even hung), then wait, bounded, for it to close,
+      // so no failure mode can block this step indefinitely. Wait on tar's own close, not on
+      // finalized: once the pipe has failed, finalized rejects while tar may still be alive,
+      // and the temp directory must not be removed under a live tar. Only after this do we read
+      // the byte count or the final stderr tail below.
+      await waitForExitAfterKill(child, tarClose);
+      tarReaped = true;
       if (sendCondition && isPreconditionFailed(err)) {
         core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
         return { kind: 'exists', s3: { objectKey, size: counter.count(), etag: undefined } };
@@ -527,10 +537,12 @@ async function saveToS3Streaming(
       throw withStderrTail(err, stderrTail.lines());
     }
   } catch (err) {
-    // Only reached by a failure before the inner try above could take charge of tar (a
-    // synchronous throw right after spawning it, for example); that inner try always leaves
-    // tar killed and waited for on every path of its own.
-    if (child) {
+    // Reached by the inner catch's rethrow, which has already killed tar and waited for it, and
+    // by a failure before the inner try took charge of tar (createStreamUpload throwing, for
+    // example). Only the latter still has tar to stop: destroy its stdout, which nothing may be
+    // reading, so its close can fire, then kill it and wait, bounded, before removing tempDir.
+    if (child && !tarReaped) {
+      child.stdout?.destroy();
       if (tarClose) {
         await waitForExitAfterKill(child, tarClose);
       } else {
@@ -556,6 +568,10 @@ async function restoreFromS3Streaming(
   const { client, bucket } = tier.storage;
   let body: Readable | undefined;
   let child: ChildProcess | undefined;
+  let tarClose: Promise<number> | undefined;
+  // Set once the inner catch below has killed tar and waited for it, so the outer catch (which
+  // its rethrow also reaches) does not wait a second time.
+  let tarReaped = false;
   try {
     const stream = await getObjectStream(client, bucket, found.objectKey);
     body = stream.body;
@@ -572,7 +588,7 @@ async function restoreFromS3Streaming(
 
     child = spawnArchiveCommand(command, ['pipe', 'ignore', 'pipe']);
     const stderrTail = captureStderrTail(child.stderr);
-    const tarClose = waitForExit(child);
+    tarClose = waitForExit(child);
     // Keeps `tarClose` "handled" from Node's perspective if a synchronous throw below (from
     // createSha256Tap or the pipeline() call itself) reaches the outer catch before the
     // Promise.all below ever attaches its own handler to it.
@@ -586,7 +602,11 @@ async function restoreFromS3Streaming(
         throw new Error(`tar exited with code ${code}`);
       }
     } catch (err) {
+      // tar's stdout is ignored and its stderr is always being read, so a killed tar closes
+      // promptly (unlike the save side, nothing here can hold its close back): wait for that
+      // before reading the final stderr tail.
       await waitForExitAfterKill(child, tarClose);
+      tarReaped = true;
       throw withStderrTail(err, stderrTail.lines());
     }
 
@@ -608,12 +628,19 @@ async function restoreFromS3Streaming(
     }
     return hit;
   } catch (err) {
-    // Only reached by a failure before the inner try above took charge (a synchronous throw
-    // right after spawning tar, before tar was even spawned, or one that happened before the
-    // pipeline below ever started reading it): kill tar if it exists, and always release the
-    // GetObject body so its connection is never left dangling regardless.
-    if (child) {
-      killIfRunning(child);
+    // Reached by the inner catch's rethrow (a failed download, pipe or tar, with tar already
+    // killed and waited for there), and by any failure before the inner try took charge: the
+    // GetObject request failing, or a throw before or right after spawning tar, before the
+    // pipeline started. In the latter case stop tar here: release its stdin, kill it and wait,
+    // bounded, for it to close. Either way release the GetObject body, so its connection is
+    // never left dangling. The workspace may already hold partly extracted files.
+    if (child && !tarReaped) {
+      child.stdin?.destroy();
+      if (tarClose) {
+        await waitForExitAfterKill(child, tarClose);
+      } else {
+        killIfRunning(child);
+      }
     }
     body?.destroy();
     return { kind: 'error', error: toError(err) };

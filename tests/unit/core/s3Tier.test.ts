@@ -65,6 +65,17 @@ const mockUploadFile =
     ) => Promise<{ size: number; etag?: string }>
   >();
 const mockSha256File = jest.fn<(filePath: string) => Promise<string>>();
+const realSha256Tap = () => {
+  const hash = crypto.createHash('sha256');
+  const stream = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      hash.update(chunk);
+      callback(null, chunk);
+    },
+  });
+  return { stream, digest: () => hash.digest('hex') };
+};
+const mockCreateSha256Tap = jest.fn(realSha256Tap);
 
 const mockInfo = jest.fn<(message: string) => void>();
 const mockDebug = jest.fn<(message: string) => void>();
@@ -171,16 +182,7 @@ jest.unstable_mockModule('../../../src/storage/operations', () => ({
 }));
 jest.unstable_mockModule('../../../src/archive/checksum', () => ({
   sha256File: mockSha256File,
-  createSha256Tap: () => {
-    const hash = crypto.createHash('sha256');
-    const stream = new Transform({
-      transform(chunk: Buffer, _encoding, callback) {
-        hash.update(chunk);
-        callback(null, chunk);
-      },
-    });
-    return { stream, digest: () => hash.digest('hex') };
-  },
+  createSha256Tap: () => mockCreateSha256Tap(),
 }));
 
 const { buildS3Tier, findS3Match, restoreFromS3, saveToS3 } = await import(
@@ -262,6 +264,7 @@ beforeEach(() => {
   mockUploadFile.mockResolvedValue({ size: 2048, etag: '"new"' });
   mockResolveCachePaths.mockResolvedValue({ entries: ['node_modules'], skipped: [] });
   mockSha256File.mockResolvedValue('archive-sha256');
+  mockCreateSha256Tap.mockImplementation(realSha256Tap);
 
   // Streaming (Task 8) defaults: GNU tar on Linux, a single-command plan, no fallback.
   mockFindTar.mockResolvedValue({ path: '/usr/bin/tar', flavor: 'gnu' });
@@ -925,15 +928,20 @@ describe('saveToS3 streaming', () => {
       c.stdout.end(Buffer.from('archive-body'));
       return 0;
     });
-    mockCreateStreamUpload.mockReturnValue({
+    // Like the real Upload, which only sends the conditional PutObject/Complete once the body
+    // has ended, read the whole body before the 412 arrives.
+    mockCreateStreamUpload.mockImplementation((_client, _bucket, _key, body) => ({
       done: jest.fn(async () => {
+        for await (const _chunk of body as Readable) {
+          // Drain it.
+        }
         throw Object.assign(new Error('At least one of the pre-conditions did not hold'), {
           name: 'PreconditionFailed',
           $metadata: { httpStatusCode: 412 },
         });
       }),
       abort: jest.fn(async () => undefined),
-    });
+    }));
 
     const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
     const objectKey = `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`;
@@ -1063,6 +1071,96 @@ describe('saveToS3 streaming', () => {
   });
 });
 
+/**
+ * A fake tar closer to a real ChildProcess than makeFakeChild: its close (what waitForExit
+ * waits for) only happens once it has been killed AND its stdout stream has closed, exactly
+ * like Node's 'close' event, which waits for the stdio streams. Paired with the real, bounded
+ * waitForExitAfterKill (5 s), so a failure path that waits on something that can never settle
+ * shows up as elapsed time instead of hanging the test.
+ */
+function useRealisticTar(): { child: () => FakeChild | undefined } {
+  let child: FakeChild | undefined;
+  let killed = false;
+  let onKill: () => void = () => undefined;
+  mockSpawnArchiveCommand.mockImplementation(() => {
+    child = makeFakeChild();
+    child.kill = jest.fn(() => {
+      killed = true;
+      onKill();
+    });
+    return child;
+  });
+  mockWaitForExit.mockImplementation(
+    (c) =>
+      new Promise<number>((_resolve, reject) => {
+        let stdoutClosed = false;
+        const settle = () => {
+          if (killed && stdoutClosed) {
+            reject(new Error('tar was terminated by signal SIGTERM'));
+          }
+        };
+        onKill = settle;
+        c.stdout.on('close', () => {
+          stdoutClosed = true;
+          settle();
+        });
+      })
+  );
+  mockKillIfRunning.mockImplementation((c) => {
+    if (!killed) {
+      c.kill();
+    }
+  });
+  mockWaitForExitAfterKill.mockImplementation(async (c, settle) => {
+    mockKillIfRunning(c);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        settle.then(
+          () => undefined,
+          () => undefined
+        ),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, 5000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+  return { child: () => child };
+}
+
+describe('saveToS3 streaming failure timing', () => {
+  it('settles quickly when the upload stops reading the body and then rejects', async () => {
+    const tar = useRealisticTar();
+    const waitForClose = mockWaitForExit.getMockImplementation() as (
+      c: FakeChild
+    ) => Promise<number>;
+    mockWaitForExit.mockImplementationOnce((c) => {
+      // More than the pipe's buffers hold, so tar's stdout is left paused with data buffered.
+      c.stdout.write(Buffer.alloc(1024 * 1024, 't'));
+      return waitForClose(c);
+    });
+    mockCreateStreamUpload.mockReturnValue({
+      done: jest.fn(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        throw Object.assign(new Error('Access Denied'), { name: 'AccessDenied' });
+      }),
+      abort: jest.fn(async () => undefined),
+    });
+
+    const started = Date.now();
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    const elapsed = Date.now() - started;
+
+    expect(outcome.kind).toBe('error');
+    expect(outcome.kind === 'error' ? outcome.error.message : '').toContain('Access Denied');
+    expect(tar.child()?.kill).toHaveBeenCalled();
+    expect(elapsed).toBeLessThan(2000);
+  }, 20_000);
+});
+
 describe('restoreFromS3 streaming', () => {
   let workspace: string;
 
@@ -1165,5 +1263,39 @@ describe('restoreFromS3 streaming', () => {
       platform: process.platform,
       compression: 'zstd',
     });
+  });
+
+  it('leaves no unhandled rejection, and releases the body, when the pipeline never starts', async () => {
+    const onUnhandledRejection = jest.fn();
+    process.on('unhandledRejection', onUnhandledRejection);
+    try {
+      put(FEATURE, 'k', 1);
+      const body = new PassThrough();
+      mockGetObjectStream.mockResolvedValue({ body });
+      let child: FakeChild | undefined;
+      mockSpawnArchiveCommand.mockImplementation(() => {
+        child = makeFakeChild();
+        return child;
+      });
+      // tar is killed and its wait rejects (terminated by a signal) after the failure below.
+      mockWaitForExit.mockImplementation(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        throw new Error('tar was terminated by signal SIGTERM');
+      });
+      mockCreateSha256Tap.mockImplementationOnce(() => {
+        throw new Error('hash unavailable');
+      });
+
+      const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
+
+      expect(outcome.kind).toBe('error');
+      expect(outcome.kind === 'error' ? outcome.error.message : '').toContain('hash unavailable');
+      expect(mockKillIfRunning).toHaveBeenCalledWith(child);
+      expect(body.destroyed).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(onUnhandledRejection).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection);
+    }
   });
 });
