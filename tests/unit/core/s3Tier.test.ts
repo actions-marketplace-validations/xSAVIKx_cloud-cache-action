@@ -493,6 +493,17 @@ describe('restoreFromS3', () => {
   });
 });
 
+const conditionalConflict = () =>
+  Object.assign(
+    new Error('A conflicting operation occurred. If using PutObject you can retry the request.'),
+    { name: 'ConditionalRequestConflict', $metadata: { httpStatusCode: 409 } }
+  );
+const preconditionFailed = () =>
+  Object.assign(new Error('At least one of the pre-conditions you specified did not hold'), {
+    name: 'PreconditionFailed',
+    $metadata: { httpStatusCode: 412 },
+  });
+
 describe('saveToS3', () => {
   it('does not archive when the object already exists', async () => {
     const objectKey = put(FEATURE, 'k', 1);
@@ -656,6 +667,58 @@ describe('saveToS3', () => {
     expect(mockUploadFile).toHaveBeenCalledTimes(1);
     const [, , , , , options] = mockUploadFile.mock.calls[0];
     expect(options).toEqual({ metadata: { 'cloud-cache-sha256': 'archive-sha256' } });
+  });
+
+  describe('a 409 ConditionalRequestConflict during the conditional write', () => {
+    it('retries the conditional upload once and reports saved when the retry succeeds', async () => {
+      mockUploadFile
+        .mockRejectedValueOnce(conditionalConflict())
+        .mockResolvedValueOnce({ size: 2048, etag: '"retried"' });
+
+      const outcome = await saveToS3(tier(), 'k', ['node_modules']);
+
+      expect(outcome).toMatchObject({ kind: 'saved', s3: { etag: '"retried"' } });
+      expect(mockUploadFile).toHaveBeenCalledTimes(2);
+      for (const [, , , , , options] of mockUploadFile.mock.calls) {
+        expect(options).toMatchObject({ ifNoneMatch: '*' });
+      }
+      expect(storage.conditionalWriteUnsupported).toBeUndefined();
+    });
+
+    it('recognizes the conflict by its name alone', async () => {
+      mockUploadFile
+        .mockRejectedValueOnce(
+          Object.assign(new Error('conflict'), { name: 'ConditionalRequestConflict' })
+        )
+        .mockResolvedValueOnce({ size: 2048, etag: '"retried"' });
+      await expect(saveToS3(tier(), 'k', ['node_modules'])).resolves.toMatchObject({
+        kind: 'saved',
+      });
+      expect(mockUploadFile).toHaveBeenCalledTimes(2);
+    });
+
+    it('reports exists when the retry gets a 412', async () => {
+      mockUploadFile
+        .mockRejectedValueOnce(conditionalConflict())
+        .mockRejectedValueOnce(preconditionFailed());
+
+      const outcome = await saveToS3(tier(), 'k', ['node_modules']);
+
+      expect(outcome.kind).toBe('exists');
+      expect(mockUploadFile).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns an error, without a third attempt, when the retry conflicts again', async () => {
+      mockUploadFile.mockRejectedValue(conditionalConflict());
+
+      const outcome = await saveToS3(tier(), 'k', ['node_modules']);
+
+      expect(outcome.kind).toBe('error');
+      expect(outcome.kind === 'error' ? outcome.error.message : '').toContain(
+        'A conflicting operation occurred'
+      );
+      expect(mockUploadFile).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('does not repeat an upload the SDK already retried', async () => {
@@ -980,6 +1043,58 @@ describe('saveToS3 streaming', () => {
     expect(mockUploadFile).toHaveBeenCalledTimes(1);
     const [, , , , , options] = mockUploadFile.mock.calls[0];
     expect(options).toEqual({ metadata: { 'cloud-cache-sha256': 'archive-sha256' } });
+  });
+
+  it('falls back to a file-mode save that keeps the condition when the streamed write gets a 409', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    mockCreateStreamUpload.mockImplementation((_client, _bucket, _key, body) => ({
+      done: jest.fn(async () => {
+        for await (const _chunk of body as Readable) {
+          // Drain it, as the real Upload does before sending the conditional write.
+        }
+        throw conditionalConflict();
+      }),
+      abort: jest.fn(async () => undefined),
+    }));
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+
+    expect(outcome).toMatchObject({ kind: 'saved', s3: { etag: '"new"' } });
+    expect(storage.conditionalWriteUnsupported).toBeUndefined();
+    expect(mockCreateArchive).toHaveBeenCalledTimes(1);
+    expect(mockUploadFile).toHaveBeenCalledTimes(1);
+    const [, , , , , options] = mockUploadFile.mock.calls[0];
+    expect(options).toEqual({
+      metadata: { 'cloud-cache-sha256': 'archive-sha256' },
+      ifNoneMatch: '*',
+    });
+  });
+
+  it('does not retry again when the file-mode fallback after a streamed 409 conflicts too', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    mockCreateStreamUpload.mockImplementation((_client, _bucket, _key, body) => ({
+      done: jest.fn(async () => {
+        for await (const _chunk of body as Readable) {
+          // Drain it.
+        }
+        throw conditionalConflict();
+      }),
+      abort: jest.fn(async () => undefined),
+    }));
+    mockUploadFile.mockRejectedValue(conditionalConflict());
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+
+    expect(outcome.kind).toBe('error');
+    expect(mockUploadFile).toHaveBeenCalledTimes(1);
   });
 
   it("includes tar's stderr tail in the error and kills tar when tar exits non-zero", async () => {

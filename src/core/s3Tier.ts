@@ -94,6 +94,19 @@ function isPreconditionFailed(err: unknown): boolean {
   return error.$metadata?.httpStatusCode === 412 || error.name === 'PreconditionFailed';
 }
 
+/**
+ * True when a conditional upload hit a 409 ConditionalRequestConflict: a concurrent write or
+ * delete of the same key (a parallel prune, for example) landed while it was in progress. Worth
+ * one more attempt with the same condition.
+ */
+function isConditionalConflict(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const error = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return error.$metadata?.httpStatusCode === 409 || error.name === 'ConditionalRequestConflict';
+}
+
 const CONDITION_REJECTED_NAMES = new Set(['NotImplemented', 'NotSupported', 'InvalidArgument']);
 
 /** True when the server rejected the `If-None-Match` header itself, rather than the condition. */
@@ -346,17 +359,20 @@ export async function saveToS3(
 
 /**
  * File-based save: archives to a temporary file, uploads it, and handles the Task 4 conditional
- * write outcomes (412 -> exists; a condition the server rejects outright is retried once without
- * it). Used both as the default (non-streaming) save path, and as the fallback a streaming save
- * takes when its server rejects `If-None-Match` outright (see `saveToS3Streaming`) — reused
- * rather than duplicated, so both paths agree on precondition handling.
+ * write outcomes (412 -> exists; a 409 conflict is retried once with the same condition; a
+ * condition the server rejects outright is retried once without it). Used both as the default
+ * (non-streaming) save path, and as the fallback a streaming save takes when its server rejects
+ * `If-None-Match` outright or its conditional write conflicts (see `saveToS3Streaming`) — reused
+ * rather than duplicated, so both paths agree on precondition handling. `retryConflict: false`
+ * is passed by that 409 fallback, which already is the one retry.
  */
 async function saveToS3FileMode(
   tier: S3Tier,
   objectKey: string,
   entries: readonly string[],
   primaryKey: string,
-  uploadChunkSize?: number
+  uploadChunkSize?: number,
+  retryConflict = true
 ): Promise<SaveOutcome> {
   const { client, bucket } = tier.storage;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
@@ -382,8 +398,23 @@ async function saveToS3FileMode(
       );
 
     const sendCondition = !tier.storage.conditionalWriteUnsupported;
+    const attemptConditionalUpload = async () => {
+      try {
+        return await attemptUpload('*');
+      } catch (err) {
+        if (!retryConflict || !isConditionalConflict(err)) {
+          throw err;
+        }
+        core.info(
+          `A concurrent write to s3://${bucket}/${objectKey} conflicted with this upload; retrying it once.`
+        );
+        return await attemptUpload('*');
+      }
+    };
     try {
-      const uploaded = await attemptUpload(sendCondition ? '*' : undefined);
+      const uploaded = sendCondition
+        ? await attemptConditionalUpload()
+        : await attemptUpload(undefined);
       core.info(`Cache saved to S3 with key: ${primaryKey}`);
       return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
     } catch (err) {
@@ -533,6 +564,14 @@ async function saveToS3Streaming(
         );
         tier.storage.conditionalWriteUnsupported = true;
         return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+      }
+      if (sendCondition && isConditionalConflict(err)) {
+        // A streamed body cannot be replayed, so the one retry is a file-mode save, which keeps
+        // the condition.
+        core.info(
+          `A concurrent write to s3://${bucket}/${objectKey} conflicted with this upload; retrying it once from a temporary archive file.`
+        );
+        return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize, false);
       }
       throw withStderrTail(err, stderrTail.lines());
     }
