@@ -188,6 +188,34 @@ describe('pruneImpl', () => {
     expect(mockWarning).not.toHaveBeenCalledWith(expect.stringContaining('full Git ref'));
   });
 
+  it('reads scoped-to-ref and compiles the template without the ref when it is false', async () => {
+    inputs.set(Inputs.ScopedToRef, 'false');
+    await pruneImpl();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    const [tier, options] = mockPruneCaches.mock.calls[0];
+    expect(options).toMatchObject({ ref: undefined });
+    expect(tier.template.objectKey('refs/heads/main', 'k')).toBe('octo/app/k/cache.tar.zst');
+  });
+
+  it('keeps the ref in the template by default', async () => {
+    await pruneImpl();
+    const [tier] = mockPruneCaches.mock.calls[0];
+    expect(tier.template.objectKey('refs/heads/main', 'k')).toBe(
+      'octo/app/refs%2Fheads%2Fmain/k/cache.tar.zst'
+    );
+  });
+
+  it('refuses a ref when scoped-to-ref is false, before building storage', async () => {
+    inputs.set(Inputs.ScopedToRef, 'false');
+    inputs.set(Inputs.Ref, 'refs/heads/main');
+    await pruneImpl();
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'Refusing to prune: "ref" is set but "scoped-to-ref" is false, so cache keys contain no ref.'
+    );
+    expect(mockCreateStorageContext).not.toHaveBeenCalled();
+    expect(mockPruneCaches).not.toHaveBeenCalled();
+  });
+
   it('leaves key-pattern safety checks to pruneCaches, even for ${ref} before the repository', async () => {
     inputs.set(
       Inputs.S3KeyPattern,

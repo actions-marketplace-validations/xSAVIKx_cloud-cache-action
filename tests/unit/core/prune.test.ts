@@ -469,6 +469,47 @@ describe('pruneCaches key matching', () => {
     expect(deletedKeys()).toEqual([own]);
   });
 
+  describe('with scoped-to-ref false', () => {
+    const DEFAULT = '${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}';
+
+    it("deletes this repository's unscoped caches and keeps ref-scoped and foreign ones", async () => {
+      const template = templateWith(DEFAULT, { scopedToRef: false });
+      const own = 'acme/app/k/27747e0d22df7792/cache.tar.zst';
+      const ownSlashedKey = 'acme/app/Linux/npm/27747e0d22df7792/cache.tar.gz';
+      const refScoped = 'acme/app/refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+      const foreign = 'acme/app-legacy/k/27747e0d22df7792/cache.tar.zst';
+      const notArchive = 'acme/app/k/27747e0d22df7792/notes.txt';
+      listing([own, ownSlashedKey, refScoped, foreign, notArchive]);
+
+      const result = await pruneCaches(
+        { storage, template },
+        { olderThanDays: 1, dryRun: false, now: NOW }
+      );
+
+      expect(s3Mock.commandCalls(ListObjectsV2Command)[0].args[0].input.Prefix).toBe('acme/app/');
+      expect(deletedKeys()).toEqual([own, ownSlashedKey].sort());
+      expect(result.pruned.map((p) => p.key).sort()).toEqual([own, ownSlashedKey].sort());
+    });
+
+    it("resolves a glued ${ref} with the key builder's removal rules", async () => {
+      const template = templateWith(
+        'builds/${GITHUB_REPOSITORY}-${ref}/${key}/${version}/${archive_filename}',
+        { scopedToRef: false }
+      );
+      const own = 'builds/acme/app-/k/27747e0d22df7792/cache.tar.zst';
+      const refScoped = 'builds/acme/app-refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+      const foreign = 'builds/acme/app-legacy-/k/27747e0d22df7792/cache.tar.zst';
+      listing([own, refScoped, foreign]);
+
+      await pruneCaches({ storage, template }, { olderThanDays: 1, dryRun: false, now: NOW });
+
+      expect(s3Mock.commandCalls(ListObjectsV2Command)[0].args[0].input.Prefix).toBe(
+        'builds/acme/app-/'
+      );
+      expect(deletedKeys()).toEqual([own]);
+    });
+  });
+
   describe('refusals', () => {
     const repositoryMessage =
       'Refusing to prune: s3-key-pattern puts ${GITHUB_REPOSITORY} in a path segment with ${key}, ${version} or a preceding ${ref}, so other repositories\' caches could match. Separate ${GITHUB_REPOSITORY} from them with "/".';

@@ -17,6 +17,7 @@ export interface PruneConfig {
   prefix: string;
   s3KeyPattern: string;
   scopedToRepository: boolean;
+  scopedToRef: boolean;
   retryEnabled: boolean;
   retryCount: number;
 }
@@ -55,6 +56,7 @@ export function readPruneConfig(): PruneConfig {
     prefix: core.getInput(Inputs.Prefix),
     s3KeyPattern: core.getInput(Inputs.S3KeyPattern) || Defaults.DefaultS3KeyPattern,
     scopedToRepository: getInputAsBool(Inputs.ScopedToRepository, true),
+    scopedToRef: getInputAsBool(Inputs.ScopedToRef, true),
     retryEnabled: getInputAsBool(Inputs.Retry, true),
     retryCount: getInputAsInt(Inputs.RetryCount) ?? Defaults.DefaultRetryCount,
   };
@@ -78,7 +80,7 @@ export function buildPruneTier(
     repository: env.GITHUB_REPOSITORY ?? '',
     prefix: config.prefix,
     scopedToRepository: config.scopedToRepository,
-    scopedToRef: true,
+    scopedToRef: config.scopedToRef,
     version: '',
     archiveFilename: Defaults.DefaultArchiveFilenameZstd,
     env,
@@ -92,6 +94,11 @@ export function buildPruneTier(
 export async function pruneImpl(): Promise<void> {
   try {
     const config = readPruneConfig();
+    if (config.ref && !config.scopedToRef) {
+      throw new Error(
+        'Refusing to prune: "ref" is set but "scoped-to-ref" is false, so cache keys contain no ref.'
+      );
+    }
     if (config.ref && !config.ref.startsWith('refs/')) {
       core.warning(
         `The "ref" input "${config.ref}" is not a full Git ref. Prune expects a full ref such as refs/heads/main, so it may match no caches.`

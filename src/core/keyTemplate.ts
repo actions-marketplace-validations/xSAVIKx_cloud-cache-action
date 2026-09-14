@@ -179,13 +179,12 @@ export function compileKeyTemplate(options: KeyTemplateOptions): KeyTemplate {
     );
   }
 
-  let pattern = options.pattern;
-  if (!options.scopedToRepository) {
-    pattern = removePlaceholder(pattern, 'GITHUB_REPOSITORY');
-  }
-  if (!options.scopedToRef) {
-    pattern = removePlaceholder(pattern, 'ref');
-  }
+  const refScopedPattern = options.scopedToRepository
+    ? options.pattern
+    : removePlaceholder(options.pattern, 'GITHUB_REPOSITORY');
+  const pattern = options.scopedToRef
+    ? refScopedPattern
+    : removePlaceholder(refScopedPattern, 'ref');
 
   const warnings: string[] = [];
   if (options.scopedToRef && !pattern.includes('${ref}')) {
@@ -200,11 +199,9 @@ export function compileKeyTemplate(options: KeyTemplateOptions): KeyTemplate {
   }
 
   const bareSpecialUses = new Set<string>();
-  const [before, after] = expandEnvironment(
-    pattern,
-    options.env ?? process.env,
-    bareSpecialUses
-  ).split(KEY_PLACEHOLDER);
+  const expandAndSplit = (text: string, uses?: Set<string>): string[] =>
+    expandEnvironment(text, options.env ?? process.env, uses).split(KEY_PLACEHOLDER);
+  const [before, after] = expandAndSplit(pattern, bareSpecialUses);
   for (const name of bareSpecialUses) {
     warnings.push(
       `s3-key-pattern uses $${name}; write \${${name}} to use the ${name} placeholder.`
@@ -244,7 +241,40 @@ export function compileKeyTemplate(options: KeyTemplateOptions): KeyTemplate {
       name === 'ref' && ref !== undefined ? encodeRef(ref) : `${MARK}${name}${MARK}`
     );
   const scopeBaseOf = (ref?: string): string => tidy(scopeFill(before, ref)).replace(/^\//, '');
-  const scopeSuffixOf = (ref?: string): string => tidy(scopeFill(after, ref));
+  /**
+   * The unanchored regex source for the objects `base`/`suffix` text can produce for `ref`, with
+   * `groupSuffix` appended to capture group names so two sources can share one RegExp.
+   */
+  const scopeSource = (
+    base: string,
+    suffix: string,
+    ref: string | undefined,
+    groupSuffix: string
+  ): string => {
+    const captured = new Set<string>();
+    const toPattern = (text: string): string =>
+      text
+        .split(MARK)
+        .map((part, index) => {
+          if (index % 2 === 0) {
+            return escapeRegExp(part);
+          }
+          if (part === 'archive_filename') {
+            return ARCHIVE_FILENAME_PATTERN;
+          }
+          const group = `${part}${groupSuffix}`;
+          if (captured.has(part)) {
+            return `\\k<${group}>`;
+          }
+          captured.add(part);
+          return part === 'ref'
+            ? `(?<${group}>${escapeRegExp(ENCODED_REF_START)}[^/]+)`
+            : `(?<${group}>[^/]+)`;
+        })
+        .join('');
+    const head = tidy(scopeFill(base, ref)).replace(/^\//, '');
+    return `${toPattern(head)}.+${toPattern(tidy(scopeFill(suffix, ref)))}`;
+  };
 
   const tokens: Token[] = [...tokenize(before), { kind: 'key' }, ...tokenize(after)];
   const endsSegment = (token: Token): boolean => {
@@ -301,27 +331,14 @@ export function compileKeyTemplate(options: KeyTemplateOptions): KeyTemplate {
     searchPrefix: (ref, keyPrefix) => `${baseOf(ref)}${keyPrefix}`,
     scopePrefix: (ref) => scopeBaseOf(ref).split(MARK)[0],
     scopeMatcher: (ref) => {
-      const captured = new Set<string>();
-      const toPattern = (text: string): string =>
-        text
-          .split(MARK)
-          .map((part, index) => {
-            if (index % 2 === 0) {
-              return escapeRegExp(part);
-            }
-            if (part === 'archive_filename') {
-              return ARCHIVE_FILENAME_PATTERN;
-            }
-            if (captured.has(part)) {
-              return `\\k<${part}>`;
-            }
-            captured.add(part);
-            return part === 'ref'
-              ? `(?<ref>${escapeRegExp(ENCODED_REF_START)}[^/]+)`
-              : `(?<${part}>[^/]+)`;
-          })
-          .join('');
-      return new RegExp(`^${toPattern(scopeBaseOf(ref))}.+${toPattern(scopeSuffixOf(ref))}$`, 's');
+      let source = scopeSource(before, after, ref, '');
+      if (!options.scopedToRef && refScopedPattern.includes('${ref}')) {
+        // Keys saved with scoped-to-ref true can also fit the pattern without its ref (the ref
+        // segment reads as the start of the key); leave those to a ref-scoped prune.
+        const [scopedBefore, scopedAfter] = expandAndSplit(refScopedPattern);
+        source = `(?!${scopeSource(scopedBefore, scopedAfter, undefined, 'Scoped')}$)${source}`;
+      }
+      return new RegExp(`^${source}$`, 's');
     },
     scopeProblem: (ref) => {
       if (indexesOf('archive_filename').length === 0) {

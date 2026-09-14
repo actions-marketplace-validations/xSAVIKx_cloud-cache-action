@@ -48,6 +48,10 @@ inputs:
     description: 'Whether to prefix bucket cache paths with GITHUB_REPOSITORY (default: true)'
     required: false
     default: 'true'
+  scoped-to-ref:
+    description: 'Whether cache keys include the Git ref, as with scoped-to-ref on the main action (default: true). Set to false to prune caches saved with scoped-to-ref: false; "ref" must then be empty.'
+    required: false
+    default: 'true'
   retry:
     description: 'Enable retries with exponential backoff on failure for S3 operations'
     required: false

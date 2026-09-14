@@ -546,6 +546,7 @@ The prune action shares its storage inputs with the main action, plus three inpu
 | `prefix`                           |    No    |            `""`            | Subfolder prefix path inside the bucket                                     |
 | `s3-key-pattern`                   |    No    | same default as the main action | Template for the S3 object key (see [S3 Key Templating](./s3-key-patterns.md)) |
 | `scoped-to-repository`             |    No    |           `true`           | Whether to prefix bucket cache paths with `GITHUB_REPOSITORY`               |
+| `scoped-to-ref`                    |    No    |           `true`           | Whether cache keys include the Git ref; set `false` to prune caches saved with `scoped-to-ref: false` |
 | `retry`                            |    No    |           `true`           | Enable exponential backoff retries on S3 operations                        |
 | `retry-count`                      |    No    |            `3`              | Maximum number of S3 retries                                                |
 
@@ -569,8 +570,12 @@ candidate when its **whole key** matches the pattern: this repository, the confi
 given ref (or any full ref such as `refs%2Fheads%2Fmain` when `ref` is empty), any cache key, any
 version, and either archive filename the action produces (`cache.tar.zst` or `cache.tar.gz`).
 Objects that are not cache archives, and objects that belong to another repository or another ref
-but happen to share the listing prefix, are never touched. Caches saved with `scoped-to-ref: false`
-have no ref in their key, so they do not match and are not pruned.
+but happen to share the listing prefix, are never touched.
+
+Caches saved with `scoped-to-ref: false` have no ref in their key. Prune them with a separate step
+that also sets `scoped-to-ref: false` and leaves `ref` empty: the pattern is then resolved without
+`${ref}`, exactly as the main action resolves it, and keys that carry a ref segment where the ref
+would be are left for a ref-scoped prune. Each mode only prunes caches saved the same way.
 
 Among candidates, only those whose `LastModified` is older than `older-than-days` are deleted.
 Deletion happens one `DeleteObject` call per key (up to 8 in flight at a time), rather than a
@@ -600,6 +605,8 @@ The action refuses to run when the result would be unsafe:
   fine: an encoded ref always starts with `refs%2F`, which no repository name contains.
 - **No `${archive_filename}`.** Without it in the pattern, prune cannot tell cache archives from
   other objects, so the step fails.
+- **A ref without a ref scope.** Setting `ref` while `scoped-to-ref` is `false` fails the step,
+  because those cache keys contain no ref.
 - **A ref that cannot be told apart.** With `ref` set, the step fails when the pattern has no
   `${ref}`, or when every `${ref}` shares a path segment with `${key}`, `${version}` or another
   `${ref}`. Leave `ref` empty to prune every ref instead.

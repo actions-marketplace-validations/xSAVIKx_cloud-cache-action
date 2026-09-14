@@ -414,6 +414,16 @@ describe('scope matching', () => {
     expect(compileKeyTemplate({ ...pruneBase, pattern }).scopeProblem(ref)).toBe(problem);
   });
 
+  it('with scoped-to-ref false, matches keys without a ref and rejects ref-scoped keys', () => {
+    const template = compileKeyTemplate({ ...pruneBase, scopedToRef: false });
+    const matcher = template.scopeMatcher();
+    expect(template.scopePrefix()).toBe('acme/app/');
+    expect(template.scopeProblem()).toBeUndefined();
+    expect(matcher.test(`acme/app/Linux/k/${VERSION}/cache.tar.zst`)).toBe(true);
+    expect(matcher.test(`acme/app/refs%2Fheads%2Fmain/k/${VERSION}/cache.tar.zst`)).toBe(false);
+    expect(matcher.test(`acme/app/refs%2Fheads%2Fmain/${VERSION}/cache.tar.zst`)).toBe(true);
+  });
+
   it('does not check the repository once scoped-to-repository removed it', () => {
     const template = compileKeyTemplate({
       ...pruneBase,
