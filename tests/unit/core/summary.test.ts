@@ -144,4 +144,34 @@ describe('writeRestoreSummary / writeSaveSummary', () => {
 
     expect(fs.existsSync(missingPath)).toBe(false);
   });
+
+  it('HTML-escapes keys in the restore table, so a key cannot break the markup', async () => {
+    await writeRestoreSummary({
+      jobSummary: true,
+      primaryKey: 'a<b>&c',
+      matchedKey: 'x"<td>y',
+      cacheHit: true,
+      source: 's3',
+      durationMs: 100,
+    });
+
+    const content = fs.readFileSync(summaryFile, 'utf8');
+    expect(content).toContain('<td>a&lt;b&gt;&amp;c</td>');
+    expect(content).toContain('<td>x&quot;&lt;td&gt;y</td>');
+    expect(content).not.toContain('a<b>');
+    expect(content).not.toContain('<td>y');
+  });
+
+  it('HTML-escapes the key in the save table', async () => {
+    await writeSaveSummary({
+      jobSummary: true,
+      key: 'a<b>&c',
+      savedTo: ['s3'],
+      durationMs: 100,
+    });
+
+    const content = fs.readFileSync(summaryFile, 'utf8');
+    expect(content).toContain('<td>a&lt;b&gt;&amp;c</td>');
+    expect(content).not.toContain('a<b>');
+  });
 });

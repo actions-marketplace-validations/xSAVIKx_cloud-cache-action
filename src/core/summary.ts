@@ -32,6 +32,18 @@ function formatOptionalSize(size?: number): string {
   return size === undefined ? '—' : formatSize(size);
 }
 
+/**
+ * core.summary.addTable writes cell text into the HTML table as is, so a key containing `<` or
+ * `&` would break the markup. Every cell built from user data goes through this.
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /** Only write when the job-summary input is on and GitHub gave us a summary file to write to. */
 function canWrite(jobSummary: boolean): boolean {
   return jobSummary && Boolean(process.env.GITHUB_STEP_SUMMARY);
@@ -61,10 +73,10 @@ export async function writeRestoreSummary(data: RestoreSummaryData): Promise<voi
       { data: 'Duration', header: true },
     ],
     [
-      data.primaryKey,
-      data.matchedKey ?? '—',
+      escapeHtml(data.primaryKey),
+      data.matchedKey === undefined ? '—' : escapeHtml(data.matchedKey),
       String(data.cacheHit),
-      data.source,
+      escapeHtml(data.source),
       formatOptionalSize(data.size),
       formatDuration(data.durationMs),
     ],
@@ -84,8 +96,8 @@ export async function writeSaveSummary(data: SaveSummaryData): Promise<void> {
       { data: 'Duration', header: true },
     ],
     [
-      data.key,
-      data.savedTo.length > 0 ? data.savedTo.join(', ') : 'none',
+      escapeHtml(data.key),
+      data.savedTo.length > 0 ? escapeHtml(data.savedTo.join(', ')) : 'none',
       formatOptionalSize(data.size),
       formatDuration(data.durationMs),
     ],
