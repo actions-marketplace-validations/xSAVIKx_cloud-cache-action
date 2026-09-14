@@ -104,10 +104,9 @@ describe('pruneCaches', () => {
     expect(s3Mock.commandCalls(ListObjectsV2Command).at(-1)?.args[0].input.Prefix).toBe(
       'octo/app/refs%2Fheads%2Ffeature/'
     );
-    // The in-memory fake ignores Prefix, so this only verifies dry-run listing/reporting.
+    // The fake ignores Prefix; the key matcher still keeps the other ref out.
     expect(scoped.pruned.map((p) => p.key)).toEqual([
       'octo/app/refs%2Fheads%2Ffeature/k1/v1/cache.tar.zst',
-      'octo/app/refs%2Fheads%2Fmain/k2/v1/cache.tar.zst',
     ]);
 
     const all = await pruneCaches(
@@ -174,13 +173,16 @@ describe('pruneCaches', () => {
     expect(s3Mock.commandCalls(DeleteObjectCommand)).toHaveLength(0);
   });
 
-  it('refuses to prune when the resolved prefix is empty', async () => {
+  it.each([
+    ['${key}/${archive_filename}', false],
+    ['${ref}/${GITHUB_REPOSITORY}/${key}/${version}/${archive_filename}', true],
+  ])('refuses to prune when %s leaves no fixed listing prefix', async (pattern, scoped) => {
     const template = compileKeyTemplate({
-      pattern: '${key}/${archive_filename}',
+      pattern,
       repository: 'octo/app',
       prefix: '',
-      scopedToRepository: false,
-      scopedToRef: false,
+      scopedToRepository: scoped,
+      scopedToRef: scoped,
       version: 'v1',
       archiveFilename: 'cache.tar.zst',
       env: {},
@@ -189,7 +191,7 @@ describe('pruneCaches', () => {
     await expect(
       pruneCaches({ storage, template }, { olderThanDays: 1, dryRun: true, now: NOW })
     ).rejects.toThrow(
-      'Refusing to prune: the resolved prefix is empty, which would scan the whole bucket. Set "prefix" or keep "scoped-to-repository" enabled.'
+      'Refusing to prune: s3-key-pattern leaves no fixed prefix to list under, which would scan the whole bucket. Set "prefix", keep "scoped-to-repository" enabled, or set "ref" when the pattern starts with ${ref}.'
     );
     expect(s3Mock.commandCalls(ListObjectsV2Command)).toHaveLength(0);
   });
@@ -279,5 +281,250 @@ describe('pruneCaches', () => {
     expect(maxActive).toBeLessThanOrEqual(2);
     expect(maxActive).toBeGreaterThan(1);
     expect(s3Mock.commandCalls(DeleteObjectCommand)).toHaveLength(6);
+  });
+});
+
+describe('pruneCaches key matching', () => {
+  const REPO = 'acme/app';
+  const OLD = daysAgo(30);
+
+  function templateWith(
+    pattern: string,
+    overrides: Partial<Parameters<typeof compileKeyTemplate>[0]> = {}
+  ): KeyTemplate {
+    // Compiled the way buildPruneTier compiles it: no version, the zstd archive filename.
+    return compileKeyTemplate({
+      pattern,
+      repository: REPO,
+      prefix: '',
+      scopedToRepository: true,
+      scopedToRef: true,
+      version: '',
+      archiveFilename: 'cache.tar.zst',
+      env: {},
+      ...overrides,
+    });
+  }
+
+  function listing(keys: string[]): void {
+    // The fake ignores Prefix, so every key below reaches the matcher.
+    s3Mock.on(ListObjectsV2Command).resolves({
+      Contents: keys.map((key) => object(key, 10, OLD)),
+      IsTruncated: false,
+    });
+    s3Mock.on(DeleteObjectCommand).resolves({});
+  }
+
+  function deletedKeys(): string[] {
+    return s3Mock
+      .commandCalls(DeleteObjectCommand)
+      .map((call) => call.args[0].input.Key as string)
+      .sort();
+  }
+
+  it('A: keeps another repository whose name extends this one when ${ref} is glued to the repository', async () => {
+    const template = templateWith(
+      'builds/${GITHUB_REPOSITORY}-${ref}/${key}/${version}/${archive_filename}'
+    );
+    const own = 'builds/acme/app-refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+    const ownOtherRef = 'builds/acme/app-refs%2Fheads%2Frelease/k/27747e0d22df7792/cache.tar.gz';
+    const foreign = 'builds/acme/app-legacy-refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+    listing([own, ownOtherRef, foreign]);
+
+    const result = await pruneCaches(
+      { storage, template },
+      { olderThanDays: 1, dryRun: false, now: NOW }
+    );
+
+    expect(s3Mock.commandCalls(ListObjectsV2Command)[0].args[0].input.Prefix).toBe(
+      'builds/acme/app-'
+    );
+    expect(deletedKeys()).toEqual([own, ownOtherRef].sort());
+    expect(result.pruned.map((p) => p.key).sort()).toEqual([own, ownOtherRef].sort());
+    expect(result.keptCount).toBe(0);
+  });
+
+  it('B: keeps other refs of the same repository when pruning one ref', async () => {
+    const template = templateWith('${GITHUB_REPOSITORY}/${key}/${ref}/${archive_filename}');
+    const own = 'acme/app/k/refs%2Fheads%2Fmain/cache.tar.zst';
+    const ownSlashedKey = 'acme/app/Linux/npm/refs%2Fheads%2Fmain/cache.tar.gz';
+    const otherRef = 'acme/app/k/refs%2Fheads%2Frelease/cache.tar.zst';
+    listing([own, ownSlashedKey, otherRef]);
+
+    await pruneCaches(
+      { storage, template },
+      { olderThanDays: 1, ref: MAIN, dryRun: false, now: NOW }
+    );
+
+    expect(deletedKeys()).toEqual([own, ownSlashedKey].sort());
+  });
+
+  it('C: keeps another repository when ${key} precedes ${GITHUB_REPOSITORY}', async () => {
+    const template = templateWith('shared/${key}/${GITHUB_REPOSITORY}/${archive_filename}');
+    const own = 'shared/k/acme/app/cache.tar.zst';
+    const foreign = 'shared/k/other/repo/cache.tar.zst';
+    const foreignKeyNamedLikeUs = 'shared/acme/app/other/repo/cache.tar.zst';
+    const foreignLongerName = 'shared/k/acme/app-legacy/cache.tar.zst';
+    listing([own, foreign, foreignKeyNamedLikeUs, foreignLongerName]);
+
+    await pruneCaches({ storage, template }, { olderThanDays: 1, dryRun: false, now: NOW });
+
+    expect(deletedKeys()).toEqual([own]);
+  });
+
+  it('D: the default pattern with one ref deletes only that ref of this repository', async () => {
+    const template = templateWith(
+      '${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}'
+    );
+    const own = 'acme/app/refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+    const otherRef = 'acme/app/refs%2Fheads%2Ffeature/k/27747e0d22df7792/cache.tar.zst';
+    const foreign = 'acme/app-legacy/refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+    listing([own, otherRef, foreign]);
+
+    await pruneCaches(
+      { storage, template },
+      { olderThanDays: 1, ref: MAIN, dryRun: false, now: NOW }
+    );
+
+    expect(s3Mock.commandCalls(ListObjectsV2Command)[0].args[0].input.Prefix).toBe(
+      'acme/app/refs%2Fheads%2Fmain/'
+    );
+    expect(deletedKeys()).toEqual([own]);
+  });
+
+  it('D: the default pattern for every ref keeps another prefix and another repository', async () => {
+    const template = templateWith(
+      '${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}'
+    );
+    const main = 'acme/app/refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+    const feature = 'acme/app/refs%2Fheads%2Ffeature/Linux/k/27747e0d22df7792/cache.tar.gz';
+    const otherPrefix = 'acme/app/web/refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+    const foreign = 'acme/app-legacy/refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+    listing([main, feature, otherPrefix, foreign]);
+
+    await pruneCaches({ storage, template }, { olderThanDays: 1, dryRun: false, now: NOW });
+
+    expect(deletedKeys()).toEqual([feature, main].sort());
+  });
+
+  it('never deletes a non-archive object or a key that does not fill the whole pattern', async () => {
+    const template = templateWith(
+      '${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}'
+    );
+    const own = 'acme/app/refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+    listing([
+      own,
+      'acme/app/refs%2Fheads%2Fmain/k/27747e0d22df7792/notes.txt',
+      'acme/app/refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst.tmp',
+      'acme/app/refs%2Fheads%2Fmain/k/27747e0d22df7792/my-cache.tar.zst',
+      'acme/app/refs%2Fheads%2Fmain/cache.tar.zst',
+      'acme/app/refs%2Fheads%2Fmain/k/cache.tar.zst',
+    ]);
+
+    const result = await pruneCaches(
+      { storage, template },
+      { olderThanDays: 1, ref: MAIN, dryRun: false, now: NOW }
+    );
+
+    expect(deletedKeys()).toEqual([own]);
+    expect(result.keptCount).toBe(0);
+  });
+
+  it('reports the same candidates on a dry run as a real run deletes', async () => {
+    const template = templateWith(
+      'builds/${GITHUB_REPOSITORY}-${ref}/${key}/${version}/${archive_filename}'
+    );
+    const own = 'builds/acme/app-refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+    const foreign = 'builds/acme/app-legacy-refs%2Fheads%2Fmain/k/27747e0d22df7792/cache.tar.zst';
+    listing([own, foreign]);
+
+    const dry = await pruneCaches(
+      { storage, template },
+      { olderThanDays: 1, dryRun: true, now: NOW }
+    );
+    expect(s3Mock.commandCalls(DeleteObjectCommand)).toHaveLength(0);
+    const real = await pruneCaches(
+      { storage, template },
+      { olderThanDays: 1, dryRun: false, now: NOW }
+    );
+
+    expect(dry.pruned.map((p) => p.key)).toEqual([own]);
+    expect(real.pruned.map((p) => p.key)).toEqual(dry.pruned.map((p) => p.key));
+    expect(deletedKeys()).toEqual([own]);
+  });
+
+  it('keeps other repositories when an all-refs pattern places ${ref} before the repository', async () => {
+    const template = templateWith(
+      'shared/${ref}/${GITHUB_REPOSITORY}/${key}/${version}/${archive_filename}'
+    );
+    const own = 'shared/refs%2Fheads%2Fmain/acme/app/k/27747e0d22df7792/cache.tar.zst';
+    const foreign = 'shared/refs%2Fheads%2Fmain/other/repo/k/27747e0d22df7792/cache.tar.zst';
+    const foreignKeyNamedLikeUs =
+      'shared/refs%2Fheads%2Fmain/other/repo/acme/app/27747e0d22df7792/cache.tar.zst';
+    listing([own, foreign, foreignKeyNamedLikeUs]);
+
+    await pruneCaches({ storage, template }, { olderThanDays: 1, dryRun: false, now: NOW });
+
+    expect(s3Mock.commandCalls(ListObjectsV2Command)[0].args[0].input.Prefix).toBe('shared/');
+    expect(deletedKeys()).toEqual([own]);
+  });
+
+  describe('refusals', () => {
+    const repositoryMessage =
+      'Refusing to prune: s3-key-pattern puts ${GITHUB_REPOSITORY} in a path segment with ${key}, ${version} or a preceding ${ref}, so other repositories\' caches could match. Separate ${GITHUB_REPOSITORY} from them with "/".';
+
+    it.each([
+      ['cache/${key}-${GITHUB_REPOSITORY}/${version}/${archive_filename}', undefined],
+      ['cache/${GITHUB_REPOSITORY}${key}/${version}/${archive_filename}', undefined],
+      ['cache/${GITHUB_REPOSITORY}-${version}/${key}/${archive_filename}', undefined],
+      ['builds/${ref}-${GITHUB_REPOSITORY}/${key}/${version}/${archive_filename}', undefined],
+      ['builds/${ref}-${GITHUB_REPOSITORY}/${key}/${version}/${archive_filename}', MAIN],
+    ])('refuses %s (ref %s) when repositories cannot be told apart', async (pattern, ref) => {
+      const template = templateWith(pattern);
+      await expect(
+        pruneCaches({ storage, template }, { olderThanDays: 1, ref, dryRun: false, now: NOW })
+      ).rejects.toThrow(repositoryMessage);
+      expect(s3Mock.commandCalls(ListObjectsV2Command)).toHaveLength(0);
+    });
+
+    it('refuses to prune one ref when ${ref} shares a segment with ${key}', async () => {
+      const template = templateWith('${GITHUB_REPOSITORY}/${key}-${ref}/${archive_filename}');
+      await expect(
+        pruneCaches({ storage, template }, { olderThanDays: 1, ref: MAIN, dryRun: false, now: NOW })
+      ).rejects.toThrow(
+        'Refusing to prune ref "refs/heads/main": s3-key-pattern puts ${ref} in a path segment with ${key}, ${version} or another ${ref}, so other refs\' caches could match. Separate ${ref} from them with "/", or leave "ref" empty to prune every ref.'
+      );
+      expect(s3Mock.commandCalls(ListObjectsV2Command)).toHaveLength(0);
+    });
+
+    it('refuses a pattern with no ${archive_filename}', async () => {
+      const template = templateWith('${GITHUB_REPOSITORY}/${ref}/${key}');
+      await expect(
+        pruneCaches({ storage, template }, { olderThanDays: 1, dryRun: false, now: NOW })
+      ).rejects.toThrow(
+        'Refusing to prune: s3-key-pattern has no ${archive_filename}, so cache archives cannot be told apart from other objects.'
+      );
+      expect(s3Mock.commandCalls(ListObjectsV2Command)).toHaveLength(0);
+    });
+
+    it('refuses to prune one ref when the pattern has no ${ref}', async () => {
+      const template = templateWith('${GITHUB_REPOSITORY}/${key}/${archive_filename}');
+      await expect(
+        pruneCaches({ storage, template }, { olderThanDays: 1, ref: MAIN, dryRun: false, now: NOW })
+      ).rejects.toThrow(
+        'Refusing to prune ref "refs/heads/main": s3-key-pattern has no ${ref}, so every ref shares the same object keys. Leave "ref" empty to prune them all.'
+      );
+      expect(s3Mock.commandCalls(ListObjectsV2Command)).toHaveLength(0);
+    });
+
+    it('allows the repository glued before ${ref}, which ref encoding keeps unambiguous', async () => {
+      const template = templateWith(
+        'builds/${GITHUB_REPOSITORY}-${ref}/${key}/${version}/${archive_filename}'
+      );
+      listing([]);
+      await expect(
+        pruneCaches({ storage, template }, { olderThanDays: 1, ref: MAIN, dryRun: false, now: NOW })
+      ).resolves.toMatchObject({ pruned: [] });
+    });
   });
 });

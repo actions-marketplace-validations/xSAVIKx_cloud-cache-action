@@ -15,6 +15,16 @@ const SPECIAL_VARIABLES = new Set([
   'archive_filename',
 ]);
 const KEY_PLACEHOLDER = '${key}';
+const RESOLVED_PLACEHOLDERS = /\$\{(GITHUB_REPOSITORY|prefix|ref|version|archive_filename)\}/g;
+/** Wraps a wildcard's name in scope text; it never occurs in a pattern or an object key. */
+const MARK = '\u0000';
+/** Every encoded full Git ref (refs/...) starts with this, and a repository name cannot. */
+const ENCODED_REF_START = 'refs%2F';
+const ARCHIVE_FILENAME_PATTERN = '(?:cache\\.tar\\.zst|cache\\.tar\\.gz)';
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 export interface KeyTemplateOptions {
   pattern: string;
@@ -27,15 +37,43 @@ export interface KeyTemplateOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+/**
+ * Why a prune scope cannot be matched safely:
+ * - `repository-shares-segment`: every `${GITHUB_REPOSITORY}` shares a path segment with
+ *   `${key}`, `${version}` or a preceding `${ref}`, so another repository's keys could match.
+ * - `ref-shares-segment`: every `${ref}` shares a path segment with `${key}`, `${version}` or
+ *   another `${ref}`, so another ref's keys could match.
+ * - `no-ref`: a single ref was requested, but the pattern has no `${ref}`.
+ * - `no-archive-filename`: the pattern has no `${archive_filename}`, so cache archives cannot be
+ *   told apart from other objects.
+ */
+export type ScopeProblem =
+  | 'no-archive-filename'
+  | 'repository-shares-segment'
+  | 'ref-shares-segment'
+  | 'no-ref';
+
 export interface KeyTemplate {
   objectKey(ref: string, key: string): string;
   searchPrefix(ref: string, keyPrefix: string): string;
   extractKey(ref: string, objectKey: string): string | undefined;
   /**
-   * The listing prefix that contains every object this template can produce for `ref`, or for
-   * every ref when `ref` is undefined. Used to enumerate a scope for pruning.
+   * The longest fixed listing prefix that contains every object this template can produce for
+   * `ref`, or for every ref when `ref` is undefined, whatever its key, version and archive
+   * filename. Used to enumerate a scope for pruning.
    */
   scopePrefix(ref?: string): string;
+  /**
+   * Matches, anchored at both ends, exactly the object keys this template can produce for `ref`
+   * (every ref when undefined), with any key, any version and either archive filename.
+   */
+  scopeMatcher(ref?: string): RegExp;
+  /**
+   * Why `scopeMatcher(ref)` cannot tell this repository's (or this ref's) objects apart from
+   * another repository's (or ref's) objects written with the same pattern, or undefined when it
+   * can.
+   */
+  scopeProblem(ref?: string): ScopeProblem | undefined;
   readonly warnings: readonly string[];
 }
 
@@ -82,8 +120,10 @@ export function expandEnvironment(
 }
 
 /**
- * Removes `${name}` plus one adjacent `/`: the one that follows it when present, otherwise the
- * one that precedes it. This never leaves a leading, doubled or trailing slash behind.
+ * Removes `${name}`. When it is a whole path segment (a `/` or the start of the pattern before it,
+ * and a `/` or the end after it), one adjacent `/` goes with it: the one that follows it when
+ * present, otherwise the one that precedes it, so no leading, doubled or trailing slash is left
+ * behind. Inside a segment, such as `${ref}-${key}`, only the placeholder text is removed.
  */
 function removePlaceholder(pattern: string, name: string): string {
   const placeholder = `\${${name}}`;
@@ -95,10 +135,12 @@ function removePlaceholder(pattern: string, name: string): string {
     at = result.indexOf(placeholder, from)
   ) {
     const after = at + placeholder.length;
-    if (result[after] === '/') {
+    const wholeSegment =
+      (at === 0 || result[at - 1] === '/') && (after === result.length || result[after] === '/');
+    if (wholeSegment && result[after] === '/') {
       result = result.slice(0, at) + result.slice(after + 1);
       from = at;
-    } else if (result[at - 1] === '/') {
+    } else if (wholeSegment && at > 0) {
       result = result.slice(0, at - 1) + result.slice(after);
       from = at - 1;
     } else {
@@ -107,6 +149,22 @@ function removePlaceholder(pattern: string, name: string): string {
     }
   }
   return result;
+}
+
+type VaryingPlaceholder = 'ref' | 'version' | 'archive_filename';
+type Token =
+  | { kind: 'text'; text: string }
+  | { kind: 'GITHUB_REPOSITORY' | 'prefix' | 'key' | VaryingPlaceholder };
+
+/** Splits resolved pattern text into literal text and the placeholders it still holds. */
+function tokenize(text: string): Token[] {
+  return text
+    .split(RESOLVED_PLACEHOLDERS)
+    .map((part, index) =>
+      index % 2 === 0
+        ? { kind: 'text', text: part }
+        : { kind: part as Exclude<Token['kind'], 'text'> }
+    );
 }
 
 function tidy(text: string): string {
@@ -153,40 +211,138 @@ export function compileKeyTemplate(options: KeyTemplateOptions): KeyTemplate {
     );
   }
   const prefix = normalizePrefix(options.prefix);
-  const fill = (text: string, ref: string): string =>
-    text.replace(
-      /\$\{(GITHUB_REPOSITORY|prefix|ref|version|archive_filename)\}/g,
-      (_match: string, name: string) => {
-        switch (name) {
-          case 'GITHUB_REPOSITORY':
-            return options.repository;
-          case 'prefix':
-            return prefix;
-          case 'ref':
-            return encodeRef(ref);
-          case 'version':
-            return options.version;
-          default:
-            return options.archiveFilename;
-        }
+  const resolve = (text: string, value: (name: VaryingPlaceholder) => string): string =>
+    text.replace(RESOLVED_PLACEHOLDERS, (_match: string, name: string) => {
+      switch (name) {
+        case 'GITHUB_REPOSITORY':
+          return options.repository;
+        case 'prefix':
+          return prefix;
+        default:
+          return value(name as VaryingPlaceholder);
       }
-    );
+    });
+  const fill = (text: string, ref: string): string =>
+    resolve(text, (name) => {
+      switch (name) {
+        case 'ref':
+          return encodeRef(ref);
+        case 'version':
+          return options.version;
+        default:
+          return options.archiveFilename;
+      }
+    });
   const baseOf = (ref: string): string => tidy(fill(before, ref)).replace(/^\//, '');
   const suffixOf = (ref: string): string => tidy(fill(after, ref));
-  const refIndexInBase = before.indexOf('${ref}');
+
+  // Scope text resolves like baseOf and suffixOf, but leaves the version, the archive filename
+  // and (for every ref) the ref as marked wildcards. None of them is ever empty in a saved object
+  // key, so tidy treats a mark exactly as it treats the value it stands for.
+  const scopeFill = (text: string, ref?: string): string =>
+    resolve(text, (name) =>
+      name === 'ref' && ref !== undefined ? encodeRef(ref) : `${MARK}${name}${MARK}`
+    );
+  const scopeBaseOf = (ref?: string): string => tidy(scopeFill(before, ref)).replace(/^\//, '');
+  const scopeSuffixOf = (ref?: string): string => tidy(scopeFill(after, ref));
+
+  const tokens: Token[] = [...tokenize(before), { kind: 'key' }, ...tokenize(after)];
+  const endsSegment = (token: Token): boolean => {
+    switch (token.kind) {
+      case 'text':
+        return /[/\\]/.test(token.text);
+      case 'prefix':
+        return prefix !== '';
+      case 'GITHUB_REPOSITORY':
+        return options.repository.includes('/');
+      default:
+        return false;
+    }
+  };
+  const varies = (token: Token): boolean =>
+    token.kind === 'key' || token.kind === 'version' || token.kind === 'ref';
+  /**
+   * True when the placeholder at `index` shares no path segment with a part of the object key
+   * that differs between objects (`${key}`, `${version}` or `${ref}`). Everything else has a
+   * fixed number of slashes, so the placeholder then sits at a fixed segment position that
+   * another repository's or ref's objects cannot shift. One exception keeps
+   * `${GITHUB_REPOSITORY}-${ref}` usable: an encoded full ref starts with `refs%2F` and a
+   * repository name cannot contain `%`, so a ref after the repository still ends it unambiguously
+   * when no `%` comes in between.
+   */
+  const isSegmentIsolated = (index: number): boolean => {
+    for (let i = index - 1; i >= 0 && !endsSegment(tokens[i]); i--) {
+      if (varies(tokens[i])) {
+        return false;
+      }
+    }
+    let percentSeen =
+      tokens[index].kind !== 'GITHUB_REPOSITORY' || options.repository.includes('%');
+    for (let i = index + 1; i < tokens.length && !endsSegment(tokens[i]); i++) {
+      const token = tokens[i];
+      if (token.kind === 'ref' && !percentSeen) {
+        return true;
+      }
+      if (varies(token)) {
+        return false;
+      }
+      if (token.kind === 'text' && token.text.includes('%')) {
+        percentSeen = true;
+      }
+    }
+    return true;
+  };
+  const indexesOf = (kind: Token['kind']): number[] =>
+    tokens.flatMap((token, index) => (token.kind === kind ? [index] : []));
 
   return {
     warnings,
     objectKey: (ref, key) => `${baseOf(ref)}${key}${suffixOf(ref)}`,
     searchPrefix: (ref, keyPrefix) => `${baseOf(ref)}${keyPrefix}`,
-    scopePrefix: (ref) => {
-      if (ref !== undefined) {
-        return baseOf(ref);
+    scopePrefix: (ref) => scopeBaseOf(ref).split(MARK)[0],
+    scopeMatcher: (ref) => {
+      const captured = new Set<string>();
+      const toPattern = (text: string): string =>
+        text
+          .split(MARK)
+          .map((part, index) => {
+            if (index % 2 === 0) {
+              return escapeRegExp(part);
+            }
+            if (part === 'archive_filename') {
+              return ARCHIVE_FILENAME_PATTERN;
+            }
+            if (captured.has(part)) {
+              return `\\k<${part}>`;
+            }
+            captured.add(part);
+            return part === 'ref'
+              ? `(?<ref>${escapeRegExp(ENCODED_REF_START)}[^/]+)`
+              : `(?<${part}>[^/]+)`;
+          })
+          .join('');
+      return new RegExp(`^${toPattern(scopeBaseOf(ref))}.+${toPattern(scopeSuffixOf(ref))}$`, 's');
+    },
+    scopeProblem: (ref) => {
+      if (indexesOf('archive_filename').length === 0) {
+        return 'no-archive-filename';
       }
-      if (refIndexInBase === -1) {
-        return baseOf('');
+      const repositories = indexesOf('GITHUB_REPOSITORY');
+      if (
+        options.repository !== '' &&
+        repositories.length > 0 &&
+        !repositories.some((index) => isSegmentIsolated(index))
+      ) {
+        return 'repository-shares-segment';
       }
-      return tidy(fill(before.slice(0, refIndexInBase), '')).replace(/^\//, '');
+      if (ref === undefined) {
+        return undefined;
+      }
+      const refs = indexesOf('ref');
+      if (refs.length === 0) {
+        return 'no-ref';
+      }
+      return refs.some((index) => isSegmentIsolated(index)) ? undefined : 'ref-shares-segment';
     },
     extractKey: (ref, objectKey) => {
       const head = baseOf(ref);

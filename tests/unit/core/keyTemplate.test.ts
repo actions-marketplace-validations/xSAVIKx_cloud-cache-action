@@ -133,7 +133,7 @@ describe('compileKeyTemplate', () => {
 });
 
 describe('placeholder removal', () => {
-  it('removes ${GITHUB_REPOSITORY} and ${ref} cleanly when they are not slash-adjacent on both sides', () => {
+  it('removes only the placeholder text when ${GITHUB_REPOSITORY} or ${ref} is not a whole path segment', () => {
     const pattern = 'builds/${GITHUB_REPOSITORY}-${ref}/${key}/${version}/${archive_filename}';
 
     expect(
@@ -152,7 +152,7 @@ describe('placeholder removal', () => {
         scopedToRepository: false,
         scopedToRef: true,
       }).objectKey(MAIN, 'k')
-    ).toBe(`builds-refs%2Fheads%2Fmain/k/${VERSION}/cache.tar.zst`);
+    ).toBe(`builds/-refs%2Fheads%2Fmain/k/${VERSION}/cache.tar.zst`);
 
     expect(
       compileKeyTemplate({
@@ -161,7 +161,7 @@ describe('placeholder removal', () => {
         scopedToRepository: true,
         scopedToRef: false,
       }).objectKey('', 'k')
-    ).toBe(`builds/octo/app-k/${VERSION}/cache.tar.zst`);
+    ).toBe(`builds/octo/app-/k/${VERSION}/cache.tar.zst`);
 
     expect(
       compileKeyTemplate({
@@ -170,7 +170,50 @@ describe('placeholder removal', () => {
         scopedToRepository: false,
         scopedToRef: false,
       }).objectKey('', 'k')
-    ).toBe(`builds-k/${VERSION}/cache.tar.zst`);
+    ).toBe(`builds/-/k/${VERSION}/cache.tar.zst`);
+  });
+
+  it('keeps the slash before a ${ref} that shares its segment with other text, as v1.1 did', () => {
+    const template = compileKeyTemplate({
+      ...base,
+      pattern: 'cache/${ref}-${key}/${archive_filename}',
+      scopedToRef: false,
+    });
+    expect(template.objectKey('', 'K')).toBe('cache/-K/cache.tar.zst');
+  });
+
+  it('keeps the slash before a ${GITHUB_REPOSITORY} glued to ${ref}, as v1.1 did', () => {
+    const template = compileKeyTemplate({
+      ...base,
+      pattern: 'builds/${GITHUB_REPOSITORY}-${ref}/${key}/${version}/${archive_filename}',
+      scopedToRepository: false,
+    });
+    expect(template.objectKey(MAIN, 'k')).toBe(
+      `builds/-refs%2Fheads%2Fmain/k/${VERSION}/cache.tar.zst`
+    );
+  });
+
+  it('pins the default-pattern object keys for every scope combination', () => {
+    const keys = [true, false].flatMap((scopedToRepository) =>
+      [true, false].flatMap((scopedToRef) =>
+        ['', 'web'].map((prefix) =>
+          compileKeyTemplate({ ...base, prefix, scopedToRepository, scopedToRef }).objectKey(
+            MAIN,
+            'Linux/k'
+          )
+        )
+      )
+    );
+    expect(keys).toEqual([
+      `octo/app/refs%2Fheads%2Fmain/Linux/k/${VERSION}/cache.tar.zst`,
+      `octo/app/web/refs%2Fheads%2Fmain/Linux/k/${VERSION}/cache.tar.zst`,
+      `octo/app/Linux/k/${VERSION}/cache.tar.zst`,
+      `octo/app/web/Linux/k/${VERSION}/cache.tar.zst`,
+      `refs%2Fheads%2Fmain/Linux/k/${VERSION}/cache.tar.zst`,
+      `web/refs%2Fheads%2Fmain/Linux/k/${VERSION}/cache.tar.zst`,
+      `Linux/k/${VERSION}/cache.tar.zst`,
+      `web/Linux/k/${VERSION}/cache.tar.zst`,
+    ]);
   });
 
   it('never leaves a leading slash when ${ref} opens the pattern', () => {
@@ -293,5 +336,90 @@ describe('normalizePrefix', () => {
     ['\\a\\b', 'a/b/'],
   ])('normalises "%s" to "%s"', (input, expected) => {
     expect(normalizePrefix(input)).toBe(expected);
+  });
+});
+
+describe('scope matching', () => {
+  const pruneBase: KeyTemplateOptions = { ...base, repository: 'acme/app', version: '' };
+
+  it('lists under the fixed text before the first wildcard', () => {
+    const template = compileKeyTemplate({
+      ...pruneBase,
+      pattern: '${GITHUB_REPOSITORY}/${version}/${ref}/${key}/${archive_filename}',
+    });
+    expect(template.scopePrefix()).toBe('acme/app/');
+    expect(template.scopePrefix(MAIN)).toBe('acme/app/');
+  });
+
+  it('matches the whole default-pattern key for one ref, with any key, version and archive', () => {
+    const matcher = compileKeyTemplate(pruneBase).scopeMatcher(MAIN);
+    expect(matcher.source).toBe(
+      '^acme\\/app\\/refs%2Fheads%2Fmain\\/.+\\/(?<version>[^/]+)\\/(?:cache\\.tar\\.zst|cache\\.tar\\.gz)$'
+    );
+    expect(matcher.test(`acme/app/refs%2Fheads%2Fmain/a/b/${VERSION}/cache.tar.gz`)).toBe(true);
+    expect(matcher.test(`xacme/app/refs%2Fheads%2Fmain/k/${VERSION}/cache.tar.zst`)).toBe(false);
+    expect(matcher.test(`acme/app/refs%2Fheads%2Fmain/k/${VERSION}/cache.tar.zst.1`)).toBe(false);
+  });
+
+  it('matches every full ref as one segment, and a repeated placeholder as the same value', () => {
+    const matcher = compileKeyTemplate({
+      ...pruneBase,
+      pattern: '${GITHUB_REPOSITORY}/${ref}/${key}/${ref}/${archive_filename}',
+    }).scopeMatcher();
+    expect(matcher.test('acme/app/refs%2Fheads%2Fa/k/refs%2Fheads%2Fa/cache.tar.zst')).toBe(true);
+    expect(matcher.test('acme/app/refs%2Fheads%2Fa/k/refs%2Fheads%2Fb/cache.tar.zst')).toBe(false);
+    expect(matcher.test('acme/app/main/k/main/cache.tar.zst')).toBe(false);
+  });
+
+  it('resolves placeholders removed by scoping the way object keys do', () => {
+    const options: KeyTemplateOptions = {
+      ...pruneBase,
+      pattern: '${prefix}${GITHUB_REPOSITORY}-${ref}/${key}/${version}/${archive_filename}',
+      scopedToRepository: false,
+      prefix: 'web',
+    };
+    const template = compileKeyTemplate(options);
+    const saved = compileKeyTemplate({ ...options, version: VERSION }).objectKey(MAIN, 'a/b');
+    expect(saved).toBe(`web/-refs%2Fheads%2Fmain/a/b/${VERSION}/cache.tar.zst`);
+    expect(template.scopePrefix(MAIN)).toBe('web/-refs%2Fheads%2Fmain/');
+    expect(template.scopeMatcher(MAIN).test(saved)).toBe(true);
+  });
+
+  it.each([
+    ['${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}', undefined],
+    ['${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}', MAIN],
+    ['builds/${GITHUB_REPOSITORY}-${ref}/${key}/${version}/${archive_filename}', MAIN],
+    ['shared/${key}/${GITHUB_REPOSITORY}/${archive_filename}', undefined],
+    ['${ref}/x-${GITHUB_REPOSITORY}.y/${key}/${archive_filename}', MAIN],
+  ])('finds no scope problem in %s (ref %s)', (pattern, ref) => {
+    expect(compileKeyTemplate({ ...pruneBase, pattern }).scopeProblem(ref)).toBeUndefined();
+  });
+
+  it.each([
+    ['c/${key}-${GITHUB_REPOSITORY}/${archive_filename}', undefined, 'repository-shares-segment'],
+    [
+      'c/${GITHUB_REPOSITORY}-%-${ref}/${key}/${archive_filename}',
+      undefined,
+      'repository-shares-segment',
+    ],
+    ['c/${ref}${GITHUB_REPOSITORY}/${key}/${archive_filename}', MAIN, 'repository-shares-segment'],
+    [
+      '${GITHUB_REPOSITORY}/${ref}.${version}/${key}/${archive_filename}',
+      MAIN,
+      'ref-shares-segment',
+    ],
+    ['${GITHUB_REPOSITORY}/${key}/${archive_filename}', MAIN, 'no-ref'],
+    ['${GITHUB_REPOSITORY}/${ref}/${key}.tar.zst', undefined, 'no-archive-filename'],
+  ])('reports a scope problem in %s (ref %s)', (pattern, ref, problem) => {
+    expect(compileKeyTemplate({ ...pruneBase, pattern }).scopeProblem(ref)).toBe(problem);
+  });
+
+  it('does not check the repository once scoped-to-repository removed it', () => {
+    const template = compileKeyTemplate({
+      ...pruneBase,
+      pattern: 'c/${key}-${GITHUB_REPOSITORY}/${ref}/${archive_filename}',
+      scopedToRepository: false,
+    });
+    expect(template.scopeProblem()).toBeUndefined();
   });
 });

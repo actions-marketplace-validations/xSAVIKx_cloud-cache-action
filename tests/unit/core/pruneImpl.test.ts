@@ -169,57 +169,36 @@ describe('pruneImpl', () => {
     expect(mockPruneCaches).not.toHaveBeenCalled();
   });
 
-  describe('the ref-before-repository/prefix safety guard', () => {
-    const dangerousMessage =
-      'Refusing to prune all refs: s3-key-pattern places ${ref} before the repository or prefix, so the listing would include other repositories\' caches. Set the "ref" input to prune a single ref.';
+  it('warns that a full ref is expected when ref does not start with refs/, and prunes as given', async () => {
+    inputs.set(Inputs.Ref, 'main');
+    await pruneImpl();
+    expect(mockWarning).toHaveBeenCalledWith(
+      'The "ref" input "main" is not a full Git ref. Prune expects a full ref such as refs/heads/main, so it may match no caches.'
+    );
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    expect(mockPruneCaches).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ ref: 'main' })
+    );
+  });
 
-    it('refuses an all-refs prune when ${ref} comes before ${GITHUB_REPOSITORY}', async () => {
-      inputs.set(Inputs.S3KeyPattern, '${ref}/${GITHUB_REPOSITORY}/${key}/${archive_filename}');
-      await pruneImpl();
-      expect(mockSetFailed).toHaveBeenCalledWith(dangerousMessage);
-      expect(mockPruneCaches).not.toHaveBeenCalled();
-    });
+  it.each(['refs/heads/main', ''])('does not warn about the ref input "%s"', async (ref) => {
+    inputs.set(Inputs.Ref, ref);
+    await pruneImpl();
+    expect(mockWarning).not.toHaveBeenCalledWith(expect.stringContaining('full Git ref'));
+  });
 
-    it('refuses an all-refs prune when ${ref} comes before ${prefix} and prefix is set', async () => {
-      inputs.set(Inputs.ScopedToRepository, 'false');
-      inputs.set(Inputs.Prefix, 'shared/');
-      inputs.set(Inputs.S3KeyPattern, '${ref}/${prefix}${key}/${archive_filename}');
-      await pruneImpl();
-      expect(mockSetFailed).toHaveBeenCalledWith(dangerousMessage);
-      expect(mockPruneCaches).not.toHaveBeenCalled();
-    });
-
-    it('allows the same repository-order pattern when a single ref is set', async () => {
-      inputs.set(Inputs.S3KeyPattern, '${ref}/${GITHUB_REPOSITORY}/${key}/${archive_filename}');
-      inputs.set(Inputs.Ref, 'refs/heads/main');
-      await pruneImpl();
-      expect(mockSetFailed).not.toHaveBeenCalled();
-      expect(mockPruneCaches).toHaveBeenCalled();
-    });
-
-    it('allows the same prefix-order pattern when a single ref is set', async () => {
-      inputs.set(Inputs.ScopedToRepository, 'false');
-      inputs.set(Inputs.Prefix, 'shared/');
-      inputs.set(Inputs.S3KeyPattern, '${ref}/${prefix}${key}/${archive_filename}');
-      inputs.set(Inputs.Ref, 'refs/heads/main');
-      await pruneImpl();
-      expect(mockSetFailed).not.toHaveBeenCalled();
-      expect(mockPruneCaches).toHaveBeenCalled();
-    });
-
-    it('does not refuse when prefix is empty even if ${ref} precedes ${prefix}', async () => {
-      inputs.set(Inputs.ScopedToRepository, 'false');
-      inputs.set(Inputs.S3KeyPattern, '${ref}/${prefix}${key}/${archive_filename}');
-      await pruneImpl();
-      expect(mockSetFailed).not.toHaveBeenCalled();
-      expect(mockPruneCaches).toHaveBeenCalled();
-    });
-
-    it('does not refuse the default pattern, which places ${ref} after the repository and prefix', async () => {
-      await pruneImpl();
-      expect(mockSetFailed).not.toHaveBeenCalled();
-      expect(mockPruneCaches).toHaveBeenCalled();
-    });
+  it('leaves key-pattern safety checks to pruneCaches, even for ${ref} before the repository', async () => {
+    inputs.set(
+      Inputs.S3KeyPattern,
+      'shared/${ref}/${GITHUB_REPOSITORY}/${key}/${archive_filename}'
+    );
+    await pruneImpl();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    expect(mockPruneCaches).toHaveBeenCalledWith(
+      expect.objectContaining({ template: expect.anything() }),
+      expect.objectContaining({ ref: undefined })
+    );
   });
 
   it('runs the wrapper without exiting when earlyExit is false', async () => {

@@ -21,40 +21,6 @@ export interface PruneConfig {
   retryCount: number;
 }
 
-/**
- * True when pruning every ref (the `ref` input is empty) would be unsafe with this
- * `s3-key-pattern`. If `${ref}` appears before `${GITHUB_REPOSITORY}` (while
- * scoped-to-repository is true) or before `${prefix}` (while a prefix is configured),
- * `KeyTemplate.scopePrefix(undefined)` truncates the listing prefix at the `${ref}` placeholder,
- * so it resolves to a prefix that does not include the repository or configured prefix segment --
- * broader than what the pattern really produces. An all-refs prune under that broader prefix
- * could then delete another repository's (or another prefix's) caches. Checked against the raw,
- * unresolved `s3-key-pattern` text.
- */
-function refPlacementIsUnsafeForAllRefs(
-  pattern: string,
-  scopedToRepository: boolean,
-  prefix: string
-): boolean {
-  const refIndex = pattern.indexOf('${ref}');
-  if (refIndex === -1) {
-    return false;
-  }
-  if (scopedToRepository) {
-    const repositoryIndex = pattern.indexOf('${GITHUB_REPOSITORY}');
-    if (repositoryIndex !== -1 && refIndex < repositoryIndex) {
-      return true;
-    }
-  }
-  if (prefix.trim() !== '') {
-    const prefixIndex = pattern.indexOf('${prefix}');
-    if (prefixIndex !== -1 && refIndex < prefixIndex) {
-      return true;
-    }
-  }
-  return false;
-}
-
 function parseOlderThanDays(raw: string): number {
   const trimmed = raw.trim();
   if (!/^[0-9]+$/.test(trimmed) || Number(trimmed) <= 0) {
@@ -96,9 +62,9 @@ export function readPruneConfig(): PruneConfig {
 
 /**
  * Builds the storage/template pair pruning needs. No version or archive-format concern applies:
- * the template is compiled with an empty version and the zstd archive filename, and matching
- * against saved objects goes through the archive-suffix logic in `./prune`, which recognizes
- * both known archive filenames regardless of which one the template carries.
+ * the template is compiled with an empty version and the zstd archive filename, and `./prune`
+ * matches saved objects through `KeyTemplate.scopeMatcher`, which accepts any version and both
+ * known archive filenames.
  */
 export function buildPruneTier(
   config: PruneConfig,
@@ -126,12 +92,9 @@ export function buildPruneTier(
 export async function pruneImpl(): Promise<void> {
   try {
     const config = readPruneConfig();
-    if (
-      !config.ref &&
-      refPlacementIsUnsafeForAllRefs(config.s3KeyPattern, config.scopedToRepository, config.prefix)
-    ) {
-      throw new Error(
-        'Refusing to prune all refs: s3-key-pattern places ${ref} before the repository or prefix, so the listing would include other repositories\' caches. Set the "ref" input to prune a single ref.'
+    if (config.ref && !config.ref.startsWith('refs/')) {
+      core.warning(
+        `The "ref" input "${config.ref}" is not a full Git ref. Prune expects a full ref such as refs/heads/main, so it may match no caches.`
       );
     }
 
