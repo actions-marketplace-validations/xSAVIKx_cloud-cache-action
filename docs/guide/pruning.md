@@ -83,7 +83,10 @@ but happen to share the listing prefix, are never touched.
 Caches saved with `scoped-to-ref: false` have no ref in their key. Prune them with a separate step
 that also sets `scoped-to-ref: false` and leaves `ref` empty: the pattern is then resolved without
 `${ref}`, exactly as the main action resolves it, and keys that carry a ref segment where the ref
-would be are left for a ref-scoped prune. Each mode only prunes caches saved the same way.
+would be are left for a ref-scoped prune. One exception: an unscoped prune with an empty `prefix`
+also matches ref-scoped caches of the same repository that were saved with a non-empty `prefix`
+(their prefix segment reads as part of the key), subject to `older-than-days`. If you mix prefixes,
+give every prune step the `prefix` its caches were saved with.
 
 Among candidates, only those whose `LastModified` is older than `older-than-days` are deleted.
 Deletion happens one `DeleteObject` call per key (up to 8 in flight at a time), rather than a

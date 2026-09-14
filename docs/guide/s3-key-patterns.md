@@ -127,6 +127,7 @@ Object key: `my-org/my-repo/Linux/backend-api/refs%2Fheads%2Fmain/Linux-deps-abc
 If you use [`cloud-cache-action/prune`](./pruning.md) with a custom `s3-key-pattern`, prune only
 deletes objects whose whole key matches the pattern. Keep `${GITHUB_REPOSITORY}` and `${ref}` in
 path segments of their own, separated from `${key}` and `${version}` by `/`: when they share a
-segment, keys from other repositories or refs could match, and the prune action refuses to run.
+segment, keys from other repositories or refs could match, and the prune action refuses to run
+whenever it cannot tell them apart.
 Starting the pattern with `${ref}` also leaves no fixed listing prefix for pruning every ref, so
 set its `ref` input in that case.

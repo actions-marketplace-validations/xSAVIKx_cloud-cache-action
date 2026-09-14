@@ -481,7 +481,8 @@ Object key: `my-org/my-repo/Linux/backend-api/refs%2Fheads%2Fmain/Linux-deps-abc
 If you use [`cloud-cache-action/prune`](./pruning.md) with a custom `s3-key-pattern`, prune only
 deletes objects whose whole key matches the pattern. Keep `${GITHUB_REPOSITORY}` and `${ref}` in
 path segments of their own, separated from `${key}` and `${version}` by `/`: when they share a
-segment, keys from other repositories or refs could match, and the prune action refuses to run.
+segment, keys from other repositories or refs could match, and the prune action refuses to run
+whenever it cannot tell them apart.
 Starting the pattern with `${ref}` also leaves no fixed listing prefix for pruning every ref, so
 set its `ref` input in that case.
 
@@ -575,7 +576,10 @@ but happen to share the listing prefix, are never touched.
 Caches saved with `scoped-to-ref: false` have no ref in their key. Prune them with a separate step
 that also sets `scoped-to-ref: false` and leaves `ref` empty: the pattern is then resolved without
 `${ref}`, exactly as the main action resolves it, and keys that carry a ref segment where the ref
-would be are left for a ref-scoped prune. Each mode only prunes caches saved the same way.
+would be are left for a ref-scoped prune. One exception: an unscoped prune with an empty `prefix`
+also matches ref-scoped caches of the same repository that were saved with a non-empty `prefix`
+(their prefix segment reads as part of the key), subject to `older-than-days`. If you mix prefixes,
+give every prune step the `prefix` its caches were saved with.
 
 Among candidates, only those whose `LastModified` is older than `older-than-days` are deleted.
 Deletion happens one `DeleteObject` call per key (up to 8 in flight at a time), rather than a
