@@ -73326,7 +73326,7 @@ const _summary = new Summary();
  * @deprecated use `core.summary`
  */
 const markdownSummary = (/* unused pure expression or super */ null && (_summary));
-const summary = (/* unused pure expression or super */ null && (_summary));
+const summary = _summary;
 //# sourceMappingURL=summary.js.map
 ;// CONCATENATED MODULE: ./node_modules/@actions/core/lib/path-utils.js
 
@@ -74904,11 +74904,18 @@ var Inputs;
     Inputs["Retry"] = "retry";
     Inputs["RetryCount"] = "retry-count";
     Inputs["UseFallback"] = "use-fallback";
+    Inputs["Streaming"] = "streaming";
+    // Prune-only inputs
+    Inputs["OlderThanDays"] = "older-than-days";
+    Inputs["Ref"] = "ref";
+    Inputs["DryRun"] = "dry-run";
     // Dual-cache inputs
     Inputs["DualCache"] = "dual-cache";
     Inputs["RestorePriority"] = "restore-priority";
     Inputs["DualCacheStrategy"] = "dual-cache-strategy";
     Inputs["DualCacheStrict"] = "dual-cache-strict";
+    // Job summary input
+    Inputs["JobSummary"] = "job-summary";
 })(Inputs || (Inputs = {}));
 var Outputs;
 (function (Outputs) {
@@ -74922,6 +74929,10 @@ var Outputs;
     // Dual-cache outputs
     Outputs["CacheHitSource"] = "cache-hit-source";
     Outputs["CacheSavedSources"] = "cache-saved-sources";
+    // Prune-only outputs
+    Outputs["PrunedCount"] = "pruned-count";
+    Outputs["PrunedBytes"] = "pruned-bytes";
+    Outputs["KeptCount"] = "kept-count";
 })(Outputs || (Outputs = {}));
 var constants_State;
 (function (State) {
@@ -74937,6 +74948,7 @@ var constants_State;
     State["CacheRetryCount"] = "CACHE_RETRY_COUNT";
     State["CacheReadOnly"] = "CACHE_READ_ONLY";
     State["CacheCompression"] = "CACHE_COMPRESSION";
+    State["CacheStreaming"] = "CACHE_STREAMING";
     // Dual-cache state
     State["CacheDualCache"] = "CACHE_DUAL_CACHE";
     State["CacheRestorePriority"] = "CACHE_RESTORE_PRIORITY";
@@ -74945,6 +74957,7 @@ var constants_State;
     State["CacheS3ExactHit"] = "CACHE_S3_EXACT_HIT";
     State["CacheGithubExactHit"] = "CACHE_GITHUB_EXACT_HIT";
     State["CacheHitSource"] = "CACHE_HIT_SOURCE";
+    State["CacheJobSummary"] = "CACHE_JOB_SUMMARY";
 })(constants_State || (constants_State = {}));
 var Events;
 (function (Events) {
@@ -75130,6 +75143,8 @@ function readCacheConfig(state) {
         restorePriority: text(constants_State.CacheRestorePriority, () => getInputAsEnum(Inputs.RestorePriority, RESTORE_PRIORITIES, 's3-first')),
         dualCacheStrategy: text(constants_State.CacheDualCacheStrategy, readDualCacheStrategy),
         dualCacheStrict: bool(constants_State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
+        streaming: bool(constants_State.CacheStreaming, () => getInputAsBool(Inputs.Streaming)),
+        jobSummary: bool(constants_State.CacheJobSummary, () => getInputAsBool(Inputs.JobSummary, true)),
     };
 }
 /** Saves what the post step must agree on with the restore step. */
@@ -75146,6 +75161,8 @@ function persistCacheConfig(state, config) {
     state.setState(constants_State.CacheRestorePriority, config.restorePriority);
     state.setState(constants_State.CacheDualCacheStrategy, config.dualCacheStrategy);
     state.setState(constants_State.CacheDualCacheStrict, String(config.dualCacheStrict));
+    state.setState(constants_State.CacheStreaming, String(config.streaming));
+    state.setState(constants_State.CacheJobSummary, String(config.jobSummary));
 }
 
 ;// CONCATENATED MODULE: ./node_modules/@actions/glob/lib/internal-glob-options-helper.js
@@ -128250,12 +128267,19 @@ async function saveToGitHub(paths, key, uploadChunkSize, enableCrossOsArchive) {
         return { kind: 'saved' };
     }
     catch (err) {
+        if (err instanceof Error &&
+            err.name === 'ValidationError' &&
+            err.message.startsWith('Path Validation Error')) {
+            return { kind: 'skipped', reason: 'no paths matched' };
+        }
         return { kind: 'error', error: toError(err) };
     }
 }
 
 // EXTERNAL MODULE: external "node:path"
 var external_node_path_ = __nccwpck_require__(6760);
+;// CONCATENATED MODULE: external "node:stream/promises"
+const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:stream/promises");
 ;// CONCATENATED MODULE: ./src/archive/compression.ts
 
 
@@ -128287,6 +128311,33 @@ async function getCompressionConfig() {
 }
 function resetCompressionConfigCache() {
     cachedConfig = null;
+}
+
+;// CONCATENATED MODULE: ./src/archive/checksum.ts
+
+
+
+/** Hashes a file on disk with sha256, streaming it chunk by chunk. */
+async function checksum_sha256File(filePath) {
+    const hash = external_node_crypto_.createHash('sha256');
+    for await (const chunk of external_node_fs_.createReadStream(filePath)) {
+        hash.update(chunk);
+    }
+    return hash.digest('hex');
+}
+/** A sha256 tap for streaming pipelines (used by Task 8): hashes data as it flows through. */
+function createSha256Tap() {
+    const hash = external_node_crypto_.createHash('sha256');
+    const stream = new external_node_stream_.Transform({
+        transform(chunk, _encoding, callback) {
+            hash.update(chunk);
+            callback(null, chunk);
+        },
+    });
+    return {
+        stream,
+        digest: () => hash.digest('hex'),
+    };
 }
 
 ;// CONCATENATED MODULE: ./src/archive/paths.ts
@@ -128395,7 +128446,7 @@ function systemLookup() {
     };
 }
 /** Picks tar the way actions/cache does: GNU tar where available, BSD tar otherwise. */
-async function findTar(lookup = systemLookup()) {
+async function tar_findTar(lookup = systemLookup()) {
     if (lookup.platform === 'win32') {
         const programFiles = lookup.env.ProgramFiles || 'C:\\Program Files';
         const gnuTar = external_node_path_.win32.join(programFiles, 'Git', 'usr', 'bin', 'tar.exe');
@@ -128422,8 +128473,12 @@ async function findTar(lookup = systemLookup()) {
     return { path: tar, flavor: lookup.platform === 'darwin' ? 'bsd' : 'gnu' };
 }
 const slashes = (value) => value.replace(/\\/g, '/');
-/** BSD tar on Windows cannot pipe through zstd reliably, so zstd runs as its own command. */
-function usesSeparateZstd(plan) {
+/**
+ * BSD tar on Windows cannot pipe through zstd reliably, so zstd runs as its own command. This
+ * also means that combination cannot stream (Task 8): callers that want to stream check this
+ * first and fall back to a temporary archive file when it is true.
+ */
+function tar_usesSeparateZstd(plan) {
     return plan.tar.flavor === 'bsd' && plan.platform === 'win32' && plan.compression === 'zstd';
 }
 function platformFlags(plan) {
@@ -128442,11 +128497,11 @@ function compressionFlags(method, program) {
     return method === 'zstd' ? ['--use-compress-program', program] : ['-z'];
 }
 /** One entry per line; entries starting with '-' get './' so no tar treats them as options. */
-function formatManifest(entries) {
+function tar_formatManifest(entries) {
     return `${entries.map((entry) => (entry.startsWith('-') ? `./${entry}` : entry)).join('\n')}\n`;
 }
-function buildCreateCommands(plan) {
-    const separateZstd = usesSeparateZstd(plan);
+function tar_buildCreateCommands(plan) {
+    const separateZstd = tar_usesSeparateZstd(plan);
     const tarFile = separateZstd ? path.join(plan.tempDir, 'cache.tar') : plan.archivePath;
     const args = [];
     if (plan.tar.flavor === 'gnu') {
@@ -128470,7 +128525,7 @@ function buildCreateCommands(plan) {
     ];
 }
 function buildExtractCommands(plan) {
-    if (usesSeparateZstd(plan)) {
+    if (tar_usesSeparateZstd(plan)) {
         const tarFile = external_node_path_.join(plan.tempDir, 'cache.tar');
         return [
             {
@@ -128522,10 +128577,10 @@ async function tar_createArchive(archivePath, entries, compression, workspace) {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-tar-'));
     try {
         const manifestPath = path.join(tempDir, 'manifest.txt');
-        fs.writeFileSync(manifestPath, formatManifest(entries));
+        fs.writeFileSync(manifestPath, tar_formatManifest(entries));
         fs.mkdirSync(path.dirname(archivePath), { recursive: true });
-        const tar = await findTar();
-        await run(buildCreateCommands({
+        const tar = await tar_findTar();
+        await run(tar_buildCreateCommands({
             tar,
             platform: process.platform,
             compression: compression.method,
@@ -128543,7 +128598,7 @@ async function extractArchive(archivePath, compression, workspace) {
     const tempDir = external_node_fs_.mkdtempSync(external_node_path_.join(external_node_os_.tmpdir(), 'cloud-cache-tar-'));
     try {
         external_node_fs_.mkdirSync(workspace, { recursive: true });
-        const tar = await findTar();
+        const tar = await tar_findTar();
         await run(buildExtractCommands({
             tar,
             platform: process.platform,
@@ -128564,6 +128619,116 @@ function tar_getArchiveSize(archivePath) {
     catch {
         return 0;
     }
+}
+
+// EXTERNAL MODULE: external "node:child_process"
+var external_node_child_process_ = __nccwpck_require__(1421);
+;// CONCATENATED MODULE: ./src/archive/stream.ts
+
+
+
+/**
+ * Spawns one tar/zstd command for streaming (Task 8): no shell, so paths and arguments never
+ * need quoting, unlike the `exec.exec` command line `run()` uses for the file-based path.
+ */
+function stream_spawnArchiveCommand(command, stdio) {
+    return (0,external_node_child_process_.spawn)(command.tool, command.args, {
+        env: archiveExecOptions().env,
+        windowsHide: true,
+        stdio,
+    });
+}
+/**
+ * Resolves with the exit code once the process AND its stdio streams have fully closed (the
+ * 'close' event, not 'exit'), so by the time this resolves, everything the process wrote to
+ * stdout/stderr has already drained and is safe to read. Rejects when it could not be spawned at
+ * all (e.g. the tool is missing) or was terminated by a signal.
+ */
+function stream_waitForExit(child) {
+    return new Promise((resolve, reject) => {
+        child.once('error', reject);
+        child.once('close', (code, signal) => {
+            if (code !== null) {
+                resolve(code);
+                return;
+            }
+            reject(new Error(`${child.spawnfile ?? 'the archive command'} was terminated by signal ${signal}`));
+        });
+    });
+}
+/** Kills the process only if it has not already exited or been signalled, so this never throws. */
+function stream_killIfRunning(child) {
+    if (child.exitCode === null && child.signalCode === null) {
+        child.kill();
+    }
+}
+/**
+ * Kills the process if it is still running, then waits (bounded) for `settle` — typically the
+ * same promise `waitForExit` returned for this child, or a caller's own wrapper that depends on
+ * it (e.g. "tar closed and the pipe finished") — so a caller's cleanup (removing a temp
+ * directory, reading the final stderr tail) does not race stdio that is still draining or a
+ * process that still has open files. Pass the exact promise `waitForExit` returned rather than a
+ * fresh call: a fresh call would attach a listener for a one-shot event that may already have
+ * fired, and would then hang until the timeout. Kills first, so a process that never settles on
+ * its own (and anything only waiting on it) cannot hang this past `timeoutMs` either. Never
+ * rejects: giving up on an orderly wait after `timeoutMs` is not a caller-visible failure.
+ */
+async function stream_waitForExitAfterKill(child, settle, timeoutMs = 5000) {
+    stream_killIfRunning(child);
+    let timer;
+    const timeout = new Promise((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+    });
+    try {
+        await Promise.race([
+            settle.then(() => undefined, () => undefined),
+            timeout,
+        ]);
+    }
+    finally {
+        clearTimeout(timer);
+    }
+}
+/** Caps unterminated output so one very long (or binary) line cannot grow this without bound. */
+const MAX_PARTIAL_LENGTH = 8 * 1024;
+/** Collects up to `maxLines` of the most recent text a stream has produced, for error messages. */
+function stream_captureStderrTail(stream, maxLines = 20) {
+    const tail = [];
+    let partial = '';
+    const push = (line) => {
+        tail.push(line);
+        if (tail.length > maxLines) {
+            tail.shift();
+        }
+    };
+    // setEncoding decodes multi-byte UTF-8 characters correctly across chunk boundaries, which
+    // chunk.toString('utf8') per chunk cannot.
+    stream?.setEncoding('utf8');
+    stream?.on('data', (chunk) => {
+        partial += chunk;
+        const lines = partial.split(/\r?\n/);
+        partial = lines.pop() ?? '';
+        for (const line of lines) {
+            push(line);
+        }
+        if (partial.length > MAX_PARTIAL_LENGTH) {
+            partial = partial.slice(-MAX_PARTIAL_LENGTH);
+        }
+    });
+    return {
+        lines: () => (partial ? [...tail, partial].slice(-maxLines) : tail.slice(-maxLines)),
+    };
+}
+/** Counts bytes flowing through a streaming pipeline, standing in for a known archive size. */
+function stream_createByteCounter() {
+    let total = 0;
+    const stream = new Transform({
+        transform(chunk, _encoding, callback) {
+            total += chunk.length;
+            callback(null, chunk);
+        },
+    });
+    return { stream, count: () => total };
 }
 
 // EXTERNAL MODULE: ./node_modules/@aws-sdk/client-s3/dist-cjs/index.js
@@ -128775,7 +128940,7 @@ function createStorageContext(options) {
 // EXTERNAL MODULE: ./node_modules/@aws-sdk/lib-storage/dist-cjs/index.js
 var lib_storage_dist_cjs = __nccwpck_require__(2358);
 ;// CONCATENATED MODULE: external "stream/promises"
-const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("stream/promises");
+const external_stream_promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("stream/promises");
 ;// CONCATENATED MODULE: ./src/storage/operations.ts
 
 
@@ -128839,6 +129004,46 @@ async function findNewestObject(client, bucket, prefix, accept, pageSize = 1000)
     } while (continuationToken);
     return newest;
 }
+/** S3 parts must be at least 5 MiB; a smaller or unset chunk size uses 10 MiB parts. */
+function resolvePartSize(uploadChunkSize) {
+    return uploadChunkSize && uploadChunkSize >= 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024;
+}
+/**
+ * Awaits `upload.done()`. When it rejects after a multipart upload was created, sends
+ * AbortMultipartUpload for it before rethrowing the original error, unchanged.
+ *
+ * lib-storage aborts the multipart upload itself only when a part fails, the upload is aborted,
+ * or the part count is wrong; not when CompleteMultipartUpload itself fails (a 412 from a lost
+ * conditional-write race, or a 501 from a server that rejects `If-None-Match`). Without this,
+ * every such failure leaves its uploaded parts behind, stored and billed until a lifecycle rule
+ * removes them. When lib-storage has already aborted the upload, this second abort fails with
+ * NoSuchUpload, which is expected and only logged at debug level.
+ */
+async function completeOrAbort(client, bucket, key, upload) {
+    try {
+        return await upload.done();
+    }
+    catch (err) {
+        const uploadId = upload.uploadId;
+        if (uploadId) {
+            try {
+                await client.send(new AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId }));
+                core.debug(`Aborted multipart upload ${uploadId} for s3://${bucket}/${key}.`);
+            }
+            catch (abortErr) {
+                const error = abortErr;
+                const message = `Could not abort multipart upload ${uploadId} for s3://${bucket}/${key}: ${error.message ?? String(abortErr)}`;
+                if (error.name === 'NoSuchUpload' || error.$metadata?.httpStatusCode === 404) {
+                    core.debug(`${message} (it was already aborted).`);
+                }
+                else {
+                    core.warning(`${message}. Its parts stay stored until a bucket lifecycle rule (AbortIncompleteMultipartUpload) removes them.`);
+                }
+            }
+        }
+        throw err;
+    }
+}
 async function downloadFile(client, bucket, key, destinationPath) {
     // Ensure target folder exists
     const dir = external_path_.dirname(destinationPath);
@@ -128854,19 +129059,32 @@ async function downloadFile(client, bucket, key, destinationPath) {
         throw new Error(`Empty response body received from S3 for key: ${key}`);
     }
     const fileStream = external_fs_namespaceObject.createWriteStream(destinationPath);
-    await (0,promises_namespaceObject.pipeline)(response.Body, fileStream);
+    await (0,external_stream_promises_namespaceObject.pipeline)(response.Body, fileStream);
+    return { metadata: response.Metadata };
 }
-async function operations_uploadFile(client, bucket, key, sourcePath, uploadChunkSize) {
+/**
+ * Like `downloadFile`, but for streaming (Task 8): returns the response body stream itself
+ * instead of writing it to a file, so the caller can pipe it straight into a tar extract.
+ */
+async function getObjectStream(client, bucket, key) {
+    const response = await client.send(new dist_cjs.GetObjectCommand({ Bucket: bucket, Key: key }));
+    if (!response.Body) {
+        throw new Error(`Empty response body received from S3 for key: ${key}`);
+    }
+    return { body: response.Body, metadata: response.Metadata };
+}
+async function operations_uploadFile(client, bucket, key, sourcePath, uploadChunkSize, options) {
     const stats = fs.statSync(sourcePath);
     const fileStream = fs.createReadStream(sourcePath);
-    // S3 parts must be at least 5 MiB; a smaller or unset chunk size uses 10 MiB parts.
-    const partSize = uploadChunkSize && uploadChunkSize >= 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024;
+    const partSize = resolvePartSize(uploadChunkSize);
     const parallelUpload = new Upload({
         client,
         params: {
             Bucket: bucket,
             Key: key,
             Body: fileStream,
+            Metadata: options?.metadata,
+            IfNoneMatch: options?.ifNoneMatch,
         },
         partSize,
         queueSize: 4,
@@ -128878,10 +129096,41 @@ async function operations_uploadFile(client, bucket, key, sourcePath, uploadChun
             core.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
         }
     });
-    const result = await parallelUpload.done();
+    const result = await completeOrAbort(client, bucket, key, parallelUpload);
     return {
         size: stats.size,
         etag: result.ETag,
+    };
+}
+/**
+ * Like `uploadFile`, but for streaming (Task 8): takes a readable stream body (tar's stdout,
+ * via a byte counter) instead of a file path, and returns the upload instead of awaiting it, so
+ * the caller can race it against the archiving process and abort it on failure. Its `done()`
+ * aborts a multipart upload that fails, the same way `uploadFile` does.
+ * Never sends `Metadata`: a streamed archive's sha256 cannot be known before it finishes.
+ */
+function operations_createStreamUpload(client, bucket, key, body, uploadChunkSize, options) {
+    const upload = new Upload({
+        client,
+        params: {
+            Bucket: bucket,
+            Key: key,
+            Body: body,
+            IfNoneMatch: options?.ifNoneMatch,
+        },
+        partSize: resolvePartSize(uploadChunkSize),
+        queueSize: 4,
+        leavePartsOnError: false,
+    });
+    upload.on('httpUploadProgress', (progress) => {
+        if (progress.total && progress.loaded) {
+            const pct = Math.round((progress.loaded / progress.total) * 100);
+            core.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
+        }
+    });
+    return {
+        done: () => completeOrAbort(client, bucket, key, upload),
+        abort: () => upload.abort(),
     };
 }
 
@@ -128977,6 +129226,15 @@ const SPECIAL_VARIABLES = new Set([
     'archive_filename',
 ]);
 const KEY_PLACEHOLDER = '${key}';
+const RESOLVED_PLACEHOLDERS = /\$\{(GITHUB_REPOSITORY|prefix|ref|version|archive_filename)\}/g;
+/** Wraps a wildcard's name in scope text; it never occurs in a pattern or an object key. */
+const MARK = '\u0000';
+/** Every encoded full Git ref (refs/...) starts with this, and a repository name cannot. */
+const ENCODED_REF_START = 'refs%2F';
+const ARCHIVE_FILENAME_PATTERN = '(?:cache\\.tar\\.zst|cache\\.tar\\.gz)';
+function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 /** Encodes a Git ref as one path segment: refs/heads/main becomes refs%2Fheads%2Fmain. */
 function encodeRef(ref) {
     return encodeURIComponent(ref);
@@ -128989,9 +129247,11 @@ function normalizePrefix(prefix) {
 /**
  * Expands `${env.NAME}`, `${NAME}` and `$NAME` in a single pass, so an expanded value is never
  * expanded again. Unset braced names become empty; unset bare names stay literal. Special
- * variables such as `${key}` are left for compileKeyTemplate.
+ * variables such as `${key}` are left for compileKeyTemplate. A bare special variable (`$ref`
+ * rather than `${ref}`) is never expanded from the environment either; its name is recorded in
+ * `bareSpecialUses` so the caller can warn about it.
  */
-function expandEnvironment(text, env) {
+function expandEnvironment(text, env, bareSpecialUses) {
     return text.replace(/\$\{([A-Za-z0-9_.-]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, braced, bare) => {
         if (braced !== undefined) {
             if (SPECIAL_VARIABLES.has(braced)) {
@@ -129000,11 +129260,48 @@ function expandEnvironment(text, env) {
             const name = braced.startsWith('env.') ? braced.slice(4) : braced;
             return env[name] ?? '';
         }
+        if (SPECIAL_VARIABLES.has(bare)) {
+            bareSpecialUses?.add(bare);
+            return match;
+        }
         return env[bare] ?? match;
     });
 }
+/**
+ * Removes `${name}`. When it is a whole path segment (a `/` or the start of the pattern before it,
+ * and a `/` or the end after it), one adjacent `/` goes with it: the one that follows it when
+ * present, otherwise the one that precedes it, so no leading, doubled or trailing slash is left
+ * behind. Inside a segment, such as `${ref}-${key}`, only the placeholder text is removed.
+ */
 function removePlaceholder(pattern, name) {
-    return pattern.split(`\${${name}}/`).join('').split(`\${${name}}`).join('');
+    const placeholder = `\${${name}}`;
+    let result = pattern;
+    let from = 0;
+    for (let at = result.indexOf(placeholder, from); at !== -1; at = result.indexOf(placeholder, from)) {
+        const after = at + placeholder.length;
+        const wholeSegment = (at === 0 || result[at - 1] === '/') && (after === result.length || result[after] === '/');
+        if (wholeSegment && result[after] === '/') {
+            result = result.slice(0, at) + result.slice(after + 1);
+            from = at;
+        }
+        else if (wholeSegment && at > 0) {
+            result = result.slice(0, at - 1) + result.slice(after);
+            from = at - 1;
+        }
+        else {
+            result = result.slice(0, at) + result.slice(after);
+            from = at;
+        }
+    }
+    return result;
+}
+/** Splits resolved pattern text into literal text and the placeholders it still holds. */
+function tokenize(text) {
+    return text
+        .split(RESOLVED_PLACEHOLDERS)
+        .map((part, index) => index % 2 === 0
+        ? { kind: 'text', text: part }
+        : { kind: part });
 }
 function tidy(text) {
     return text.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
@@ -129014,13 +129311,12 @@ function compileKeyTemplate(options) {
     if (keyCount !== 1) {
         throw new Error(`s3-key-pattern must contain \${key} exactly once (found ${keyCount}): "${options.pattern}"`);
     }
-    let pattern = options.pattern;
-    if (!options.scopedToRepository) {
-        pattern = removePlaceholder(pattern, 'GITHUB_REPOSITORY');
-    }
-    if (!options.scopedToRef) {
-        pattern = removePlaceholder(pattern, 'ref');
-    }
+    const refScopedPattern = options.scopedToRepository
+        ? options.pattern
+        : removePlaceholder(options.pattern, 'GITHUB_REPOSITORY');
+    const pattern = options.scopedToRef
+        ? refScopedPattern
+        : removePlaceholder(refScopedPattern, 'ref');
     const warnings = [];
     if (options.scopedToRef && !pattern.includes('${ref}')) {
         warnings.push('s3-key-pattern has no ${ref}, so caches are shared by every branch and pull request.');
@@ -129028,14 +129324,25 @@ function compileKeyTemplate(options) {
     if (!pattern.includes('${version}')) {
         warnings.push('s3-key-pattern has no ${version}, so a cache saved with different paths or compression can be restored as a hit.');
     }
-    const [before, after] = expandEnvironment(pattern, options.env ?? process.env).split(KEY_PLACEHOLDER);
+    const bareSpecialUses = new Set();
+    const expandAndSplit = (text, uses) => expandEnvironment(text, options.env ?? process.env, uses).split(KEY_PLACEHOLDER);
+    const [before, after] = expandAndSplit(pattern, bareSpecialUses);
+    for (const name of bareSpecialUses) {
+        warnings.push(`s3-key-pattern uses $${name}; write \${${name}} to use the ${name} placeholder.`);
+    }
     const prefix = normalizePrefix(options.prefix);
-    const fill = (text, ref) => text.replace(/\$\{(GITHUB_REPOSITORY|prefix|ref|version|archive_filename)\}/g, (_match, name) => {
+    const resolve = (text, value) => text.replace(RESOLVED_PLACEHOLDERS, (_match, name) => {
         switch (name) {
             case 'GITHUB_REPOSITORY':
                 return options.repository;
             case 'prefix':
                 return prefix;
+            default:
+                return value(name);
+        }
+    });
+    const fill = (text, ref) => resolve(text, (name) => {
+        switch (name) {
             case 'ref':
                 return encodeRef(ref);
             case 'version':
@@ -129046,10 +129353,118 @@ function compileKeyTemplate(options) {
     });
     const baseOf = (ref) => tidy(fill(before, ref)).replace(/^\//, '');
     const suffixOf = (ref) => tidy(fill(after, ref));
+    // Scope text resolves like baseOf and suffixOf, but leaves the version, the archive filename
+    // and (for every ref) the ref as marked wildcards. None of them is ever empty in a saved object
+    // key, so tidy treats a mark exactly as it treats the value it stands for.
+    const scopeFill = (text, ref) => resolve(text, (name) => name === 'ref' && ref !== undefined ? encodeRef(ref) : `${MARK}${name}${MARK}`);
+    const scopeBaseOf = (ref) => tidy(scopeFill(before, ref)).replace(/^\//, '');
+    /**
+     * The unanchored regex source for the objects `base`/`suffix` text can produce for `ref`, with
+     * `groupSuffix` appended to capture group names so two sources can share one RegExp.
+     */
+    const scopeSource = (base, suffix, ref, groupSuffix) => {
+        const captured = new Set();
+        const toPattern = (text) => text
+            .split(MARK)
+            .map((part, index) => {
+            if (index % 2 === 0) {
+                return escapeRegExp(part);
+            }
+            if (part === 'archive_filename') {
+                return ARCHIVE_FILENAME_PATTERN;
+            }
+            const group = `${part}${groupSuffix}`;
+            if (captured.has(part)) {
+                return `\\k<${group}>`;
+            }
+            captured.add(part);
+            return part === 'ref'
+                ? `(?<${group}>${escapeRegExp(ENCODED_REF_START)}[^/]+)`
+                : `(?<${group}>[^/]+)`;
+        })
+            .join('');
+        const head = tidy(scopeFill(base, ref)).replace(/^\//, '');
+        return `${toPattern(head)}.+${toPattern(tidy(scopeFill(suffix, ref)))}`;
+    };
+    const tokens = [...tokenize(before), { kind: 'key' }, ...tokenize(after)];
+    const endsSegment = (token) => {
+        switch (token.kind) {
+            case 'text':
+                return /[/\\]/.test(token.text);
+            case 'prefix':
+                return prefix !== '';
+            case 'GITHUB_REPOSITORY':
+                return options.repository.includes('/');
+            default:
+                return false;
+        }
+    };
+    const varies = (token) => token.kind === 'key' || token.kind === 'version' || token.kind === 'ref';
+    /**
+     * True when the placeholder at `index` shares no path segment with a part of the object key
+     * that differs between objects (`${key}`, `${version}` or `${ref}`). Everything else has a
+     * fixed number of slashes, so the placeholder then sits at a fixed segment position that
+     * another repository's or ref's objects cannot shift. One exception keeps
+     * `${GITHUB_REPOSITORY}-${ref}` usable: an encoded full ref starts with `refs%2F` and a
+     * repository name cannot contain `%`, so a ref after the repository still ends it unambiguously
+     * when no `%` comes in between.
+     */
+    const isSegmentIsolated = (index) => {
+        for (let i = index - 1; i >= 0 && !endsSegment(tokens[i]); i--) {
+            if (varies(tokens[i])) {
+                return false;
+            }
+        }
+        let percentSeen = tokens[index].kind !== 'GITHUB_REPOSITORY' || options.repository.includes('%');
+        for (let i = index + 1; i < tokens.length && !endsSegment(tokens[i]); i++) {
+            const token = tokens[i];
+            if (token.kind === 'ref' && !percentSeen) {
+                return true;
+            }
+            if (varies(token)) {
+                return false;
+            }
+            if (token.kind === 'text' && token.text.includes('%')) {
+                percentSeen = true;
+            }
+        }
+        return true;
+    };
+    const indexesOf = (kind) => tokens.flatMap((token, index) => (token.kind === kind ? [index] : []));
     return {
         warnings,
         objectKey: (ref, key) => `${baseOf(ref)}${key}${suffixOf(ref)}`,
         searchPrefix: (ref, keyPrefix) => `${baseOf(ref)}${keyPrefix}`,
+        scopePrefix: (ref) => scopeBaseOf(ref).split(MARK)[0],
+        scopeMatcher: (ref) => {
+            let source = scopeSource(before, after, ref, '');
+            if (!options.scopedToRef && refScopedPattern.includes('${ref}')) {
+                // Keys saved with scoped-to-ref true can also fit the pattern without its ref (the ref
+                // segment reads as the start of the key); leave those to a ref-scoped prune.
+                const [scopedBefore, scopedAfter] = expandAndSplit(refScopedPattern);
+                source = `(?!${scopeSource(scopedBefore, scopedAfter, undefined, 'Scoped')}$)${source}`;
+            }
+            return new RegExp(`^${source}$`, 's');
+        },
+        scopeProblem: (ref) => {
+            if (indexesOf('archive_filename').length === 0) {
+                return 'no-archive-filename';
+            }
+            const repositories = indexesOf('GITHUB_REPOSITORY');
+            if (options.repository !== '' &&
+                repositories.length > 0 &&
+                !repositories.some((index) => isSegmentIsolated(index))) {
+                return 'repository-shares-segment';
+            }
+            if (ref === undefined) {
+                return undefined;
+            }
+            const refs = indexesOf('ref');
+            if (refs.length === 0) {
+                return 'no-ref';
+            }
+            return refs.some((index) => isSegmentIsolated(index)) ? undefined : 'ref-shares-segment';
+        },
         extractKey: (ref, objectKey) => {
             const head = baseOf(ref);
             const tail = suffixOf(ref);
@@ -129132,6 +129547,47 @@ function computeCacheVersion(paths, compression, enableCrossOsArchive, platform 
 
 
 
+
+
+
+/** Logged when streaming is requested but the plan needs the BSD-tar-plus-zstd two-step on Windows. */
+const STREAMING_FALLBACK_MESSAGE = 'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.';
+/** Object metadata key holding the archive's sha256, verified before extracting on restore. */
+const SHA256_METADATA_KEY = 'cloud-cache-sha256';
+/** True when a failed conditional upload means another job already won the write. */
+function isPreconditionFailed(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    return error.$metadata?.httpStatusCode === 412 || error.name === 'PreconditionFailed';
+}
+/**
+ * True when a conditional upload hit a 409 ConditionalRequestConflict: a concurrent write or
+ * delete of the same key (a parallel prune, for example) landed while it was in progress. Worth
+ * one more attempt with the same condition.
+ */
+function isConditionalConflict(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    return error.$metadata?.httpStatusCode === 409 || error.name === 'ConditionalRequestConflict';
+}
+const CONDITION_REJECTED_NAMES = new Set(['NotImplemented', 'NotSupported', 'InvalidArgument']);
+/** True when the server rejected the `If-None-Match` header itself, rather than the condition. */
+function isConditionUnsupported(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    if (error.$metadata?.httpStatusCode === 501) {
+        return true;
+    }
+    return (error.name !== undefined &&
+        CONDITION_REJECTED_NAMES.has(error.name) &&
+        /if-none-match/i.test(error.message ?? ''));
+}
 const COMPRESSION_CONFIGS = {
     zstd: { method: 'zstd', archiveFilename: Defaults.DefaultArchiveFilenameZstd },
     gzip: { method: 'gzip', archiveFilename: Defaults.DefaultArchiveFilenameGzip },
@@ -129176,6 +129632,7 @@ async function buildS3Tier(config, env = process.env, options = {}) {
         compression,
         workspace: getWorkspace(env),
         streamRetries: config.retryEnabled ? config.retryCount : 0,
+        streaming: config.streaming,
     };
 }
 /**
@@ -129236,20 +129693,49 @@ async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
         exact: found.exact,
         s3: { objectKey: found.objectKey, size: found.size, etag: found.etag },
     };
-    const where = found.ref ? ` on ${found.ref}` : '';
-    info(`S3 cache ${found.exact ? 'hit' : 'partial hit'} for key "${found.matchedKey}"${where} (${inputUtils_formatSize(found.size)})`);
     if (lookupOnly) {
         return hit;
+    }
+    const where = found.ref ? ` on ${found.ref}` : '';
+    info(`S3 cache ${found.exact ? 'hit' : 'partial hit'} for key "${found.matchedKey}"${where} (${inputUtils_formatSize(found.size)})`);
+    if (tier.streaming) {
+        try {
+            const tar = await tar_findTar();
+            if (!tar_usesSeparateZstd({
+                tar,
+                platform: process.platform,
+                compression: tier.compression.method,
+            })) {
+                return await restoreFromS3Streaming(tier, found, tar, hit);
+            }
+            info(STREAMING_FALLBACK_MESSAGE);
+        }
+        catch (err) {
+            return { kind: 'error', error: outcomes_toError(err) };
+        }
     }
     const tempDir = external_node_fs_.mkdtempSync(external_node_path_.join(external_node_os_.tmpdir(), 'cloud-cache-restore-'));
     try {
         const archivePath = external_node_path_.join(tempDir, tier.compression.archiveFilename);
         const { client, bucket } = tier.storage;
-        await retry_withRetry(() => downloadFile(client, bucket, found.objectKey, archivePath), {
+        const { metadata } = await retry_withRetry(() => downloadFile(client, bucket, found.objectKey, archivePath), {
             retries: tier.streamRetries,
             operationName: `Download of ${found.objectKey}`,
             shouldRetry: retry_isRetryableStreamError,
         });
+        const expectedSha256 = metadata?.[SHA256_METADATA_KEY];
+        if (expectedSha256) {
+            const actualSha256 = await checksum_sha256File(archivePath);
+            if (actualSha256 !== expectedSha256) {
+                return {
+                    kind: 'error',
+                    error: new Error(`Integrity check failed for s3://${bucket}/${found.objectKey}: expected sha256 ${expectedSha256}, got ${actualSha256}`),
+                };
+            }
+        }
+        else {
+            core_debug(`s3://${bucket}/${found.objectKey} has no ${SHA256_METADATA_KEY} metadata; skipping integrity check.`);
+        }
         await extractArchive(archivePath, tier.compression, tier.workspace);
         return hit;
     }
@@ -129263,7 +129749,6 @@ async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
 async function saveToS3(tier, primaryKey, patterns, uploadChunkSize) {
     const { client, bucket } = tier.storage;
     const objectKey = tier.template.objectKey(tier.saveRef, primaryKey);
-    let tempDir;
     try {
         const existing = await checkObjectExists(client, bucket, objectKey);
         if (existing) {
@@ -129275,29 +129760,398 @@ async function saveToS3(tier, primaryKey, patterns, uploadChunkSize) {
             core.warning('Path Validation Error: Path(s) specified in the action for caching do(es) not exist, hence no cache is being saved.');
             return { kind: 'skipped', reason: 'no paths matched' };
         }
-        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+        if (tier.streaming) {
+            const tar = await findTar();
+            if (!usesSeparateZstd({ tar, platform: process.platform, compression: tier.compression.method })) {
+                return await saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uploadChunkSize);
+            }
+            core.info(STREAMING_FALLBACK_MESSAGE);
+        }
+        return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+    }
+    catch (err) {
+        return { kind: 'error', error: toError(err) };
+    }
+}
+/**
+ * File-based save: archives to a temporary file, uploads it, and handles the Task 4 conditional
+ * write outcomes (412 -> exists; a 409 conflict is retried once with the same condition; a
+ * condition the server rejects outright is retried once without it). Used both as the default
+ * (non-streaming) save path, and as the fallback a streaming save takes when its server rejects
+ * `If-None-Match` outright or its conditional write conflicts (see `saveToS3Streaming`) — reused
+ * rather than duplicated, so both paths agree on precondition handling. `retryConflict: false`
+ * is passed by that 409 fallback, which already is the one retry.
+ */
+async function saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize, retryConflict = true) {
+    const { client, bucket } = tier.storage;
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+    try {
         const archivePath = path.join(tempDir, tier.compression.archiveFilename);
         await createArchive(archivePath, entries, tier.compression, tier.workspace);
-        core.info(`Uploading ${formatSize(getArchiveSize(archivePath))} to s3://${bucket}/${objectKey}...`);
-        const uploaded = await withRetry(() => uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize), {
+        const archiveSize = getArchiveSize(archivePath);
+        core.info(`Uploading ${formatSize(archiveSize)} to s3://${bucket}/${objectKey}...`);
+        const checksum = await sha256File(archivePath);
+        const metadata = { [SHA256_METADATA_KEY]: checksum };
+        const attemptUpload = (ifNoneMatch) => withRetry(() => uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize, {
+            metadata,
+            ifNoneMatch,
+        }), {
             retries: tier.streamRetries,
             operationName: `Upload of ${objectKey}`,
             shouldRetry: isRetryableStreamError,
         });
-        core.info(`Cache saved to S3 with key: ${primaryKey}`);
-        return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
+        const sendCondition = !tier.storage.conditionalWriteUnsupported;
+        const attemptConditionalUpload = async () => {
+            try {
+                return await attemptUpload('*');
+            }
+            catch (err) {
+                if (!retryConflict || !isConditionalConflict(err)) {
+                    throw err;
+                }
+                core.info(`A concurrent write to s3://${bucket}/${objectKey} conflicted with this upload; retrying it once.`);
+                return await attemptUpload('*');
+            }
+        };
+        try {
+            const uploaded = sendCondition
+                ? await attemptConditionalUpload()
+                : await attemptUpload(undefined);
+            core.info(`Cache saved to S3 with key: ${primaryKey}`);
+            return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
+        }
+        catch (err) {
+            if (sendCondition && isPreconditionFailed(err)) {
+                core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
+                return { kind: 'exists', s3: { objectKey, size: archiveSize, etag: undefined } };
+            }
+            if (sendCondition && isConditionUnsupported(err)) {
+                core.debug(`s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`);
+                tier.storage.conditionalWriteUnsupported = true;
+                const uploaded = await attemptUpload(undefined);
+                core.info(`Cache saved to S3 with key: ${primaryKey}`);
+                return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
+            }
+            throw err;
+        }
     }
     catch (err) {
         return { kind: 'error', error: toError(err) };
     }
     finally {
-        if (tempDir) {
-            fs.rmSync(tempDir, { recursive: true, force: true });
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+/** Wraps a failure with tar's recent stderr output, for a clearer error message. */
+function withStderrTail(err, tail) {
+    const base = outcomes_toError(err);
+    if (tail.length === 0) {
+        return base;
+    }
+    return new Error(`${base.message}\n${tail.join('\n')}`, { cause: base });
+}
+/**
+ * Streaming save (Task 8): spawns tar writing the archive to stdout and pipes it, through a
+ * byte counter (there is no file to stat for the size), into an S3 multipart upload. Tar and
+ * the upload run concurrently, but the upload body is only ever told the archive is complete
+ * (`counter.stream.end()`) once tar has actually closed with exit code 0; any other outcome —
+ * a non-zero exit, a signal, or the pipe itself breaking — destroys the body with an error
+ * first, so lib-storage can never send the final PutObject/CompleteMultipartUpload for a
+ * truncated archive. `If-None-Match` would otherwise keep such a bad object forever.
+ */
+async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uploadChunkSize) {
+    const { client, bucket } = tier.storage;
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+    let child;
+    let tarClose;
+    // Set once the inner catch below has killed tar and waited for it, so the outer catch (which
+    // its rethrow also reaches) does not wait a second time.
+    let tarReaped = false;
+    try {
+        const manifestPath = path.join(tempDir, 'manifest.txt');
+        fs.writeFileSync(manifestPath, formatManifest(entries));
+        const [command] = buildCreateCommands({
+            tar,
+            platform: process.platform,
+            compression: tier.compression.method,
+            archivePath: '-',
+            workspace: tier.workspace,
+            tempDir,
+            manifestPath,
+        });
+        child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
+        const stderrTail = captureStderrTail(child.stderr);
+        tarClose = waitForExit(child);
+        const counter = createByteCounter();
+        // A stream this code may `destroy(err)` itself (below) needs a permanent error listener:
+        // pipeline's own listener is only attached while it is in flight, and is gone by the time
+        // finalizeBody calls destroy() after pipeline has already settled.
+        counter.stream.on('error', () => undefined);
+        // `end: false`: tar's stdout reaching EOF must never by itself end the upload body — only a
+        // confirmed clean exit (below) may do that.
+        const pipePromise = pipeline(child.stdout, counter.stream, { end: false });
+        // Captured once and reused (not re-invoked) so every branch below can await the same
+        // settlement, whichever of upload.done()/finalizeBody() the outer Promise.all resolved on.
+        const finalized = (async () => {
+            let code;
+            try {
+                [, code] = await Promise.all([pipePromise, tarClose]);
+            }
+            catch (err) {
+                counter.stream.destroy(toError(err));
+                throw err;
+            }
+            if (code !== 0) {
+                const failure = new Error(`tar exited with code ${code}`);
+                counter.stream.destroy(failure);
+                throw failure;
+            }
+            counter.stream.end();
+        })();
+        // Keeps `finalized` "handled" from Node's perspective even if nothing below ever awaits it
+        // (a synchronous throw between here and the inner try, e.g. from createStreamUpload, would
+        // otherwise leave its eventual rejection unhandled, which is fatal on Node 24). The `finalized`
+        // binding itself is untouched, so the real await below still observes its outcome.
+        finalized.catch(() => undefined);
+        const sendCondition = !tier.storage.conditionalWriteUnsupported;
+        core.info(`Streaming upload to s3://${bucket}/${objectKey}...`);
+        const upload = createStreamUpload(client, bucket, objectKey, counter.stream, uploadChunkSize, {
+            ifNoneMatch: sendCondition ? '*' : undefined,
+        });
+        // Captured once so the failure path below can wait for it to settle.
+        const uploadDone = upload.done();
+        try {
+            const [uploaded] = await Promise.all([uploadDone, finalized]);
+            core.info(`Cache saved to S3 with key: ${primaryKey}`);
+            return {
+                kind: 'saved',
+                s3: { objectKey, size: counter.count(), etag: uploaded.ETag },
+            };
         }
+        catch (err) {
+            // Fail the body first. When the upload stopped reading it, tar's stdout is paused with data
+            // still buffered, so it never closes and tar's close never fires; destroying the body makes
+            // pipeline destroy that stdout too. (When tar failed first, finalized already did this.)
+            counter.stream.destroy(toError(err));
+            // Kill tar before any network wait below, so a hung tar never outlives a slow abort request.
+            killIfRunning(child);
+            // When tar failed first, the upload may still be running: stop it, then wait for done()
+            // to settle, which is where a multipart upload it created gets aborted (see
+            // createStreamUpload). abort() makes done() reject promptly, so this wait is short; when
+            // done() already rejected, it has already sent the abort and this does nothing.
+            await upload.abort().catch(() => undefined);
+            await uploadDone.catch(() => undefined);
+            // Kill tar again (a no-op when it has exited), then wait, bounded, for it to close,
+            // so no failure mode can block this step indefinitely. Wait on tar's own close, not on
+            // finalized: once the pipe has failed, finalized rejects while tar may still be alive,
+            // and the temp directory must not be removed under a live tar. Only after this do we read
+            // the byte count or the final stderr tail below.
+            await waitForExitAfterKill(child, tarClose);
+            tarReaped = true;
+            if (sendCondition && isPreconditionFailed(err)) {
+                core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
+                return { kind: 'exists', s3: { objectKey, size: counter.count(), etag: undefined } };
+            }
+            if (sendCondition && isConditionUnsupported(err)) {
+                core.debug(`s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`);
+                tier.storage.conditionalWriteUnsupported = true;
+                return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+            }
+            if (sendCondition && isConditionalConflict(err)) {
+                // A streamed body cannot be replayed, so the one retry is a file-mode save, which keeps
+                // the condition.
+                core.info(`A concurrent write to s3://${bucket}/${objectKey} conflicted with this upload; retrying it once from a temporary archive file.`);
+                return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize, false);
+            }
+            throw withStderrTail(err, stderrTail.lines());
+        }
+    }
+    catch (err) {
+        // Reached by the inner catch's rethrow, which has already killed tar and waited for it, and
+        // by a failure before the inner try took charge of tar (createStreamUpload throwing, for
+        // example). Only the latter still has tar to stop: destroy its stdout, which nothing may be
+        // reading, so its close can fire, then kill it and wait, bounded, before removing tempDir.
+        if (child && !tarReaped) {
+            child.stdout?.destroy();
+            if (tarClose) {
+                await waitForExitAfterKill(child, tarClose);
+            }
+            else {
+                killIfRunning(child);
+            }
+        }
+        return { kind: 'error', error: toError(err) };
+    }
+    finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+/**
+ * Streaming restore (Task 8): pipes the GetObject body through the sha256 tap into a spawned
+ * tar extract reading from stdin, so nothing touches disk except the extracted files themselves.
+ */
+async function restoreFromS3Streaming(tier, found, tar, hit) {
+    const { client, bucket } = tier.storage;
+    let body;
+    let child;
+    let tarClose;
+    // Set once the inner catch below has killed tar and waited for it, so the outer catch (which
+    // its rethrow also reaches) does not wait a second time.
+    let tarReaped = false;
+    try {
+        const stream = await getObjectStream(client, bucket, found.objectKey);
+        body = stream.body;
+        const { metadata } = stream;
+        external_node_fs_.mkdirSync(tier.workspace, { recursive: true });
+        const [command] = buildExtractCommands({
+            tar,
+            platform: process.platform,
+            compression: tier.compression.method,
+            archivePath: '-',
+            workspace: tier.workspace,
+            tempDir: external_node_os_.tmpdir(),
+        });
+        child = stream_spawnArchiveCommand(command, ['pipe', 'ignore', 'pipe']);
+        const stderrTail = stream_captureStderrTail(child.stderr);
+        tarClose = stream_waitForExit(child);
+        // Keeps `tarClose` "handled" from Node's perspective if a synchronous throw below (from
+        // createSha256Tap or the pipeline() call itself) reaches the outer catch before the
+        // Promise.all below ever attaches its own handler to it.
+        tarClose.catch(() => undefined);
+        const tap = createSha256Tap();
+        const pipePromise = (0,promises_namespaceObject.pipeline)(body, tap.stream, child.stdin);
+        try {
+            const [, code] = await Promise.all([pipePromise, tarClose]);
+            if (code !== 0) {
+                throw new Error(`tar exited with code ${code}`);
+            }
+        }
+        catch (err) {
+            // tar's stdout is ignored and its stderr is always being read, so a killed tar closes
+            // promptly (unlike the save side, nothing here can hold its close back): wait for that
+            // before reading the final stderr tail.
+            await stream_waitForExitAfterKill(child, tarClose);
+            tarReaped = true;
+            throw withStderrTail(err, stderrTail.lines());
+        }
+        const expectedSha256 = metadata?.[SHA256_METADATA_KEY];
+        if (expectedSha256) {
+            const actualSha256 = tap.digest();
+            if (actualSha256 !== expectedSha256) {
+                return {
+                    kind: 'error',
+                    error: new Error(`Integrity check failed for s3://${bucket}/${found.objectKey}: expected sha256 ${expectedSha256}, got ${actualSha256}; files may already have been extracted`),
+                };
+            }
+        }
+        else {
+            core_debug(`s3://${bucket}/${found.objectKey} has no ${SHA256_METADATA_KEY} metadata; skipping integrity check.`);
+        }
+        return hit;
+    }
+    catch (err) {
+        // Reached by the inner catch's rethrow (a failed download, pipe or tar, with tar already
+        // killed and waited for there), and by any failure before the inner try took charge: the
+        // GetObject request failing, or a throw before or right after spawning tar, before the
+        // pipeline started. In the latter case stop tar here: release its stdin, kill it and wait,
+        // bounded, for it to close. Either way release the GetObject body, so its connection is
+        // never left dangling. The workspace may already hold partly extracted files.
+        if (child && !tarReaped) {
+            child.stdin?.destroy();
+            if (tarClose) {
+                await stream_waitForExitAfterKill(child, tarClose);
+            }
+            else {
+                stream_killIfRunning(child);
+            }
+        }
+        body?.destroy();
+        return { kind: 'error', error: outcomes_toError(err) };
     }
 }
 
+;// CONCATENATED MODULE: ./src/core/summary.ts
+
+
+
+function formatDuration(durationMs) {
+    return `${(durationMs / 1000).toFixed(2)} s`;
+}
+function formatOptionalSize(size) {
+    return size === undefined ? '—' : inputUtils_formatSize(size);
+}
+/**
+ * core.summary.addTable writes cell text into the HTML table as is, so a key containing `<` or
+ * `&` would break the markup. Every cell built from user data goes through this.
+ */
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+/** Only write when the job-summary input is on and GitHub gave us a summary file to write to. */
+function canWrite(jobSummary) {
+    return jobSummary && Boolean(process.env.GITHUB_STEP_SUMMARY);
+}
+/** A write failure (missing/unwritable summary file) is logged at debug level and never thrown. */
+async function flush() {
+    try {
+        await summary.write();
+    }
+    catch (err) {
+        core_debug(`Failed to write the job summary: ${outcomes_toError(err).message}`);
+        summary.emptyBuffer();
+    }
+}
+async function writeRestoreSummary(data) {
+    if (!canWrite(data.jobSummary)) {
+        return;
+    }
+    summary.addHeading('Cloud cache restore').addTable([
+        [
+            { data: 'Primary key', header: true },
+            { data: 'Matched key', header: true },
+            { data: 'Cache hit', header: true },
+            { data: 'Source', header: true },
+            { data: 'Size', header: true },
+            { data: 'Duration', header: true },
+        ],
+        [
+            escapeHtml(data.primaryKey),
+            data.matchedKey === undefined ? '—' : escapeHtml(data.matchedKey),
+            String(data.cacheHit),
+            escapeHtml(data.source),
+            formatOptionalSize(data.size),
+            formatDuration(data.durationMs),
+        ],
+    ]);
+    await flush();
+}
+async function writeSaveSummary(data) {
+    if (!canWrite(data.jobSummary)) {
+        return;
+    }
+    core.summary.addHeading('Cloud cache save').addTable([
+        [
+            { data: 'Key', header: true },
+            { data: 'Saved to', header: true },
+            { data: 'Size', header: true },
+            { data: 'Duration', header: true },
+        ],
+        [
+            escapeHtml(data.key),
+            data.savedTo.length > 0 ? escapeHtml(data.savedTo.join(', ')) : 'none',
+            formatOptionalSize(data.size),
+            formatDuration(data.durationMs),
+        ],
+    ]);
+    await flush();
+}
+
 ;// CONCATENATED MODULE: ./src/core/restoreImpl.ts
+
 
 
 
@@ -129365,6 +130219,7 @@ function reportHit(state, config, source, hit) {
     return hit.matchedKey;
 }
 async function restoreImpl(stateProvider, earlyExit) {
+    const start = Date.now();
     try {
         if (!isValidEvent()) {
             core_warning(`Event Validation Warning: The event type ${process.env.GITHUB_EVENT_NAME} may not be tied to a branch or tag ref.`);
@@ -129386,17 +130241,46 @@ async function restoreImpl(stateProvider, earlyExit) {
         }
         for (const source of restoreOrder(config)) {
             const outcome = await attempt(source, config, s3);
-            if (outcome.kind === 'hit') {
-                return reportHit(stateProvider, config, source, outcome);
-            }
-            if (outcome.kind === 'error') {
-                if (config.dualCache && config.dualCacheStrict) {
-                    throw new Error(`Restoring from ${source} failed: ${outcome.error.message}`);
+            switch (outcome.kind) {
+                case 'hit': {
+                    const matchedKey = reportHit(stateProvider, config, source, outcome);
+                    await writeRestoreSummary({
+                        jobSummary: config.jobSummary,
+                        primaryKey: config.primaryKey,
+                        matchedKey,
+                        cacheHit: outcome.exact,
+                        source,
+                        size: outcome.s3?.size,
+                        durationMs: Date.now() - start,
+                    });
+                    return matchedKey;
                 }
-                core_warning(`Restoring from ${source} failed, so it counts as a cache miss: ${outcome.error.message}`);
+                case 'miss':
+                    break;
+                case 'error':
+                    if (config.dualCache && config.dualCacheStrict) {
+                        throw new Error(`Restoring from ${source} failed: ${outcome.error.message}`, {
+                            cause: outcome.error,
+                        });
+                    }
+                    core_warning(`Restoring from ${source} failed, so it counts as a cache miss: ${outcome.error.message}`);
+                    break;
+                default: {
+                    const unreachable = outcome;
+                    throw new Error(`Unhandled restore outcome: ${JSON.stringify(unreachable)}`);
+                }
             }
         }
         stateProvider.setState(constants_State.CacheHitSource, 'none');
+        await writeRestoreSummary({
+            jobSummary: config.jobSummary,
+            primaryKey: config.primaryKey,
+            matchedKey: undefined,
+            cacheHit: false,
+            source: 'none',
+            size: undefined,
+            durationMs: Date.now() - start,
+        });
         if (config.failOnCacheMiss) {
             throw new Error(`Failed to restore cache entry. Exiting as fail-on-cache-miss is set. Input key: ${config.primaryKey}`);
         }
