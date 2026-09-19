@@ -497,6 +497,51 @@ async function saveToS3FileMode(
   }
 }
 
+/** A single CopyObject can only copy up to 5 GiB; a larger object would need a multipart copy. */
+const MAX_COPY_SIZE = 5 * 1024 * 1024 * 1024;
+
+/**
+ * Attaches a streamed save's sha256 and user metadata once the upload has finished, the only
+ * point at which the digest is known: a CopyObject onto the object itself. Best-effort — the
+ * cache is already saved, so a provider that cannot do this copy (or an archive too large for
+ * one) costs the metadata and warns once, never the save. Returns the ETag to report: the copy
+ * rewrites the object, so its ETag supersedes the upload's; on any failure the upload's stands.
+ */
+async function attachStreamedMetadata(
+  tier: S3Tier,
+  objectKey: string,
+  metadata: Record<string, string>,
+  size: number,
+  uploadedEtag: string | undefined
+): Promise<string | undefined> {
+  const { client, bucket } = tier.storage;
+  if (size > MAX_COPY_SIZE) {
+    core.warning(
+      `Saved s3://${bucket}/${objectKey} but could not attach metadata: archives over 5 GiB cannot be copied in one request.`
+    );
+    return uploadedEtag;
+  }
+  try {
+    // `CopySourceIfMatch`, when the upload reported an ETag: a concurrent writer that replaced
+    // the object between the upload and this copy must not get this save's metadata stamped onto
+    // its body. The 412 that then comes back is handled like any other copy failure.
+    const copied = await withRetry(
+      () => replaceObjectMetadata(client, bucket, objectKey, metadata, uploadedEtag),
+      {
+        retries: tier.streamRetries,
+        operationName: `Metadata for ${objectKey}`,
+        shouldRetry: isRetryableStreamError,
+      }
+    );
+    return copied.etag ?? uploadedEtag;
+  } catch (err) {
+    core.warning(
+      `Saved s3://${bucket}/${objectKey} but could not attach metadata: ${toError(err).message}`
+    );
+    return uploadedEtag;
+  }
+}
+
 /** Wraps a failure with tar's recent stderr output, for a clearer error message. */
 function withStderrTail(err: unknown, tail: readonly string[]): Error {
   const base = toError(err);
@@ -601,24 +646,10 @@ async function saveToS3Streaming(
     try {
       const [uploaded] = await Promise.all([uploadDone, finalized]);
       core.info(`Cache saved to S3 with key: ${primaryKey}`);
-      // Best-effort, and only on this path: the object is already saved, so a provider that
-      // cannot copy onto itself costs the sha256 and the user metadata, never the cache.
+      const size = counter.count();
       const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: tap.digest() };
-      try {
-        await withRetry(() => replaceObjectMetadata(client, bucket, objectKey, metadata), {
-          retries: tier.streamRetries,
-          operationName: `Metadata for ${objectKey}`,
-          shouldRetry: isRetryableStreamError,
-        });
-      } catch (err) {
-        core.warning(
-          `Saved s3://${bucket}/${objectKey} but could not attach metadata: ${toError(err).message}`
-        );
-      }
-      return {
-        kind: 'saved',
-        s3: { objectKey, size: counter.count(), etag: uploaded.ETag },
-      };
+      const etag = await attachStreamedMetadata(tier, objectKey, metadata, size, uploaded.ETag);
+      return { kind: 'saved', s3: { objectKey, size, etag } };
     } catch (err) {
       // Fail the body first. When the upload stopped reading it, tar's stdout is paused with data
       // still buffered, so it never closes and tar's close never fires; destroying the body makes

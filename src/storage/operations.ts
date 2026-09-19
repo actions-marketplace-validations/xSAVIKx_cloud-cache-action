@@ -308,24 +308,43 @@ export function createStreamUpload(
 }
 
 /**
+ * Encodes a CopySource header value: the bucket and each key segment percent-encoded, joined by
+ * `/`. Per segment, so `#`, `?`, `&` and `%` in a key are escaped (encodeURI leaves them intact)
+ * while the separators stay real separators.
+ */
+function encodeCopySource(bucket: string, key: string): string {
+  return [bucket, ...key.split('/')].map(encodeURIComponent).join('/');
+}
+
+export interface ReplaceMetadataResult {
+  /** The copied object's new ETag: the copy replaces the body, so the upload's ETag goes stale. */
+  etag?: string;
+}
+
+/**
  * Replaces an object's user metadata in place (S3 has no metadata-only update): a CopyObject
  * onto itself with MetadataDirective REPLACE. Tags are kept. Used after a streamed save, whose
- * sha256 is only known once the upload has finished.
+ * sha256 is only known once the upload has finished. `ifMatch` (the ETag the save just wrote)
+ * makes the copy fail with 412 rather than stamp this metadata onto another writer's body.
+ * Only for objects up to 5 GiB: a larger one needs a multipart copy.
  */
 export async function replaceObjectMetadata(
   client: S3Client,
   bucket: string,
   key: string,
-  metadata: Record<string, string>
-): Promise<void> {
-  await client.send(
+  metadata: Record<string, string>,
+  ifMatch?: string
+): Promise<ReplaceMetadataResult> {
+  const result = await client.send(
     new CopyObjectCommand({
       Bucket: bucket,
       Key: key,
-      CopySource: encodeURI(`${bucket}/${key}`),
+      CopySource: encodeCopySource(bucket, key),
+      CopySourceIfMatch: ifMatch,
       MetadataDirective: 'REPLACE',
       TaggingDirective: 'COPY',
       Metadata: metadata,
     })
   );
+  return { etag: result.CopyObjectResult?.ETag };
 }

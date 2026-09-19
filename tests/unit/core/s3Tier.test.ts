@@ -71,8 +71,9 @@ const mockReplaceObjectMetadata =
       client: S3Client,
       bucket: string,
       key: string,
-      metadata: Record<string, string>
-    ) => Promise<void>
+      metadata: Record<string, string>,
+      ifMatch?: string
+    ) => Promise<{ etag?: string }>
   >();
 const realSha256Tap = () => {
   const hash = crypto.createHash('sha256');
@@ -85,6 +86,17 @@ const realSha256Tap = () => {
   return { stream, digest: () => hash.digest('hex') };
 };
 const mockCreateSha256Tap = jest.fn(realSha256Tap);
+const realByteCounter = () => {
+  let total = 0;
+  const stream = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      total += chunk.length;
+      callback(null, chunk);
+    },
+  });
+  return { stream, count: () => total };
+};
+const mockCreateByteCounter = jest.fn(realByteCounter);
 
 const mockInfo = jest.fn<(message: string) => void>();
 const mockDebug = jest.fn<(message: string) => void>();
@@ -170,16 +182,7 @@ jest.unstable_mockModule('../../../src/archive/stream', () => ({
   killIfRunning: mockKillIfRunning,
   waitForExitAfterKill: mockWaitForExitAfterKill,
   captureStderrTail: mockCaptureStderrTail,
-  createByteCounter: () => {
-    let total = 0;
-    const stream = new Transform({
-      transform(chunk: Buffer, _encoding, callback) {
-        total += chunk.length;
-        callback(null, chunk);
-      },
-    });
-    return { stream, count: () => total };
-  },
+  createByteCounter: () => mockCreateByteCounter(),
 }));
 jest.unstable_mockModule('../../../src/storage/operations', () => ({
   checkObjectExists: mockCheckObjectExists,
@@ -277,8 +280,9 @@ beforeEach(() => {
   mockUploadFile.mockResolvedValue({ size: 2048, etag: '"new"' });
   mockResolveCachePaths.mockResolvedValue({ entries: ['node_modules'], skipped: [] });
   mockSha256File.mockResolvedValue('archive-sha256');
-  mockReplaceObjectMetadata.mockResolvedValue();
+  mockReplaceObjectMetadata.mockResolvedValue({});
   mockCreateSha256Tap.mockImplementation(realSha256Tap);
+  mockCreateByteCounter.mockImplementation(realByteCounter);
 
   // Streaming (Task 8) defaults: GNU tar on Linux, a single-command plan, no fallback.
   mockFindTar.mockResolvedValue({ path: '/usr/bin/tar', flavor: 'gnu' });
@@ -679,6 +683,7 @@ describe('saveToS3', () => {
     const second = await saveToS3(tier(), 'k2', ['node_modules']);
     expect(second.kind).toBe('saved');
     expect(mockUploadFile).toHaveBeenCalledTimes(1);
+    expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
     const [, , , , , options] = mockUploadFile.mock.calls[0];
     expect(options).toEqual({ metadata: { 'cloud-cache-sha256': 'archive-sha256' } });
   });
@@ -1169,6 +1174,7 @@ describe('saveToS3 streaming', () => {
     // The fallback is a plain file-mode save: exactly one archive and one upload, unconditional.
     expect(mockCreateArchive).toHaveBeenCalledTimes(1);
     expect(mockUploadFile).toHaveBeenCalledTimes(1);
+    expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
     const [, , , , , options] = mockUploadFile.mock.calls[0];
     expect(options).toEqual({ metadata: { 'cloud-cache-sha256': 'archive-sha256' } });
   });
@@ -1193,7 +1199,44 @@ describe('saveToS3 streaming', () => {
       {
         team: 'x',
         'cloud-cache-sha256': crypto.createHash('sha256').update(archiveBody).digest('hex'),
-      }
+      },
+      // The ETag the upload just wrote, so the copy cannot stamp another writer's body.
+      '"streamed"'
+    );
+  });
+
+  it('reports the ETag the metadata copy produced, which supersedes the upload one', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    mockReplaceObjectMetadata.mockResolvedValue({ etag: '"copied"' });
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+
+    expect(outcome).toMatchObject({ kind: 'saved', s3: { etag: '"copied"' } });
+  });
+
+  it('skips the metadata copy, and warns, for an archive over the 5 GiB copy limit', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('x'));
+      return 0;
+    });
+    // A real 5 GiB stream is not worth producing: only the reported count drives the decision.
+    mockCreateByteCounter.mockImplementation(() => ({
+      ...realByteCounter(),
+      count: () => 5 * 1024 * 1024 * 1024 + 1,
+    }));
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+
+    expect(outcome).toMatchObject({ kind: 'saved', s3: { etag: '"streamed"' } });
+    expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+    const objectKey = `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`;
+    expect(mockWarning).toHaveBeenCalledWith(
+      `Saved s3://bucket/${objectKey} but could not attach metadata: archives over 5 GiB cannot be copied in one request.`
     );
   });
 
@@ -1207,11 +1250,32 @@ describe('saveToS3 streaming', () => {
 
     const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
 
-    expect(outcome.kind).toBe('saved');
+    expect(outcome).toMatchObject({ kind: 'saved', s3: { etag: '"streamed"' } });
     expect(mockWarning).toHaveBeenCalledWith(
       expect.stringMatching(
         /^Saved s3:\/\/bucket\/.* but could not attach metadata: NotImplemented$/
       )
+    );
+  });
+
+  it('keeps the save successful and warns when the metadata copy gets a 412', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    mockReplaceObjectMetadata.mockRejectedValueOnce(
+      Object.assign(new Error('At least one of the pre-conditions did not hold'), {
+        name: 'PreconditionFailed',
+        $metadata: { httpStatusCode: 412 },
+      })
+    );
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+
+    expect(outcome).toMatchObject({ kind: 'saved', s3: { etag: '"streamed"' } });
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringMatching(/but could not attach metadata: At least one of the pre-conditions/)
     );
   });
 
@@ -1257,6 +1321,7 @@ describe('saveToS3 streaming', () => {
       's3://bucket does not support object tags; saved without them.'
     );
     expect(mockUploadFile).toHaveBeenCalledTimes(1);
+    expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
     const [, , , , , options] = mockUploadFile.mock.calls[0];
     expect(options).toEqual({
       metadata: { 'cloud-cache-sha256': 'archive-sha256' },
@@ -1286,6 +1351,7 @@ describe('saveToS3 streaming', () => {
     expect(storage.conditionalWriteUnsupported).toBeUndefined();
     expect(mockCreateArchive).toHaveBeenCalledTimes(1);
     expect(mockUploadFile).toHaveBeenCalledTimes(1);
+    expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
     const [, , , , , options] = mockUploadFile.mock.calls[0];
     expect(options).toEqual({
       metadata: { 'cloud-cache-sha256': 'archive-sha256' },

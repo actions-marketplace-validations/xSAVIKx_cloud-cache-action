@@ -570,10 +570,13 @@ describe('Storage Operations', () => {
 
   describe('replaceObjectMetadata', () => {
     it('copies the object onto itself with REPLACE and keeps tags', async () => {
-      s3Mock.on(CopyObjectCommand).resolves({});
+      s3Mock.on(CopyObjectCommand).resolves({ CopyObjectResult: { ETag: '"copied"' } });
 
-      await replaceObjectMetadata(client, 'b', 'a/b c.tar.zst', { 'cloud-cache-sha256': 'x' });
+      const result = await replaceObjectMetadata(client, 'b', 'a/b c.tar.zst', {
+        'cloud-cache-sha256': 'x',
+      });
 
+      expect(result).toEqual({ etag: '"copied"' });
       const input = s3Mock.commandCalls(CopyObjectCommand)[0].args[0].input;
       expect(input).toMatchObject({
         Bucket: 'b',
@@ -583,6 +586,25 @@ describe('Storage Operations', () => {
         TaggingDirective: 'COPY',
         Metadata: { 'cloud-cache-sha256': 'x' },
       });
+      expect(input.CopySourceIfMatch).toBeUndefined();
+    });
+
+    it('percent-encodes each key segment, so # ? & and % in a key are safe', async () => {
+      s3Mock.on(CopyObjectCommand).resolves({});
+
+      await replaceObjectMetadata(client, 'b', 'a/c#1 100%/cache.tar.zst', { m: 'v' });
+
+      const input = s3Mock.commandCalls(CopyObjectCommand)[0].args[0].input;
+      expect(input.CopySource).toBe('b/a/c%231%20100%25/cache.tar.zst');
+    });
+
+    it('sends CopySourceIfMatch when an ETag is given, so it cannot stamp another writer', async () => {
+      s3Mock.on(CopyObjectCommand).resolves({});
+
+      await replaceObjectMetadata(client, 'b', 'k', { m: 'v' }, '"uploaded"');
+
+      const input = s3Mock.commandCalls(CopyObjectCommand)[0].args[0].input;
+      expect(input.CopySourceIfMatch).toBe('"uploaded"');
     });
   });
 });
