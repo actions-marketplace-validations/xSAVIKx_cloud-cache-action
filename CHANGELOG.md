@@ -8,6 +8,65 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+No breaking changes. Caches saved by v1.1 and v1.2 stay valid: the key layout, `${version}`
+hashing and archive format are unchanged, and a save that sets none of the new inputs writes the
+same object as v1.2 did.
+
+### Added
+
+- **Object metadata and tags.** The new `metadata` input stores user metadata (`x-amz-meta-*`) on
+  every saved cache object and the new `tags` input sets object tags, one `key=value` per line.
+  - Keys starting with `cloud-cache-` are reserved, metadata is capped at 2048 bytes in total
+    (including the `cloud-cache-sha256` entry the save adds) and tags at 10, with S3's tag
+    character set enforced. An invalid value fails the step before any S3 call.
+  - Providers without object tagging log one warning
+    (`s3://<bucket> does not support object tags; saved without them.`) and save without tags.
+    Garage accepts the `Tagging` header but implements no tagging API, so its tags cannot be read
+    back and should be assumed dropped.
+  - With `streaming: true` the metadata is attached by a copy of the object onto itself after the
+    upload; a provider that cannot do that copy costs the metadata, not the cache.
+- **`cache-metadata` output.** The restored object's user metadata as a JSON object, excluding
+  `cloud-cache-*` keys; `{}` when there is none or on a GitHub-tier hit.
+- **A sha256 on streaming saves.** A `streaming: true` save now attaches `cloud-cache-sha256`
+  once the stream has finished, so streamed archives get the same integrity check on restore as
+  file-mode ones. The attach is best-effort: if it fails, the save still succeeds and the object
+  simply carries no checksum.
+- **`explain` input** (default `false`) on the main and `restore` actions. It logs the whole cache
+  lookup into a `Cache lookup explained` group, and into a job summary section of the same name,
+  before the restore runs: the raw and resolved `s3-key-pattern`, the `${version}` hash and the
+  paths, compression method and cross-OS flag it is computed from, the refs and tier order, every
+  listing performed, every candidate object with the version it carries, and a plain-language
+  reason for the outcome. Building the report never fails the step.
+- **`cloud-cache-action/inspect` sub-action** that reports which object a restore would use, and
+  why, without restoring. It only lists objects — it downloads nothing and writes nothing.
+  - Outputs: `would-hit`, `would-match-key`, `would-match-object`, `candidate-count`, `report`
+    (the full report as JSON, replaced by a `{"truncated":true,…}` summary beyond 64 KB) and
+    `cache-storage-provider`.
+  - `max-candidates` (default `20`) caps how many objects each search lists;
+    `fail-on-cache-miss: true` fails the step when nothing would be restored.
+  - The report lists objects and never `HEAD`s the exact key, so on a provider with eventually
+    consistent listings a report taken right after a save can say "would miss" where a restore
+    would hit.
+- **Metrics outputs.** `cache-restore-duration-ms`, `cache-save-duration-ms`,
+  `cache-transfer-duration-ms` and `cache-bytes` are set on every path, so they are always
+  defined (`0` when the step did not complete or transferred nothing).
+- **`metrics-file` input** on the main, `restore`, `save`, `prune` and `inspect` actions. Every
+  step writes one `cloud-cache-metrics <json>` debug line, and appends the same JSON as one line to
+  this file when it is set, resolved relative to `GITHUB_WORKSPACE`.
+  - `transferDurationMs` measures the S3 transfer alone in file mode; with `streaming: true` it
+    covers download-plus-extract, and the line's `streaming` field tells the two apart.
+  - `prune` and `inspect` write their line once the step has finished its work, so a step that
+    fails earlier writes none.
+  - Writing the file is best-effort: a failure only warns and never fails the step.
+- **Documentation:** a new "Inspecting Lookups" guide on the documentation site, plus metrics
+  sections in the README and the Getting Started and Pruning guides.
+
+### Changed
+
+- **Live cloud CI gating.** The Amazon S3, Cloudflare R2 and Google Cloud Storage suites now run on
+  `main`, nightly and on manual dispatch, and on a pull request only when it carries the `full-ci`
+  label. Every self-hosted-S3 job (Garage, SeaweedFS, MinIO) still runs on every pull request.
+
 ## [1.2.0] - 2026-09-14
 
 No breaking changes. Caches saved by v1.1 stay valid, and the default save and restore paths still

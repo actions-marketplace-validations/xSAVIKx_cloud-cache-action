@@ -64,7 +64,7 @@ Symlinks are archived as links, never followed and re-created as copies. On Wind
    - Verifies the archive's sha256 checksum, when the object carries one, before extracting it; a mismatch is logged as a warning and counts as a cache miss (with `dual-cache: true` and `dual-cache-strict: true`, it fails the step).
    - With `streaming: true`, extracts the archive as it downloads instead, verifying the checksum at the end: a network or `tar` failure mid-stream, or a checksum mismatch, becomes a cache miss with the workspace possibly partly extracted, and there is no whole-download retry as there is in the default file mode.
    - Decompresses the archive using `zstd` (or `gzip` fallback) directly into your workspace.
-   - Sets outputs (`cache-hit`, `cache-primary-key`, `cache-matched-key`, `cache-size`, `cache-storage-provider`, `cache-s3-key`).
+   - Sets outputs (`cache-hit`, `cache-primary-key`, `cache-matched-key`, `cache-size`, `cache-storage-provider`, `cache-s3-key`, `cache-etag`, `cache-metadata`, `cache-hit-source`) plus the timings described in [Metrics and Timings](#metrics-and-timings).
    - Writes a job summary table with the key, hit status, source, size and duration, unless `job-summary: false`.
 
 2. **Save Phase (Post)**:
@@ -78,6 +78,48 @@ Symlinks are archived as links, never followed and re-created as copies. On Wind
 
 Cache archives are never deleted automatically; see [Pruning Caches](./pruning.md) for a
 scheduled cleanup sub-action.
+
+## Inspecting a Lookup
+
+When a restore misses and you expected a hit, set `explain: true` to log the whole lookup — the resolved key pattern, the `${version}` hash and what it is computed from, every ref searched and every candidate object with the version it carries — right before the restore runs. The `inspect` sub-action prints the same report as a step of its own, restoring nothing and exposing the result as outputs (`would-hit`, `would-match-key`, `would-match-object`, `candidate-count`, `report`):
+
+```yaml
+- name: Inspect the cache lookup
+  id: lookup
+  uses: xSAVIKx/cloud-cache-action/inspect@v1
+  with:
+    bucket: my-ci-cache-bucket
+    path: ~/.npm
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+```
+
+See [Inspecting Lookups](./inspecting.md) for the full report, how to read the "none has version" reason, and the `fail-on-cache-miss` guard pattern for matrix jobs.
+
+## Metrics and Timings
+
+Restore and save set four timing and size outputs on every path, so they are always defined: `cache-restore-duration-ms` and `cache-save-duration-ms` (wall-clock milliseconds of the step, `0` when it did not complete), `cache-transfer-duration-ms` (the S3 download or upload alone) and `cache-bytes` (the archive that was restored or saved, `0` when none was).
+
+On the unified action the save runs as a post step, and it sets `cache-save-duration-ms`, `cache-transfer-duration-ms` and `cache-bytes` for itself — including zeroing them when there is nothing to save. After the post step those three therefore describe the save, while `cache-size` and `cache-restore-duration-ms` still hold the restore's values. Read a restore's byte count in a step that runs before the post step, or use the standalone `restore` and `save` actions, where each step owns its outputs.
+
+Every step — restore, save, `prune` and `inspect` — also writes one `cloud-cache-metrics <json>` debug line. Set `metrics-file` to append that same JSON as one line to a file, resolved relative to `GITHUB_WORKSPACE`:
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-ci-cache-bucket
+    path: ~/.npm
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    metrics-file: cache-metrics.jsonl
+```
+
+```json
+{"step":"restore","timestamp":"2026-09-17T06:02:41.912Z","provider":"r2","key":"Linux-node-9f2c1a","matchedKey":"Linux-node-9f2c1a","objectKey":"octo/app/refs%2Fheads%2Fmain/Linux-node-9f2c1a/4d0f1b2c9a7e35f1/cache.tar.zst","source":"s3","bytes":199687424,"durationMs":8123,"transferDurationMs":5310,"streaming":false,"outcome":"hit"}
+```
+
+- `step` is `restore`, `save`, `prune` or `inspect`, and `outcome` is one of `hit`, `miss`, `saved`, `exists`, `skipped`, `error`, `pruned`, `would-hit` or `would-miss`.
+- `transferDurationMs` measures the S3 transfer alone in the default file mode. With `streaming: true` the archive is extracted (or compressed) as it moves, so the same field covers download-plus-extract; the `streaming` field on the line tells the two apart.
+- `prune` and `inspect` write their line once the step has finished its work, so a step that fails earlier writes none. `prune` reports its tallies in `extra` (`prunedCount`, `prunedBytes`, `keptCount`, `dryRun`) and `inspect` reports `candidateCount`.
+- Writing the file is best-effort by design: a machine-readable timing record must never fail a cache step, so a write error only logs `Could not write metrics to <path>: <reason>`.
 
 ## Standalone Restore and Save Actions
 
@@ -113,6 +155,7 @@ You can inspect the full action specification files directly in the repository:
 - **Unified Action**: [`action.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/action.yml)
 - **Dedicated Restore Action**: [`restore/action.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/restore/action.yml)
 - **Dedicated Save Action**: [`save/action.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/save/action.yml)
+- **Inspect Action**: [`inspect/action.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/inspect/action.yml)
 
 ::: details `action.yml` (Click to view unified action definition)
 <<< ../../action.yml{yaml}
@@ -124,6 +167,10 @@ You can inspect the full action specification files directly in the repository:
 
 ::: details `save/action.yml` (Click to view save action definition)
 <<< ../../save/action.yml{yaml}
+:::
+
+::: details `inspect/action.yml` (Click to view inspect action definition)
+<<< ../../inspect/action.yml{yaml}
 :::
 
 
@@ -530,7 +577,7 @@ totals line), so a dry run tells you exactly what a real run would delete.
 
 ## Inputs
 
-The prune action shares its storage inputs with the main action, plus three inputs of its own:
+The prune action shares its storage inputs with the main action, plus four inputs of its own:
 
 | Input                             | Required |          Default          | Description                                                                 |
 | ---------------------------------- | :------: | :------------------------: | ---------------------------------------------------------------------------- |
@@ -551,6 +598,7 @@ The prune action shares its storage inputs with the main action, plus three inpu
 | `scoped-to-ref`                    |    No    |           `true`           | Whether cache keys include the Git ref; set `false` to prune caches saved with `scoped-to-ref: false` |
 | `retry`                            |    No    |           `true`           | Enable exponential backoff retries on S3 operations                        |
 | `retry-count`                      |    No    |            `3`              | Maximum number of S3 retries                                                |
+| `metrics-file`                     |    No    |            `""`             | Append one JSON line of timings and sizes for this step to this file, relative to the workspace |
 
 An invalid `older-than-days` (not a positive integer) or an unrecognized `dry-run` value (anything
 other than `true`, `True`, `TRUE`, `false`, `False` or `FALSE`) fails the step immediately, rather
@@ -564,6 +612,25 @@ deletion.
 | `pruned-count`   | The number of cache archives pruned (or that would be pruned in a dry run)      |
 | `pruned-bytes`   | The total size in bytes of the pruned cache archives                           |
 | `kept-count`     | The number of cache archives that matched the scope but were not old enough    |
+
+The outputs are set once the prune finishes. A step that fails earlier — an invalid input, an
+unsafe scope, an S3 error — sets none of them, so guard on `steps.<id>.outcome` before reading
+them in a later step.
+
+## Metrics
+
+Set `metrics-file` to append one JSON line describing this prune to a file, in addition to the
+`cloud-cache-metrics <json>` debug line every step writes. The line carries `"step":"prune"`, an
+outcome of `pruned`, the pruned byte total, the step's `durationMs`, and the tallies in `extra`:
+
+```json
+{"step":"prune","timestamp":"2026-09-17T03:00:11.204Z","provider":"r2","bytes":4194304000,"durationMs":9412,"outcome":"pruned","extra":{"prunedCount":37,"prunedBytes":4194304000,"keptCount":12,"dryRun":false}}
+```
+
+The line is written once the prune has finished, so a step that fails earlier writes none. Writing
+the file is best-effort: a write error only logs `Could not write metrics to <path>: <reason>` and
+never fails the step. See [Metrics and Timings](./getting-started.md#metrics-and-timings) for the
+fields the other steps emit.
 
 ## What gets pruned
 
@@ -615,6 +682,241 @@ The action refuses to run when the result would be unsafe:
 - **A ref that cannot be told apart.** With `ref` set, the step fails when the pattern has no
   `${ref}`, or when every `${ref}` shares a path segment with `${key}`, `${version}` or another
   `${ref}`. Leave `ref` empty to prune every ref instead.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/inspecting.md -->
+<!-- ============================================================================ -->
+
+# Inspecting Lookups
+
+When a cache misses and you expected a hit, the question is always the same: _which objects did
+the restore actually look at, and why was none of them used?_ Cloud Cache Action answers it two
+ways, both of which print the same report:
+
+- **`explain: true`** on the restore (or on the main action) logs the report right before the
+  restore runs, in the same step.
+- **The `inspect` sub-action** runs the lookup on its own, downloads nothing, writes nothing, and
+  exposes the answer as step outputs.
+
+Both only **list** objects. Neither downloads an archive, and neither writes to the bucket, so
+running them is safe on any branch and in any job.
+
+## `explain` vs `inspect`
+
+| | `explain: true` | `inspect` sub-action |
+| --- | --- | --- |
+| Where it runs | Inside the restore step, before restoring | As its own step |
+| Restores the cache | Yes, the report is only extra logging | No, never |
+| Result | Log group + job summary section | Log group + job summary section + outputs |
+| Failure mode | Never fails the step; a broken report only logs a warning | Fails the step on a bad input or an S3 error, and on a miss when `fail-on-cache-miss: true` |
+| Use it for | Debugging a real workflow in place | Asserting on the lookup, dashboards, matrix guards |
+
+Rule of thumb: reach for `explain` when you want to know why the cache you are already restoring
+missed, and for `inspect` when the lookup result itself is the thing you want to act on.
+
+### `explain` on a restore
+
+`explain` is available on the main action and on the `restore` sub-action. It defaults to `false`.
+
+```yaml
+- name: Restore cache
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-ci-cache-bucket
+    access-key: ${{ secrets.S3_ACCESS_KEY }}
+    secret-key: ${{ secrets.S3_SECRET_KEY }}
+    path: ~/.npm
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+    explain: true
+```
+
+The report is written to a `Cache lookup explained` log group before the restore starts, and, when
+`job-summary` is on (the default), to a `Cache lookup explained` job summary section. Building it
+is best-effort: if it throws, the step logs
+`Could not explain the cache lookup: <reason>` and restores as usual.
+
+### The `inspect` sub-action
+
+```yaml
+- name: Inspect the cache lookup
+  id: lookup
+  uses: xSAVIKx/cloud-cache-action/inspect@v1
+  with:
+    bucket: my-ci-cache-bucket
+    access-key: ${{ secrets.S3_ACCESS_KEY }}
+    secret-key: ${{ secrets.S3_SECRET_KEY }}
+    path: ~/.npm
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+
+- name: Report
+  run: |
+    echo "would hit: ${{ steps.lookup.outputs.would-hit }}"
+    echo "object:    ${{ steps.lookup.outputs.would-match-object }}"
+```
+
+`inspect` takes the restore inputs that decide the lookup — `path`, `key`, `restore-keys`,
+`enableCrossOsArchive`, `fail-on-cache-miss`, every storage input, `prefix`, `s3-key-pattern`,
+`scoped-to-repository`, `scoped-to-ref`, `retry`, `retry-count`, `job-summary` — plus two of its
+own:
+
+| Input | Required | Default | Description |
+| --- | :---: | :---: | --- |
+| `max-candidates` | No | `20` | How many candidate objects to list per search; the rest are counted as "… and N more not shown" |
+| `metrics-file` | No | `""` | Append one JSON line of timings and sizes for this step to this file (see [Metrics](#metrics)) |
+
+It deliberately has no `lookup-only`, no `use-fallback` and no `dual-cache` inputs: it inspects the
+S3 tier, which is the tier whose key layout is worth explaining.
+
+## A sample report
+
+```text
+Cache lookup for key "Linux-node-9f2c1a"
+Pattern: ${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename} → octo/app/${ref}/${key}/${version}/${archive_filename}
+Version: 4d0f1b2c9a7e35f1 (paths: ~/.npm; compression: zstd; cross-OS: false)
+Refs searched: refs/heads/feat → refs/heads/main
+Tiers: s3
+Restore keys: Linux-node-
+[refs/heads/feat] prefix "octo/app/refs%2Fheads%2Ffeat/Linux-node-9f2c1a": 0 candidates
+[refs/heads/feat] prefix "octo/app/refs%2Fheads%2Ffeat/Linux-node-": 2 candidates
+  ✗ octo/app/refs%2Fheads%2Ffeat/Linux-node-11ab/8c31d0e5b2447aa0/cache.tar.zst (version 8c31d0e5b2447aa0, 184.22 MB, 2026-09-16T08:11:02.000Z)
+  ✗ octo/app/refs%2Fheads%2Ffeat/Linux-node-22cd/8c31d0e5b2447aa0/cache.tar.zst (version 8c31d0e5b2447aa0, 181.07 MB, 2026-09-15T21:40:55.000Z)
+[refs/heads/main] prefix "octo/app/refs%2Fheads%2Fmain/Linux-node-9f2c1a": 0 candidates
+[refs/heads/main] prefix "octo/app/refs%2Fheads%2Fmain/Linux-node-": 1 candidate
+  ✓ octo/app/refs%2Fheads%2Fmain/Linux-node-77ef/4d0f1b2c9a7e35f1/cache.tar.zst (version 4d0f1b2c9a7e35f1, 190.55 MB, 2026-09-17T06:02:19.000Z)
+Result: No objects match key prefix "Linux-node-9f2c1a" on refs/heads/feat, refs/heads/main.
+Result: 2 objects match key prefix "Linux-node-" on refs/heads/feat but none has version 4d0f1b2c9a7e35f1 (this job hashes paths ~/.npm with zstd; they were saved with different paths, compression or cross-OS setting).
+Result: Would restore octo/app/refs%2Fheads%2Fmain/Linux-node-77ef/4d0f1b2c9a7e35f1/cache.tar.zst (key "Linux-node-77ef", refs/heads/main).
+```
+
+Reading it top to bottom:
+
+- **Pattern** shows the raw `s3-key-pattern` and the same pattern with the repository and `prefix`
+  already substituted; `${ref}`, `${key}`, `${version}` and `${archive_filename}` stay symbolic
+  because they vary per search.
+- **Version** is the `${version}` hash **this** job computes, followed by the three things it
+  hashes.
+- **Refs searched** is the restore order: the current ref, then the pull request base branch, then
+  the default branch. With `scoped-to-ref: false` the line reads `Not scoped to a ref` and the
+  searches are labelled `[unscoped]`.
+- **Tiers** is the tier order a restore would use — `s3`, or `s3 → github` / `github → s3` when
+  `use-fallback` or `dual-cache` adds the GitHub tier. Only the S3 tier is listed and explained.
+- **Each `[ref] prefix "…"` line** is one listing the restore would perform: the primary key first,
+  then each restore key, for each ref, stopping at the first search that would hit.
+- **`✓` / `✗`** on a candidate says whether the object's `${version}` matches this job's.
+- **`Result:`** lines are the plain-language summary, in report order.
+
+### "… but none has version …"
+
+This is the most common miss, and it never means the key was wrong — the key prefix matched, the
+objects are right there. It means those objects were saved by a job whose **`${version}` hash
+differs**, and the hash covers exactly three things:
+
+1. **`path`** — the list of paths, as written. Adding, removing or reordering a path changes the
+   hash, so a job caching `~/.npm` never restores an archive saved for `~/.npm` plus `node_modules`.
+2. **The compression method** — `zstd` or `gzip`. A runner without `zstd` saves a `gzip` archive
+   and will not restore a `zstd` one, and vice versa.
+3. **`enableCrossOsArchive`** (on Windows) — a cross-OS archive and a Windows-native one hash
+   differently on purpose.
+
+Compare the `Version:` line's inputs with how the other job is configured; the difference is
+always one of those three.
+
+### A caveat on freshness
+
+The report lists objects; it never issues a `HEAD` for the exact key. On a provider whose listings
+are eventually consistent, an object saved moments ago may not be listed yet, so a report taken
+right after a save can say "would miss" where a real restore — which does `HEAD` the exact key
+first — would hit. Give the listing a moment, or inspect in a later job.
+
+## Outputs
+
+| Output | Description |
+| --- | --- |
+| `would-hit` | `'true'` when a restore with these inputs would find a cache, `'false'` otherwise |
+| `would-match-key` | The cache key a restore would match; empty when none |
+| `would-match-object` | The S3 object key a restore would download; empty when none |
+| `candidate-count` | How many objects were listed across every search |
+| `report` | The full report as JSON |
+| `cache-storage-provider` | The resolved S3-compatible storage provider |
+
+The outputs are set once the lookup finishes. A step that fails earlier — a missing `key` or
+`path`, an invalid `max-candidates`, an S3 error — sets none of them, so guard on
+`steps.<id>.outcome` before reading them in a later step (`prune` behaves the same way). A
+`fail-on-cache-miss` failure is the exception: the lookup did finish, so the outputs are set and
+`would-hit` is `'false'`.
+
+`report` is `ExplainReport` serialized as JSON: the pattern, the version and its inputs, the refs,
+the keys, the tiers, every search with its candidates, the `wouldHit` object when there is one, and
+the `reasons` sentences. GitHub truncates step outputs, so beyond 64 KB the action substitutes a
+small summary — `{"truncated":true,"wouldHit":<bool>,"candidateCount":<n>}` — instead. Check
+`truncated` before parsing the rest:
+
+```yaml
+- name: Count candidates
+  run: |
+    echo '${{ steps.lookup.outputs.report }}' | jq 'if .truncated then .candidateCount else (.searches | map(.candidates | length) | add) end'
+```
+
+## Guarding a matrix job
+
+`fail-on-cache-miss: true` makes `inspect` fail when nothing would be restored, which turns "is
+this cache warm?" into an ordinary job result. That is useful when an expensive matrix should not
+start until a warm-up job has populated the cache:
+
+```yaml
+jobs:
+  cache-ready:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: xSAVIKx/cloud-cache-action/inspect@v1
+        with:
+          bucket: my-ci-cache-bucket
+          access-key: ${{ secrets.S3_ACCESS_KEY }}
+          secret-key: ${{ secrets.S3_SECRET_KEY }}
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          fail-on-cache-miss: true
+
+  build:
+    needs: cache-ready
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # … every shard now restores a cache that is known to exist
+```
+
+To report instead of fail, leave `fail-on-cache-miss` at `false` and branch on `would-hit`:
+
+```yaml
+      - uses: xSAVIKx/cloud-cache-action/inspect@v1
+        id: lookup
+        with: { bucket: my-ci-cache-bucket, path: ~/.npm, key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }} }
+
+      - name: Warm the cache
+        if: steps.lookup.outputs.would-hit != 'true'
+        run: npm ci
+```
+
+Note that the version hash is computed on the runner that inspects, so a lookup that would hit on
+`ubuntu-latest` says nothing about `windows-latest`: give each OS in the matrix its own guard job,
+or its own `inspect` step.
+
+## Metrics
+
+Every step — restore, save, prune and `inspect` — writes one `cloud-cache-metrics <json>` debug
+line, and appends the same JSON as one line to `metrics-file` when that input is set. See
+[Metrics and timings](./getting-started.md#metrics-and-timings) for the line's shape; `inspect` reports
+`"step":"inspect"` with an outcome of `would-hit` or `would-miss` and a `candidateCount` in
+`extra`. As with `prune`, a step that fails before finishing the lookup writes no line at all.
 
 
 <!-- ============================================================================ -->

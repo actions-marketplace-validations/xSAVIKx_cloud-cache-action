@@ -116,7 +116,6 @@ inputs:
     required: false
     default: ''
 
-
 outputs:
   cache-size:
     description: 'The size of the saved cache archive in bytes'

@@ -51,12 +51,14 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 - **Safe Cross-Platform Keys**: Guarantees standard POSIX forward slashes (`/`) in object storage across Linux, macOS, and Windows runners (fixing legacy backslash bugs).
 - **Multi-Threaded `zstd` Compression**: Lightning-fast archiving with fallback to `gzip`.
 - **Dual Caching (Multi-Tier)**: Optionally cache across both remote S3 and GitHub Actions Cache simultaneously with configurable priority (`s3-first` or `github-first`) and automatic backfill synchronization.
-- **Standalone Sub-Actions**: Includes `cloud-cache-action/restore`, `cloud-cache-action/save` and `cloud-cache-action/prune` for decoupled cache stages and scheduled cleanup.
+- **Standalone Sub-Actions**: Includes `cloud-cache-action/restore`, `cloud-cache-action/save`, `cloud-cache-action/prune` and `cloud-cache-action/inspect` for decoupled cache stages, scheduled cleanup and lookup debugging.
 - **Archive Integrity**: Every save writes a sha256 checksum as object metadata; restore verifies it and treats a mismatch as a cache miss with a warning, so a corrupted or truncated object is never reported as a hit. See [Archive Integrity](#archive-integrity).
 - **Safe Concurrent Saves**: Uploads use a conditional create (`If-None-Match`), so on providers that enforce it, two jobs racing to save the same key never overwrite each other. See [Safe Concurrent Saves](#safe-concurrent-saves).
 - **Cache Pruning**: A dedicated `prune` sub-action deletes cache archives older than a given age from any S3-compatible bucket on a schedule. See [Cache Pruning](#cache-pruning).
 - **Job Summary**: Writes a step summary table after restore and save with the key, hit/source, size and duration (on by default; `job-summary: false` turns it off).
 - **Object Metadata and Tags**: Store custom `x-amz-meta-*` metadata and object tags on every saved cache object with `metadata` and `tags`; the metadata comes back on restore as the `cache-metadata` output. See [Object Metadata and Tags](#object-metadata-and-tags).
+- **Explain a Lookup**: `explain: true` logs why a lookup hits or misses — the resolved pattern, the `${version}` hash, every ref searched and every candidate object — and the `inspect` sub-action reports the same thing as step outputs, without restoring anything. See [Inspecting a cache lookup](#inspecting-a-cache-lookup).
+- **Metrics**: Every step exposes its timings and byte count as outputs and can append one JSON line per step to a `metrics-file`. See [Metrics and Timings](#metrics-and-timings).
 - **Opt-in Streaming (Experimental)**: Stream archives directly between `tar` and S3 without a temporary file, with `streaming: true`. See [Streaming Archives](#streaming-archives-experimental).
 - **Resilient**: Automatic exponential backoff retries on transient network errors.
 
@@ -326,6 +328,90 @@ when `GITHUB_STEP_SUMMARY` is not set.
 
 ---
 
+## Inspecting a cache lookup
+
+When a restore misses and you expected a hit, `explain: true` logs the whole lookup into a
+`Cache lookup explained` group (and, unless `job-summary: false`, into a job summary section of the
+same name) right before the restore runs: the raw and resolved `s3-key-pattern`, the `${version}`
+hash with the paths, compression method and cross-OS flag it is computed from, the refs and tier
+order a restore would use, every listing it would perform, every candidate object with the version
+it carries, and a plain-language reason for the outcome. It never fails the step — a report that
+throws only logs `Could not explain the cache lookup: <reason>`.
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-ci-cache-bucket
+    path: ~/.npm
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    explain: true
+```
+
+The `inspect` sub-action prints the same report as a step of its own. It only lists objects — it
+downloads nothing and writes nothing — and turns the answer into outputs: `would-hit`,
+`would-match-key`, `would-match-object`, `candidate-count`, `report` (the full report as JSON,
+replaced by `{"truncated":true,...}` beyond 64 KB) and `cache-storage-provider`. Its
+`max-candidates` input (default `20`) caps how many objects each search lists, and
+`fail-on-cache-miss: true` fails the step when nothing would be restored, which makes a warm cache
+a job dependency for a matrix.
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action/inspect@v1
+  id: lookup
+  with:
+    bucket: my-ci-cache-bucket
+    path: ~/.npm
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    fail-on-cache-miss: true
+```
+
+Two things to know when reading a report:
+
+- **"N objects match key prefix … but none has version …"** means the key was right and the
+  `${version}` hash was not. That hash covers the `path` list as written, the compression method
+  (`zstd` or `gzip`) and, on Windows, `enableCrossOsArchive` — nothing else.
+- **The report lists objects; it never `HEAD`s the exact key.** A restore does, so on a provider
+  with eventually consistent listings a report taken right after a save can say "would miss" where
+  a restore would hit.
+
+The outputs are set once the lookup finishes; a step that fails earlier (a missing input, an S3
+error) sets none of them, as with `prune`. See
+[Inspecting Lookups](https://xsavikx.github.io/cloud-cache-action/guide/inspecting.html) for a full
+sample report and the matrix guard pattern.
+
+---
+
+## Metrics and Timings
+
+Restore and save set `cache-restore-duration-ms`, `cache-save-duration-ms`,
+`cache-transfer-duration-ms` and `cache-bytes` on every path, so they are always defined (`0` when
+the step did not complete or transferred nothing). On the unified action the save runs as a post
+step and sets the save-side three for itself, zeroing them when there is nothing to save, so after
+the post step they describe the save while `cache-size` and `cache-restore-duration-ms` still hold
+the restore's values. Use the standalone `restore` and `save` actions when each step should own its
+outputs.
+
+Every step — restore, save, `prune` and `inspect` — also writes one `cloud-cache-metrics <json>`
+debug line. Set `metrics-file` to append the same JSON as one line to a file, resolved relative to
+`GITHUB_WORKSPACE`:
+
+```yaml
+    metrics-file: cache-metrics.jsonl
+```
+
+```json
+{"step":"restore","timestamp":"2026-09-17T06:02:41.912Z","provider":"r2","key":"Linux-node-9f2c1a","matchedKey":"Linux-node-9f2c1a","objectKey":"octo/app/refs%2Fheads%2Fmain/Linux-node-9f2c1a/4d0f1b2c9a7e35f1/cache.tar.zst","source":"s3","bytes":199687424,"durationMs":8123,"transferDurationMs":5310,"streaming":false,"outcome":"hit"}
+```
+
+`transferDurationMs` measures the S3 transfer alone in the default file mode; with
+`streaming: true` the archive is extracted (or compressed) as it moves, so the same field covers
+download-plus-extract — the line's `streaming` field tells the two apart. `prune` and `inspect`
+write their line once the step has finished its work, so a step that fails earlier writes none.
+Writing the file is best-effort: a failure only logs
+`Could not write metrics to <path>: <reason>` and never fails the step.
+
+---
+
 ## Object Metadata and Tags
 
 `metadata` stores user metadata (`x-amz-meta-*`) on every cache object the step saves, and `tags`
@@ -421,6 +507,25 @@ integrity check.
 - **Tag-triggered runs:** if a run started by pushing a tag is the only place that saves a given cache, no pull request or branch build will ever restore it — restores never search `refs/tags/*`. Save on the default branch instead (a `push` there, or `workflow_dispatch`), or see [Tag-triggered runs and refs](https://xsavikx.github.io/cloud-cache-action/guide/migration.html#tag-triggered-runs-and-refs) for using `scoped-to-ref: false`.
 - **Maintenance:** Dependabot now keeps npm and GitHub Actions dependencies up to date, and publishing a GitHub release runs `.github/workflows/release.yml` automatically — see [Releasing](#releasing).
 
+## Upgrading to v1.3
+
+**There are no breaking changes in v1.3.** Caches saved by v1.1 and v1.2 restore normally, the key
+layout, `${version}` hashing and archive format are unchanged, and a save that sets none of the new
+inputs writes the same object as v1.2 did. Every addition is opt-in:
+
+- **[Object metadata and tags](#object-metadata-and-tags)** via the new `metadata` and `tags`
+  inputs, with the restored object's metadata exposed as the new `cache-metadata` output (`{}` when
+  there is none). Both are best-effort extras that never fail a save.
+- **[Inspecting a cache lookup](#inspecting-a-cache-lookup)**: the new `explain` input (default
+  `false`) and the new `inspect` sub-action, neither of which changes what a restore does.
+- **[Metrics and timings](#metrics-and-timings)**: the new `cache-restore-duration-ms`,
+  `cache-save-duration-ms`, `cache-transfer-duration-ms` and `cache-bytes` outputs, set on every
+  path, and the new `metrics-file` input (default `""`, which keeps the previous file-free
+  behavior).
+- **Streaming saves now carry a checksum.** A `streaming: true` save attaches
+  `cloud-cache-sha256` after the upload, so streamed archives are integrity-checked on restore like
+  file-mode ones. See [Streaming Archives](#streaming-archives-experimental).
+
 ## Saving after failed steps
 
 The post step only runs when the job succeeds. To save a cache even when a later step fails, use the separate actions with `if: always()`:
@@ -475,6 +580,10 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | `dual-cache-strict`              |    No    |                          `false`                           | Fail the step when either tier errors during restore or save |
 | `streaming`                      |    No    |                          `false`                           | Stream archives directly between `tar` and S3 without a temporary file (experimental; see [Streaming Archives](#streaming-archives-experimental)) |
 | `job-summary`                    |    No    |                           `true`                           | Write a job summary table with the cache keys, hit, source, size and duration |
+| `metadata`                       |    No    |                             —                              | User metadata (`x-amz-meta-*`) for every saved object, one `key=value` per line (see [Object Metadata and Tags](#object-metadata-and-tags)) |
+| `tags`                           |    No    |                             —                              | Object tags for every saved object, one `key=value` per line (up to 10) |
+| `explain`                        |    No    |                          `false`                           | Log why the lookup hits or misses before restoring (see [Inspecting a cache lookup](#inspecting-a-cache-lookup)) |
+| `metrics-file`                   |    No    |                            `""`                            | Append one JSON line of timings and sizes for this step to this file, relative to the workspace |
 
 ### Paths and exclusions
 
@@ -492,8 +601,13 @@ The post step only runs when the job succeeds. To save a cache even when a later
 - `cache-storage-provider`: Resolved storage provider (e.g. `r2`, `gcs`, `aws`).
 - `cache-s3-key`: Full S3 object key inside the bucket.
 - `cache-etag`: ETag checksum of the archive in S3.
+- `cache-metadata`: JSON object of the restored object's user metadata, excluding `cloud-cache-*` keys; `{}` when there is none or on a GitHub-tier hit.
 - `cache-hit-source`: The tier that serviced the hit: `s3`, `github`, or `none`.
 - `cache-saved-sources`: Tiers successfully saved to: `s3`, `github`, or `s3,github`.
+- `cache-restore-duration-ms`: Wall-clock milliseconds the restore step took; `0` when it did not complete.
+- `cache-save-duration-ms`: Wall-clock milliseconds the save step took; `0` when it did not complete.
+- `cache-transfer-duration-ms`: Milliseconds spent on the S3 download or upload alone; `0` when nothing was transferred.
+- `cache-bytes`: Size in bytes of the archive restored or saved; `0` when none was. See [Metrics and Timings](#metrics-and-timings).
 
 ---
 
@@ -502,6 +616,7 @@ The post step only runs when the job succeeds. To save a cache even when a later
 - **Restore Only**: `uses: xSAVIKx/cloud-cache-action/restore@v1`
 - **Save Only**: `uses: xSAVIKx/cloud-cache-action/save@v1`
 - **Prune**: `uses: xSAVIKx/cloud-cache-action/prune@v1` — deletes old cache archives on a schedule; see [Cache Pruning](#cache-pruning).
+- **Inspect**: `uses: xSAVIKx/cloud-cache-action/inspect@v1` — reports which object a restore would use, and why, without restoring; see [Inspecting a cache lookup](#inspecting-a-cache-lookup).
 
 ---
 

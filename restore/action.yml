@@ -134,7 +134,6 @@ inputs:
     required: false
     default: ''
 
-
 outputs:
   cache-hit:
     description: 'A boolean value to indicate an exact match was found for the primary key'

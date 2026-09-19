@@ -82,7 +82,7 @@ inputs:
 
   # Job summary input
   job-summary:
-    description: 'Write a job summary table with the cache keys, hit, source, size, and duration'
+    description: 'Write a "Cache lookup explained" job summary section with the full lookup report'
     required: false
     default: 'true'
 
@@ -96,7 +96,6 @@ inputs:
     description: 'Append one JSON line of timings and sizes for this step to this file (relative to the workspace)'
     required: false
     default: ''
-
 
 outputs:
   would-hit:

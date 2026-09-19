@@ -36,7 +36,7 @@ totals line), so a dry run tells you exactly what a real run would delete.
 
 ## Inputs
 
-The prune action shares its storage inputs with the main action, plus three inputs of its own:
+The prune action shares its storage inputs with the main action, plus four inputs of its own:
 
 | Input                             | Required |          Default          | Description                                                                 |
 | ---------------------------------- | :------: | :------------------------: | ---------------------------------------------------------------------------- |
@@ -57,6 +57,7 @@ The prune action shares its storage inputs with the main action, plus three inpu
 | `scoped-to-ref`                    |    No    |           `true`           | Whether cache keys include the Git ref; set `false` to prune caches saved with `scoped-to-ref: false` |
 | `retry`                            |    No    |           `true`           | Enable exponential backoff retries on S3 operations                        |
 | `retry-count`                      |    No    |            `3`              | Maximum number of S3 retries                                                |
+| `metrics-file`                     |    No    |            `""`             | Append one JSON line of timings and sizes for this step to this file, relative to the workspace |
 
 An invalid `older-than-days` (not a positive integer) or an unrecognized `dry-run` value (anything
 other than `true`, `True`, `TRUE`, `false`, `False` or `FALSE`) fails the step immediately, rather
@@ -70,6 +71,25 @@ deletion.
 | `pruned-count`   | The number of cache archives pruned (or that would be pruned in a dry run)      |
 | `pruned-bytes`   | The total size in bytes of the pruned cache archives                           |
 | `kept-count`     | The number of cache archives that matched the scope but were not old enough    |
+
+The outputs are set once the prune finishes. A step that fails earlier — an invalid input, an
+unsafe scope, an S3 error — sets none of them, so guard on `steps.<id>.outcome` before reading
+them in a later step.
+
+## Metrics
+
+Set `metrics-file` to append one JSON line describing this prune to a file, in addition to the
+`cloud-cache-metrics <json>` debug line every step writes. The line carries `"step":"prune"`, an
+outcome of `pruned`, the pruned byte total, the step's `durationMs`, and the tallies in `extra`:
+
+```json
+{"step":"prune","timestamp":"2026-09-17T03:00:11.204Z","provider":"r2","bytes":4194304000,"durationMs":9412,"outcome":"pruned","extra":{"prunedCount":37,"prunedBytes":4194304000,"keptCount":12,"dryRun":false}}
+```
+
+The line is written once the prune has finished, so a step that fails earlier writes none. Writing
+the file is best-effort: a write error only logs `Could not write metrics to <path>: <reason>` and
+never fails the step. See [Metrics and Timings](./getting-started.md#metrics-and-timings) for the
+fields the other steps emit.
 
 ## What gets pruned
 

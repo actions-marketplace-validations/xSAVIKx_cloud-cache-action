@@ -78,7 +78,6 @@ inputs:
     required: false
     default: ''
 
-
 outputs:
   pruned-count:
     description: 'The number of cache archives pruned (or that would be pruned in a dry run)'
