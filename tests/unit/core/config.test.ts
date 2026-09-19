@@ -45,8 +45,14 @@ describe('readCacheConfig', () => {
       jobSummary: true,
       metadata: {},
       tags: [],
+      explain: false,
     });
     expect(mockWarning).not.toHaveBeenCalled();
+  });
+
+  it('reads the explain input', () => {
+    inputs.set(Inputs.Explain, 'true');
+    expect(readCacheConfig().explain).toBe(true);
   });
 
   it('reads the streaming input', () => {
@@ -105,6 +111,14 @@ describe('readCacheConfig', () => {
       streaming: true,
     });
     expect(mockWarning).not.toHaveBeenCalled();
+  });
+
+  it('does not persist explain: the post step never explains', () => {
+    inputs.set(Inputs.Explain, 'true');
+    const state = new MemoryState();
+    persistCacheConfig(state, readCacheConfig());
+    inputs.delete(Inputs.Explain);
+    expect(readCacheConfig(state).explain).toBe(false);
   });
 });
 

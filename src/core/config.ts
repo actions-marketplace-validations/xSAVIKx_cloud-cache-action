@@ -41,6 +41,8 @@ export interface CacheConfig {
   metadata: Record<string, string>;
   /** Object tags written on every object this step saves. */
   tags: ObjectTag[];
+  /** Logs the cache lookup report before restoring; never persisted, so the post step never explains. */
+  explain: boolean;
 }
 
 function readDualCacheStrategy(): DualCacheStrategy {
@@ -104,6 +106,7 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     jobSummary: bool(State.CacheJobSummary, () => getInputAsBool(Inputs.JobSummary, true)),
     metadata: json(State.CacheMetadata, () => parseMetadata(core.getInput(Inputs.Metadata))),
     tags: json(State.CacheTags, () => parseTags(core.getInput(Inputs.Tags))),
+    explain: getInputAsBool(Inputs.Explain),
   };
 }
 

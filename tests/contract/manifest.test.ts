@@ -137,6 +137,13 @@ describe('action manifests', () => {
     expect(pruneManifest.outputs?.[Outputs.CacheMetadata]).toBeUndefined();
   });
 
+  it('declares explain on the root and restore manifests only, defaulting to false', () => {
+    expect(root.inputs[Inputs.Explain]?.default).toBe('false');
+    expect(subActions[0][1].inputs[Inputs.Explain]?.default).toBe('false');
+    expect(subActions[1][1].inputs[Inputs.Explain]).toBeUndefined();
+    expect(pruneManifest.inputs[Inputs.Explain]).toBeUndefined();
+  });
+
   it('declare metadata and tags on the root, restore and save manifests with no default', () => {
     for (const [, manifest] of [['action.yml', root], ...subActions] as Array<[string, Manifest]>) {
       for (const name of [Inputs.Metadata, Inputs.Tags]) {

@@ -122,6 +122,12 @@ inputs:
     required: false
     default: 'true'
 
+  # Explain input
+  explain:
+    description: 'Log why the lookup hits or misses (resolved pattern, version, refs searched and every candidate object) before restoring'
+    required: false
+    default: 'false'
+
 outputs:
   cache-hit:
     description: 'A boolean value to indicate an exact match was found for the primary key'

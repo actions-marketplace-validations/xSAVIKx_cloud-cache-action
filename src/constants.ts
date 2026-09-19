@@ -43,6 +43,9 @@ export enum Inputs {
 
   // Job summary input
   JobSummary = 'job-summary',
+
+  // Explain input
+  Explain = 'explain',
 }
 
 export enum Outputs {

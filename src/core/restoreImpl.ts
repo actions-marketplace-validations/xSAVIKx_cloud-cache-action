@@ -3,6 +3,7 @@ import { Outputs, State } from '../constants';
 import { NullStateProvider, StateProvider, type IStateProvider } from '../state';
 import { isValidEvent } from '../utils/inputUtils';
 import { persistCacheConfig, readCacheConfig, type CacheConfig } from './config';
+import { buildExplainReport, renderExplain, writeExplainSummary } from './explain';
 import { restoreFromGitHub } from './githubTier';
 import { toError, type RestoreOutcome } from './outcomes';
 import { buildS3Tier, restoreFromS3, type S3Tier } from './s3Tier';
@@ -112,6 +113,17 @@ export async function restoreImpl(
     core.setOutput(Outputs.CacheMetadata, '{}');
 
     const s3 = await setUpS3(config, stateProvider);
+    if (config.explain && s3) {
+      try {
+        const report = await buildExplainReport(s3, config);
+        core.startGroup('Cache lookup explained');
+        for (const line of renderExplain(report)) core.info(line);
+        core.endGroup();
+        await writeExplainSummary(report, config.jobSummary);
+      } catch (err) {
+        core.warning(`Could not explain the cache lookup: ${toError(err).message}`);
+      }
+    }
     if (config.dualCache) {
       core.info(
         `Dual-cache enabled (priority: ${config.restorePriority}, strategy: ${config.dualCacheStrategy})`

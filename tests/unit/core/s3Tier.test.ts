@@ -911,6 +911,7 @@ describe('buildS3Tier', () => {
     jobSummary: true,
     metadata: {},
     tags: [],
+    explain: false,
   };
   let eventDir: string;
   let env: NodeJS.ProcessEnv;

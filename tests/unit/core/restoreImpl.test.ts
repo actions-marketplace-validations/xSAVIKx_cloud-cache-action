@@ -28,6 +28,9 @@ const mockRestoreFromGitHub =
       crossOs: boolean
     ) => Promise<RestoreOutcome>
   >();
+const mockStartGroup = jest.fn<(name: string) => void>();
+const mockEndGroup = jest.fn<() => void>();
+const mockCoreInfo = jest.fn<(message: string) => void>();
 
 jest.unstable_mockModule('@actions/core', () => ({
   getInput: (name: string) => inputs.get(name) ?? '',
@@ -35,11 +38,13 @@ jest.unstable_mockModule('@actions/core', () => ({
     outputs.set(name, value);
   },
   setFailed: mockSetFailed,
-  info: jest.fn(),
+  info: mockCoreInfo,
   warning: mockWarning,
   debug: jest.fn(),
   saveState: jest.fn(),
   getState: () => '',
+  startGroup: mockStartGroup,
+  endGroup: mockEndGroup,
 }));
 jest.unstable_mockModule('../../../src/core/s3Tier', () => ({
   buildS3Tier: mockBuildS3Tier,
@@ -51,6 +56,14 @@ jest.unstable_mockModule('../../../src/core/githubTier', () => ({
 const mockWriteRestoreSummary = jest.fn<(data: unknown) => Promise<void>>();
 jest.unstable_mockModule('../../../src/core/summary', () => ({
   writeRestoreSummary: mockWriteRestoreSummary,
+}));
+const mockBuildExplainReport = jest.fn<(tier: unknown, config: unknown) => Promise<unknown>>();
+const mockRenderExplain = jest.fn<(report: unknown) => string[]>();
+const mockWriteExplainSummary = jest.fn<(report: unknown, jobSummary: boolean) => Promise<void>>();
+jest.unstable_mockModule('../../../src/core/explain', () => ({
+  buildExplainReport: mockBuildExplainReport,
+  renderExplain: mockRenderExplain,
+  writeExplainSummary: mockWriteExplainSummary,
 }));
 
 const { restoreImpl, runRestore, runRestoreOnly } = await import('../../../src/core/restoreImpl');
@@ -88,6 +101,9 @@ describe('restoreImpl', () => {
     mockBuildS3Tier.mockResolvedValue(tier);
     mockRestoreFromS3.mockResolvedValue(miss);
     mockRestoreFromGitHub.mockResolvedValue(miss);
+    mockBuildExplainReport.mockResolvedValue({});
+    mockRenderExplain.mockReturnValue(['line one', 'line two']);
+    mockWriteExplainSummary.mockResolvedValue(undefined);
   });
 
   it('restores an exact S3 hit and records it for the post step', async () => {
@@ -288,6 +304,64 @@ describe('restoreImpl', () => {
     await restoreImpl(state, false);
     expect(mockSetFailed).toHaveBeenCalledWith('Input required and not supplied: key');
     expect(mockWriteRestoreSummary).not.toHaveBeenCalled();
+  });
+
+  it('logs the explain report before restoring, without changing the outcome', async () => {
+    inputs.set(Inputs.Explain, 'true');
+    mockRestoreFromS3.mockResolvedValue(s3Hit('Linux-npm-abc', true));
+
+    await expect(restoreImpl(state, false)).resolves.toBe('Linux-npm-abc');
+
+    expect(mockBuildExplainReport).toHaveBeenCalledWith(
+      tier,
+      expect.objectContaining({
+        primaryKey: 'Linux-npm-abc',
+      })
+    );
+    expect(mockStartGroup).toHaveBeenCalledWith('Cache lookup explained');
+    expect(mockCoreInfo).toHaveBeenCalledWith('line one');
+    expect(mockCoreInfo).toHaveBeenCalledWith('line two');
+    expect(mockEndGroup).toHaveBeenCalled();
+    expect(mockWriteExplainSummary).toHaveBeenCalledWith({}, true);
+    const explainOrder = mockBuildExplainReport.mock.invocationCallOrder[0];
+    const restoreOrder = mockRestoreFromS3.mock.invocationCallOrder[0];
+    expect(explainOrder).toBeLessThan(restoreOrder);
+  });
+
+  it('does not explain by default', async () => {
+    await restoreImpl(state, false);
+    expect(mockBuildExplainReport).not.toHaveBeenCalled();
+    expect(mockStartGroup).not.toHaveBeenCalled();
+  });
+
+  it('warns once and still restores when the explain report throws', async () => {
+    inputs.set(Inputs.Explain, 'true');
+    mockBuildExplainReport.mockRejectedValue(new Error('boom'));
+    mockRestoreFromS3.mockResolvedValue(s3Hit('Linux-npm-abc', true));
+
+    await expect(restoreImpl(state, false)).resolves.toBe('Linux-npm-abc');
+
+    expect(mockWarning).toHaveBeenCalledWith('Could not explain the cache lookup: boom');
+    expect(mockWarning).toHaveBeenCalledTimes(1);
+    expect(mockStartGroup).not.toHaveBeenCalled();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+  });
+
+  it('does not explain when S3 setup failed and no S3 tier is available', async () => {
+    inputs.set(Inputs.Explain, 'true');
+    inputs.set(Inputs.DualCache, 'true');
+    mockBuildS3Tier.mockRejectedValue(new Error('Bucket name is required.'));
+    mockRestoreFromGitHub.mockResolvedValue(githubHit('Linux-npm-abc', true));
+
+    await expect(restoreImpl(state, false)).resolves.toBe('Linux-npm-abc');
+
+    expect(mockBuildExplainReport).not.toHaveBeenCalled();
+  });
+
+  it('does not persist the explain input for the post step', async () => {
+    inputs.set(Inputs.Explain, 'true');
+    await restoreImpl(state, false);
+    expect([...state.values.keys()].some((key) => key.includes('EXPLAIN'))).toBe(false);
   });
 
   it('runs the wrappers without exiting when earlyExit is false', async () => {
