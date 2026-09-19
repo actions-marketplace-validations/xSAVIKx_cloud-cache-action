@@ -347,6 +347,22 @@ describe('restoreImpl', () => {
     expect(mockSetFailed).not.toHaveBeenCalled();
   });
 
+  it('closes the log group and warns once when rendering the explain report throws', async () => {
+    inputs.set(Inputs.Explain, 'true');
+    mockRenderExplain.mockImplementation(() => {
+      throw new Error('render boom');
+    });
+    mockRestoreFromS3.mockResolvedValue(s3Hit('Linux-npm-abc', true));
+
+    await expect(restoreImpl(state, false)).resolves.toBe('Linux-npm-abc');
+
+    expect(mockStartGroup).toHaveBeenCalledWith('Cache lookup explained');
+    expect(mockEndGroup).toHaveBeenCalledTimes(1);
+    expect(mockWarning).toHaveBeenCalledWith('Could not explain the cache lookup: render boom');
+    expect(mockWarning).toHaveBeenCalledTimes(1);
+    expect(mockSetFailed).not.toHaveBeenCalled();
+  });
+
   it('does not explain when S3 setup failed and no S3 tier is available', async () => {
     inputs.set(Inputs.Explain, 'true');
     inputs.set(Inputs.DualCache, 'true');

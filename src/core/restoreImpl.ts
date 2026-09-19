@@ -117,8 +117,11 @@ export async function restoreImpl(
       try {
         const report = await buildExplainReport(s3, config);
         core.startGroup('Cache lookup explained');
-        for (const line of renderExplain(report)) core.info(line);
-        core.endGroup();
+        try {
+          for (const line of renderExplain(report)) core.info(line);
+        } finally {
+          core.endGroup();
+        }
         await writeExplainSummary(report, config.jobSummary);
       } catch (err) {
         core.warning(`Could not explain the cache lookup: ${toError(err).message}`);
