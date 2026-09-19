@@ -19,7 +19,9 @@ interface SaveResult {
   /** The S3 upload alone, when one happened. */
   transferMs?: number;
   /** How the step ended, as the metrics line reports it. */
-  outcome: Extract<StepMetrics['outcome'], 'saved' | 'exists' | 'skipped'>;
+  outcome: Extract<StepMetrics['outcome'], 'saved' | 'exists' | 'skipped' | 'error'>;
+  /** A tier error that was warned away rather than thrown, when nothing was saved. */
+  error?: string;
 }
 
 function reportS3(info: S3ObjectInfo | undefined): void {
@@ -64,6 +66,8 @@ async function saveSingleTier(
     return { sources: [], outcome: 'exists' };
   }
 
+  // A tier error the step only warned about still makes the outcome an error, not a plain skip.
+  let warnedError: string | undefined;
   if (s3) {
     const outcome = await saveToS3(s3, config.primaryKey, config.paths, config.uploadChunkSize);
     switch (outcome.kind) {
@@ -83,6 +87,7 @@ async function saveSingleTier(
         return { sources: [], outcome: 'skipped' };
       case 'error':
         core.warning(`Failed to save cache to S3: ${outcome.error.message}`);
+        warnedError = outcome.error.message;
         break;
       default: {
         const unreachable: never = outcome;
@@ -105,6 +110,7 @@ async function saveSingleTier(
         return { sources: ['github'], outcome: 'saved' };
       case 'error':
         core.warning(`Failed to save cache to GitHub Actions Cache: ${outcome.error.message}`);
+        warnedError = outcome.error.message;
         break;
       case 'exists':
       case 'skipped':
@@ -116,7 +122,9 @@ async function saveSingleTier(
     }
   }
   core.setOutput(Outputs.CacheSavedSources, 'none');
-  return { sources: [], outcome: 'skipped' };
+  return warnedError
+    ? { sources: [], outcome: 'error', error: warnedError }
+    : { sources: [], outcome: 'skipped' };
 }
 
 async function saveBothTiers(
@@ -132,11 +140,14 @@ async function saveBothTiers(
   // Only an upload this step actually performed makes the outcome "saved"; tiers that already
   // held the key report "exists".
   let uploaded = false;
+  // A tier error the step only warned about still makes the outcome an error, not a plain skip.
+  let warnedError: string | undefined;
   const tierFailed = (tier: string, error: Error): void => {
     if (config.dualCacheStrict) {
       throw new Error(`Saving to ${tier} failed: ${error.message}`, { cause: error });
     }
     core.warning(`Dual-cache ${tier} save error: ${error.message}`);
+    warnedError = error.message;
   };
 
   core.info(`Dual-cache save (strategy: ${config.dualCacheStrategy})`);
@@ -220,12 +231,17 @@ async function saveBothTiers(
   const sources = (['s3', 'github'] as const).filter((source) => present.has(source));
   core.setOutput(Outputs.CacheSavedSources, sources.join(',') || 'none');
   core.info(`Dual-cache save complete. Cache present in: ${sources.join(', ') || 'none'}`);
+  if (sources.length === 0) {
+    return warnedError
+      ? { sources: [], objectKey, transferMs, outcome: 'error', error: warnedError }
+      : { sources: [], objectKey, transferMs, outcome: 'skipped' };
+  }
   return {
     size,
     sources: [...sources],
     objectKey,
     transferMs,
-    outcome: sources.length === 0 ? 'skipped' : uploaded ? 'saved' : 'exists',
+    outcome: uploaded ? 'saved' : 'exists',
   };
 }
 
@@ -309,6 +325,7 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
       transferDurationMs: result.transferMs ?? 0,
       streaming: config.streaming,
       outcome: result.outcome,
+      extra: result.error ? { error: result.error } : undefined,
     });
     await writeSaveSummary({
       jobSummary: config.jobSummary,

@@ -432,6 +432,34 @@ describe('restoreFromS3', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled();
   });
 
+  it('reports no transferMs on a lookup-only hit, since nothing was transferred', async () => {
+    put(FEATURE, 'k', 1);
+    const outcome = await restoreFromS3(tier(), 'k', [], true);
+    expect(outcome.kind === 'hit' && outcome.transferMs).toBeUndefined();
+  });
+
+  it('measures the download alone as transferMs, not the extraction that follows it', async () => {
+    put(FEATURE, 'k', 1);
+    // A clock that only the mocked download advances: a measurement taken after extractArchive
+    // would read 5250, so this pins the timer to the download itself.
+    let now = 1_000;
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    mockDownloadFile.mockImplementation(async () => {
+      now += 250;
+      return {};
+    });
+    mockExtractArchive.mockImplementation(async () => {
+      now += 5_000;
+    });
+    try {
+      const outcome = await restoreFromS3(tier(), 'k', [], false);
+      expect(outcome).toMatchObject({ kind: 'hit', matchedKey: 'k', transferMs: 250 });
+    } finally {
+      nowSpy.mockRestore();
+    }
+    expect(mockExtractArchive).toHaveBeenCalled();
+  });
+
   it('does not log its own info line on a lookup-only hit, since restoreImpl already reports it', async () => {
     put(FEATURE, 'k', 1);
     await restoreFromS3(tier(), 'k', [], true);
@@ -1615,7 +1643,11 @@ describe('restoreFromS3 streaming', () => {
 
     const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
 
-    expect(outcome).toMatchObject({ kind: 'hit', matchedKey: 'k' });
+    expect(outcome).toMatchObject({
+      kind: 'hit',
+      matchedKey: 'k',
+      transferMs: expect.any(Number) as unknown as number,
+    });
     expect(mockDownloadFile).not.toHaveBeenCalled();
     expect(mockExtractArchive).not.toHaveBeenCalled();
     expect(mockSha256File).not.toHaveBeenCalled();

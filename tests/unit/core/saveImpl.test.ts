@@ -137,6 +137,71 @@ describe('saveImpl', () => {
       expect(mockEmitMetrics.mock.calls[0][1]).toBe('from-state.jsonl');
     });
 
+    it('emits error metrics when an S3 save error was warned away rather than thrown', async () => {
+      mockSaveToS3.mockResolvedValue(failure('AccessDenied'));
+      await saveImpl(state);
+
+      expect(mockWarning).toHaveBeenCalledWith('Failed to save cache to S3: AccessDenied');
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
+      expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          step: 'save',
+          outcome: 'error',
+          savedTo: [],
+          bytes: 0,
+          extra: { error: 'AccessDenied' },
+        })
+      );
+    });
+
+    it('emits error metrics when a non-strict dual-cache save saved to neither tier', async () => {
+      inputs.set(Inputs.DualCache, 'true');
+      mockSaveToS3.mockResolvedValue(failure('AccessDenied'));
+      mockSaveToGitHub.mockResolvedValue(failure('cache service unavailable'));
+      await saveImpl(state);
+
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          step: 'save',
+          outcome: 'error',
+          savedTo: [],
+          extra: { error: 'cache service unavailable' },
+        })
+      );
+    });
+
+    it('still reports a save that reached a tier as saved when the other tier only warned', async () => {
+      inputs.set(Inputs.DualCache, 'true');
+      mockSaveToS3.mockResolvedValue(failure('AccessDenied'));
+      await saveImpl(state);
+
+      expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ step: 'save', outcome: 'saved', savedTo: ['github'] })
+      );
+    });
+
+    it('emits one skipped line with the reason, and zeroed outputs, on a read-only save', async () => {
+      inputs.set(Inputs.ReadOnly, 'true');
+      await saveImpl(state);
+
+      expect(mockSaveToS3).not.toHaveBeenCalled();
+      expect(outputs.get('cache-save-duration-ms')).toBe('0');
+      expect(outputs.get('cache-transfer-duration-ms')).toBe('0');
+      expect(outputs.get('cache-bytes')).toBe('0');
+      expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
+      expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+        expect.objectContaining({
+          step: 'save',
+          outcome: 'skipped',
+          savedTo: [],
+          bytes: 0,
+          extra: { reason: 'read-only' },
+        })
+      );
+    });
+
     it('zeroes the outputs and emits error metrics when the save fails', async () => {
       mockBuildS3Tier.mockRejectedValue(new Error('no credentials'));
       await saveImpl(state);
