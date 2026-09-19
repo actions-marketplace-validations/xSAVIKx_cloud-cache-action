@@ -67808,13 +67808,23 @@ function isConditionUnsupported(err) {
         CONDITION_REJECTED_NAMES.has(error.name) &&
         /if-none-match/i.test(error.message ?? ''));
 }
+/** How the rejected tagging request reads in the warning: its error name, else its message. */
+function taggingRejection(err) {
+    if (typeof err !== 'object' || err === null) {
+        return String(err);
+    }
+    const error = err;
+    const name = error.name !== undefined && error.name !== 'Error' ? error.name : '';
+    return name || error.message || 'unknown error';
+}
 /**
  * Records that this context's server cannot store object tags, so later uploads omit them, and
- * warns about it once per run. Only called once a tag-free upload has actually succeeded.
+ * warns about it once per run, naming what the server answered. Only called once a tag-free
+ * upload has actually succeeded.
  */
-function noteObjectTaggingUnsupported(tier, bucket) {
+function noteObjectTaggingUnsupported(tier, bucket, err) {
     if (!tier.storage.objectTaggingUnsupported) {
-        core.warning(`s3://${bucket} does not support object tags; saved without them.`);
+        core.warning(`s3://${bucket} could not store object tags (${taggingRejection(err)}); saved without them.`);
     }
     tier.storage.objectTaggingUnsupported = true;
 }
@@ -68111,7 +68121,7 @@ async function saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChun
                 // it fails too, the flag stays unset and the error goes to the 412/501/409 handling below,
                 // whose unconditional retry sends the tags again — the 501 was about `If-None-Match`.
                 uploaded = await uploadWith(undefined);
-                noteObjectTaggingUnsupported(tier, bucket);
+                noteObjectTaggingUnsupported(tier, bucket, err);
             }
             core.info(`Cache saved to S3 with key: ${primaryKey}`);
             return {
@@ -68310,7 +68320,7 @@ async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uplo
                 // Only a save that actually succeeded without tags proves the tags were the problem; the
                 // same 501 also means an unsupported `If-None-Match`, which that save handles itself.
                 if (outcome.kind === 'saved') {
-                    noteObjectTaggingUnsupported(tier, bucket);
+                    noteObjectTaggingUnsupported(tier, bucket, err);
                 }
                 return outcome;
             }
@@ -68679,6 +68689,7 @@ async function buildExplainReport(tier, config, options = {}) {
 function renderExplain(report) {
     const lines = [
         `Cache lookup for key "${report.primaryKey}"`,
+        `Bucket: s3://${report.bucket} (${report.provider})`,
         `Pattern: ${report.pattern} → ${report.resolvedPattern}`,
         `Version: ${report.version} (paths: ${report.versionInputs.paths.join(', ')}; ` +
             `compression: ${report.versionInputs.compression}; cross-OS: ${report.versionInputs.crossOs})`,
@@ -68708,7 +68719,7 @@ function renderExplain(report) {
 }
 /** Adds the rendered report to the job summary, when the job-summary input allows it. */
 async function writeExplainSummary(report, jobSummary) {
-    if (!jobSummary || !process.env.GITHUB_STEP_SUMMARY) {
+    if (!canWrite(jobSummary)) {
         return;
     }
     summary
