@@ -1,5 +1,6 @@
 import * as core from '@actions/core';
 import { Defaults, Inputs, State } from '../constants';
+import { parseMetadata, parseTags, type ObjectTag } from './objectAttributes';
 import type { IStateProvider } from '../state';
 import {
   getInputAsArray,
@@ -36,6 +37,10 @@ export interface CacheConfig {
   dualCacheStrict: boolean;
   streaming: boolean;
   jobSummary: boolean;
+  /** User metadata written on every object this step saves (Task 1 parsing rules). */
+  metadata: Record<string, string>;
+  /** Object tags written on every object this step saves. */
+  tags: ObjectTag[];
 }
 
 function readDualCacheStrategy(): DualCacheStrategy {
@@ -59,6 +64,10 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     return value === '' ? read() : value === 'true';
   };
   const text = <T extends string>(key: State, read: () => T): T => (persisted(key) as T) || read();
+  const json = <T>(key: State, read: () => T): T => {
+    const value = persisted(key);
+    return value === '' ? read() : (JSON.parse(value) as T);
+  };
   const retryCountState = persisted(State.CacheRetryCount);
 
   return {
@@ -93,6 +102,8 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     dualCacheStrict: bool(State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
     streaming: bool(State.CacheStreaming, () => getInputAsBool(Inputs.Streaming)),
     jobSummary: bool(State.CacheJobSummary, () => getInputAsBool(Inputs.JobSummary, true)),
+    metadata: json(State.CacheMetadata, () => parseMetadata(core.getInput(Inputs.Metadata))),
+    tags: json(State.CacheTags, () => parseTags(core.getInput(Inputs.Tags))),
   };
 }
 
@@ -112,4 +123,6 @@ export function persistCacheConfig(state: IStateProvider, config: CacheConfig): 
   state.setState(State.CacheDualCacheStrict, String(config.dualCacheStrict));
   state.setState(State.CacheStreaming, String(config.streaming));
   state.setState(State.CacheJobSummary, String(config.jobSummary));
+  state.setState(State.CacheMetadata, JSON.stringify(config.metadata));
+  state.setState(State.CacheTags, JSON.stringify(config.tags));
 }

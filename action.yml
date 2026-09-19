@@ -99,6 +99,12 @@ inputs:
     description: 'Stream archives directly between tar and S3 without a temporary archive file (experimental; default false). Uses less disk and can be faster for large caches, but uploads cannot be retried as a whole and objects carry no integrity checksum.'
     required: false
     default: 'false'
+  metadata:
+    description: 'User metadata to store on every saved cache object, one key=value per line (stored as x-amz-meta-*; keys starting with cloud-cache- are reserved; 2 KB total)'
+    required: false
+  tags:
+    description: 'Object tags to set on every saved cache object, one key=value per line (up to 10; ignored with a warning on providers without object tagging)'
+    required: false
 
   # Dual-cache inputs
   dual-cache:

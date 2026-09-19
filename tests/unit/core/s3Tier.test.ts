@@ -764,6 +764,8 @@ describe('buildS3Tier', () => {
     dualCacheStrict: false,
     streaming: false,
     jobSummary: true,
+    metadata: {},
+    tags: [],
   };
   let eventDir: string;
   let env: NodeJS.ProcessEnv;

@@ -27,6 +27,8 @@ export enum Inputs {
   RetryCount = 'retry-count',
   UseFallback = 'use-fallback',
   Streaming = 'streaming',
+  Metadata = 'metadata',
+  Tags = 'tags',
 
   // Prune-only inputs
   OlderThanDays = 'older-than-days',
@@ -76,6 +78,8 @@ export enum State {
   CacheReadOnly = 'CACHE_READ_ONLY',
   CacheCompression = 'CACHE_COMPRESSION',
   CacheStreaming = 'CACHE_STREAMING',
+  CacheMetadata = 'CACHE_METADATA',
+  CacheTags = 'CACHE_TAGS',
 
   // Dual-cache state
   CacheDualCache = 'CACHE_DUAL_CACHE',

@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { Defaults, Inputs } from '../../../src/constants';
+import { Defaults, Inputs, State } from '../../../src/constants';
 import { MemoryState } from '../../support/memoryState';
 
 const inputs = new Map<string, string>();
@@ -43,6 +43,8 @@ describe('readCacheConfig', () => {
       dualCacheStrict: false,
       streaming: false,
       jobSummary: true,
+      metadata: {},
+      tags: [],
     });
     expect(mockWarning).not.toHaveBeenCalled();
   });
@@ -103,5 +105,41 @@ describe('readCacheConfig', () => {
       streaming: true,
     });
     expect(mockWarning).not.toHaveBeenCalled();
+  });
+});
+
+describe('metadata and tags inputs', () => {
+  beforeEach(() => {
+    inputs.clear();
+    mockWarning.mockReset();
+    inputs.set(Inputs.Key, 'Linux-npm-abc');
+    inputs.set(Inputs.Path, '~/.npm\nnode_modules');
+  });
+
+  it('default to empty', () => {
+    const config = readCacheConfig();
+    expect(config.metadata).toEqual({});
+    expect(config.tags).toEqual([]);
+  });
+
+  it('are parsed from the inputs and persisted as JSON for the post step', () => {
+    inputs.set(Inputs.Metadata, 'team=platform\nbuild=42');
+    inputs.set(Inputs.Tags, 'repo=acme/app');
+    const state = new MemoryState();
+    const config = readCacheConfig();
+    persistCacheConfig(state, config);
+    expect(state.getState(State.CacheMetadata)).toBe('{"team":"platform","build":"42"}');
+    expect(state.getState(State.CacheTags)).toBe('[{"Key":"repo","Value":"acme/app"}]');
+
+    inputs.delete(Inputs.Metadata);
+    inputs.delete(Inputs.Tags);
+    const post = readCacheConfig(state);
+    expect(post.metadata).toEqual({ team: 'platform', build: '42' });
+    expect(post.tags).toEqual([{ Key: 'repo', Value: 'acme/app' }]);
+  });
+
+  it('fails on an invalid value', () => {
+    inputs.set(Inputs.Metadata, 'cloud-cache-x=1');
+    expect(() => readCacheConfig()).toThrow('reserved');
   });
 });

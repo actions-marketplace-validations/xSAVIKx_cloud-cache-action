@@ -129,4 +129,14 @@ describe('action manifests', () => {
     const allowedIcons = ['cloud', 'upload-cloud', 'download-cloud', 'trash-2'];
     expect(allowedIcons).toContain(manifest.branding.icon);
   });
+
+  it('declare metadata and tags on the root, restore and save manifests with no default', () => {
+    for (const [, manifest] of [['action.yml', root], ...subActions] as Array<[string, Manifest]>) {
+      for (const name of [Inputs.Metadata, Inputs.Tags]) {
+        expect(manifest.inputs[name]).toBeDefined();
+        expect(manifest.inputs[name].default ?? '').toBe('');
+        expect(manifest.inputs[name].required ?? false).toBe(false);
+      }
+    }
+  });
 });
