@@ -56,6 +56,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 - **Safe Concurrent Saves**: Uploads use a conditional create (`If-None-Match`), so on providers that enforce it, two jobs racing to save the same key never overwrite each other. See [Safe Concurrent Saves](#safe-concurrent-saves).
 - **Cache Pruning**: A dedicated `prune` sub-action deletes cache archives older than a given age from any S3-compatible bucket on a schedule. See [Cache Pruning](#cache-pruning).
 - **Job Summary**: Writes a step summary table after restore and save with the key, hit/source, size and duration (on by default; `job-summary: false` turns it off).
+- **Object Metadata and Tags**: Store custom `x-amz-meta-*` metadata and object tags on every saved cache object with `metadata` and `tags`; the metadata comes back on restore as the `cache-metadata` output. See [Object Metadata and Tags](#object-metadata-and-tags).
 - **Opt-in Streaming (Experimental)**: Stream archives directly between `tar` and S3 without a temporary file, with `streaming: true`. See [Streaming Archives](#streaming-archives-experimental).
 - **Resilient**: Automatic exponential backoff retries on transient network errors.
 
@@ -288,8 +289,9 @@ GitHub tier is tried next, `fail-on-cache-miss: true` fails the step as it would
 only `dual-cache-strict: true` turns the mismatch itself into a step failure. With
 [streaming](#streaming-archives-experimental), the archive is hashed while it is extracted, so a
 mismatch is only detected at the end and files may already have been extracted. Objects saved
-without the checksum — caches from v1.1, streamed saves, or objects a storage provider stripped the
-metadata from — simply skip verification; this is not a breaking change.
+without the checksum — caches from v1.1, streamed saves whose post-upload metadata copy the
+provider rejected, or objects a storage provider stripped the metadata from — simply skip
+verification; this is not a breaking change.
 
 **Garage** does preserve this metadata, so integrity checks apply there like everywhere else.
 
@@ -324,6 +326,44 @@ when `GITHUB_STEP_SUMMARY` is not set.
 
 ---
 
+## Object Metadata and Tags
+
+`metadata` stores user metadata (`x-amz-meta-*`) on every cache object the step saves, and `tags`
+sets object tags, one `key=value` per line. Metadata is returned on restore as the `cache-metadata`
+output (a JSON object). Tags are what bucket lifecycle rules and IAM policies can filter on.
+
+```yaml
+    metadata: |
+      team=platform
+      build=${{ github.run_id }}
+    tags: |
+      cloud-cache=true
+      repo=${{ github.repository }}
+```
+
+Keys starting with `cloud-cache-` are reserved. Metadata is limited to 2 KB in total and tags to
+10. On providers without object tagging the save logs one warning
+(`s3://<bucket> does not support object tags; saved without them.`) and completes without tags.
+Both are best-effort extras: neither can fail the save.
+
+| Provider | Metadata | Tags |
+|---|---|---|
+| MinIO | ✅ verified | ✅ verified |
+| SeaweedFS | ✅ verified | ✅ verified |
+| Garage | ✅ verified | ⚠️ accepted on upload, but Garage implements no tagging API (`GetObjectTagging`/`PutObjectTagging` answer `501 NotImplemented`), so the tags cannot be read back and should be assumed dropped |
+| AWS S3, Cloudflare R2, GCS, B2, Fastly | ✅ | see provider docs |
+
+Verified rows were measured by `tests/integration/objectAttributes.test.ts` against local MinIO,
+SeaweedFS and Garage servers; the last row is not covered by the local integration suite.
+
+With [streaming](#streaming-archives-experimental), the metadata (and the sha256) is attached by a
+copy of the object onto itself right after the upload, since the checksum is only known once the
+stream has finished. A provider that cannot do that copy costs the metadata, not the cache: the
+save logs `Saved s3://<bucket>/<key> but could not attach metadata: <reason>` and succeeds. The
+copy was verified to work on MinIO, SeaweedFS and Garage.
+
+---
+
 ## Streaming Archives (Experimental)
 
 Set `streaming: true` to stream archives directly between `tar` and S3 instead of writing a
@@ -337,10 +377,12 @@ unaffected), uses less disk, and can be faster for large caches — but with the
   extracts the archive as it downloads, so a network or `tar` failure mid-stream becomes a cache
   miss (with a warning) and can leave the workspace partly extracted. File-mode restores download
   to a temporary file first and retry the whole download before extracting anything.
-- **No integrity checksum on upload.** A streamed archive carries no `cloud-cache-sha256`
-  metadata, so a streamed restore of a streamed save skips the integrity check. Restoring a
-  streamed object still verifies its checksum whenever one is present (for example, a cache
-  originally saved in file mode).
+- **The integrity checksum is attached after the upload.** A streamed archive's
+  `cloud-cache-sha256` metadata is written by a copy of the object onto itself once the stream has
+  finished and the digest is known. That copy is best-effort: on a provider that rejects it the
+  save still succeeds, logs `Saved s3://<bucket>/<key> but could not attach metadata: <reason>`,
+  and the object carries no checksum, so restoring it skips the integrity check. See
+  [Object Metadata and Tags](#object-metadata-and-tags).
 
 Streaming is opt-in and defaults to `false`; disabling it (or leaving it unset) is identical to
 v1.1 behavior. It automatically falls back to file mode — logging

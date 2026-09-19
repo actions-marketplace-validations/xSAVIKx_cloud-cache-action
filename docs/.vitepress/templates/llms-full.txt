@@ -72,6 +72,7 @@ Symlinks are archived as links, never followed and re-created as copies. On Wind
    - Checks whether another job already saved the same object first; if so, keeps that job's cache instead of overwriting it. The upload itself is a conditional create, so two saves racing for the same key cannot overwrite each other on providers that enforce `If-None-Match` (verified on AWS S3, MinIO and SeaweedFS); providers that ignore it (verified: Garage; reportedly Google Cloud Storage's S3 interoperability) keep last-writer-wins.
    - Otherwise, archives the specified `path` directories using multi-threaded `zstd` compression.
    - Streams the compressed archive to your S3 bucket using multipart uploads via `@aws-sdk/lib-storage`, tagged with a sha256 checksum for later integrity verification.
+   - Stores any `metadata` as `x-amz-meta-*` user metadata on the saved object and any `tags` as object tags, and the metadata comes back on the next restore as the `cache-metadata` output. Providers without object tagging log one warning and save without tags (verified: SeaweedFS and MinIO store tags; Garage accepts the upload but implements no tagging API, so its tags cannot be read back).
    - Emits diagnostics and completes cleanly without breaking the build on non-fatal network interruptions.
    - Writes a job summary table with the key, saved-to tiers, size and duration, unless `job-summary: false`.
 
