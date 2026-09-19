@@ -34,7 +34,7 @@ const { saveImpl } = await import('../../src/core/saveImpl');
  * What a server did with the tags the save asked for:
  * - `stored`: GetObjectTagging returns them.
  * - `warned`: the upload was rejected for carrying tags, and the documented one-time
- *   "does not support object tags" warning fired instead.
+ *   "could not store object tags" warning fired instead.
  * - `unverifiable`: the upload with the `x-amz-tagging` header was accepted, but the server does
  *   not implement the tagging API, so whether it kept the tags cannot be read back. Garage does
  *   exactly this: PutObject with tags succeeds, GetObjectTagging answers 501 NotImplemented.
@@ -224,7 +224,7 @@ describe('object metadata and tags', () => {
 
       let outcome: TagOutcome = 'missing';
       let tagSet: { Key?: string; Value?: string }[] | undefined;
-      if (saved.log.includes('does not support object tags')) {
+      if (saved.log.includes('could not store object tags')) {
         outcome = 'warned';
       } else {
         try {

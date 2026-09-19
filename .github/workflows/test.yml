@@ -178,6 +178,7 @@ jobs:
           key: ${{ env.KEY }}-v1
           path: ${{ steps.fixture.outputs.paths }}
           streaming: ${{ matrix.streaming }}
+          metrics-file: metrics.jsonl
       - name: Remove the fixture tree
         run: node tests/support/fixtureTree.ts clear
       - name: Restore the exact key
@@ -189,10 +190,15 @@ jobs:
           path: ${{ steps.fixture.outputs.paths }}
           fail-on-cache-miss: true
           streaming: ${{ matrix.streaming }}
+          metrics-file: metrics.jsonl
       - name: Verify the restored tree
         run: |
           test "${{ steps.exact.outputs.cache-hit }}" = "true"
           node tests/support/fixtureTree.ts verify "$RUNNER_TEMP/fixture.json"
+      - name: Verify the metrics file has one line per step
+        run: |
+          cat metrics.jsonl
+          test "$(wc -l < metrics.jsonl)" -eq 2
       - name: Look up by primary-key prefix
         id: prefix
         uses: ./restore
@@ -360,6 +366,18 @@ jobs:
           test "${{ steps.inspect.outputs.would-hit }}" = "true"
           test "${{ steps.inspect.outputs.would-match-key }}" = "$KEY"
           test -n "${{ steps.inspect.outputs.would-match-object }}"
+      - name: Smoke-test the inspect bundle itself
+        env:
+          INPUT_BUCKET: cloud-cache-test
+          INPUT_KEY: ${{ env.KEY }}
+          INPUT_PATH: payload
+          GITHUB_OUTPUT: ${{ runner.temp }}/inspect-bundle-output.txt
+        run: |
+          : > "$GITHUB_OUTPUT"
+          node dist/inspect/index.js
+          cat "$GITHUB_OUTPUT"
+          # core.setOutput writes "<name><<<delimiter>\n<value>\n<delimiter>".
+          test "$(awk '/^would-hit<</ { getline; print; exit }' "$GITHUB_OUTPUT")" = "true"
       - name: Inspect the same key with different paths
         id: inspect-miss
         uses: ./inspect

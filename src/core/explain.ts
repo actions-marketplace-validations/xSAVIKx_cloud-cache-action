@@ -8,7 +8,7 @@ import * as core from '@actions/core';
 import { formatSize, isExactKeyMatch } from '../utils/inputUtils';
 import type { CacheConfig } from './config';
 import { listCandidates, type Candidate, type S3Tier } from './s3Tier';
-import { escapeHtml, flush } from './summary';
+import { canWrite, escapeHtml, flush } from './summary';
 
 /** Tiers a restore would consult, in order. */
 export type ExplainTier = 's3' | 'github';
@@ -232,6 +232,7 @@ export async function buildExplainReport(
 export function renderExplain(report: ExplainReport): string[] {
   const lines = [
     `Cache lookup for key "${report.primaryKey}"`,
+    `Bucket: s3://${report.bucket} (${report.provider})`,
     `Pattern: ${report.pattern} → ${report.resolvedPattern}`,
     `Version: ${report.version} (paths: ${report.versionInputs.paths.join(', ')}; ` +
       `compression: ${report.versionInputs.compression}; cross-OS: ${report.versionInputs.crossOs})`,
@@ -269,7 +270,7 @@ export async function writeExplainSummary(
   report: ExplainReport,
   jobSummary: boolean
 ): Promise<void> {
-  if (!jobSummary || !process.env.GITHUB_STEP_SUMMARY) {
+  if (!canWrite(jobSummary)) {
     return;
   }
   core.summary

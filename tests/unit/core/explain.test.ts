@@ -229,6 +229,7 @@ describe('renderExplain', () => {
     const lines = renderExplain(report);
 
     expect(lines[0]).toBe('Cache lookup for key "npm-xyz"');
+    expect(lines[1]).toBe('Bucket: s3://cache-bucket (minio)');
     expect(lines).toContain(
       `Pattern: ${PATTERN} → octo/app/\${ref}/\${key}/\${version}/\${archive_filename}`
     );
@@ -241,6 +242,16 @@ describe('renderExplain', () => {
     expect(lines.some((line) => line.includes('✗') && line.includes('version other'))).toBe(true);
     expect(lines).toContain('Restore keys: npm-');
     expect(lines.some((line) => line.startsWith('Result: '))).toBe(true);
+  });
+
+  it('renders the GitHub tier first when dual-cache prefers it', async () => {
+    const report = await buildExplainReport(
+      tier,
+      config({ dualCache: true, restorePriority: 'github-first' })
+    );
+
+    expect(report.tiers).toEqual(['github', 's3']);
+    expect(renderExplain(report)).toContain('Tiers: github → s3');
   });
 
   it('renders the cut candidates as one "and N more" line', async () => {

@@ -80,6 +80,20 @@ inputs:
     required: false
     default: '3'
 
+  # Tier inputs: they decide the "Tiers:" line of the report, not what inspect lists.
+  use-fallback:
+    description: 'Fall back to official GitHub Actions Cache service if S3 operations fail or miss'
+    required: false
+    default: 'false'
+  dual-cache:
+    description: 'Cache to both S3-compatible storage and GitHub Actions Cache simultaneously'
+    required: false
+    default: 'false'
+  restore-priority:
+    description: 'Order of cache sources to query during restore: s3-first or github-first'
+    required: false
+    default: 's3-first'
+
   # Job summary input
   job-summary:
     description: 'Write a "Cache lookup explained" job summary section with the full lookup report'
@@ -87,7 +101,7 @@ inputs:
     default: 'true'
 
   max-candidates:
-    description: 'How many candidate objects to list per search (default 20)'
+    description: 'How many candidate objects the report shows per search; every object under the prefix is still listed, as a restore does (default 20)'
     required: false
     default: '20'
 

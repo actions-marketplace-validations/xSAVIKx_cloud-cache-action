@@ -20,13 +20,15 @@ same object as v1.2 did.
     (including the `cloud-cache-sha256` entry the save adds) and tags at 10, with S3's tag
     character set enforced. An invalid value fails the step before any S3 call.
   - Providers without object tagging log one warning
-    (`s3://<bucket> does not support object tags; saved without them.`) and save without tags.
+    (`s3://<bucket> could not store object tags (<reason>); saved without them.`) and save without
+    tags.
     Garage accepts the `Tagging` header but implements no tagging API, so its tags cannot be read
     back and should be assumed dropped.
   - With `streaming: true` the metadata is attached by a copy of the object onto itself after the
     upload; a provider that cannot do that copy costs the metadata, not the cache.
 - **`cache-metadata` output.** The restored object's user metadata as a JSON object, excluding
-  `cloud-cache-*` keys; `{}` when there is none or on a GitHub-tier hit.
+  `cloud-cache-*` keys; `{}` when there is none, on a GitHub-tier hit, or with
+  `lookup-only: true`, which never downloads the object.
 - **A sha256 on streaming saves.** A `streaming: true` save now attaches `cloud-cache-sha256`
   once the stream has finished, so streamed archives get the same integrity check on restore as
   file-mode ones. The attach is best-effort: if it fails, the save still succeeds and the object
@@ -42,8 +44,10 @@ same object as v1.2 did.
   - Outputs: `would-hit`, `would-match-key`, `would-match-object`, `candidate-count`, `report`
     (the full report as JSON, replaced by a `{"truncated":true,…}` summary beyond 64 KB) and
     `cache-storage-provider`.
-  - `max-candidates` (default `20`) caps how many objects each search lists;
-    `fail-on-cache-miss: true` fails the step when nothing would be restored.
+  - `max-candidates` (default `20`) caps how many objects the report shows per search; every
+    object under the prefix is still listed, as a restore does, and the rest are counted as
+    "… and N more not shown". `fail-on-cache-miss: true` fails the step when nothing would be
+    restored.
   - The report lists objects and never `HEAD`s the exact key, so on a provider with eventually
     consistent listings a report taken right after a save can say "would miss" where a restore
     would hit.
@@ -63,6 +67,8 @@ same object as v1.2 did.
 
 ### Changed
 
+- **`cache-etag` on streaming saves.** With `streaming: true` the output now reports the ETag of
+  the object after its metadata copy, rather than the multipart upload's ETag.
 - **Live cloud CI gating.** The Amazon S3, Cloudflare R2 and Google Cloud Storage suites now run on
   `main`, nightly and on manual dispatch, and on a pull request only when it carries the `full-ci`
   label. Every self-hosted-S3 job (Garage, SeaweedFS, MinIO) still runs on every pull request.

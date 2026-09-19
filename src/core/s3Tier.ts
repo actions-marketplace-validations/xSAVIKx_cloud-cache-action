@@ -134,13 +134,26 @@ function isConditionUnsupported(err: unknown): boolean {
   );
 }
 
+/** How the rejected tagging request reads in the warning: its error name, else its message. */
+function taggingRejection(err: unknown): string {
+  if (typeof err !== 'object' || err === null) {
+    return String(err);
+  }
+  const error = err as { name?: string; message?: string };
+  const name = error.name !== undefined && error.name !== 'Error' ? error.name : '';
+  return name || error.message || 'unknown error';
+}
+
 /**
  * Records that this context's server cannot store object tags, so later uploads omit them, and
- * warns about it once per run. Only called once a tag-free upload has actually succeeded.
+ * warns about it once per run, naming what the server answered. Only called once a tag-free
+ * upload has actually succeeded.
  */
-function noteObjectTaggingUnsupported(tier: S3Tier, bucket: string): void {
+function noteObjectTaggingUnsupported(tier: S3Tier, bucket: string, err: unknown): void {
   if (!tier.storage.objectTaggingUnsupported) {
-    core.warning(`s3://${bucket} does not support object tags; saved without them.`);
+    core.warning(
+      `s3://${bucket} could not store object tags (${taggingRejection(err)}); saved without them.`
+    );
   }
   tier.storage.objectTaggingUnsupported = true;
 }
@@ -522,7 +535,7 @@ async function saveToS3FileMode(
         // it fails too, the flag stays unset and the error goes to the 412/501/409 handling below,
         // whose unconditional retry sends the tags again — the 501 was about `If-None-Match`.
         uploaded = await uploadWith(undefined);
-        noteObjectTaggingUnsupported(tier, bucket);
+        noteObjectTaggingUnsupported(tier, bucket, err);
       }
       core.info(`Cache saved to S3 with key: ${primaryKey}`);
       return {
@@ -756,7 +769,7 @@ async function saveToS3Streaming(
         // Only a save that actually succeeded without tags proves the tags were the problem; the
         // same 501 also means an unsupported `If-None-Match`, which that save handles itself.
         if (outcome.kind === 'saved') {
-          noteObjectTaggingUnsupported(tier, bucket);
+          noteObjectTaggingUnsupported(tier, bucket, err);
         }
         return outcome;
       }

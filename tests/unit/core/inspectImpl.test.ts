@@ -264,6 +264,21 @@ describe('inspectImpl', () => {
     });
   });
 
+  it('passes dual-cache and restore-priority through, so the report can list both tiers', async () => {
+    inputs.set(Inputs.DualCache, 'true');
+    inputs.set(Inputs.RestorePriority, 'github-first');
+    mockBuildExplainReport.mockResolvedValue(makeReport({ tiers: ['github', 's3'] }));
+    mockRenderExplain.mockImplementation((report) => [`Tiers: ${report.tiers.join(' → ')}`]);
+
+    await inspectImpl();
+
+    expect(mockBuildExplainReport.mock.calls[0][1]).toMatchObject({
+      dualCache: true,
+      restorePriority: 'github-first',
+    });
+    expect(mockInfo).toHaveBeenCalledWith('Tiers: github → s3');
+  });
+
   it('defaults max-candidates to 20', async () => {
     await inspectImpl();
     expect(mockBuildExplainReport).toHaveBeenCalledWith(tier, expect.anything(), {

@@ -771,7 +771,20 @@ describe('saveToS3', () => {
     expect(mockUploadFile.mock.calls[1][5]?.ifNoneMatch).toBe('*');
     expect(tierWithTags.storage.objectTaggingUnsupported).toBe(true);
     expect(mockWarning).toHaveBeenCalledWith(
-      's3://bucket does not support object tags; saved without them.'
+      's3://bucket could not store object tags (NotImplemented); saved without them.'
+    );
+  });
+
+  it('names the error message in the warning when the error carries no distinct name', async () => {
+    const tierWithTags = tier({ tags: [{ Key: 'a', Value: 'b' }] });
+    mockUploadFile
+      .mockRejectedValueOnce(new Error('x-amz-tagging is not supported'))
+      .mockResolvedValueOnce({ size: 3, etag: 'e' });
+
+    await saveToS3(tierWithTags, 'k', ['node_modules']);
+
+    expect(mockWarning).toHaveBeenCalledWith(
+      's3://bucket could not store object tags (x-amz-tagging is not supported); saved without them.'
     );
   });
 
@@ -1374,7 +1387,7 @@ describe('saveToS3 streaming', () => {
     expect(storage.objectTaggingUnsupported).toBe(true);
     expect(storage.conditionalWriteUnsupported).toBeUndefined();
     expect(mockWarning).toHaveBeenCalledWith(
-      's3://bucket does not support object tags; saved without them.'
+      's3://bucket could not store object tags (NotImplemented); saved without them.'
     );
     expect(mockUploadFile).toHaveBeenCalledTimes(1);
     expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();

@@ -351,8 +351,9 @@ The `inspect` sub-action prints the same report as a step of its own. It only li
 downloads nothing and writes nothing — and turns the answer into outputs: `would-hit`,
 `would-match-key`, `would-match-object`, `candidate-count`, `report` (the full report as JSON,
 replaced by `{"truncated":true,...}` beyond 64 KB) and `cache-storage-provider`. Its
-`max-candidates` input (default `20`) caps how many objects each search lists, and
-`fail-on-cache-miss: true` fails the step when nothing would be restored, which makes a warm cache
+`max-candidates` input (default `20`) caps how many objects the report shows per search — every
+object under the prefix is still listed, as a restore does — and `fail-on-cache-miss: true` fails
+the step when nothing would be restored, which makes a warm cache
 a job dependency for a matrix.
 
 ```yaml
@@ -415,8 +416,12 @@ Writing the file is best-effort: a failure only logs
 ## Object Metadata and Tags
 
 `metadata` stores user metadata (`x-amz-meta-*`) on every cache object the step saves, and `tags`
-sets object tags, one `key=value` per line. Metadata is returned on restore as the `cache-metadata`
-output (a JSON object). Tags are what bucket lifecycle rules and IAM policies can filter on.
+sets object tags, one `key=value` per line; surrounding whitespace is trimmed from each key and
+value. Metadata is returned on restore as the `cache-metadata` output (a JSON object), except with
+`lookup-only: true`, which never downloads the object. Tags are what bucket lifecycle rules and
+IAM policies can filter on. Both inputs live on the main action and on
+`cloud-cache-action/save@v1`: the standalone `restore` sub-action never saves, so it does not take
+them.
 
 ```yaml
     metadata: |
@@ -429,7 +434,8 @@ output (a JSON object). Tags are what bucket lifecycle rules and IAM policies ca
 
 Keys starting with `cloud-cache-` are reserved. Metadata is limited to 2 KB in total and tags to
 10. On providers without object tagging the save logs one warning
-(`s3://<bucket> does not support object tags; saved without them.`) and completes without tags.
+(`s3://<bucket> could not store object tags (<reason>); saved without them.`) and completes without
+tags.
 Both are best-effort extras: neither can fail the save.
 
 | Provider | Metadata | Tags |
@@ -515,7 +521,8 @@ inputs writes the same object as v1.2 did. Every addition is opt-in:
 
 - **[Object metadata and tags](#object-metadata-and-tags)** via the new `metadata` and `tags`
   inputs, with the restored object's metadata exposed as the new `cache-metadata` output (`{}` when
-  there is none). Both are best-effort extras that never fail a save.
+  there is none, on a GitHub-tier hit, or with `lookup-only: true`). Both are best-effort extras
+  that never fail a save.
 - **[Inspecting a cache lookup](#inspecting-a-cache-lookup)**: the new `explain` input (default
   `false`) and the new `inspect` sub-action, neither of which changes what a restore does.
 - **[Metrics and timings](#metrics-and-timings)**: the new `cache-restore-duration-ms`,
@@ -580,7 +587,7 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | `dual-cache-strict`              |    No    |                          `false`                           | Fail the step when either tier errors during restore or save |
 | `streaming`                      |    No    |                          `false`                           | Stream archives directly between `tar` and S3 without a temporary file (experimental; see [Streaming Archives](#streaming-archives-experimental)) |
 | `job-summary`                    |    No    |                           `true`                           | Write a job summary table with the cache keys, hit, source, size and duration |
-| `metadata`                       |    No    |                             —                              | User metadata (`x-amz-meta-*`) for every saved object, one `key=value` per line (see [Object Metadata and Tags](#object-metadata-and-tags)) |
+| `metadata`                       |    No    |                             —                              | User metadata (`x-amz-meta-*`) for every saved object, one `key=value` per line, with surrounding whitespace trimmed (see [Object Metadata and Tags](#object-metadata-and-tags)) |
 | `tags`                           |    No    |                             —                              | Object tags for every saved object, one `key=value` per line (up to 10) |
 | `explain`                        |    No    |                          `false`                           | Log why the lookup hits or misses before restoring (see [Inspecting a cache lookup](#inspecting-a-cache-lookup)) |
 | `metrics-file`                   |    No    |                            `""`                            | Append one JSON line of timings and sizes for this step to this file, relative to the workspace |
@@ -601,7 +608,7 @@ The post step only runs when the job succeeds. To save a cache even when a later
 - `cache-storage-provider`: Resolved storage provider (e.g. `r2`, `gcs`, `aws`).
 - `cache-s3-key`: Full S3 object key inside the bucket.
 - `cache-etag`: ETag checksum of the archive in S3.
-- `cache-metadata`: JSON object of the restored object's user metadata, excluding `cloud-cache-*` keys; `{}` when there is none or on a GitHub-tier hit.
+- `cache-metadata`: JSON object of the restored object's user metadata, excluding `cloud-cache-*` keys; `{}` when there is none, on a GitHub-tier hit, or with `lookup-only: true`, which never downloads the object.
 - `cache-hit-source`: The tier that serviced the hit: `s3`, `github`, or `none`.
 - `cache-saved-sources`: Tiers successfully saved to: `s3`, `github`, or `s3,github`.
 - `cache-restore-duration-ms`: Wall-clock milliseconds the restore step took; `0` when it did not complete.

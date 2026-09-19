@@ -220,13 +220,49 @@ describe('action manifests', () => {
     expect(inspectManifest.outputs?.[Outputs.CacheBytes]).toBeUndefined();
   });
 
-  it('declare metadata and tags on the root, restore and save manifests with no default', () => {
-    for (const [, manifest] of [['action.yml', root], ...subActions] as Array<[string, Manifest]>) {
+  it('declare metadata and tags on the root and save manifests only, with no default', () => {
+    const [, restoreManifest] = subActions[0];
+    const [, saveManifest] = subActions[1];
+    for (const [file, manifest] of [
+      ['action.yml', root],
+      ['save/action.yml', saveManifest],
+    ] as Array<[string, Manifest]>) {
       for (const name of [Inputs.Metadata, Inputs.Tags]) {
-        expect(manifest.inputs[name]).toBeDefined();
+        expect({ file, name, declared: manifest.inputs[name] !== undefined }).toEqual({
+          file,
+          name,
+          declared: true,
+        });
         expect(manifest.inputs[name].default ?? '').toBe('');
         expect(manifest.inputs[name].required ?? false).toBe(false);
       }
+    }
+    // The manifests whose action never saves must not offer inputs that would do nothing.
+    for (const [file, manifest] of [
+      ['restore/action.yml', restoreManifest],
+      ['prune/action.yml', pruneManifest],
+      ['inspect/action.yml', inspectManifest],
+    ] as Array<[string, Manifest]>) {
+      for (const name of [Inputs.Metadata, Inputs.Tags]) {
+        expect({ file, name, declared: manifest.inputs[name] !== undefined }).toEqual({
+          file,
+          name,
+          declared: false,
+        });
+      }
+    }
+  });
+
+  it('declares the tier inputs the inspect report reads on inspect/action.yml', () => {
+    for (const name of [Inputs.DualCache, Inputs.UseFallback, Inputs.RestorePriority]) {
+      expect({ name, declared: inspectManifest.inputs[name] !== undefined }).toEqual({
+        name,
+        declared: true,
+      });
+      expect({ name, description: inspectManifest.inputs[name].description }).toEqual({
+        name,
+        description: root.inputs[name].description,
+      });
     }
   });
 });

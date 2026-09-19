@@ -47,7 +47,7 @@ export function escapeHtml(text: string): string {
 }
 
 /** Only write when the job-summary input is on and GitHub gave us a summary file to write to. */
-function canWrite(jobSummary: boolean): boolean {
+export function canWrite(jobSummary: boolean): boolean {
   return jobSummary && Boolean(process.env.GITHUB_STEP_SUMMARY);
 }
 

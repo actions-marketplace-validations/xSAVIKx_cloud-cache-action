@@ -738,6 +738,11 @@ The report is written to a `Cache lookup explained` log group before the restore
 is best-effort: if it throws, the step logs
 `Could not explain the cache lookup: <reason>` and restores as usual.
 
+`explain: true` pairs well with `lookup-only: true` when you only want the answer and not the
+archive. Note that a `lookup-only` restore stops before the download, so the `cache-metadata`
+output stays `{}` even on a hit: read the metadata from a full restore, or the object itself, when
+you need it.
+
 ### The `inspect` sub-action
 
 ```yaml
@@ -761,21 +766,24 @@ is best-effort: if it throws, the step logs
 
 `inspect` takes the restore inputs that decide the lookup — `path`, `key`, `restore-keys`,
 `enableCrossOsArchive`, `fail-on-cache-miss`, every storage input, `prefix`, `s3-key-pattern`,
-`scoped-to-repository`, `scoped-to-ref`, `retry`, `retry-count`, `job-summary` — plus two of its
-own:
+`scoped-to-repository`, `scoped-to-ref`, `retry`, `retry-count`, `job-summary` — plus
+`use-fallback`, `dual-cache` and `restore-priority`, which decide the report's `Tiers:` line, plus
+two of its own:
 
 | Input | Required | Default | Description |
 | --- | :---: | :---: | --- |
-| `max-candidates` | No | `20` | How many candidate objects to list per search; the rest are counted as "… and N more not shown" |
+| `max-candidates` | No | `20` | How many candidate objects the report shows per search; every object under the prefix is still listed, as a restore does, and the rest are counted as "… and N more not shown" |
 | `metrics-file` | No | `""` | Append one JSON line of timings and sizes for this step to this file (see [Metrics](#metrics)) |
 
-It deliberately has no `lookup-only`, no `use-fallback` and no `dual-cache` inputs: it inspects the
-S3 tier, which is the tier whose key layout is worth explaining.
+It deliberately has no `lookup-only` input: it never downloads anything in the first place. And
+while `use-fallback`, `dual-cache` and `restore-priority` are reported in the `Tiers:` line, only
+the S3 tier is listed and explained — it is the tier whose key layout is worth explaining.
 
 ## A sample report
 
 ```text
 Cache lookup for key "Linux-node-9f2c1a"
+Bucket: s3://my-ci-cache-bucket (r2)
 Pattern: ${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename} → octo/app/${ref}/${key}/${version}/${archive_filename}
 Version: 4d0f1b2c9a7e35f1 (paths: ~/.npm; compression: zstd; cross-OS: false)
 Refs searched: refs/heads/feat → refs/heads/main
@@ -795,6 +803,7 @@ Result: Would restore octo/app/refs%2Fheads%2Fmain/Linux-node-77ef/4d0f1b2c9a7e3
 
 Reading it top to bottom:
 
+- **Bucket** is the bucket the lookup ran against and the resolved storage provider.
 - **Pattern** shows the raw `s3-key-pattern` and the same pattern with the repository and `prefix`
   already substituted; `${ref}`, `${key}`, `${version}` and `${archive_filename}` stay symbolic
   because they vary per search.
