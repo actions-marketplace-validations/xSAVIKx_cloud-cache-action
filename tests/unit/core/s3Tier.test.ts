@@ -65,6 +65,15 @@ const mockUploadFile =
     ) => Promise<{ size: number; etag?: string }>
   >();
 const mockSha256File = jest.fn<(filePath: string) => Promise<string>>();
+const mockReplaceObjectMetadata =
+  jest.fn<
+    (
+      client: S3Client,
+      bucket: string,
+      key: string,
+      metadata: Record<string, string>
+    ) => Promise<void>
+  >();
 const realSha256Tap = () => {
   const hash = crypto.createHash('sha256');
   const stream = new Transform({
@@ -179,6 +188,7 @@ jest.unstable_mockModule('../../../src/storage/operations', () => ({
   uploadFile: mockUploadFile,
   getObjectStream: mockGetObjectStream,
   createStreamUpload: mockCreateStreamUpload,
+  replaceObjectMetadata: mockReplaceObjectMetadata,
 }));
 jest.unstable_mockModule('../../../src/archive/checksum', () => ({
   sha256File: mockSha256File,
@@ -267,6 +277,7 @@ beforeEach(() => {
   mockUploadFile.mockResolvedValue({ size: 2048, etag: '"new"' });
   mockResolveCachePaths.mockResolvedValue({ entries: ['node_modules'], skipped: [] });
   mockSha256File.mockResolvedValue('archive-sha256');
+  mockReplaceObjectMetadata.mockResolvedValue();
   mockCreateSha256Tap.mockImplementation(realSha256Tap);
 
   // Streaming (Task 8) defaults: GNU tar on Linux, a single-command plan, no fallback.
@@ -1131,6 +1142,7 @@ describe('saveToS3 streaming', () => {
     expect(mockInfo).toHaveBeenCalledWith(
       `Another job saved s3://bucket/${objectKey} first; keeping its cache.`
     );
+    expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
   });
 
   it('falls back to a file-mode save, sending no condition, when the server rejects If-None-Match outright', async () => {
@@ -1159,6 +1171,48 @@ describe('saveToS3 streaming', () => {
     expect(mockUploadFile).toHaveBeenCalledTimes(1);
     const [, , , , , options] = mockUploadFile.mock.calls[0];
     expect(options).toEqual({ metadata: { 'cloud-cache-sha256': 'archive-sha256' } });
+  });
+
+  it('attaches the streamed archive sha256 and user metadata after a successful upload', async () => {
+    const archiveBody = Buffer.from('streamed-archive-bytes');
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(archiveBody);
+      return 0;
+    });
+
+    const outcome = await saveToS3(tier({ streaming: true, metadata: { team: 'x' } }), 'k', [
+      'node_modules',
+    ]);
+
+    expect(outcome.kind).toBe('saved');
+    expect(mockReplaceObjectMetadata).toHaveBeenCalledWith(
+      expect.anything(),
+      'bucket',
+      expect.stringContaining('cache.tar.zst'),
+      {
+        team: 'x',
+        'cloud-cache-sha256': crypto.createHash('sha256').update(archiveBody).digest('hex'),
+      }
+    );
+  });
+
+  it('keeps the save successful and warns when the metadata copy fails', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    mockReplaceObjectMetadata.mockRejectedValueOnce(new Error('NotImplemented'));
+
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+
+    expect(outcome.kind).toBe('saved');
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^Saved s3:\/\/bucket\/.* but could not attach metadata: NotImplemented$/
+      )
+    );
   });
 
   it('passes the encoded tags to the streaming upload', async () => {

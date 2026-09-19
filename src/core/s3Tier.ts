@@ -39,6 +39,7 @@ import {
   downloadFile,
   findNewestObject,
   getObjectStream,
+  replaceObjectMetadata,
   uploadFile,
 } from '../storage/operations';
 import { isRetryableStreamError, withRetry } from '../storage/retry';
@@ -507,7 +508,9 @@ function withStderrTail(err: unknown, tail: readonly string[]): Error {
 
 /**
  * Streaming save (Task 8): spawns tar writing the archive to stdout and pipes it, through a
- * byte counter (there is no file to stat for the size), into an S3 multipart upload. Tar and
+ * sha256 tap and a byte counter (there is no file to hash or stat for the size), into an S3
+ * multipart upload. The sha256 and the user metadata are attached afterwards, best-effort, by a
+ * CopyObject onto the saved object. Tar and
  * the upload run concurrently, but the upload body is only ever told the archive is complete
  * (`counter.stream.end()`) once tar has actually closed with exit code 0; any other outcome —
  * a non-zero exit, a signal, or the pipe itself breaking — destroys the body with an error
@@ -546,13 +549,21 @@ async function saveToS3Streaming(
     const stderrTail = captureStderrTail(child.stderr);
     tarClose = waitForExit(child);
     const counter = createByteCounter();
+    // Hashes the archive as it streams past, so the sha256 a restore verifies is known once the
+    // upload finishes (there is no file to hash afterwards).
+    const tap = createSha256Tap();
     // A stream this code may `destroy(err)` itself (below) needs a permanent error listener:
     // pipeline's own listener is only attached while it is in flight, and is gone by the time
     // finalizeBody calls destroy() after pipeline has already settled.
     counter.stream.on('error', () => undefined);
     // `end: false`: tar's stdout reaching EOF must never by itself end the upload body — only a
     // confirmed clean exit (below) may do that.
-    const pipePromise = pipeline(child.stdout as Readable, counter.stream, { end: false });
+    // The tap goes first so `end: false` — which `pipeline` applies to the last stream only —
+    // still governs the upload body alone: the tap is ended by tar's stdout reaching EOF (which
+    // is what finalizes its digest), while `counter.stream` stays under the explicit end below.
+    const pipePromise = pipeline(child.stdout as Readable, tap.stream, counter.stream, {
+      end: false,
+    });
 
     // Captured once and reused (not re-invoked) so every branch below can await the same
     // settlement, whichever of upload.done()/finalizeBody() the outer Promise.all resolved on.
@@ -590,6 +601,20 @@ async function saveToS3Streaming(
     try {
       const [uploaded] = await Promise.all([uploadDone, finalized]);
       core.info(`Cache saved to S3 with key: ${primaryKey}`);
+      // Best-effort, and only on this path: the object is already saved, so a provider that
+      // cannot copy onto itself costs the sha256 and the user metadata, never the cache.
+      const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: tap.digest() };
+      try {
+        await withRetry(() => replaceObjectMetadata(client, bucket, objectKey, metadata), {
+          retries: tier.streamRetries,
+          operationName: `Metadata for ${objectKey}`,
+          shouldRetry: isRetryableStreamError,
+        });
+      } catch (err) {
+        core.warning(
+          `Saved s3://${bucket}/${objectKey} but could not attach metadata: ${toError(err).message}`
+        );
+      }
       return {
         kind: 'saved',
         s3: { objectKey, size: counter.count(), etag: uploaded.ETag },

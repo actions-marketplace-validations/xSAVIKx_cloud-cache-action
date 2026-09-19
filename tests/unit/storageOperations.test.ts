@@ -9,8 +9,14 @@ import {
   UploadPartCommand,
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
+  CopyObjectCommand,
 } from '@aws-sdk/client-s3';
-import { checkObjectExists, downloadFile, findNewestObject } from '../../src/storage/operations';
+import {
+  checkObjectExists,
+  downloadFile,
+  findNewestObject,
+  replaceObjectMetadata,
+} from '../../src/storage/operations';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -559,6 +565,24 @@ describe('Storage Operations', () => {
       await upload.done();
 
       expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(2);
+    });
+  });
+
+  describe('replaceObjectMetadata', () => {
+    it('copies the object onto itself with REPLACE and keeps tags', async () => {
+      s3Mock.on(CopyObjectCommand).resolves({});
+
+      await replaceObjectMetadata(client, 'b', 'a/b c.tar.zst', { 'cloud-cache-sha256': 'x' });
+
+      const input = s3Mock.commandCalls(CopyObjectCommand)[0].args[0].input;
+      expect(input).toMatchObject({
+        Bucket: 'b',
+        Key: 'a/b c.tar.zst',
+        CopySource: 'b/a/b%20c.tar.zst',
+        MetadataDirective: 'REPLACE',
+        TaggingDirective: 'COPY',
+        Metadata: { 'cloud-cache-sha256': 'x' },
+      });
     });
   });
 });

@@ -1,6 +1,7 @@
 import {
   S3Client,
   AbortMultipartUploadCommand,
+  CopyObjectCommand,
   HeadObjectCommand,
   GetObjectCommand,
   ListObjectsV2Command,
@@ -268,7 +269,8 @@ export async function uploadFile(
  * via a byte counter) instead of a file path, and returns the upload instead of awaiting it, so
  * the caller can race it against the archiving process and abort it on failure. Its `done()`
  * aborts a multipart upload that fails, the same way `uploadFile` does.
- * Never sends `Metadata`: a streamed archive's sha256 cannot be known before it finishes.
+ * Metadata is attached afterwards by `replaceObjectMetadata`: a streamed archive's sha256 cannot
+ * be known before it finishes.
  */
 export function createStreamUpload(
   client: S3Client,
@@ -303,4 +305,27 @@ export function createStreamUpload(
     done: () => completeOrAbort(client, bucket, key, upload),
     abort: () => upload.abort(),
   };
+}
+
+/**
+ * Replaces an object's user metadata in place (S3 has no metadata-only update): a CopyObject
+ * onto itself with MetadataDirective REPLACE. Tags are kept. Used after a streamed save, whose
+ * sha256 is only known once the upload has finished.
+ */
+export async function replaceObjectMetadata(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  metadata: Record<string, string>
+): Promise<void> {
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      CopySource: encodeURI(`${bucket}/${key}`),
+      MetadataDirective: 'REPLACE',
+      TaggingDirective: 'COPY',
+      Metadata: metadata,
+    })
+  );
 }
