@@ -204,6 +204,7 @@ jest.unstable_mockModule('../../../src/archive/checksum', () => ({
 const { buildS3Tier, findS3Match, listCandidates, restoreFromS3, saveToS3 } = await import(
   '../../../src/core/s3Tier'
 );
+const { buildExplainReport } = await import('../../../src/core/explain');
 type S3Tier = Awaited<ReturnType<typeof buildS3Tier>>;
 
 const FEATURE = 'refs/heads/feature';
@@ -1737,5 +1738,73 @@ describe('listCandidates', () => {
       storage.bucket,
       `octo/app/${encodeURIComponent(FEATURE)}/k-`
     );
+  });
+});
+
+describe('buildExplainReport against findS3Match', () => {
+  const explainConfig = {
+    primaryKey: 'npm-linux',
+    restoreKeys: ['npm-'],
+    paths: ['~/.npm'],
+    enableCrossOsArchive: false,
+    dualCache: false,
+    useFallback: false,
+    restorePriority: 's3-first' as const,
+  };
+
+  const shapes: Array<[string, () => void]> = [
+    ['an empty bucket', () => undefined],
+    [
+      'the exact key next to a newer sibling under the same prefix',
+      () => {
+        put(FEATURE, 'npm-linux', 1);
+        put(FEATURE, 'npm-linux-v2', 9);
+      },
+    ],
+    [
+      'only a newer sibling under the primary prefix',
+      () => {
+        put(FEATURE, 'npm-linux-v2', 9);
+        put(FEATURE, 'npm-linux-v1', 3);
+      },
+    ],
+    [
+      'a restore-key partial match on a later ref only',
+      () => {
+        put(MAIN, 'npm-other', 4);
+      },
+    ],
+    [
+      'objects of another version only',
+      () => {
+        put(FEATURE, 'npm-linux', 1, 'other-version');
+        put(MAIN, 'npm-linux', 2, 'other-version');
+      },
+    ],
+    [
+      'a hit on the current ref that shadows a newer object on the base ref',
+      () => {
+        put(FEATURE, 'npm-old', 1);
+        put(MAIN, 'npm-linux', 9);
+      },
+    ],
+  ];
+
+  it.each(shapes)('agrees with findS3Match for %s', async (_name, fill) => {
+    fill();
+
+    const match = await findS3Match(tier(), explainConfig.primaryKey, explainConfig.restoreKeys);
+    const report = await buildExplainReport(tier(), explainConfig);
+
+    if (match === undefined) {
+      expect(report.wouldHit).toBeUndefined();
+      return;
+    }
+    expect(report.wouldHit).toEqual({
+      objectKey: match.objectKey,
+      matchedKey: match.matchedKey,
+      exact: match.exact,
+      ref: match.ref || null,
+    });
   });
 });

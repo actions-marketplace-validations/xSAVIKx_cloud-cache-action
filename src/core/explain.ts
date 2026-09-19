@@ -116,19 +116,28 @@ function buildReasons(
   hitSearch?: ExplainSearch
 ): string[] {
   const reasons: string[] = [];
-  for (const keyPrefix of [config.primaryKey, ...config.restoreKeys]) {
-    const searches = report.searches.filter(
-      (searched) => searched.key === keyPrefix && searched !== hitSearch
-    );
-    const empty = searches.filter((searched) => count(searched) === 0);
-    if (empty.length > 0) {
-      const refs = empty.map((searched) => refLabel(searched.ref ?? '')).join(', ');
-      reasons.push(`No objects match key prefix "${keyPrefix}" on ${refs}.`);
+  // A restore key repeating the primary key searches the same (ref, prefix) twice; the lookup
+  // really does list it twice, but one sentence per (key prefix, ref) is enough to explain it.
+  for (const keyPrefix of new Set([config.primaryKey, ...config.restoreKeys])) {
+    const searches = new Map<string, ExplainSearch>();
+    for (const searched of report.searches) {
+      if (searched.key === keyPrefix && searched !== hitSearch) {
+        const ref = refLabel(searched.ref ?? '');
+        if (!searches.has(ref)) {
+          searches.set(ref, searched);
+        }
+      }
     }
-    for (const searched of searches.filter((one) => count(one) > 0)) {
+    const empty = [...searches].filter(([, searched]) => count(searched) === 0);
+    if (empty.length > 0) {
+      reasons.push(
+        `No objects match key prefix "${keyPrefix}" on ${empty.map(([ref]) => ref).join(', ')}.`
+      );
+    }
+    for (const searched of [...searches.values()].filter((one) => count(one) > 0)) {
       const total = count(searched);
       reasons.push(
-        `${total} object${total === 1 ? '' : 's'} match key prefix "${keyPrefix}" on ` +
+        `${total} object${total === 1 ? ' matches' : 's match'} key prefix "${keyPrefix}" on ` +
           `${refLabel(searched.ref ?? '')} but none has version ${report.version} ` +
           `(this job hashes paths ${config.paths.join(', ')} with ${compression}; they were ` +
           `saved with different paths, compression or cross-OS setting).`
@@ -189,10 +198,19 @@ export async function buildExplainReport(
       report.searches.push(searched);
 
       const accepted = all.filter((candidate) => candidate.accepted).sort(byNewest);
-      if (accepted.length > 0) {
-        const matchedKey = accepted[0].key as string;
+      // findS3Match HEADs the exact key before it lists, so the exact object wins over a newer
+      // sibling under the same prefix. The listing already contains it; no HEAD is needed here.
+      const exactHit =
+        keyPrefix === config.primaryKey
+          ? accepted.find(
+              (candidate) => candidate.objectKey === tier.template.objectKey(ref, config.primaryKey)
+            )
+          : undefined;
+      const hit = exactHit ?? accepted[0];
+      if (hit) {
+        const matchedKey = hit.key as string;
         report.wouldHit = {
-          objectKey: accepted[0].objectKey,
+          objectKey: hit.objectKey,
           matchedKey,
           exact: isExactKeyMatch(config.primaryKey, matchedKey),
           ref: ref || null,

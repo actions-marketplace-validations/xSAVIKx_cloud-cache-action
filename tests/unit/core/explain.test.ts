@@ -165,6 +165,44 @@ describe('buildExplainReport', () => {
     );
   });
 
+  it('prefers the exact key over a newer sibling under the same prefix', async () => {
+    listing({
+      [`${FEATURE}|npm-xyz`]: [
+        candidate('npm-xyz', VERSION, 1),
+        candidate('npm-xyz-2', VERSION, 9),
+      ],
+    });
+
+    const report = await buildExplainReport(tier, config());
+
+    expect(report.wouldHit).toEqual({
+      objectKey: template.objectKey(FEATURE, 'npm-xyz'),
+      matchedKey: 'npm-xyz',
+      exact: true,
+      ref: FEATURE,
+    });
+  });
+
+  it('explains a restore key that repeats the primary key only once', async () => {
+    const report = await buildExplainReport(tier, config({ restoreKeys: ['npm-xyz', 'npm-'] }));
+
+    expect(report.reasons.filter((reason) => reason.includes('"npm-xyz"'))).toEqual([
+      `No objects match key prefix "npm-xyz" on ${FEATURE}, ${MAIN}.`,
+    ]);
+  });
+
+  it('says "1 object matches" for a single candidate', async () => {
+    listing({ [`${FEATURE}|npm-`]: [candidate('npm-a', 'other', 1)] });
+
+    const report = await buildExplainReport(tier, config());
+
+    expect(report.reasons).toContain(
+      `1 object matches key prefix "npm-" on ${FEATURE} but none has version ${VERSION} ` +
+        `(this job hashes paths ~/.npm with zstd; they were saved with different paths, ` +
+        `compression or cross-OS setting).`
+    );
+  });
+
   it('truncates the candidate list and says how many were cut', async () => {
     listing({
       [`${FEATURE}|npm-`]: [candidate('npm-a', 'other', 1), candidate('npm-b', 'other', 2)],
@@ -201,7 +239,50 @@ describe('renderExplain', () => {
     expect(lines).toContain('Tiers: s3 → github');
     expect(lines).toContain(`[${FEATURE}] prefix "octo/app/refs%2Fheads%2Ffeat/npm-": 1 candidate`);
     expect(lines.some((line) => line.includes('✗') && line.includes('version other'))).toBe(true);
+    expect(lines).toContain('Restore keys: npm-');
     expect(lines.some((line) => line.startsWith('Result: '))).toBe(true);
+  });
+
+  it('renders the cut candidates as one "and N more" line', async () => {
+    listing({
+      [`${FEATURE}|npm-`]: [candidate('npm-a', 'other', 1), candidate('npm-b', 'other', 2)],
+    });
+
+    const report = await buildExplainReport(tier, config(), { maxCandidates: 1 });
+    const lines = renderExplain(report);
+
+    expect(lines).toContain('  … and 1 more not shown');
+    expect(lines.filter((line) => line.includes('✗'))).toHaveLength(1);
+  });
+
+  it('renders an unscoped lookup without refs', async () => {
+    const unscopedTemplate = compileKeyTemplate({
+      pattern: PATTERN,
+      repository: 'octo/app',
+      prefix: '',
+      scopedToRepository: true,
+      scopedToRef: false,
+      version: VERSION,
+      archiveFilename: zstd.archiveFilename,
+      env: {},
+    });
+    const unscoped = {
+      ...(tier as object),
+      template: unscopedTemplate,
+      restoreRefs: [''],
+    } as unknown as ExplainTier;
+
+    const report = await buildExplainReport(unscoped, config({ restoreKeys: [] }));
+    const lines = renderExplain(report);
+
+    expect(report.refs).toEqual([]);
+    expect(report.searches[0].ref).toBeNull();
+    expect(lines).toContain('Not scoped to a ref');
+    expect(lines).toContain('[unscoped] prefix "octo/app/npm-xyz": 0 candidates');
+    expect(lines.some((line) => line.startsWith('Restore keys:'))).toBe(false);
+    expect(report.reasons).toEqual([
+      'No objects match key prefix "npm-xyz" on the unscoped prefix.',
+    ]);
   });
 });
 

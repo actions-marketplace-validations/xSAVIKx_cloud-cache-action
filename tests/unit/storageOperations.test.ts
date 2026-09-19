@@ -15,6 +15,7 @@ import {
   checkObjectExists,
   downloadFile,
   findNewestObject,
+  listObjects,
   replaceObjectMetadata,
 } from '../../src/storage/operations';
 import * as fs from 'fs';
@@ -84,6 +85,52 @@ describe('Storage Operations', () => {
       s3Mock.on(HeadObjectCommand).rejects(err);
 
       await expect(checkObjectExists(client, 'test-bucket', 'key')).rejects.toThrow('AccessDenied');
+    });
+  });
+
+  describe('listObjects', () => {
+    const object = (key: string | undefined, minute: number) => ({
+      Key: key,
+      Size: 10 + minute,
+      ETag: `"${minute}"`,
+      LastModified: new Date(Date.UTC(2026, 8, 13, 10, minute)),
+    });
+
+    it('returns every object across pages, in server order, skipping keyless entries', async () => {
+      const pages: Record<string, object> = {
+        start: {
+          Contents: [object('p/b', 5), object(undefined, 6), object('p/a', 1)],
+          IsTruncated: true,
+          NextContinuationToken: 't1',
+        },
+        t1: { Contents: [object('p/c', 30)], IsTruncated: false },
+      };
+      s3Mock
+        .on(ListObjectsV2Command)
+        .callsFake(
+          (input: { ContinuationToken?: string }) => pages[input.ContinuationToken ?? 'start']
+        );
+
+      const objects = await listObjects(client, 'bucket', 'p/');
+
+      expect(objects).toEqual([
+        { key: 'p/b', size: 15, etag: '"5"', lastModified: new Date(Date.UTC(2026, 8, 13, 10, 5)) },
+        { key: 'p/a', size: 11, etag: '"1"', lastModified: new Date(Date.UTC(2026, 8, 13, 10, 1)) },
+        {
+          key: 'p/c',
+          size: 40,
+          etag: '"30"',
+          lastModified: new Date(Date.UTC(2026, 8, 13, 10, 30)),
+        },
+      ]);
+      const calls = s3Mock.commandCalls(ListObjectsV2Command).map((call) => call.args[0].input);
+      expect(calls.map((input) => input.ContinuationToken)).toEqual([undefined, 't1']);
+      expect(calls[0]).toMatchObject({ Bucket: 'bucket', Prefix: 'p/', MaxKeys: 1000 });
+    });
+
+    it('returns an empty list for an empty listing', async () => {
+      s3Mock.on(ListObjectsV2Command).resolves({});
+      await expect(listObjects(client, 'bucket', 'p/')).resolves.toEqual([]);
     });
   });
 

@@ -34,8 +34,9 @@ function formatOptionalSize(size?: number): string {
 }
 
 /**
- * core.summary.addTable writes cell text into the HTML table as is, so a key containing `<` or
- * `&` would break the markup. Every cell built from user data goes through this.
+ * core.summary writes the text it is given into the HTML as is, so a key containing `<` or `&`
+ * would break the markup. Every table cell and every `<pre>` line built from user data — here
+ * and in the explain report's summary section — goes through this.
  */
 export function escapeHtml(text: string): string {
   return text
