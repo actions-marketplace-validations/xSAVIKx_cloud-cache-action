@@ -707,6 +707,42 @@ describe('saveToS3', () => {
     );
   });
 
+  it('keeps the tags when the untagged retry hits the same 501, which was about the condition', async () => {
+    const tierWithTags = tier({ tags: [{ Key: 'a', Value: 'b' }] });
+    const notImplemented = () =>
+      Object.assign(new Error('Not Implemented'), {
+        name: 'NotImplemented',
+        $metadata: { httpStatusCode: 501 },
+      });
+    mockUploadFile
+      .mockRejectedValueOnce(notImplemented())
+      .mockRejectedValueOnce(notImplemented())
+      .mockResolvedValueOnce({ size: 2048, etag: '"fallback"' });
+
+    const outcome = await saveToS3(tierWithTags, 'k', ['node_modules']);
+
+    expect(outcome).toMatchObject({ kind: 'saved', s3: { etag: '"fallback"' } });
+    expect(mockUploadFile).toHaveBeenCalledTimes(3);
+    // The unconditional retry sends the tags again: nothing proved the server rejects them.
+    expect(mockUploadFile.mock.calls[2][5]?.tagging).toBe('a=b');
+    expect(mockUploadFile.mock.calls[2][5]?.ifNoneMatch).toBeUndefined();
+    expect(tierWithTags.storage.objectTaggingUnsupported).toBeUndefined();
+    expect(storage.conditionalWriteUnsupported).toBe(true);
+    expect(mockWarning).not.toHaveBeenCalled();
+  });
+
+  it('returns exists, and leaves the tagging flag alone, when a tagged save gets a 412', async () => {
+    const tierWithTags = tier({ tags: [{ Key: 'a', Value: 'b' }] });
+    mockUploadFile.mockRejectedValue(preconditionFailed());
+
+    const outcome = await saveToS3(tierWithTags, 'k', ['node_modules']);
+
+    expect(outcome.kind).toBe('exists');
+    expect(mockUploadFile).toHaveBeenCalledTimes(1);
+    expect(tierWithTags.storage.objectTaggingUnsupported).toBeUndefined();
+    expect(mockWarning).not.toHaveBeenCalled();
+  });
+
   it('warns once, and omits tags upfront, for a later save through the same tier', async () => {
     const tierWithTags = tier({ tags: [{ Key: 'a', Value: 'b' }] });
     mockUploadFile

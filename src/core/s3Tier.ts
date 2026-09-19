@@ -127,6 +127,17 @@ function isConditionUnsupported(err: unknown): boolean {
   );
 }
 
+/**
+ * Records that this context's server cannot store object tags, so later uploads omit them, and
+ * warns about it once per run. Only called once a tag-free upload has actually succeeded.
+ */
+function noteObjectTaggingUnsupported(tier: S3Tier, bucket: string): void {
+  if (!tier.storage.objectTaggingUnsupported) {
+    core.warning(`s3://${bucket} does not support object tags; saved without them.`);
+  }
+  tier.storage.objectTaggingUnsupported = true;
+}
+
 /** True when the server rejected the request because it does not implement object tagging. */
 export function isTaggingUnsupported(err: unknown): boolean {
   if (typeof err !== 'object' || err === null) {
@@ -383,7 +394,9 @@ export async function saveToS3(
  * (non-streaming) save path, and as the fallback a streaming save takes when its server rejects
  * `If-None-Match` outright or its conditional write conflicts (see `saveToS3Streaming`) — reused
  * rather than duplicated, so both paths agree on precondition handling. `retryConflict: false`
- * is passed by that 409 fallback, which already is the one retry.
+ * is passed by that 409 fallback, which already is the one retry, and `omitTags: true` by the
+ * fallback a streamed tagged upload takes, which must not send tags again without latching the
+ * tier-wide flag first.
  */
 async function saveToS3FileMode(
   tier: S3Tier,
@@ -391,7 +404,8 @@ async function saveToS3FileMode(
   entries: readonly string[],
   primaryKey: string,
   uploadChunkSize?: number,
-  retryConflict = true
+  retryConflict = true,
+  omitTags = false
 ): Promise<SaveOutcome> {
   const { client, bucket } = tier.storage;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
@@ -433,10 +447,12 @@ async function saveToS3FileMode(
     };
     const uploadWith = (tagging: string | undefined) =>
       sendCondition ? attemptConditionalUpload(tagging) : attemptUpload(undefined, tagging);
-    // Omitted upfront once this context's server has told us it cannot store tags.
-    const tagging = tier.storage.objectTaggingUnsupported ? undefined : encodeTagging(tier.tags);
+    // Omitted upfront once this context's server has told us it cannot store tags, and when the
+    // caller (a streaming save whose tagged upload was rejected) asks for a tag-free retry.
+    const tagging =
+      tier.storage.objectTaggingUnsupported || omitTags ? undefined : encodeTagging(tier.tags);
     try {
-      let uploaded;
+      let uploaded: { size: number; etag?: string };
       try {
         uploaded = await uploadWith(tagging);
       } catch (err) {
@@ -446,11 +462,11 @@ async function saveToS3FileMode(
         if (tagging === undefined || !isTaggingUnsupported(err)) {
           throw err;
         }
-        if (!tier.storage.objectTaggingUnsupported) {
-          core.warning(`s3://${bucket} does not support object tags; saved without them.`);
-        }
-        tier.storage.objectTaggingUnsupported = true;
+        // Only a retry that actually succeeds without tags proves the tags were the problem. When
+        // it fails too, the flag stays unset and the error goes to the 412/501/409 handling below,
+        // whose unconditional retry sends the tags again — the 501 was about `If-None-Match`.
         uploaded = await uploadWith(undefined);
+        noteObjectTaggingUnsupported(tier, bucket);
       }
       core.info(`Cache saved to S3 with key: ${primaryKey}`);
       return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
@@ -603,11 +619,21 @@ async function saveToS3Streaming(
       // `If-None-Match` does. A streamed body cannot be replayed, so the retry without tags is a
       // file-mode save, which omits them once the flag below is set.
       if (tagging !== undefined && isTaggingUnsupported(err)) {
-        if (!tier.storage.objectTaggingUnsupported) {
-          core.warning(`s3://${bucket} does not support object tags; saved without them.`);
+        const outcome = await saveToS3FileMode(
+          tier,
+          objectKey,
+          entries,
+          primaryKey,
+          uploadChunkSize,
+          true,
+          true
+        );
+        // Only a save that actually succeeded without tags proves the tags were the problem; the
+        // same 501 also means an unsupported `If-None-Match`, which that save handles itself.
+        if (outcome.kind === 'saved') {
+          noteObjectTaggingUnsupported(tier, bucket);
         }
-        tier.storage.objectTaggingUnsupported = true;
-        return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+        return outcome;
       }
       if (sendCondition && isPreconditionFailed(err)) {
         core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
