@@ -83,6 +83,8 @@ function buildTier(workspace: string): S3Tier {
     workspace,
     streamRetries: 0,
     streaming: false,
+    metadata: {},
+    tags: [],
   };
 }
 

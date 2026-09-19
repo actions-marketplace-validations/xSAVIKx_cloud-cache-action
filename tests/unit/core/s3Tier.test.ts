@@ -61,7 +61,7 @@ const mockUploadFile =
       key: string,
       source: string,
       chunkSize?: number,
-      options?: { metadata?: Record<string, string>; ifNoneMatch?: string }
+      options?: { metadata?: Record<string, string>; ifNoneMatch?: string; tagging?: string }
     ) => Promise<{ size: number; etag?: string }>
   >();
 const mockSha256File = jest.fn<(filePath: string) => Promise<string>>();
@@ -126,7 +126,7 @@ const mockCreateStreamUpload =
       key: string,
       body: Readable,
       chunkSize?: number,
-      options?: { ifNoneMatch?: string }
+      options?: { ifNoneMatch?: string; tagging?: string }
     ) => FakeUpload
   >();
 
@@ -221,6 +221,8 @@ const tier = (overrides: Partial<S3Tier> = {}): S3Tier => ({
   workspace: '/ws',
   streamRetries: 0,
   streaming: false,
+  metadata: {},
+  tags: [],
   ...overrides,
 });
 
@@ -240,6 +242,7 @@ beforeEach(() => {
   objects.clear();
   jest.clearAllMocks();
   delete storage.conditionalWriteUnsupported;
+  delete storage.objectTaggingUnsupported;
   mockCheckObjectExists.mockImplementation(async (_client, _bucket, key) => {
     const found = objects.get(key);
     return found ? { key, ...found } : null;
@@ -669,6 +672,81 @@ describe('saveToS3', () => {
     expect(options).toEqual({ metadata: { 'cloud-cache-sha256': 'archive-sha256' } });
   });
 
+  it('sends user metadata next to the sha256 and the encoded tags', async () => {
+    const tierWithTags = tier({
+      metadata: { team: 'x' },
+      tags: [{ Key: 'repo', Value: 'acme/app' }],
+    });
+    await saveToS3(tierWithTags, 'k', ['node_modules']);
+    const options = mockUploadFile.mock.calls[0][5];
+    expect(options?.metadata).toEqual({ team: 'x', 'cloud-cache-sha256': expect.any(String) });
+    expect(options?.tagging).toBe('repo=acme%2Fapp');
+  });
+
+  it('sends no Tagging header when no tags are configured', async () => {
+    await saveToS3(tier(), 'k', ['node_modules']);
+    expect(mockUploadFile.mock.calls[0][5]?.tagging).toBeUndefined();
+  });
+
+  it('retries once without tags when the server does not support tagging, warns, and remembers it', async () => {
+    const tierWithTags = tier({ tags: [{ Key: 'a', Value: 'b' }] });
+    const unsupported = Object.assign(new Error('NotImplemented'), {
+      name: 'NotImplemented',
+      $metadata: { httpStatusCode: 501 },
+    });
+    mockUploadFile.mockRejectedValueOnce(unsupported).mockResolvedValueOnce({ size: 3, etag: 'e' });
+    const outcome = await saveToS3(tierWithTags, 'k', ['node_modules']);
+    expect(outcome.kind).toBe('saved');
+    expect(mockUploadFile).toHaveBeenCalledTimes(2);
+    expect(mockUploadFile.mock.calls[0][5]?.tagging).toBe('a=b');
+    expect(mockUploadFile.mock.calls[1][5]?.tagging).toBeUndefined();
+    expect(mockUploadFile.mock.calls[1][5]?.ifNoneMatch).toBe('*');
+    expect(tierWithTags.storage.objectTaggingUnsupported).toBe(true);
+    expect(mockWarning).toHaveBeenCalledWith(
+      's3://bucket does not support object tags; saved without them.'
+    );
+  });
+
+  it('warns once, and omits tags upfront, for a later save through the same tier', async () => {
+    const tierWithTags = tier({ tags: [{ Key: 'a', Value: 'b' }] });
+    mockUploadFile
+      .mockRejectedValueOnce(
+        Object.assign(new Error('NotImplemented'), {
+          name: 'NotImplemented',
+          $metadata: { httpStatusCode: 501 },
+        })
+      )
+      .mockResolvedValue({ size: 3, etag: 'e' });
+    await saveToS3(tierWithTags, 'k', ['node_modules']);
+    mockUploadFile.mockClear();
+
+    const second = await saveToS3(tierWithTags, 'k2', ['node_modules']);
+
+    expect(second.kind).toBe('saved');
+    expect(mockUploadFile).toHaveBeenCalledTimes(1);
+    expect(mockUploadFile.mock.calls[0][5]?.tagging).toBeUndefined();
+    expect(mockWarning).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not mistake a 501 for the If-None-Match condition for a tagging failure when no tags are set', async () => {
+    mockUploadFile
+      .mockRejectedValueOnce(
+        Object.assign(new Error('Not Implemented'), {
+          name: 'NotImplemented',
+          $metadata: { httpStatusCode: 501 },
+        })
+      )
+      .mockResolvedValueOnce({ size: 2048, etag: '"fallback"' });
+
+    const outcome = await saveToS3(tier(), 'k', ['node_modules']);
+
+    expect(outcome.kind).toBe('saved');
+    expect(storage.conditionalWriteUnsupported).toBe(true);
+    expect(storage.objectTaggingUnsupported).toBeUndefined();
+    expect(mockUploadFile.mock.calls[1][5]?.ifNoneMatch).toBeUndefined();
+    expect(mockWarning).not.toHaveBeenCalled();
+  });
+
   describe('a 409 ConditionalRequestConflict during the conditional write', () => {
     it('retries the conditional upload once and reports saved when the retry succeeds', async () => {
       mockUploadFile
@@ -1045,6 +1123,55 @@ describe('saveToS3 streaming', () => {
     expect(mockUploadFile).toHaveBeenCalledTimes(1);
     const [, , , , , options] = mockUploadFile.mock.calls[0];
     expect(options).toEqual({ metadata: { 'cloud-cache-sha256': 'archive-sha256' } });
+  });
+
+  it('passes the encoded tags to the streaming upload', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('x'));
+      return 0;
+    });
+    await saveToS3(tier({ streaming: true, tags: [{ Key: 'repo', Value: 'acme/app' }] }), 'k', [
+      'node_modules',
+    ]);
+    const [, , , , , options] = mockCreateStreamUpload.mock.calls[0];
+    expect(options).toEqual({ ifNoneMatch: '*', tagging: 'repo=acme%2Fapp' });
+  });
+
+  it('falls back to a file-mode save without tags when the streamed upload server rejects tagging', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    mockCreateStreamUpload.mockReturnValue({
+      done: jest.fn(async () => {
+        throw Object.assign(new Error('NotImplemented'), {
+          name: 'NotImplemented',
+          $metadata: { httpStatusCode: 501 },
+        });
+      }),
+      abort: jest.fn(async () => undefined),
+    });
+
+    const outcome = await saveToS3(
+      tier({ streaming: true, tags: [{ Key: 'a', Value: 'b' }] }),
+      'k',
+      ['node_modules']
+    );
+
+    expect(outcome.kind).toBe('saved');
+    expect(storage.objectTaggingUnsupported).toBe(true);
+    expect(storage.conditionalWriteUnsupported).toBeUndefined();
+    expect(mockWarning).toHaveBeenCalledWith(
+      's3://bucket does not support object tags; saved without them.'
+    );
+    expect(mockUploadFile).toHaveBeenCalledTimes(1);
+    const [, , , , , options] = mockUploadFile.mock.calls[0];
+    expect(options).toEqual({
+      metadata: { 'cloud-cache-sha256': 'archive-sha256' },
+      ifNoneMatch: '*',
+    });
   });
 
   it('falls back to a file-mode save that keeps the condition when the streamed write gets a 409', async () => {

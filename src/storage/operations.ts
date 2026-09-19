@@ -116,6 +116,8 @@ export interface UploadOptions {
    * upload and to CompleteMultipartUploadCommand (where S3 evaluates it) for a multipart one.
    */
   ifNoneMatch?: string;
+  /** Object tags as the `Tagging` header value (see encodeTagging); omitted when undefined. */
+  tagging?: string;
 }
 
 /**
@@ -239,6 +241,7 @@ export async function uploadFile(
       Body: fileStream,
       Metadata: options?.metadata,
       IfNoneMatch: options?.ifNoneMatch,
+      Tagging: options?.tagging,
     },
     partSize,
     queueSize: 4,
@@ -273,7 +276,7 @@ export function createStreamUpload(
   key: string,
   body: Readable,
   uploadChunkSize?: number,
-  options?: Pick<UploadOptions, 'ifNoneMatch'>
+  options?: Pick<UploadOptions, 'ifNoneMatch' | 'tagging'>
 ): StreamUpload {
   const upload = new Upload({
     client,
@@ -282,6 +285,7 @@ export function createStreamUpload(
       Key: key,
       Body: body,
       IfNoneMatch: options?.ifNoneMatch,
+      Tagging: options?.tagging,
     },
     partSize: resolvePartSize(uploadChunkSize),
     queueSize: 4,

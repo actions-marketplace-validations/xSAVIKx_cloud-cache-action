@@ -116,6 +116,8 @@ const tier = (streaming: boolean): S3Tier => ({
   workspace: '/ws',
   streamRetries: 0,
   streaming,
+  metadata: {},
+  tags: [],
 });
 const OBJECT_KEY = 'k/v/cache.tar.zst';
 

@@ -317,6 +317,51 @@ describe('Storage Operations', () => {
       }
     });
 
+    it('forwards Tagging and user metadata to PutObject for a single-part upload', async () => {
+      const { uploadFile } = await import('../../src/storage/operations');
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-upload-'));
+      const smallFile = path.join(tempDir, 'tagged-small.bin');
+      fs.writeFileSync(smallFile, Buffer.alloc(1024, 'a'));
+      s3Mock.on(PutObjectCommand).resolves({ ETag: '"e"' });
+
+      try {
+        await uploadFile(client, 'b', 'k', smallFile, undefined, {
+          metadata: { 'cloud-cache-sha256': 'abc', team: 'x' },
+          tagging: 'repo=acme%2Fapp',
+        });
+        const input = s3Mock.commandCalls(PutObjectCommand)[0].args[0].input;
+        expect(input.Tagging).toBe('repo=acme%2Fapp');
+        expect(input.Metadata).toEqual({ 'cloud-cache-sha256': 'abc', team: 'x' });
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    it('forwards Tagging and metadata to CreateMultipartUpload for a multipart upload', async () => {
+      const { CompleteMultipartUploadCommand } = await import('@aws-sdk/client-s3');
+      const { uploadFile } = await import('../../src/storage/operations');
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-upload-'));
+      const largeFile = path.join(tempDir, 'tagged-large.bin');
+      fs.writeFileSync(largeFile, Buffer.alloc(12 * 1024 * 1024, 'a'));
+      s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
+      s3Mock.on(UploadPartCommand).resolves({ ETag: '"part"' });
+      s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
+
+      try {
+        await uploadFile(client, 'b', 'k', largeFile, undefined, {
+          metadata: { 'cloud-cache-sha256': 'abc' },
+          tagging: 'repo=acme%2Fapp',
+        });
+        const input = s3Mock.commandCalls(CreateMultipartUploadCommand)[0].args[0].input;
+        expect(input.Tagging).toBe('repo=acme%2Fapp');
+        expect(input.Metadata).toEqual({ 'cloud-cache-sha256': 'abc' });
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
     it('passes ifNoneMatch through to CompleteMultipartUploadCommand, where the condition takes effect', async () => {
       const { uploadFile } = await import('../../src/storage/operations');
 
@@ -487,6 +532,20 @@ describe('Storage Operations', () => {
 
       const [call] = s3Mock.commandCalls(PutObjectCommand);
       expect(call.args[0].input).toMatchObject({ IfNoneMatch: '*' });
+    });
+
+    it('passes tagging through when given', async () => {
+      const { createStreamUpload } = await import('../../src/storage/operations');
+      s3Mock.on(PutObjectCommand).resolves({ ETag: '"tagged"' });
+
+      const body = Readable.from([Buffer.alloc(10, 'y')]);
+      const upload = createStreamUpload(client, 'test-bucket', 'tagged-key', body, undefined, {
+        tagging: 'repo=acme%2Fapp',
+      });
+      await upload.done();
+
+      const [call] = s3Mock.commandCalls(PutObjectCommand);
+      expect(call.args[0].input.Tagging).toBe('repo=acme%2Fapp');
     });
 
     it('uses a larger part size for large uploads, same rule as uploadFile', async () => {

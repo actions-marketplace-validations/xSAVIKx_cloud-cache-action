@@ -44,6 +44,7 @@ import {
 import { isRetryableStreamError, withRetry } from '../storage/retry';
 import { formatSize, isExactKeyMatch } from '../utils/inputUtils';
 import type { CacheConfig } from './config';
+import { encodeTagging, SHA256_METADATA_KEY, type ObjectTag } from './objectAttributes';
 import { compileKeyTemplate, type KeyTemplate } from './keyTemplate';
 import { toError, type RestoreOutcome, type SaveOutcome } from './outcomes';
 import { resolveRefCandidates } from './refs';
@@ -66,6 +67,10 @@ export interface S3Tier {
   streamRetries: number;
   /** Stream archives directly between tar and S3 instead of using a temporary file (Task 8). */
   streaming?: boolean;
+  /** User metadata written on every save, next to the action's own sha256 entry. */
+  metadata: Record<string, string>;
+  /** Object tags written on every save, when the provider supports them. */
+  tags: ObjectTag[];
 }
 
 export interface S3Match {
@@ -81,9 +86,6 @@ export interface BuildS3TierOptions {
   /** Compression method the restore step used; detected again when absent or unknown. */
   compression?: string;
 }
-
-/** Object metadata key holding the archive's sha256, verified before extracting on restore. */
-const SHA256_METADATA_KEY = 'cloud-cache-sha256';
 
 /** True when a failed conditional upload means another job already won the write. */
 function isPreconditionFailed(err: unknown): boolean {
@@ -122,6 +124,21 @@ function isConditionUnsupported(err: unknown): boolean {
     error.name !== undefined &&
     CONDITION_REJECTED_NAMES.has(error.name) &&
     /if-none-match/i.test(error.message ?? '')
+  );
+}
+
+/** True when the server rejected the request because it does not implement object tagging. */
+export function isTaggingUnsupported(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const error = err as { name?: string; message?: string; $metadata?: { httpStatusCode?: number } };
+  const message = (error.message ?? '').toLowerCase();
+  return (
+    error.name === 'NotImplemented' ||
+    error.$metadata?.httpStatusCode === 501 ||
+    message.includes('tagging') ||
+    message.includes('x-amz-tagging')
   );
 }
 
@@ -178,6 +195,8 @@ export async function buildS3Tier(
     workspace: getWorkspace(env),
     streamRetries: config.retryEnabled ? config.retryCount : 0,
     streaming: config.streaming,
+    metadata: config.metadata,
+    tags: config.tags,
   };
 }
 
@@ -382,13 +401,14 @@ async function saveToS3FileMode(
     const archiveSize = getArchiveSize(archivePath);
     core.info(`Uploading ${formatSize(archiveSize)} to s3://${bucket}/${objectKey}...`);
     const checksum = await sha256File(archivePath);
-    const metadata = { [SHA256_METADATA_KEY]: checksum };
-    const attemptUpload = (ifNoneMatch: string | undefined) =>
+    const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: checksum };
+    const attemptUpload = (ifNoneMatch: string | undefined, tagging: string | undefined) =>
       withRetry(
         () =>
           uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize, {
             metadata,
             ifNoneMatch,
+            tagging,
           }),
         {
           retries: tier.streamRetries,
@@ -398,9 +418,9 @@ async function saveToS3FileMode(
       );
 
     const sendCondition = !tier.storage.conditionalWriteUnsupported;
-    const attemptConditionalUpload = async () => {
+    const attemptConditionalUpload = async (tagging: string | undefined) => {
       try {
-        return await attemptUpload('*');
+        return await attemptUpload('*', tagging);
       } catch (err) {
         if (!retryConflict || !isConditionalConflict(err)) {
           throw err;
@@ -408,13 +428,30 @@ async function saveToS3FileMode(
         core.info(
           `A concurrent write to s3://${bucket}/${objectKey} conflicted with this upload; retrying it once.`
         );
-        return await attemptUpload('*');
+        return await attemptUpload('*', tagging);
       }
     };
+    const uploadWith = (tagging: string | undefined) =>
+      sendCondition ? attemptConditionalUpload(tagging) : attemptUpload(undefined, tagging);
+    // Omitted upfront once this context's server has told us it cannot store tags.
+    const tagging = tier.storage.objectTaggingUnsupported ? undefined : encodeTagging(tier.tags);
     try {
-      const uploaded = sendCondition
-        ? await attemptConditionalUpload()
-        : await attemptUpload(undefined);
+      let uploaded;
+      try {
+        uploaded = await uploadWith(tagging);
+      } catch (err) {
+        // Checked before the condition outcomes below, and only for a request that carried a
+        // `Tagging` header: a provider without tagging support answers the same 501 NotImplemented
+        // an unsupported `If-None-Match` does.
+        if (tagging === undefined || !isTaggingUnsupported(err)) {
+          throw err;
+        }
+        if (!tier.storage.objectTaggingUnsupported) {
+          core.warning(`s3://${bucket} does not support object tags; saved without them.`);
+        }
+        tier.storage.objectTaggingUnsupported = true;
+        uploaded = await uploadWith(undefined);
+      }
       core.info(`Cache saved to S3 with key: ${primaryKey}`);
       return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
     } catch (err) {
@@ -427,7 +464,10 @@ async function saveToS3FileMode(
           `s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`
         );
         tier.storage.conditionalWriteUnsupported = true;
-        const uploaded = await attemptUpload(undefined);
+        const uploaded = await attemptUpload(
+          undefined,
+          tier.storage.objectTaggingUnsupported ? undefined : tagging
+        );
         core.info(`Cache saved to S3 with key: ${primaryKey}`);
         return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
       }
@@ -523,8 +563,10 @@ async function saveToS3Streaming(
 
     const sendCondition = !tier.storage.conditionalWriteUnsupported;
     core.info(`Streaming upload to s3://${bucket}/${objectKey}...`);
+    const tagging = tier.storage.objectTaggingUnsupported ? undefined : encodeTagging(tier.tags);
     const upload = createStreamUpload(client, bucket, objectKey, counter.stream, uploadChunkSize, {
       ifNoneMatch: sendCondition ? '*' : undefined,
+      tagging,
     });
 
     // Captured once so the failure path below can wait for it to settle.
@@ -556,6 +598,17 @@ async function saveToS3Streaming(
       // the byte count or the final stderr tail below.
       await waitForExitAfterKill(child, tarClose);
       tarReaped = true;
+      // Before the condition outcomes below, and only for a request that carried a `Tagging`
+      // header: a provider without tagging support answers the same 501 an unsupported
+      // `If-None-Match` does. A streamed body cannot be replayed, so the retry without tags is a
+      // file-mode save, which omits them once the flag below is set.
+      if (tagging !== undefined && isTaggingUnsupported(err)) {
+        if (!tier.storage.objectTaggingUnsupported) {
+          core.warning(`s3://${bucket} does not support object tags; saved without them.`);
+        }
+        tier.storage.objectTaggingUnsupported = true;
+        return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+      }
       if (sendCondition && isPreconditionFailed(err)) {
         core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
         return { kind: 'exists', s3: { objectKey, size: counter.count(), etag: undefined } };

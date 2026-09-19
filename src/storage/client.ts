@@ -14,6 +14,8 @@ export interface StorageContext {
    * of failing the same way again.
    */
   conditionalWriteUnsupported?: boolean;
+  /** Set once this context's server has rejected object tagging, so later uploads omit tags. */
+  objectTaggingUnsupported?: boolean;
 }
 
 export interface StorageClientOptions {
