@@ -13,6 +13,7 @@ export interface RestoreSummaryData {
   source: CacheSource;
   size?: number;
   durationMs: number;
+  metadata?: Record<string, string>;
 }
 
 /** Data for the save step's job summary table. `jobSummary` is the resolved job-summary input. */
@@ -81,6 +82,14 @@ export async function writeRestoreSummary(data: RestoreSummaryData): Promise<voi
       formatDuration(data.durationMs),
     ],
   ]);
+  if (data.metadata && Object.keys(data.metadata).length > 0) {
+    core.summary.addDetails(
+      'Object metadata',
+      `<ul>${Object.entries(data.metadata)
+        .map(([k, v]) => `<li><code>${escapeHtml(k)}</code>: ${escapeHtml(v)}</li>`)
+        .join('')}</ul>`
+    );
+  }
   await flush();
 }
 

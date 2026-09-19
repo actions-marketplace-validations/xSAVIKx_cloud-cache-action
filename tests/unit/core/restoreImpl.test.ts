@@ -105,6 +105,7 @@ describe('restoreImpl', () => {
       'cache-s3-key': 'octo/app/Linux-npm-abc/cache.tar.zst',
       'cache-size': '2048',
       'cache-etag': '"etag"',
+      'cache-metadata': '{}',
     });
     expect(state.values.get(State.CacheS3ExactHit)).toBe('true');
     expect(state.values.get(State.CacheMatchedKey)).toBe('Linux-npm-abc');
@@ -140,6 +141,23 @@ describe('restoreImpl', () => {
     expect(state.values.get(State.CacheScopedToRef)).toBe('false');
     expect(state.values.get(State.CacheStorageProvider)).toBe('seaweedfs');
     expect(state.values.get(State.CacheCompression)).toBe('zstd');
+  });
+
+  it('outputs cache-metadata as JSON on an S3 hit and {} otherwise', async () => {
+    mockRestoreFromS3.mockResolvedValueOnce({
+      kind: 'hit',
+      matchedKey: 'Linux-npm-abc',
+      exact: true,
+      s3: { objectKey: 'octo/app/Linux-npm-abc/cache.tar.zst', size: 1, metadata: { team: 'x' } },
+    });
+    await restoreImpl(state, false);
+    expect(outputs.get('cache-metadata')).toBe('{"team":"x"}');
+  });
+
+  it('sets cache-metadata to {} on a miss', async () => {
+    mockRestoreFromS3.mockResolvedValueOnce({ kind: 'miss' });
+    await restoreImpl(state, false);
+    expect(outputs.get('cache-metadata')).toBe('{}');
   });
 
   it('passes lookup-only through', async () => {

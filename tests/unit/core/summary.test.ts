@@ -51,6 +51,39 @@ describe('writeRestoreSummary / writeSaveSummary', () => {
     expect(content).toContain('1.24 s');
   });
 
+  it('adds a details block with escaped metadata when present', async () => {
+    await writeRestoreSummary({
+      jobSummary: true,
+      primaryKey: 'Linux-npm-abc',
+      matchedKey: 'Linux-npm-abc',
+      cacheHit: true,
+      source: 's3',
+      size: 2048,
+      durationMs: 1240,
+      metadata: { team: 'a<b' },
+    });
+
+    const content = fs.readFileSync(summaryFile, 'utf8');
+    expect(content).toContain('<details>');
+    expect(content).toContain('team');
+    expect(content).toContain('a&lt;b');
+  });
+
+  it('does not add a details block when metadata is empty or absent', async () => {
+    await writeRestoreSummary({
+      jobSummary: true,
+      primaryKey: 'Linux-npm-abc',
+      matchedKey: 'Linux-npm-abc',
+      cacheHit: true,
+      source: 's3',
+      durationMs: 100,
+      metadata: {},
+    });
+
+    const content = fs.readFileSync(summaryFile, 'utf8');
+    expect(content).not.toContain('<details>');
+  });
+
   it('renders — for a missing matched key and size on a restore miss', async () => {
     await writeRestoreSummary({
       jobSummary: true,

@@ -53,6 +53,7 @@ export enum Outputs {
   CacheStorageProvider = 'cache-storage-provider',
   CacheS3Key = 'cache-s3-key',
   CacheETag = 'cache-etag',
+  CacheMetadata = 'cache-metadata',
 
   // Dual-cache outputs
   CacheHitSource = 'cache-hit-source',

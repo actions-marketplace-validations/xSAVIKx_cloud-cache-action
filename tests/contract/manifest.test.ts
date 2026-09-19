@@ -130,6 +130,13 @@ describe('action manifests', () => {
     expect(allowedIcons).toContain(manifest.branding.icon);
   });
 
+  it('declares cache-metadata on the root and restore manifests only', () => {
+    expect(root.outputs[Outputs.CacheMetadata]).toBeDefined();
+    expect(subActions[0][1].outputs[Outputs.CacheMetadata]).toBeDefined();
+    expect(subActions[1][1].outputs[Outputs.CacheMetadata]).toBeUndefined();
+    expect(pruneManifest.outputs?.[Outputs.CacheMetadata]).toBeUndefined();
+  });
+
   it('declare metadata and tags on the root, restore and save manifests with no default', () => {
     for (const [, manifest] of [['action.yml', root], ...subActions] as Array<[string, Manifest]>) {
       for (const name of [Inputs.Metadata, Inputs.Tags]) {

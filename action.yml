@@ -145,6 +145,8 @@ outputs:
     description: 'The full S3 object key inside the bucket'
   cache-etag:
     description: 'The ETag checksum of the cache archive in S3'
+  cache-metadata:
+    description: 'JSON object of the restored object''s user metadata (excluding cloud-cache-* keys); {} when none or on a GitHub-tier hit'
   cache-hit-source:
     description: 'The cache tier that serviced the restore hit: s3, github, or none'
   cache-saved-sources:

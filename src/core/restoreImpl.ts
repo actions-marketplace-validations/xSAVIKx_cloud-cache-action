@@ -73,6 +73,7 @@ function reportHit(state: IStateProvider, config: CacheConfig, source: Source, h
       core.setOutput(Outputs.CacheETag, hit.s3.etag);
     }
   }
+  core.setOutput(Outputs.CacheMetadata, JSON.stringify(hit.s3?.metadata ?? {}));
   core.setOutput(Outputs.CacheHit, String(hit.exact));
   core.setOutput(Outputs.CacheMatchedKey, hit.matchedKey);
   core.setOutput(Outputs.CacheHitSource, source);
@@ -108,6 +109,7 @@ export async function restoreImpl(
     core.setOutput(Outputs.CachePrimaryKey, config.primaryKey);
     core.setOutput(Outputs.CacheHit, 'false');
     core.setOutput(Outputs.CacheHitSource, 'none');
+    core.setOutput(Outputs.CacheMetadata, '{}');
 
     const s3 = await setUpS3(config, stateProvider);
     if (config.dualCache) {
@@ -129,6 +131,7 @@ export async function restoreImpl(
             source,
             size: outcome.s3?.size,
             durationMs: Date.now() - start,
+            metadata: outcome.s3?.metadata,
           });
           return matchedKey;
         }

@@ -45,7 +45,12 @@ import {
 import { isRetryableStreamError, withRetry } from '../storage/retry';
 import { formatSize, isExactKeyMatch } from '../utils/inputUtils';
 import type { CacheConfig } from './config';
-import { encodeTagging, SHA256_METADATA_KEY, type ObjectTag } from './objectAttributes';
+import {
+  encodeTagging,
+  SHA256_METADATA_KEY,
+  stripReservedMetadata,
+  type ObjectTag,
+} from './objectAttributes';
 import { compileKeyTemplate, type KeyTemplate } from './keyTemplate';
 import { toError, type RestoreOutcome, type SaveOutcome } from './outcomes';
 import { resolveRefCandidates } from './refs';
@@ -341,6 +346,9 @@ export async function restoreFromS3(
       );
     }
     await extractArchive(archivePath, tier.compression, tier.workspace);
+    if (hit.kind === 'hit' && hit.s3) {
+      hit.s3.metadata = stripReservedMetadata(metadata);
+    }
     return hit;
   } catch (err) {
     return { kind: 'error', error: toError(err) };
@@ -801,6 +809,9 @@ async function restoreFromS3Streaming(
       core.debug(
         `s3://${bucket}/${found.objectKey} has no ${SHA256_METADATA_KEY} metadata; skipping integrity check.`
       );
+    }
+    if (hit.kind === 'hit' && hit.s3) {
+      hit.s3.metadata = stripReservedMetadata(metadata);
     }
     return hit;
   } catch (err) {

@@ -2,6 +2,7 @@ export interface S3ObjectInfo {
   objectKey: string;
   size: number;
   etag?: string;
+  metadata?: Record<string, string>;
 }
 
 /** What one cache tier did during restore. Tiers report failures; orchestrators decide. */
