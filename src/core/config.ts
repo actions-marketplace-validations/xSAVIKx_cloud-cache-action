@@ -43,6 +43,8 @@ export interface CacheConfig {
   tags: ObjectTag[];
   /** Logs the cache lookup report before restoring; never persisted, so the post step never explains. */
   explain: boolean;
+  /** Workspace-relative file that gets one JSON line of metrics per step; '' disables it. */
+  metricsFile: string;
 }
 
 function readDualCacheStrategy(): DualCacheStrategy {
@@ -107,6 +109,7 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     metadata: json(State.CacheMetadata, () => parseMetadata(core.getInput(Inputs.Metadata))),
     tags: json(State.CacheTags, () => parseTags(core.getInput(Inputs.Tags))),
     explain: getInputAsBool(Inputs.Explain),
+    metricsFile: text(State.CacheMetricsFile, () => core.getInput(Inputs.MetricsFile).trim()),
   };
 }
 
@@ -128,4 +131,5 @@ export function persistCacheConfig(state: IStateProvider, config: CacheConfig): 
   state.setState(State.CacheJobSummary, String(config.jobSummary));
   state.setState(State.CacheMetadata, JSON.stringify(config.metadata));
   state.setState(State.CacheTags, JSON.stringify(config.tags));
+  state.setState(State.CacheMetricsFile, config.metricsFile);
 }

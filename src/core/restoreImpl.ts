@@ -1,10 +1,12 @@
 import * as core from '@actions/core';
+import { getWorkspace } from '../archive/paths';
 import { Outputs, State } from '../constants';
 import { NullStateProvider, StateProvider, type IStateProvider } from '../state';
 import { isValidEvent } from '../utils/inputUtils';
 import { persistCacheConfig, readCacheConfig, type CacheConfig } from './config';
 import { buildExplainReport, renderExplain, writeExplainSummary } from './explain';
 import { restoreFromGitHub } from './githubTier';
+import { emitMetrics, type StepMetrics } from './metrics';
 import { toError, type RestoreOutcome } from './outcomes';
 import { buildS3Tier, restoreFromS3, type S3Tier } from './s3Tier';
 import { writeRestoreSummary } from './summary';
@@ -91,6 +93,21 @@ export async function restoreImpl(
   earlyExit?: boolean
 ): Promise<string | undefined> {
   const start = Date.now();
+  let config: CacheConfig | undefined;
+  let provider: string | undefined;
+  // One line per step: a miss that then fails on fail-on-cache-miss must not report twice.
+  let reported = false;
+  const report = (metrics: Omit<StepMetrics, 'timestamp' | 'durationMs'>): void => {
+    if (reported) {
+      return;
+    }
+    reported = true;
+    emitMetrics(
+      { ...metrics, timestamp: new Date().toISOString(), durationMs: Date.now() - start },
+      config?.metricsFile ?? '',
+      getWorkspace()
+    );
+  };
   try {
     if (!isValidEvent()) {
       core.warning(
@@ -98,7 +115,7 @@ export async function restoreImpl(
       );
     }
 
-    const config = readCacheConfig();
+    config = readCacheConfig();
     if (!config.primaryKey) {
       throw new Error('Input required and not supplied: key');
     }
@@ -111,8 +128,14 @@ export async function restoreImpl(
     core.setOutput(Outputs.CacheHit, 'false');
     core.setOutput(Outputs.CacheHitSource, 'none');
     core.setOutput(Outputs.CacheMetadata, '{}');
+    // Set up front and overwritten on success, so every path — including an error handled as a
+    // warning — leaves the timing and size outputs defined.
+    core.setOutput(Outputs.CacheRestoreDurationMs, '0');
+    core.setOutput(Outputs.CacheTransferDurationMs, '0');
+    core.setOutput(Outputs.CacheBytes, '0');
 
     const s3 = await setUpS3(config, stateProvider);
+    provider = s3?.storage.providerConfig.provider;
     if (config.explain && s3) {
       try {
         const report = await buildExplainReport(s3, config);
@@ -138,6 +161,22 @@ export async function restoreImpl(
       switch (outcome.kind) {
         case 'hit': {
           const matchedKey = reportHit(stateProvider, config, source, outcome);
+          const bytes = outcome.s3?.size ?? 0;
+          core.setOutput(Outputs.CacheRestoreDurationMs, String(Date.now() - start));
+          core.setOutput(Outputs.CacheTransferDurationMs, String(outcome.transferMs ?? 0));
+          core.setOutput(Outputs.CacheBytes, String(bytes));
+          report({
+            step: 'restore',
+            provider,
+            key: config.primaryKey,
+            matchedKey,
+            objectKey: outcome.s3?.objectKey,
+            source,
+            bytes,
+            transferDurationMs: outcome.transferMs ?? 0,
+            streaming: config.streaming,
+            outcome: 'hit',
+          });
           await writeRestoreSummary({
             jobSummary: config.jobSummary,
             primaryKey: config.primaryKey,
@@ -170,6 +209,17 @@ export async function restoreImpl(
     }
 
     stateProvider.setState(State.CacheHitSource, 'none');
+    core.setOutput(Outputs.CacheRestoreDurationMs, String(Date.now() - start));
+    report({
+      step: 'restore',
+      provider,
+      key: config.primaryKey,
+      source: 'none',
+      bytes: 0,
+      transferDurationMs: 0,
+      streaming: config.streaming,
+      outcome: 'miss',
+    });
     await writeRestoreSummary({
       jobSummary: config.jobSummary,
       primaryKey: config.primaryKey,
@@ -190,6 +240,14 @@ export async function restoreImpl(
     return undefined;
   } catch (err) {
     core.setFailed(toError(err).message);
+    report({
+      step: 'restore',
+      provider,
+      key: config?.primaryKey,
+      bytes: 0,
+      outcome: 'error',
+      extra: { error: toError(err).message },
+    });
     if (earlyExit) {
       process.exit(1);
     }

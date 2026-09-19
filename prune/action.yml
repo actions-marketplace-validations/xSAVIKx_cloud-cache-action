@@ -72,6 +72,13 @@ inputs:
     required: false
     default: 'false'
 
+  # Metrics input
+  metrics-file:
+    description: 'Append one JSON line of timings and sizes for this step to this file (relative to the workspace)'
+    required: false
+    default: ''
+
+
 outputs:
   pruned-count:
     description: 'The number of cache archives pruned (or that would be pruned in a dry run)'

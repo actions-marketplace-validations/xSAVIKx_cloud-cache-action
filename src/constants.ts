@@ -49,6 +49,9 @@ export enum Inputs {
 
   // Inspect-only input
   MaxCandidates = 'max-candidates',
+
+  // Metrics input
+  MetricsFile = 'metrics-file',
 }
 
 export enum Outputs {
@@ -64,6 +67,12 @@ export enum Outputs {
   // Dual-cache outputs
   CacheHitSource = 'cache-hit-source',
   CacheSavedSources = 'cache-saved-sources',
+
+  // Metrics outputs
+  CacheRestoreDurationMs = 'cache-restore-duration-ms',
+  CacheSaveDurationMs = 'cache-save-duration-ms',
+  CacheTransferDurationMs = 'cache-transfer-duration-ms',
+  CacheBytes = 'cache-bytes',
 
   // Prune-only outputs
   PrunedCount = 'pruned-count',
@@ -104,6 +113,7 @@ export enum State {
   CacheGithubExactHit = 'CACHE_GITHUB_EXACT_HIT',
   CacheHitSource = 'CACHE_HIT_SOURCE',
   CacheJobSummary = 'CACHE_JOB_SUMMARY',
+  CacheMetricsFile = 'CACHE_METRICS_FILE',
 }
 
 export enum Events {

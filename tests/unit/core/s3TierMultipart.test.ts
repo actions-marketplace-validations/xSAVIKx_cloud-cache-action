@@ -174,6 +174,7 @@ describe('saveToS3 multipart uploads that fail to complete', () => {
     expect(outcome).toEqual({
       kind: 'exists',
       s3: { objectKey: OBJECT_KEY, size: ARCHIVE_SIZE, etag: undefined },
+      transferMs: expect.any(Number) as unknown as number,
     });
     expect(s3Mock.commandCalls(UploadPartCommand).length).toBeGreaterThan(1);
     expect(abortedUploadIds()).toEqual(['upload-1']);
@@ -190,6 +191,7 @@ describe('saveToS3 multipart uploads that fail to complete', () => {
     expect(outcome).toEqual({
       kind: 'saved',
       s3: { objectKey: OBJECT_KEY, size: ARCHIVE_SIZE, etag: '"fallback"' },
+      transferMs: expect.any(Number) as unknown as number,
     });
     expect(abortedUploadIds()).toEqual(['upload-1']);
     const completes = s3Mock.commandCalls(CompleteMultipartUploadCommand);
@@ -205,6 +207,7 @@ describe('saveToS3 multipart uploads that fail to complete', () => {
     expect(outcome).toEqual({
       kind: 'exists',
       s3: { objectKey: OBJECT_KEY, size: ARCHIVE_SIZE, etag: undefined },
+      transferMs: expect.any(Number) as unknown as number,
     });
     expect(abortedUploadIds()).toEqual(['upload-1']);
   });

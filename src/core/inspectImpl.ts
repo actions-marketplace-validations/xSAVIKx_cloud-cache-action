@@ -5,11 +5,13 @@
  */
 
 import * as core from '@actions/core';
+import { getWorkspace } from '../archive/paths';
 import { Inputs, Outputs } from '../constants';
 import { parsePositiveInt } from '../utils/inputUtils';
 import { readCacheConfig } from './config';
 import { buildExplainReport, renderExplain, writeExplainSummary } from './explain';
 import type { ExplainReport } from './explain';
+import { emitMetrics } from './metrics';
 import { toError } from './outcomes';
 import { buildS3Tier } from './s3Tier';
 
@@ -33,6 +35,7 @@ function reportJson(report: ExplainReport, candidateCount: number): string {
 }
 
 export async function inspectImpl(): Promise<void> {
+  const start = Date.now();
   try {
     const config = readCacheConfig();
     if (!config.primaryKey) {
@@ -69,6 +72,22 @@ export async function inspectImpl(): Promise<void> {
     core.setOutput(Outputs.WouldMatchObject, report.wouldHit?.objectKey ?? '');
     core.setOutput(Outputs.CandidateCount, String(candidateCount));
     core.setOutput(Outputs.Report, reportJson(report, candidateCount));
+    emitMetrics(
+      {
+        step: 'inspect',
+        timestamp: new Date().toISOString(),
+        provider: tier.storage.providerConfig.provider,
+        key: config.primaryKey,
+        matchedKey: report.wouldHit?.matchedKey,
+        objectKey: report.wouldHit?.objectKey,
+        bytes: 0,
+        durationMs: Date.now() - start,
+        outcome: report.wouldHit ? 'would-hit' : 'would-miss',
+        extra: { candidateCount },
+      },
+      config.metricsFile,
+      getWorkspace()
+    );
 
     if (!report.wouldHit && config.failOnCacheMiss) {
       throw new Error(`No cache would be restored for key "${config.primaryKey}".`);

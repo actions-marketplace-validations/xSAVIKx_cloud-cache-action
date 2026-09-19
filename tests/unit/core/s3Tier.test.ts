@@ -565,7 +565,11 @@ describe('saveToS3', () => {
       5_242_880
     );
     const objectKey = `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`;
-    expect(outcome).toEqual({ kind: 'saved', s3: { objectKey, size: 2048, etag: '"new"' } });
+    expect(outcome).toEqual({
+      kind: 'saved',
+      s3: { objectKey, size: 2048, etag: '"new"' },
+      transferMs: expect.any(Number) as unknown as number,
+    });
     expect(mockResolveCachePaths).toHaveBeenCalledWith(
       ['node_modules', '!node_modules/.cache'],
       '/ws'
@@ -622,6 +626,7 @@ describe('saveToS3', () => {
     expect(outcome).toEqual({
       kind: 'exists',
       s3: { objectKey, size: 2048, etag: undefined },
+      transferMs: expect.any(Number) as unknown as number,
     });
     expect(mockInfo).toHaveBeenCalledWith(
       `Another job saved s3://bucket/${objectKey} first; keeping its cache.`
@@ -649,7 +654,11 @@ describe('saveToS3', () => {
       .mockResolvedValueOnce({ size: 2048, etag: '"fallback"' });
     const outcome = await saveToS3(tier(), 'k', ['node_modules']);
     const objectKey = `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`;
-    expect(outcome).toEqual({ kind: 'saved', s3: { objectKey, size: 2048, etag: '"fallback"' } });
+    expect(outcome).toEqual({
+      kind: 'saved',
+      s3: { objectKey, size: 2048, etag: '"fallback"' },
+      transferMs: expect.any(Number) as unknown as number,
+    });
     expect(mockUploadFile).toHaveBeenCalledTimes(2);
     const [, , , , , firstOptions] = mockUploadFile.mock.calls[0];
     const [, , , , , secondOptions] = mockUploadFile.mock.calls[1];
@@ -912,6 +921,7 @@ describe('buildS3Tier', () => {
     metadata: {},
     tags: [],
     explain: false,
+    metricsFile: '',
   };
   let eventDir: string;
   let env: NodeJS.ProcessEnv;
@@ -1049,6 +1059,7 @@ describe('saveToS3 streaming', () => {
     expect(outcome).toEqual({
       kind: 'saved',
       s3: { objectKey, size: 'streamed-archive-bytes'.length, etag: '"streamed"' },
+      transferMs: expect.any(Number) as unknown as number,
     });
     expect(uploadedBytes?.toString()).toBe('streamed-archive-bytes');
     expect(mockCreateArchive).not.toHaveBeenCalled();
@@ -1159,6 +1170,7 @@ describe('saveToS3 streaming', () => {
     expect(outcome).toEqual({
       kind: 'exists',
       s3: { objectKey, size: 'archive-body'.length, etag: undefined },
+      transferMs: expect.any(Number) as unknown as number,
     });
     expect(mockInfo).toHaveBeenCalledWith(
       `Another job saved s3://bucket/${objectKey} first; keeping its cache.`

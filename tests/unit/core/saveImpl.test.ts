@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { Inputs, State } from '../../../src/constants';
 import type { SaveOutcome } from '../../../src/core/outcomes';
+import type { StepMetrics } from '../../../src/core/metrics';
 import type { S3Tier } from '../../../src/core/s3Tier';
 import { MemoryState } from '../../support/memoryState';
 
@@ -64,12 +65,17 @@ const mockWriteSaveSummary = jest.fn<(data: unknown) => Promise<void>>();
 jest.unstable_mockModule('../../../src/core/summary', () => ({
   writeSaveSummary: mockWriteSaveSummary,
 }));
+const mockEmitMetrics =
+  jest.fn<(metrics: StepMetrics, metricsFile: string, workspace: string) => void>();
+jest.unstable_mockModule('../../../src/core/metrics', () => ({
+  emitMetrics: mockEmitMetrics,
+}));
 
 const { runSave, runSaveOnly, saveImpl } = await import('../../../src/core/saveImpl');
 
 const tier = { storage: { providerConfig: { provider: 'seaweedfs' } } } as unknown as S3Tier;
 const s3Info = { objectKey: 'octo/app/k/cache.tar.zst', size: 2048, etag: '"new"' };
-const s3Saved: SaveOutcome = { kind: 'saved', s3: s3Info };
+const s3Saved: SaveOutcome = { kind: 'saved', s3: s3Info, transferMs: 9 };
 const githubSaved: SaveOutcome = { kind: 'saved' };
 const githubSkipped: SaveOutcome = {
   kind: 'skipped',
@@ -99,6 +105,51 @@ describe('saveImpl', () => {
     process.exitCode = undefined;
   });
 
+  describe('metrics', () => {
+    it('reports the timing and size outputs and emits the save metrics', async () => {
+      inputs.set(Inputs.MetricsFile, 'metrics.jsonl');
+      await saveImpl(state);
+
+      expect(outputs.get('cache-save-duration-ms')).toMatch(/^\d+$/);
+      expect(outputs.get('cache-transfer-duration-ms')).toBe('9');
+      expect(outputs.get('cache-bytes')).toBe('2048');
+      expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
+      const [metrics, metricsFile] = mockEmitMetrics.mock.calls[0];
+      expect(metricsFile).toBe('metrics.jsonl');
+      expect(metrics).toEqual(
+        expect.objectContaining({
+          step: 'save',
+          outcome: 'saved',
+          provider: 'seaweedfs',
+          key: 'Linux-npm-abc',
+          objectKey: s3Info.objectKey,
+          savedTo: ['s3'],
+          bytes: 2048,
+          transferDurationMs: 9,
+        })
+      );
+      expect(metrics.durationMs).toEqual(expect.any(Number));
+    });
+
+    it('reads metrics-file from the state the restore step persisted', async () => {
+      state.setState(State.CacheMetricsFile, 'from-state.jsonl');
+      await saveImpl(state);
+      expect(mockEmitMetrics.mock.calls[0][1]).toBe('from-state.jsonl');
+    });
+
+    it('zeroes the outputs and emits error metrics when the save fails', async () => {
+      mockBuildS3Tier.mockRejectedValue(new Error('no credentials'));
+      await saveImpl(state);
+
+      expect(outputs.get('cache-save-duration-ms')).toBe('0');
+      expect(outputs.get('cache-transfer-duration-ms')).toBe('0');
+      expect(outputs.get('cache-bytes')).toBe('0');
+      expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ step: 'save', outcome: 'error', bytes: 0 })
+      );
+    });
+  });
+
   describe('pure S3 mode', () => {
     it('saves to S3 and reports the object', async () => {
       inputs.set(Inputs.UploadChunkSize, '10485760');
@@ -110,6 +161,9 @@ describe('saveImpl', () => {
         'cache-size': '2048',
         'cache-etag': '"new"',
         'cache-saved-sources': 's3',
+        'cache-save-duration-ms': expect.stringMatching(/^\d+$/) as unknown as string,
+        'cache-transfer-duration-ms': '9',
+        'cache-bytes': '2048',
       });
       expect(mockSaveToGitHub).not.toHaveBeenCalled();
       expect(mockWriteSaveSummary).toHaveBeenCalledWith(

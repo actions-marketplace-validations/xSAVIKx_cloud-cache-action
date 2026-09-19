@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { Inputs, State } from '../../../src/constants';
 import type { RestoreOutcome } from '../../../src/core/outcomes';
+import type { StepMetrics } from '../../../src/core/metrics';
 import type { S3Tier } from '../../../src/core/s3Tier';
 import { MemoryState } from '../../support/memoryState';
 
@@ -65,6 +66,11 @@ jest.unstable_mockModule('../../../src/core/explain', () => ({
   renderExplain: mockRenderExplain,
   writeExplainSummary: mockWriteExplainSummary,
 }));
+const mockEmitMetrics =
+  jest.fn<(metrics: StepMetrics, metricsFile: string, workspace: string) => void>();
+jest.unstable_mockModule('../../../src/core/metrics', () => ({
+  emitMetrics: mockEmitMetrics,
+}));
 
 const { restoreImpl, runRestore, runRestoreOnly } = await import('../../../src/core/restoreImpl');
 
@@ -77,6 +83,7 @@ const s3Hit = (matchedKey: string, exact: boolean): RestoreOutcome => ({
   matchedKey,
   exact,
   s3: { objectKey: `octo/app/${matchedKey}/cache.tar.zst`, size: 2048, etag: '"etag"' },
+  transferMs: 7,
 });
 const githubHit = (matchedKey: string, exact: boolean): RestoreOutcome => ({
   kind: 'hit',
@@ -122,6 +129,9 @@ describe('restoreImpl', () => {
       'cache-size': '2048',
       'cache-etag': '"etag"',
       'cache-metadata': '{}',
+      'cache-restore-duration-ms': expect.stringMatching(/^\d+$/) as unknown as string,
+      'cache-transfer-duration-ms': '7',
+      'cache-bytes': '2048',
     });
     expect(state.values.get(State.CacheS3ExactHit)).toBe('true');
     expect(state.values.get(State.CacheMatchedKey)).toBe('Linux-npm-abc');
@@ -378,6 +388,64 @@ describe('restoreImpl', () => {
     inputs.set(Inputs.Explain, 'true');
     await restoreImpl(state, false);
     expect([...state.values.keys()].some((key) => key.includes('EXPLAIN'))).toBe(false);
+  });
+
+  it('reports the timing and size outputs on a hit and emits its metrics', async () => {
+    mockRestoreFromS3.mockResolvedValue(s3Hit('Linux-npm-abc', true));
+    inputs.set(Inputs.MetricsFile, 'metrics.jsonl');
+
+    await restoreImpl(state, false);
+
+    expect(outputs.get('cache-restore-duration-ms')).toMatch(/^\d+$/);
+    expect(outputs.get('cache-transfer-duration-ms')).toBe('7');
+    expect(outputs.get('cache-bytes')).toBe('2048');
+    expect(state.values.get(State.CacheMetricsFile)).toBe('metrics.jsonl');
+    expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
+    const [metrics, metricsFile] = mockEmitMetrics.mock.calls[0];
+    expect(metricsFile).toBe('metrics.jsonl');
+    expect(metrics).toEqual(
+      expect.objectContaining({
+        step: 'restore',
+        outcome: 'hit',
+        provider: 'seaweedfs',
+        key: 'Linux-npm-abc',
+        matchedKey: 'Linux-npm-abc',
+        objectKey: 'octo/app/Linux-npm-abc/cache.tar.zst',
+        source: 's3',
+        bytes: 2048,
+        transferDurationMs: 7,
+      })
+    );
+    expect(metrics.durationMs).toEqual(expect.any(Number));
+    expect(metrics.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('reports zero bytes and zero transfer time on a miss', async () => {
+    await restoreImpl(state, false);
+    expect(outputs.get('cache-bytes')).toBe('0');
+    expect(outputs.get('cache-transfer-duration-ms')).toBe('0');
+    expect(outputs.get('cache-restore-duration-ms')).toMatch(/^\d+$/);
+    expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
+    expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ step: 'restore', outcome: 'miss', bytes: 0, source: 'none' })
+    );
+  });
+
+  it('emits error metrics and keeps the zeroed outputs when the step fails', async () => {
+    inputs.set(Inputs.MetricsFile, 'metrics.jsonl');
+    mockBuildS3Tier.mockRejectedValue(new Error('no credentials'));
+
+    await restoreImpl(state, false);
+
+    expect(mockSetFailed).toHaveBeenCalledWith('no credentials');
+    expect(outputs.get('cache-bytes')).toBe('0');
+    expect(outputs.get('cache-restore-duration-ms')).toBe('0');
+    expect(outputs.get('cache-transfer-duration-ms')).toBe('0');
+    expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
+    expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ step: 'restore', outcome: 'error', bytes: 0 })
+    );
+    expect(mockEmitMetrics.mock.calls[0][1]).toBe('metrics.jsonl');
   });
 
   it('runs the wrappers without exiting when earlyExit is false', async () => {

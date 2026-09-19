@@ -180,6 +180,46 @@ describe('action manifests', () => {
     expect(inspectManifest.inputs[Inputs.Explain]).toBeUndefined();
   });
 
+  it('declares metrics-file on all five manifests with an empty default', () => {
+    for (const [file, manifest] of allManifests) {
+      const input = manifest.inputs[Inputs.MetricsFile];
+      expect({ file, declared: input !== undefined }).toEqual({ file, declared: true });
+      expect({ file, default: input.default }).toEqual({ file, default: '' });
+      expect({ file, required: input.required ?? false }).toEqual({ file, required: false });
+    }
+  });
+
+  it('declares the metrics outputs on the root, restore and save manifests', () => {
+    for (const name of [
+      Outputs.CacheRestoreDurationMs,
+      Outputs.CacheSaveDurationMs,
+      Outputs.CacheTransferDurationMs,
+      Outputs.CacheBytes,
+    ]) {
+      expect(root.outputs[name]).toBeDefined();
+    }
+    const [, restoreManifest] = subActions[0];
+    const [, saveManifest] = subActions[1];
+    expect(Object.keys(restoreManifest.outputs)).toEqual(
+      expect.arrayContaining([
+        Outputs.CacheRestoreDurationMs,
+        Outputs.CacheTransferDurationMs,
+        Outputs.CacheBytes,
+      ])
+    );
+    expect(restoreManifest.outputs[Outputs.CacheSaveDurationMs]).toBeUndefined();
+    expect(Object.keys(saveManifest.outputs)).toEqual(
+      expect.arrayContaining([
+        Outputs.CacheSaveDurationMs,
+        Outputs.CacheTransferDurationMs,
+        Outputs.CacheBytes,
+      ])
+    );
+    expect(saveManifest.outputs[Outputs.CacheRestoreDurationMs]).toBeUndefined();
+    expect(pruneManifest.outputs?.[Outputs.CacheBytes]).toBeUndefined();
+    expect(inspectManifest.outputs?.[Outputs.CacheBytes]).toBeUndefined();
+  });
+
   it('declare metadata and tags on the root, restore and save manifests with no default', () => {
     for (const [, manifest] of [['action.yml', root], ...subActions] as Array<[string, Manifest]>) {
       for (const name of [Inputs.Metadata, Inputs.Tags]) {

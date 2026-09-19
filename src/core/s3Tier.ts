@@ -362,6 +362,7 @@ export async function restoreFromS3(
   try {
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
     const { client, bucket } = tier.storage;
+    const transferStart = Date.now();
     const { metadata } = await withRetry(
       () => downloadFile(client, bucket, found.objectKey, archivePath),
       {
@@ -370,6 +371,9 @@ export async function restoreFromS3(
         shouldRetry: isRetryableStreamError,
       }
     );
+    if (hit.kind === 'hit') {
+      hit.transferMs = Date.now() - transferStart;
+    }
     const expectedSha256 = metadata?.[SHA256_METADATA_KEY];
     if (expectedSha256) {
       const actualSha256 = await sha256File(archivePath);
@@ -481,6 +485,8 @@ async function saveToS3FileMode(
         }
       );
 
+    const transferStart = Date.now();
+    const transferMs = (): number => Date.now() - transferStart;
     const sendCondition = !tier.storage.conditionalWriteUnsupported;
     const attemptConditionalUpload = async (tagging: string | undefined) => {
       try {
@@ -519,11 +525,19 @@ async function saveToS3FileMode(
         noteObjectTaggingUnsupported(tier, bucket);
       }
       core.info(`Cache saved to S3 with key: ${primaryKey}`);
-      return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
+      return {
+        kind: 'saved',
+        s3: { objectKey, size: uploaded.size, etag: uploaded.etag },
+        transferMs: transferMs(),
+      };
     } catch (err) {
       if (sendCondition && isPreconditionFailed(err)) {
         core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
-        return { kind: 'exists', s3: { objectKey, size: archiveSize, etag: undefined } };
+        return {
+          kind: 'exists',
+          s3: { objectKey, size: archiveSize, etag: undefined },
+          transferMs: transferMs(),
+        };
       }
       if (sendCondition && isConditionUnsupported(err)) {
         core.debug(
@@ -535,7 +549,11 @@ async function saveToS3FileMode(
           tier.storage.objectTaggingUnsupported ? undefined : tagging
         );
         core.info(`Cache saved to S3 with key: ${primaryKey}`);
-        return { kind: 'saved', s3: { objectKey, size: uploaded.size, etag: uploaded.etag } };
+        return {
+          kind: 'saved',
+          s3: { objectKey, size: uploaded.size, etag: uploaded.etag },
+          transferMs: transferMs(),
+        };
       }
       throw err;
     }
@@ -683,6 +701,7 @@ async function saveToS3Streaming(
     finalized.catch(() => undefined);
 
     const sendCondition = !tier.storage.conditionalWriteUnsupported;
+    const transferStart = Date.now();
     core.info(`Streaming upload to s3://${bucket}/${objectKey}...`);
     const tagging = tier.storage.objectTaggingUnsupported ? undefined : encodeTagging(tier.tags);
     const upload = createStreamUpload(client, bucket, objectKey, counter.stream, uploadChunkSize, {
@@ -697,8 +716,9 @@ async function saveToS3Streaming(
       core.info(`Cache saved to S3 with key: ${primaryKey}`);
       const size = counter.count();
       const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: tap.digest() };
+      const transferMs = Date.now() - transferStart;
       const etag = await attachStreamedMetadata(tier, objectKey, metadata, size, uploaded.ETag);
-      return { kind: 'saved', s3: { objectKey, size, etag } };
+      return { kind: 'saved', s3: { objectKey, size, etag }, transferMs };
     } catch (err) {
       // Fail the body first. When the upload stopped reading it, tar's stdout is paused with data
       // still buffered, so it never closes and tar's close never fires; destroying the body makes
@@ -742,7 +762,11 @@ async function saveToS3Streaming(
       }
       if (sendCondition && isPreconditionFailed(err)) {
         core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
-        return { kind: 'exists', s3: { objectKey, size: counter.count(), etag: undefined } };
+        return {
+          kind: 'exists',
+          s3: { objectKey, size: counter.count(), etag: undefined },
+          transferMs: Date.now() - transferStart,
+        };
       }
       if (sendCondition && isConditionUnsupported(err)) {
         core.debug(
@@ -797,6 +821,7 @@ async function restoreFromS3Streaming(
   // Set once the inner catch below has killed tar and waited for it, so the outer catch (which
   // its rethrow also reaches) does not wait a second time.
   let tarReaped = false;
+  const transferStart = Date.now();
   try {
     const stream = await getObjectStream(client, bucket, found.objectKey);
     body = stream.body;
@@ -825,6 +850,9 @@ async function restoreFromS3Streaming(
       const [, code] = await Promise.all([pipePromise, tarClose]);
       if (code !== 0) {
         throw new Error(`tar exited with code ${code}`);
+      }
+      if (hit.kind === 'hit') {
+        hit.transferMs = Date.now() - transferStart;
       }
     } catch (err) {
       // tar's stdout is ignored and its stderr is always being read, so a killed tar closes

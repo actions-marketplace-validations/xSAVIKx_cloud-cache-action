@@ -1,8 +1,10 @@
 import * as core from '@actions/core';
+import { getWorkspace } from '../archive/paths';
 import { Defaults, Inputs, Outputs } from '../constants';
 import { createStorageContext } from '../storage/client';
 import { getInputAsBool, getInputAsInt, parsePositiveInt } from '../utils/inputUtils';
 import { compileKeyTemplate } from './keyTemplate';
+import { emitMetrics } from './metrics';
 import { toError } from './outcomes';
 import { pruneCaches, type PruneTier } from './prune';
 
@@ -20,6 +22,8 @@ export interface PruneConfig {
   scopedToRef: boolean;
   retryEnabled: boolean;
   retryCount: number;
+  /** Workspace-relative file that gets one JSON line of metrics; '' disables it. */
+  metricsFile: string;
 }
 
 /**
@@ -51,6 +55,7 @@ export function readPruneConfig(): PruneConfig {
     scopedToRef: getInputAsBool(Inputs.ScopedToRef, true),
     retryEnabled: getInputAsBool(Inputs.Retry, true),
     retryCount: getInputAsInt(Inputs.RetryCount) ?? Defaults.DefaultRetryCount,
+    metricsFile: core.getInput(Inputs.MetricsFile).trim(),
   };
 }
 
@@ -84,6 +89,7 @@ export function buildPruneTier(
 }
 
 export async function pruneImpl(): Promise<void> {
+  const start = Date.now();
   try {
     const config = readPruneConfig();
     if (config.ref && !config.scopedToRef) {
@@ -107,6 +113,24 @@ export async function pruneImpl(): Promise<void> {
     core.setOutput(Outputs.PrunedCount, String(result.pruned.length));
     core.setOutput(Outputs.PrunedBytes, String(result.prunedBytes));
     core.setOutput(Outputs.KeptCount, String(result.keptCount));
+    emitMetrics(
+      {
+        step: 'prune',
+        timestamp: new Date().toISOString(),
+        provider: tier.storage.providerConfig.provider,
+        bytes: result.prunedBytes,
+        durationMs: Date.now() - start,
+        outcome: 'pruned',
+        extra: {
+          prunedCount: result.pruned.length,
+          prunedBytes: result.prunedBytes,
+          keptCount: result.keptCount,
+          dryRun: result.dryRun,
+        },
+      },
+      config.metricsFile,
+      getWorkspace()
+    );
   } catch (err) {
     core.setFailed(toError(err).message);
   }

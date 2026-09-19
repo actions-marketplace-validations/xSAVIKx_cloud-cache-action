@@ -128,6 +128,13 @@ inputs:
     required: false
     default: 'false'
 
+  # Metrics input
+  metrics-file:
+    description: 'Append one JSON line of timings and sizes for this step to this file (relative to the workspace)'
+    required: false
+    default: ''
+
+
 outputs:
   cache-hit:
     description: 'A boolean value to indicate an exact match was found for the primary key'
@@ -147,6 +154,12 @@ outputs:
     description: 'JSON object of the restored object''s user metadata (excluding cloud-cache-* keys); {} when none or on a GitHub-tier hit'
   cache-hit-source:
     description: 'The cache tier that serviced the restore hit: s3, github, or none'
+  cache-restore-duration-ms:
+    description: 'Wall-clock milliseconds the restore step took; 0 when it did not complete'
+  cache-transfer-duration-ms:
+    description: 'Milliseconds spent on the S3 download or upload alone; 0 when nothing was transferred'
+  cache-bytes:
+    description: 'The size in bytes of the cache archive restored or saved; 0 when none was'
 
 runs:
   using: 'node24'

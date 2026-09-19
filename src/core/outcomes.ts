@@ -5,16 +5,19 @@ export interface S3ObjectInfo {
   metadata?: Record<string, string>;
 }
 
-/** What one cache tier did during restore. Tiers report failures; orchestrators decide. */
+/**
+ * What one cache tier did during restore. Tiers report failures; orchestrators decide.
+ * `transferMs` is the S3 download alone, so a step's metrics can separate it from archiving.
+ */
 export type RestoreOutcome =
-  | { kind: 'hit'; matchedKey: string; exact: boolean; s3?: S3ObjectInfo }
+  | { kind: 'hit'; matchedKey: string; exact: boolean; s3?: S3ObjectInfo; transferMs?: number }
   | { kind: 'miss' }
   | { kind: 'error'; error: Error };
 
-/** What one cache tier did during save. */
+/** What one cache tier did during save. `transferMs` is the S3 upload alone. */
 export type SaveOutcome =
-  | { kind: 'saved'; s3?: S3ObjectInfo }
-  | { kind: 'exists'; s3?: S3ObjectInfo }
+  | { kind: 'saved'; s3?: S3ObjectInfo; transferMs?: number }
+  | { kind: 'exists'; s3?: S3ObjectInfo; transferMs?: number }
   | { kind: 'skipped'; reason: string }
   | { kind: 'error'; error: Error };
 

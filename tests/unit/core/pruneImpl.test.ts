@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import { Inputs } from '../../../src/constants';
+import type { StepMetrics } from '../../../src/core/metrics';
 import type { PruneResult, PruneTier } from '../../../src/core/prune';
 import type { StorageContext } from '../../../src/storage/client';
 
@@ -31,6 +32,11 @@ jest.unstable_mockModule('../../../src/storage/client', () => ({
 jest.unstable_mockModule('../../../src/core/prune', () => ({
   pruneCaches: mockPruneCaches,
 }));
+const mockEmitMetrics =
+  jest.fn<(metrics: StepMetrics, metricsFile: string, workspace: string) => void>();
+jest.unstable_mockModule('../../../src/core/metrics', () => ({
+  emitMetrics: mockEmitMetrics,
+}));
 
 const { pruneImpl, runPrune } = await import('../../../src/core/pruneImpl');
 
@@ -57,6 +63,40 @@ describe('pruneImpl', () => {
 
   afterEach(() => {
     process.exitCode = undefined;
+  });
+
+  it('emits prune metrics with the prune counters', async () => {
+    inputs.set(Inputs.DryRun, 'true');
+    inputs.set(Inputs.MetricsFile, 'metrics.jsonl');
+    mockPruneCaches.mockResolvedValue({
+      pruned: [{ key: 'octo/app/k1/cache.tar.zst', size: 100 }],
+      keptCount: 2,
+      prunedBytes: 100,
+      dryRun: true,
+    });
+
+    await pruneImpl();
+
+    expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
+    const [metrics, metricsFile] = mockEmitMetrics.mock.calls[0];
+    expect(metricsFile).toBe('metrics.jsonl');
+    expect(metrics).toEqual(
+      expect.objectContaining({
+        step: 'prune',
+        outcome: 'pruned',
+        provider: 'seaweedfs',
+        bytes: 100,
+        extra: { prunedCount: 1, prunedBytes: 100, keptCount: 2, dryRun: true },
+      })
+    );
+    expect(metrics.durationMs).toEqual(expect.any(Number));
+  });
+
+  it('emits no metrics when the prune step fails', async () => {
+    mockPruneCaches.mockRejectedValue(new Error('AccessDenied'));
+    await pruneImpl();
+    expect(mockSetFailed).toHaveBeenCalledWith('AccessDenied');
+    expect(mockEmitMetrics).not.toHaveBeenCalled();
   });
 
   it('parses inputs and reports the outputs pruneCaches returns', async () => {

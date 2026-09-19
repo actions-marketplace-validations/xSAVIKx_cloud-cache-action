@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { Inputs } from '../../../src/constants';
 import type { ExplainConfig, ExplainOptions, ExplainReport } from '../../../src/core/explain';
+import type { StepMetrics } from '../../../src/core/metrics';
 import type { S3Tier } from '../../../src/core/s3Tier';
 import type { CacheConfig } from '../../../src/core/config';
 
@@ -42,6 +43,11 @@ jest.unstable_mockModule('../../../src/core/explain', () => ({
   buildExplainReport: mockBuildExplainReport,
   renderExplain: mockRenderExplain,
   writeExplainSummary: mockWriteExplainSummary,
+}));
+const mockEmitMetrics =
+  jest.fn<(metrics: StepMetrics, metricsFile: string, workspace: string) => void>();
+jest.unstable_mockModule('../../../src/core/metrics', () => ({
+  emitMetrics: mockEmitMetrics,
 }));
 
 const { inspectImpl } = await import('../../../src/core/inspectImpl');
@@ -90,6 +96,54 @@ describe('inspectImpl', () => {
 
   afterEach(() => {
     process.exitCode = undefined;
+  });
+
+  it('emits inspect metrics with the candidate count', async () => {
+    inputs.set(Inputs.MetricsFile, 'metrics.jsonl');
+    mockBuildExplainReport.mockResolvedValue(
+      makeReport({
+        wouldHit: {
+          objectKey: 'octo/app/k/v1/cache.tar.zst',
+          matchedKey: 'k',
+          exact: true,
+          ref: null,
+        },
+        searches: [{ ref: null, key: 'k', prefix: 'octo/app/k/', candidates: [], truncated: 0 }],
+      })
+    );
+
+    await inspectImpl();
+
+    expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
+    const [metrics, metricsFile] = mockEmitMetrics.mock.calls[0];
+    expect(metricsFile).toBe('metrics.jsonl');
+    expect(metrics).toEqual(
+      expect.objectContaining({
+        step: 'inspect',
+        outcome: 'would-hit',
+        provider: 'seaweedfs',
+        key: 'k',
+        matchedKey: 'k',
+        objectKey: 'octo/app/k/v1/cache.tar.zst',
+        bytes: 0,
+        extra: { candidateCount: 0 },
+      })
+    );
+    expect(metrics.durationMs).toEqual(expect.any(Number));
+  });
+
+  it('emits would-miss metrics when no cache would be restored', async () => {
+    await inspectImpl();
+    expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ step: 'inspect', outcome: 'would-miss' })
+    );
+  });
+
+  it('emits no metrics when the inspect step fails', async () => {
+    mockBuildS3Tier.mockRejectedValue(new Error('no credentials'));
+    await inspectImpl();
+    expect(mockSetFailed).toHaveBeenCalledWith('no credentials');
+    expect(mockEmitMetrics).not.toHaveBeenCalled();
   });
 
   it('sets the would-hit outputs and the report on a hit', async () => {

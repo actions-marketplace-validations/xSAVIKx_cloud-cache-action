@@ -91,6 +91,13 @@ inputs:
     required: false
     default: '20'
 
+  # Metrics input
+  metrics-file:
+    description: 'Append one JSON line of timings and sizes for this step to this file (relative to the workspace)'
+    required: false
+    default: ''
+
+
 outputs:
   would-hit:
     description: 'true when a restore with these inputs would find a cache'

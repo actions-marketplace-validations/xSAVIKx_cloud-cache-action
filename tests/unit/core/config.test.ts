@@ -46,6 +46,7 @@ describe('readCacheConfig', () => {
       metadata: {},
       tags: [],
       explain: false,
+      metricsFile: '',
     });
     expect(mockWarning).not.toHaveBeenCalled();
   });
