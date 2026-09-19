@@ -46,6 +46,9 @@ export enum Inputs {
 
   // Explain input
   Explain = 'explain',
+
+  // Inspect-only input
+  MaxCandidates = 'max-candidates',
 }
 
 export enum Outputs {
@@ -66,6 +69,13 @@ export enum Outputs {
   PrunedCount = 'pruned-count',
   PrunedBytes = 'pruned-bytes',
   KeptCount = 'kept-count',
+
+  // Inspect-only outputs
+  WouldHit = 'would-hit',
+  WouldMatchKey = 'would-match-key',
+  WouldMatchObject = 'would-match-object',
+  CandidateCount = 'candidate-count',
+  Report = 'report',
 }
 
 export enum State {

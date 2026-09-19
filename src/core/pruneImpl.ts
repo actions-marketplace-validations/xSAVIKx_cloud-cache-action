@@ -1,7 +1,7 @@
 import * as core from '@actions/core';
 import { Defaults, Inputs, Outputs } from '../constants';
 import { createStorageContext } from '../storage/client';
-import { getInputAsBool, getInputAsInt } from '../utils/inputUtils';
+import { getInputAsBool, getInputAsInt, parsePositiveInt } from '../utils/inputUtils';
 import { compileKeyTemplate } from './keyTemplate';
 import { toError } from './outcomes';
 import { pruneCaches, type PruneTier } from './prune';
@@ -20,14 +20,6 @@ export interface PruneConfig {
   scopedToRef: boolean;
   retryEnabled: boolean;
   retryCount: number;
-}
-
-function parseOlderThanDays(raw: string): number {
-  const trimmed = raw.trim();
-  if (!/^[0-9]+$/.test(trimmed) || Number(trimmed) <= 0) {
-    throw new Error(`Input "older-than-days" must be a positive integer; got "${raw}".`);
-  }
-  return Number(trimmed);
 }
 
 /**
@@ -50,7 +42,7 @@ function parseDryRun(raw: string): boolean {
 
 export function readPruneConfig(): PruneConfig {
   return {
-    olderThanDays: parseOlderThanDays(core.getInput(Inputs.OlderThanDays)),
+    olderThanDays: parsePositiveInt(core.getInput(Inputs.OlderThanDays), 'older-than-days'),
     ref: core.getInput(Inputs.Ref).trim(),
     dryRun: parseDryRun(core.getInput(Inputs.DryRun)),
     prefix: core.getInput(Inputs.Prefix),

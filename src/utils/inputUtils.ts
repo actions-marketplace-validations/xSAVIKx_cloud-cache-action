@@ -123,3 +123,15 @@ export function formatSize(bytes?: number): string {
   const size = (bytes / Math.pow(1024, unitIndex)).toFixed(2);
   return `${size} ${units[unitIndex]}`;
 }
+
+/**
+ * Reads an input that must be a positive integer, failing the step on anything else: a typo
+ * silently falling back to a default would hide a wrong-looking result rather than report it.
+ */
+export function parsePositiveInt(raw: string, name: string): number {
+  const trimmed = raw.trim();
+  if (!/^[0-9]+$/.test(trimmed) || Number(trimmed) <= 0) {
+    throw new Error(`Input "${name}" must be a positive integer; got "${raw}".`);
+  }
+  return Number(trimmed);
+}

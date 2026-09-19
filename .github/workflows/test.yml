@@ -319,6 +319,59 @@ jobs:
           count=$(node tests/ci/s3Objects.ts count "$GITHUB_REPOSITORY/" "/$KEY-")
           test "$count" -eq 2
 
+  inspect:
+    name: Inspect sub-action
+    needs: unit
+    runs-on: ubuntu-latest
+    env:
+      AWS_ENDPOINT_URL: http://127.0.0.1:8333
+      AWS_S3_BUCKET: cloud-cache-test
+      AWS_ACCESS_KEY_ID: cloudcacheci
+      AWS_SECRET_ACCESS_KEY: cloudcachecisecret
+      KEY: inspect-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node tests/ci/startSeaweedfs.ts
+      - name: Create two payloads
+        run: |
+          mkdir -p payload other-dir
+          echo "payload-${{ github.run_id }}" > payload/data.txt
+          echo "other-${{ github.run_id }}" > other-dir/data.txt
+      - name: Save the cache
+        uses: ./save
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}
+          path: payload
+      - name: Inspect the same lookup
+        id: inspect
+        uses: ./inspect
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}
+          path: payload
+      - name: Expect the lookup to hit the object that was just saved
+        run: |
+          test "${{ steps.inspect.outputs.would-hit }}" = "true"
+          test "${{ steps.inspect.outputs.would-match-key }}" = "$KEY"
+          test -n "${{ steps.inspect.outputs.would-match-object }}"
+      - name: Inspect the same key with different paths
+        id: inspect-miss
+        uses: ./inspect
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}
+          path: other-dir
+      - name: Expect a miss, since the paths hash to another version
+        run: |
+          test "${{ steps.inspect-miss.outputs.would-hit }}" = "false"
+          test -z "${{ steps.inspect-miss.outputs.would-match-object }}"
+
   dual-cache:
     name: Dual-cache with the live GitHub Actions Cache
     needs: unit
