@@ -540,6 +540,8 @@ npm run build
 npm run docs:build
 ```
 
+Live provider suites (Amazon S3, Cloudflare R2, Google Cloud Storage) run on `main`, nightly and on manual dispatch. To run them on a pull request, add the `full-ci` label; every self-hosted-S3 job still runs on every PR.
+
 ---
 
 ## License & Attribution
