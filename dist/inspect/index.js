@@ -940,15 +940,14 @@ exports.Sha1WebCrypto = Sha1WebCrypto;
 /***/ 3439:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
-var __webpack_unused_export__;
 const { getFlexibleChecksumsPlugin, NODE_RESPONSE_CHECKSUM_VALIDATION_CONFIG_OPTIONS, NODE_REQUEST_CHECKSUM_CALCULATION_CONFIG_OPTIONS, resolveFlexibleChecksumsConfig } = __nccwpck_require__(718);
 const { awsEndpointFunctions, emitWarningIfUnsupportedVersion: emitWarningIfUnsupportedVersion$1, createDefaultUserAgentProvider, NODE_APP_ID_CONFIG_OPTIONS, getAwsRegionExtensionConfiguration, resolveAwsRegionExtensionConfiguration, resolveUserAgentConfig, resolveHostHeaderConfig, getUserAgentPlugin, getHostHeaderPlugin, getLoggerPlugin, getRecursionDetectionPlugin } = __nccwpck_require__(7088);
 const { getThrow200ExceptionsPlugin, getSsecPlugin, getLocationConstraintPlugin, getS3ExpiresMiddlewarePlugin, getCheckContentLengthHeaderPlugin, S3RestXmlProtocol, NODE_USE_ARN_REGION_CONFIG_OPTIONS, NODE_DISABLE_S3_EXPRESS_SESSION_AUTH_OPTIONS, resolveS3Config, getValidateBucketNamePlugin, getAddExpectContinuePlugin, getRegionRedirectMiddlewarePlugin, getS3ExpressPlugin, getS3ExpressHttpSigningPlugin } = __nccwpck_require__(8948);
 const { getHttpAuthSchemeEndpointRuleSetPlugin, DefaultIdentityProviderConfig, getHttpSigningPlugin, createPaginator } = __nccwpck_require__(194);
 const { normalizeProvider, getSmithyContext, makeBuilder, ServiceException, NoOpLogger, emitWarningIfUnsupportedVersion, loadConfigsForDefaultMode, getDefaultExtensionConfiguration, resolveDefaultRuntimeConfig, Client, createWaiter, checkExceptions, WaiterState, createAggregatedClient } = __nccwpck_require__(4610);
 const { Command: $Command } = __nccwpck_require__(4610);
-__webpack_unused_export__ = $Command;
-__webpack_unused_export__ = Client;
+exports.$Command = $Command;
+exports.__Client = Client;
 const { resolveDefaultsModeConfig, loadConfig, NODE_USE_FIPS_ENDPOINT_CONFIG_OPTIONS, NODE_USE_DUALSTACK_ENDPOINT_CONFIG_OPTIONS, NODE_REGION_CONFIG_OPTIONS, NODE_REGION_CONFIG_FILE_OPTIONS, resolveRegionConfig } = __nccwpck_require__(2043);
 const { BinaryDecisionDiagram, EndpointCache, decideEndpoint, customEndpointFunctions, resolveParams, getEndpointPlugin, resolveEndpointConfig } = __nccwpck_require__(1125);
 const { eventStreamSerdeProvider, resolveEventStreamSerdeConfig } = __nccwpck_require__(259);
@@ -6888,713 +6887,713 @@ const RestoreRequestType = {
     SELECT: "SELECT",
 };
 
-__webpack_unused_export__ = AbacStatus$;
-__webpack_unused_export__ = AbortIncompleteMultipartUpload$;
-__webpack_unused_export__ = AbortMultipartUpload$;
-__webpack_unused_export__ = AbortMultipartUploadCommand;
-__webpack_unused_export__ = AbortMultipartUploadOutput$;
-__webpack_unused_export__ = AbortMultipartUploadRequest$;
-__webpack_unused_export__ = AccelerateConfiguration$;
-__webpack_unused_export__ = AccessControlPolicy$;
-__webpack_unused_export__ = AccessControlTranslation$;
-__webpack_unused_export__ = AccessDenied;
-__webpack_unused_export__ = AccessDenied$;
-__webpack_unused_export__ = AnalyticsAndOperator$;
-__webpack_unused_export__ = AnalyticsConfiguration$;
-__webpack_unused_export__ = AnalyticsExportDestination$;
-__webpack_unused_export__ = AnalyticsFilter$;
-__webpack_unused_export__ = AnalyticsS3BucketDestination$;
-__webpack_unused_export__ = AnalyticsS3ExportFileFormat;
-__webpack_unused_export__ = AnnotationConfigurationState;
-__webpack_unused_export__ = AnnotationDirective;
-__webpack_unused_export__ = AnnotationEntry$;
-__webpack_unused_export__ = AnnotationLimitExceeded;
-__webpack_unused_export__ = AnnotationLimitExceeded$;
-__webpack_unused_export__ = AnnotationNameTooLong;
-__webpack_unused_export__ = AnnotationNameTooLong$;
-__webpack_unused_export__ = AnnotationTableConfiguration$;
-__webpack_unused_export__ = AnnotationTableConfigurationResult$;
-__webpack_unused_export__ = AnnotationTableConfigurationUpdates$;
-__webpack_unused_export__ = ArchiveStatus;
-__webpack_unused_export__ = BlockedEncryptionTypes$;
-__webpack_unused_export__ = Bucket$;
-__webpack_unused_export__ = BucketAbacStatus;
-__webpack_unused_export__ = BucketAccelerateStatus;
-__webpack_unused_export__ = BucketAlreadyExists;
-__webpack_unused_export__ = BucketAlreadyExists$;
-__webpack_unused_export__ = BucketAlreadyOwnedByYou;
-__webpack_unused_export__ = BucketAlreadyOwnedByYou$;
-__webpack_unused_export__ = BucketCannedACL;
-__webpack_unused_export__ = BucketInfo$;
-__webpack_unused_export__ = BucketLifecycleConfiguration$;
-__webpack_unused_export__ = BucketLocationConstraint;
-__webpack_unused_export__ = BucketLoggingStatus$;
-__webpack_unused_export__ = BucketLogsPermission;
-__webpack_unused_export__ = BucketNamespace;
-__webpack_unused_export__ = BucketType;
-__webpack_unused_export__ = BucketVersioningStatus;
-__webpack_unused_export__ = CORSConfiguration$;
-__webpack_unused_export__ = CORSRule$;
-__webpack_unused_export__ = CSVInput$;
-__webpack_unused_export__ = CSVOutput$;
-__webpack_unused_export__ = Checksum$;
-__webpack_unused_export__ = ChecksumAlgorithm;
-__webpack_unused_export__ = ChecksumMode;
-__webpack_unused_export__ = ChecksumType;
-__webpack_unused_export__ = CommonPrefix$;
-__webpack_unused_export__ = CompleteMultipartUpload$;
-__webpack_unused_export__ = CompleteMultipartUploadCommand;
-__webpack_unused_export__ = CompleteMultipartUploadOutput$;
-__webpack_unused_export__ = CompleteMultipartUploadRequest$;
-__webpack_unused_export__ = CompletedMultipartUpload$;
-__webpack_unused_export__ = CompletedPart$;
-__webpack_unused_export__ = CompressionType;
-__webpack_unused_export__ = Condition$;
-__webpack_unused_export__ = ContinuationEvent$;
-__webpack_unused_export__ = CopyObject$;
-__webpack_unused_export__ = CopyObjectCommand;
-__webpack_unused_export__ = CopyObjectOutput$;
-__webpack_unused_export__ = CopyObjectRequest$;
-__webpack_unused_export__ = CopyObjectResult$;
-__webpack_unused_export__ = CopyPartResult$;
-__webpack_unused_export__ = CreateBucket$;
-__webpack_unused_export__ = CreateBucketCommand;
-__webpack_unused_export__ = CreateBucketConfiguration$;
-__webpack_unused_export__ = CreateBucketMetadataConfiguration$;
-__webpack_unused_export__ = CreateBucketMetadataConfigurationCommand;
-__webpack_unused_export__ = CreateBucketMetadataConfigurationRequest$;
-__webpack_unused_export__ = CreateBucketMetadataTableConfiguration$;
-__webpack_unused_export__ = CreateBucketMetadataTableConfigurationCommand;
-__webpack_unused_export__ = CreateBucketMetadataTableConfigurationRequest$;
-__webpack_unused_export__ = CreateBucketOutput$;
-__webpack_unused_export__ = CreateBucketRequest$;
-__webpack_unused_export__ = CreateMultipartUpload$;
-__webpack_unused_export__ = CreateMultipartUploadCommand;
-__webpack_unused_export__ = CreateMultipartUploadOutput$;
-__webpack_unused_export__ = CreateMultipartUploadRequest$;
-__webpack_unused_export__ = CreateSession$;
-__webpack_unused_export__ = CreateSessionCommand;
-__webpack_unused_export__ = CreateSessionOutput$;
-__webpack_unused_export__ = CreateSessionRequest$;
-__webpack_unused_export__ = DataRedundancy;
-__webpack_unused_export__ = DefaultRetention$;
-__webpack_unused_export__ = Delete$;
-__webpack_unused_export__ = DeleteBucket$;
-__webpack_unused_export__ = DeleteBucketAnalyticsConfiguration$;
-__webpack_unused_export__ = DeleteBucketAnalyticsConfigurationCommand;
-__webpack_unused_export__ = DeleteBucketAnalyticsConfigurationRequest$;
-__webpack_unused_export__ = DeleteBucketCommand;
-__webpack_unused_export__ = DeleteBucketCors$;
-__webpack_unused_export__ = DeleteBucketCorsCommand;
-__webpack_unused_export__ = DeleteBucketCorsRequest$;
-__webpack_unused_export__ = DeleteBucketEncryption$;
-__webpack_unused_export__ = DeleteBucketEncryptionCommand;
-__webpack_unused_export__ = DeleteBucketEncryptionRequest$;
-__webpack_unused_export__ = DeleteBucketIntelligentTieringConfiguration$;
-__webpack_unused_export__ = DeleteBucketIntelligentTieringConfigurationCommand;
-__webpack_unused_export__ = DeleteBucketIntelligentTieringConfigurationRequest$;
-__webpack_unused_export__ = DeleteBucketInventoryConfiguration$;
-__webpack_unused_export__ = DeleteBucketInventoryConfigurationCommand;
-__webpack_unused_export__ = DeleteBucketInventoryConfigurationRequest$;
-__webpack_unused_export__ = DeleteBucketLifecycle$;
-__webpack_unused_export__ = DeleteBucketLifecycleCommand;
-__webpack_unused_export__ = DeleteBucketLifecycleRequest$;
-__webpack_unused_export__ = DeleteBucketMetadataConfiguration$;
-__webpack_unused_export__ = DeleteBucketMetadataConfigurationCommand;
-__webpack_unused_export__ = DeleteBucketMetadataConfigurationRequest$;
-__webpack_unused_export__ = DeleteBucketMetadataTableConfiguration$;
-__webpack_unused_export__ = DeleteBucketMetadataTableConfigurationCommand;
-__webpack_unused_export__ = DeleteBucketMetadataTableConfigurationRequest$;
-__webpack_unused_export__ = DeleteBucketMetricsConfiguration$;
-__webpack_unused_export__ = DeleteBucketMetricsConfigurationCommand;
-__webpack_unused_export__ = DeleteBucketMetricsConfigurationRequest$;
-__webpack_unused_export__ = DeleteBucketOwnershipControls$;
-__webpack_unused_export__ = DeleteBucketOwnershipControlsCommand;
-__webpack_unused_export__ = DeleteBucketOwnershipControlsRequest$;
-__webpack_unused_export__ = DeleteBucketPolicy$;
-__webpack_unused_export__ = DeleteBucketPolicyCommand;
-__webpack_unused_export__ = DeleteBucketPolicyRequest$;
-__webpack_unused_export__ = DeleteBucketReplication$;
-__webpack_unused_export__ = DeleteBucketReplicationCommand;
-__webpack_unused_export__ = DeleteBucketReplicationRequest$;
-__webpack_unused_export__ = DeleteBucketRequest$;
-__webpack_unused_export__ = DeleteBucketTagging$;
-__webpack_unused_export__ = DeleteBucketTaggingCommand;
-__webpack_unused_export__ = DeleteBucketTaggingRequest$;
-__webpack_unused_export__ = DeleteBucketWebsite$;
-__webpack_unused_export__ = DeleteBucketWebsiteCommand;
-__webpack_unused_export__ = DeleteBucketWebsiteRequest$;
-__webpack_unused_export__ = DeleteMarkerEntry$;
-__webpack_unused_export__ = DeleteMarkerReplication$;
-__webpack_unused_export__ = DeleteMarkerReplicationStatus;
-__webpack_unused_export__ = DeleteObject$;
-__webpack_unused_export__ = DeleteObjectAnnotation$;
-__webpack_unused_export__ = DeleteObjectAnnotationCommand;
-__webpack_unused_export__ = DeleteObjectAnnotationOutput$;
-__webpack_unused_export__ = DeleteObjectAnnotationRequest$;
-exports.k4j = DeleteObjectCommand;
-__webpack_unused_export__ = DeleteObjectOutput$;
-__webpack_unused_export__ = DeleteObjectRequest$;
-__webpack_unused_export__ = DeleteObjectTagging$;
-__webpack_unused_export__ = DeleteObjectTaggingCommand;
-__webpack_unused_export__ = DeleteObjectTaggingOutput$;
-__webpack_unused_export__ = DeleteObjectTaggingRequest$;
-__webpack_unused_export__ = DeleteObjects$;
-__webpack_unused_export__ = DeleteObjectsCommand;
-__webpack_unused_export__ = DeleteObjectsOutput$;
-__webpack_unused_export__ = DeleteObjectsRequest$;
-__webpack_unused_export__ = DeletePublicAccessBlock$;
-__webpack_unused_export__ = DeletePublicAccessBlockCommand;
-__webpack_unused_export__ = DeletePublicAccessBlockRequest$;
-__webpack_unused_export__ = DeletedObject$;
-__webpack_unused_export__ = Destination$;
-__webpack_unused_export__ = DestinationResult$;
-__webpack_unused_export__ = EncodingType;
-__webpack_unused_export__ = Encryption$;
-__webpack_unused_export__ = EncryptionConfiguration$;
-__webpack_unused_export__ = EncryptionType;
-__webpack_unused_export__ = EncryptionTypeMismatch;
-__webpack_unused_export__ = EncryptionTypeMismatch$;
-__webpack_unused_export__ = EndEvent$;
-__webpack_unused_export__ = ErrorDetails$;
-__webpack_unused_export__ = ErrorDocument$;
-__webpack_unused_export__ = Event;
-__webpack_unused_export__ = EventBridgeConfiguration$;
-__webpack_unused_export__ = EventHoldDuration$;
-__webpack_unused_export__ = ExistingObjectReplication$;
-__webpack_unused_export__ = ExistingObjectReplicationStatus;
-__webpack_unused_export__ = ExpirationState;
-__webpack_unused_export__ = ExpirationStatus;
-__webpack_unused_export__ = ExpressionType;
-__webpack_unused_export__ = FileHeaderInfo;
-__webpack_unused_export__ = FilterRule$;
-__webpack_unused_export__ = FilterRuleName;
-__webpack_unused_export__ = GetBucketAbac$;
-__webpack_unused_export__ = GetBucketAbacCommand;
-__webpack_unused_export__ = GetBucketAbacOutput$;
-__webpack_unused_export__ = GetBucketAbacRequest$;
-__webpack_unused_export__ = GetBucketAccelerateConfiguration$;
-__webpack_unused_export__ = GetBucketAccelerateConfigurationCommand;
-__webpack_unused_export__ = GetBucketAccelerateConfigurationOutput$;
-__webpack_unused_export__ = GetBucketAccelerateConfigurationRequest$;
-__webpack_unused_export__ = GetBucketAcl$;
-__webpack_unused_export__ = GetBucketAclCommand;
-__webpack_unused_export__ = GetBucketAclOutput$;
-__webpack_unused_export__ = GetBucketAclRequest$;
-__webpack_unused_export__ = GetBucketAnalyticsConfiguration$;
-__webpack_unused_export__ = GetBucketAnalyticsConfigurationCommand;
-__webpack_unused_export__ = GetBucketAnalyticsConfigurationOutput$;
-__webpack_unused_export__ = GetBucketAnalyticsConfigurationRequest$;
-__webpack_unused_export__ = GetBucketCors$;
-__webpack_unused_export__ = GetBucketCorsCommand;
-__webpack_unused_export__ = GetBucketCorsOutput$;
-__webpack_unused_export__ = GetBucketCorsRequest$;
-__webpack_unused_export__ = GetBucketEncryption$;
-__webpack_unused_export__ = GetBucketEncryptionCommand;
-__webpack_unused_export__ = GetBucketEncryptionOutput$;
-__webpack_unused_export__ = GetBucketEncryptionRequest$;
-__webpack_unused_export__ = GetBucketIntelligentTieringConfiguration$;
-__webpack_unused_export__ = GetBucketIntelligentTieringConfigurationCommand;
-__webpack_unused_export__ = GetBucketIntelligentTieringConfigurationOutput$;
-__webpack_unused_export__ = GetBucketIntelligentTieringConfigurationRequest$;
-__webpack_unused_export__ = GetBucketInventoryConfiguration$;
-__webpack_unused_export__ = GetBucketInventoryConfigurationCommand;
-__webpack_unused_export__ = GetBucketInventoryConfigurationOutput$;
-__webpack_unused_export__ = GetBucketInventoryConfigurationRequest$;
-__webpack_unused_export__ = GetBucketLifecycleConfiguration$;
-__webpack_unused_export__ = GetBucketLifecycleConfigurationCommand;
-__webpack_unused_export__ = GetBucketLifecycleConfigurationOutput$;
-__webpack_unused_export__ = GetBucketLifecycleConfigurationRequest$;
-__webpack_unused_export__ = GetBucketLocation$;
-__webpack_unused_export__ = GetBucketLocationCommand;
-__webpack_unused_export__ = GetBucketLocationOutput$;
-__webpack_unused_export__ = GetBucketLocationRequest$;
-__webpack_unused_export__ = GetBucketLogging$;
-__webpack_unused_export__ = GetBucketLoggingCommand;
-__webpack_unused_export__ = GetBucketLoggingOutput$;
-__webpack_unused_export__ = GetBucketLoggingRequest$;
-__webpack_unused_export__ = GetBucketMetadataConfiguration$;
-__webpack_unused_export__ = GetBucketMetadataConfigurationCommand;
-__webpack_unused_export__ = GetBucketMetadataConfigurationOutput$;
-__webpack_unused_export__ = GetBucketMetadataConfigurationRequest$;
-__webpack_unused_export__ = GetBucketMetadataConfigurationResult$;
-__webpack_unused_export__ = GetBucketMetadataTableConfiguration$;
-__webpack_unused_export__ = GetBucketMetadataTableConfigurationCommand;
-__webpack_unused_export__ = GetBucketMetadataTableConfigurationOutput$;
-__webpack_unused_export__ = GetBucketMetadataTableConfigurationRequest$;
-__webpack_unused_export__ = GetBucketMetadataTableConfigurationResult$;
-__webpack_unused_export__ = GetBucketMetricsConfiguration$;
-__webpack_unused_export__ = GetBucketMetricsConfigurationCommand;
-__webpack_unused_export__ = GetBucketMetricsConfigurationOutput$;
-__webpack_unused_export__ = GetBucketMetricsConfigurationRequest$;
-__webpack_unused_export__ = GetBucketNotificationConfiguration$;
-__webpack_unused_export__ = GetBucketNotificationConfigurationCommand;
-__webpack_unused_export__ = GetBucketNotificationConfigurationRequest$;
-__webpack_unused_export__ = GetBucketOwnershipControls$;
-__webpack_unused_export__ = GetBucketOwnershipControlsCommand;
-__webpack_unused_export__ = GetBucketOwnershipControlsOutput$;
-__webpack_unused_export__ = GetBucketOwnershipControlsRequest$;
-__webpack_unused_export__ = GetBucketPolicy$;
-__webpack_unused_export__ = GetBucketPolicyCommand;
-__webpack_unused_export__ = GetBucketPolicyOutput$;
-__webpack_unused_export__ = GetBucketPolicyRequest$;
-__webpack_unused_export__ = GetBucketPolicyStatus$;
-__webpack_unused_export__ = GetBucketPolicyStatusCommand;
-__webpack_unused_export__ = GetBucketPolicyStatusOutput$;
-__webpack_unused_export__ = GetBucketPolicyStatusRequest$;
-__webpack_unused_export__ = GetBucketReplication$;
-__webpack_unused_export__ = GetBucketReplicationCommand;
-__webpack_unused_export__ = GetBucketReplicationOutput$;
-__webpack_unused_export__ = GetBucketReplicationRequest$;
-__webpack_unused_export__ = GetBucketRequestPayment$;
-__webpack_unused_export__ = GetBucketRequestPaymentCommand;
-__webpack_unused_export__ = GetBucketRequestPaymentOutput$;
-__webpack_unused_export__ = GetBucketRequestPaymentRequest$;
-__webpack_unused_export__ = GetBucketTagging$;
-__webpack_unused_export__ = GetBucketTaggingCommand;
-__webpack_unused_export__ = GetBucketTaggingOutput$;
-__webpack_unused_export__ = GetBucketTaggingRequest$;
-__webpack_unused_export__ = GetBucketVersioning$;
-__webpack_unused_export__ = GetBucketVersioningCommand;
-__webpack_unused_export__ = GetBucketVersioningOutput$;
-__webpack_unused_export__ = GetBucketVersioningRequest$;
-__webpack_unused_export__ = GetBucketWebsite$;
-__webpack_unused_export__ = GetBucketWebsiteCommand;
-__webpack_unused_export__ = GetBucketWebsiteOutput$;
-__webpack_unused_export__ = GetBucketWebsiteRequest$;
-__webpack_unused_export__ = GetObject$;
-__webpack_unused_export__ = GetObjectAcl$;
-__webpack_unused_export__ = GetObjectAclCommand;
-__webpack_unused_export__ = GetObjectAclOutput$;
-__webpack_unused_export__ = GetObjectAclRequest$;
-__webpack_unused_export__ = GetObjectAnnotation$;
-__webpack_unused_export__ = GetObjectAnnotationCommand;
-__webpack_unused_export__ = GetObjectAnnotationOutput$;
-__webpack_unused_export__ = GetObjectAnnotationRequest$;
-__webpack_unused_export__ = GetObjectAttributes$;
-__webpack_unused_export__ = GetObjectAttributesCommand;
-__webpack_unused_export__ = GetObjectAttributesOutput$;
-__webpack_unused_export__ = GetObjectAttributesParts$;
-__webpack_unused_export__ = GetObjectAttributesRequest$;
-__webpack_unused_export__ = GetObjectCommand;
-__webpack_unused_export__ = GetObjectLegalHold$;
-__webpack_unused_export__ = GetObjectLegalHoldCommand;
-__webpack_unused_export__ = GetObjectLegalHoldOutput$;
-__webpack_unused_export__ = GetObjectLegalHoldRequest$;
-__webpack_unused_export__ = GetObjectLockConfiguration$;
-__webpack_unused_export__ = GetObjectLockConfigurationCommand;
-__webpack_unused_export__ = GetObjectLockConfigurationOutput$;
-__webpack_unused_export__ = GetObjectLockConfigurationRequest$;
-__webpack_unused_export__ = GetObjectOutput$;
-__webpack_unused_export__ = GetObjectRequest$;
-__webpack_unused_export__ = GetObjectRetention$;
-__webpack_unused_export__ = GetObjectRetentionCommand;
-__webpack_unused_export__ = GetObjectRetentionOutput$;
-__webpack_unused_export__ = GetObjectRetentionRequest$;
-__webpack_unused_export__ = GetObjectTagging$;
-__webpack_unused_export__ = GetObjectTaggingCommand;
-__webpack_unused_export__ = GetObjectTaggingOutput$;
-__webpack_unused_export__ = GetObjectTaggingRequest$;
-__webpack_unused_export__ = GetObjectTorrent$;
-__webpack_unused_export__ = GetObjectTorrentCommand;
-__webpack_unused_export__ = GetObjectTorrentOutput$;
-__webpack_unused_export__ = GetObjectTorrentRequest$;
-__webpack_unused_export__ = GetPublicAccessBlock$;
-__webpack_unused_export__ = GetPublicAccessBlockCommand;
-__webpack_unused_export__ = GetPublicAccessBlockOutput$;
-__webpack_unused_export__ = GetPublicAccessBlockRequest$;
-__webpack_unused_export__ = GlacierJobParameters$;
-__webpack_unused_export__ = Grant$;
-__webpack_unused_export__ = Grantee$;
-__webpack_unused_export__ = HeadBucket$;
-__webpack_unused_export__ = HeadBucketCommand;
-__webpack_unused_export__ = HeadBucketOutput$;
-__webpack_unused_export__ = HeadBucketRequest$;
-__webpack_unused_export__ = HeadObject$;
-__webpack_unused_export__ = HeadObjectCommand;
-__webpack_unused_export__ = HeadObjectOutput$;
-__webpack_unused_export__ = HeadObjectRequest$;
-__webpack_unused_export__ = IdempotencyParameterMismatch;
-__webpack_unused_export__ = IdempotencyParameterMismatch$;
-__webpack_unused_export__ = IndexDocument$;
-__webpack_unused_export__ = Initiator$;
-__webpack_unused_export__ = InputSerialization$;
-__webpack_unused_export__ = IntelligentTieringAccessTier;
-__webpack_unused_export__ = IntelligentTieringAndOperator$;
-__webpack_unused_export__ = IntelligentTieringConfiguration$;
-__webpack_unused_export__ = IntelligentTieringFilter$;
-__webpack_unused_export__ = IntelligentTieringStatus;
-__webpack_unused_export__ = InvalidAnnotationName;
-__webpack_unused_export__ = InvalidAnnotationName$;
-__webpack_unused_export__ = InvalidObjectState;
-__webpack_unused_export__ = InvalidObjectState$;
-__webpack_unused_export__ = InvalidPrefix;
-__webpack_unused_export__ = InvalidPrefix$;
-__webpack_unused_export__ = InvalidRequest;
-__webpack_unused_export__ = InvalidRequest$;
-__webpack_unused_export__ = InvalidWriteOffset;
-__webpack_unused_export__ = InvalidWriteOffset$;
-__webpack_unused_export__ = InventoryConfiguration$;
-__webpack_unused_export__ = InventoryConfigurationState;
-__webpack_unused_export__ = InventoryDestination$;
-__webpack_unused_export__ = InventoryEncryption$;
-__webpack_unused_export__ = InventoryFilter$;
-__webpack_unused_export__ = InventoryFormat;
-__webpack_unused_export__ = InventoryFrequency;
-__webpack_unused_export__ = InventoryIncludedObjectVersions;
-__webpack_unused_export__ = InventoryOptionalField;
-__webpack_unused_export__ = InventoryS3BucketDestination$;
-__webpack_unused_export__ = InventorySchedule$;
-__webpack_unused_export__ = InventoryTableConfiguration$;
-__webpack_unused_export__ = InventoryTableConfigurationResult$;
-__webpack_unused_export__ = InventoryTableConfigurationUpdates$;
-__webpack_unused_export__ = JSONInput$;
-__webpack_unused_export__ = JSONOutput$;
-__webpack_unused_export__ = JSONType;
-__webpack_unused_export__ = JournalTableConfiguration$;
-__webpack_unused_export__ = JournalTableConfigurationResult$;
-__webpack_unused_export__ = JournalTableConfigurationUpdates$;
-__webpack_unused_export__ = LambdaFunctionConfiguration$;
-__webpack_unused_export__ = LifecycleExpiration$;
-__webpack_unused_export__ = LifecycleRule$;
-__webpack_unused_export__ = LifecycleRuleAndOperator$;
-__webpack_unused_export__ = LifecycleRuleFilter$;
-__webpack_unused_export__ = ListBucketAnalyticsConfigurations$;
-__webpack_unused_export__ = ListBucketAnalyticsConfigurationsCommand;
-__webpack_unused_export__ = ListBucketAnalyticsConfigurationsOutput$;
-__webpack_unused_export__ = ListBucketAnalyticsConfigurationsRequest$;
-__webpack_unused_export__ = ListBucketIntelligentTieringConfigurations$;
-__webpack_unused_export__ = ListBucketIntelligentTieringConfigurationsCommand;
-__webpack_unused_export__ = ListBucketIntelligentTieringConfigurationsOutput$;
-__webpack_unused_export__ = ListBucketIntelligentTieringConfigurationsRequest$;
-__webpack_unused_export__ = ListBucketInventoryConfigurations$;
-__webpack_unused_export__ = ListBucketInventoryConfigurationsCommand;
-__webpack_unused_export__ = ListBucketInventoryConfigurationsOutput$;
-__webpack_unused_export__ = ListBucketInventoryConfigurationsRequest$;
-__webpack_unused_export__ = ListBucketMetricsConfigurations$;
-__webpack_unused_export__ = ListBucketMetricsConfigurationsCommand;
-__webpack_unused_export__ = ListBucketMetricsConfigurationsOutput$;
-__webpack_unused_export__ = ListBucketMetricsConfigurationsRequest$;
-__webpack_unused_export__ = ListBuckets$;
-__webpack_unused_export__ = ListBucketsCommand;
-__webpack_unused_export__ = ListBucketsOutput$;
-__webpack_unused_export__ = ListBucketsRequest$;
-__webpack_unused_export__ = ListDirectoryBuckets$;
-__webpack_unused_export__ = ListDirectoryBucketsCommand;
-__webpack_unused_export__ = ListDirectoryBucketsOutput$;
-__webpack_unused_export__ = ListDirectoryBucketsRequest$;
-__webpack_unused_export__ = ListMultipartUploads$;
-__webpack_unused_export__ = ListMultipartUploadsCommand;
-__webpack_unused_export__ = ListMultipartUploadsOutput$;
-__webpack_unused_export__ = ListMultipartUploadsRequest$;
-__webpack_unused_export__ = ListObjectAnnotations$;
-__webpack_unused_export__ = ListObjectAnnotationsCommand;
-__webpack_unused_export__ = ListObjectAnnotationsOutput$;
-__webpack_unused_export__ = ListObjectAnnotationsRequest$;
-__webpack_unused_export__ = ListObjectVersions$;
-__webpack_unused_export__ = ListObjectVersionsCommand;
-__webpack_unused_export__ = ListObjectVersionsOutput$;
-__webpack_unused_export__ = ListObjectVersionsRequest$;
-__webpack_unused_export__ = ListObjects$;
-__webpack_unused_export__ = ListObjectsCommand;
-__webpack_unused_export__ = ListObjectsOutput$;
-__webpack_unused_export__ = ListObjectsRequest$;
-__webpack_unused_export__ = ListObjectsV2$;
-exports.u6x = ListObjectsV2Command;
-__webpack_unused_export__ = ListObjectsV2Output$;
-__webpack_unused_export__ = ListObjectsV2Request$;
-__webpack_unused_export__ = ListParts$;
-__webpack_unused_export__ = ListPartsCommand;
-__webpack_unused_export__ = ListPartsOutput$;
-__webpack_unused_export__ = ListPartsRequest$;
-__webpack_unused_export__ = LocationInfo$;
-__webpack_unused_export__ = LocationType;
-__webpack_unused_export__ = LoggingEnabled$;
-__webpack_unused_export__ = MFADelete;
-__webpack_unused_export__ = MFADeleteStatus;
-__webpack_unused_export__ = MetadataConfiguration$;
-__webpack_unused_export__ = MetadataConfigurationResult$;
-__webpack_unused_export__ = MetadataDirective;
-__webpack_unused_export__ = MetadataEntry$;
-__webpack_unused_export__ = MetadataTableConfiguration$;
-__webpack_unused_export__ = MetadataTableConfigurationResult$;
-__webpack_unused_export__ = MetadataTableEncryptionConfiguration$;
-__webpack_unused_export__ = Metrics$;
-__webpack_unused_export__ = MetricsAndOperator$;
-__webpack_unused_export__ = MetricsConfiguration$;
-__webpack_unused_export__ = MetricsFilter$;
-__webpack_unused_export__ = MetricsStatus;
-__webpack_unused_export__ = MultipartUpload$;
-__webpack_unused_export__ = NoSuchAnnotation;
-__webpack_unused_export__ = NoSuchAnnotation$;
-__webpack_unused_export__ = NoSuchBucket;
-__webpack_unused_export__ = NoSuchBucket$;
-__webpack_unused_export__ = NoSuchKey;
-__webpack_unused_export__ = NoSuchKey$;
-__webpack_unused_export__ = NoSuchUpload;
-__webpack_unused_export__ = NoSuchUpload$;
-__webpack_unused_export__ = NoncurrentVersionExpiration$;
-__webpack_unused_export__ = NoncurrentVersionTransition$;
-__webpack_unused_export__ = NotFound;
-__webpack_unused_export__ = NotFound$;
-__webpack_unused_export__ = NotificationConfiguration$;
-__webpack_unused_export__ = NotificationConfigurationFilter$;
-__webpack_unused_export__ = ObjectAlreadyInActiveTierError;
-__webpack_unused_export__ = ObjectAlreadyInActiveTierError$;
-__webpack_unused_export__ = ObjectAttributes;
-__webpack_unused_export__ = ObjectCannedACL;
-__webpack_unused_export__ = ObjectEncryption$;
-__webpack_unused_export__ = ObjectIdentifier$;
-__webpack_unused_export__ = ObjectLockConfiguration$;
-__webpack_unused_export__ = ObjectLockEnabled;
-__webpack_unused_export__ = ObjectLockEventHold;
-__webpack_unused_export__ = ObjectLockLegalHold$;
-__webpack_unused_export__ = ObjectLockLegalHoldStatus;
-__webpack_unused_export__ = ObjectLockMode;
-__webpack_unused_export__ = ObjectLockRetention$;
-__webpack_unused_export__ = ObjectLockRetentionMode;
-__webpack_unused_export__ = ObjectLockRule$;
-__webpack_unused_export__ = ObjectNotInActiveTierError;
-__webpack_unused_export__ = ObjectNotInActiveTierError$;
-__webpack_unused_export__ = ObjectOwnership;
-__webpack_unused_export__ = ObjectPart$;
-__webpack_unused_export__ = ObjectStorageClass;
-__webpack_unused_export__ = ObjectVersion$;
-__webpack_unused_export__ = ObjectVersionStorageClass;
-__webpack_unused_export__ = OptionalObjectAttributes;
-__webpack_unused_export__ = OutputLocation$;
-__webpack_unused_export__ = OutputSerialization$;
-__webpack_unused_export__ = Owner$;
-__webpack_unused_export__ = OwnerOverride;
-__webpack_unused_export__ = OwnershipControls$;
-__webpack_unused_export__ = OwnershipControlsRule$;
-__webpack_unused_export__ = ParquetInput$;
-__webpack_unused_export__ = Part$;
-__webpack_unused_export__ = PartitionDateSource;
-__webpack_unused_export__ = PartitionedPrefix$;
-__webpack_unused_export__ = Payer;
-__webpack_unused_export__ = Permission;
-__webpack_unused_export__ = PolicyStatus$;
-__webpack_unused_export__ = Progress$;
-__webpack_unused_export__ = ProgressEvent$;
-__webpack_unused_export__ = Protocol;
-__webpack_unused_export__ = PublicAccessBlockConfiguration$;
-__webpack_unused_export__ = PutBucketAbac$;
-__webpack_unused_export__ = PutBucketAbacCommand;
-__webpack_unused_export__ = PutBucketAbacRequest$;
-__webpack_unused_export__ = PutBucketAccelerateConfiguration$;
-__webpack_unused_export__ = PutBucketAccelerateConfigurationCommand;
-__webpack_unused_export__ = PutBucketAccelerateConfigurationRequest$;
-__webpack_unused_export__ = PutBucketAcl$;
-__webpack_unused_export__ = PutBucketAclCommand;
-__webpack_unused_export__ = PutBucketAclRequest$;
-__webpack_unused_export__ = PutBucketAnalyticsConfiguration$;
-__webpack_unused_export__ = PutBucketAnalyticsConfigurationCommand;
-__webpack_unused_export__ = PutBucketAnalyticsConfigurationRequest$;
-__webpack_unused_export__ = PutBucketCors$;
-__webpack_unused_export__ = PutBucketCorsCommand;
-__webpack_unused_export__ = PutBucketCorsRequest$;
-__webpack_unused_export__ = PutBucketEncryption$;
-__webpack_unused_export__ = PutBucketEncryptionCommand;
-__webpack_unused_export__ = PutBucketEncryptionRequest$;
-__webpack_unused_export__ = PutBucketIntelligentTieringConfiguration$;
-__webpack_unused_export__ = PutBucketIntelligentTieringConfigurationCommand;
-__webpack_unused_export__ = PutBucketIntelligentTieringConfigurationRequest$;
-__webpack_unused_export__ = PutBucketInventoryConfiguration$;
-__webpack_unused_export__ = PutBucketInventoryConfigurationCommand;
-__webpack_unused_export__ = PutBucketInventoryConfigurationRequest$;
-__webpack_unused_export__ = PutBucketLifecycleConfiguration$;
-__webpack_unused_export__ = PutBucketLifecycleConfigurationCommand;
-__webpack_unused_export__ = PutBucketLifecycleConfigurationOutput$;
-__webpack_unused_export__ = PutBucketLifecycleConfigurationRequest$;
-__webpack_unused_export__ = PutBucketLogging$;
-__webpack_unused_export__ = PutBucketLoggingCommand;
-__webpack_unused_export__ = PutBucketLoggingRequest$;
-__webpack_unused_export__ = PutBucketMetricsConfiguration$;
-__webpack_unused_export__ = PutBucketMetricsConfigurationCommand;
-__webpack_unused_export__ = PutBucketMetricsConfigurationRequest$;
-__webpack_unused_export__ = PutBucketNotificationConfiguration$;
-__webpack_unused_export__ = PutBucketNotificationConfigurationCommand;
-__webpack_unused_export__ = PutBucketNotificationConfigurationRequest$;
-__webpack_unused_export__ = PutBucketOwnershipControls$;
-__webpack_unused_export__ = PutBucketOwnershipControlsCommand;
-__webpack_unused_export__ = PutBucketOwnershipControlsRequest$;
-__webpack_unused_export__ = PutBucketPolicy$;
-__webpack_unused_export__ = PutBucketPolicyCommand;
-__webpack_unused_export__ = PutBucketPolicyRequest$;
-__webpack_unused_export__ = PutBucketReplication$;
-__webpack_unused_export__ = PutBucketReplicationCommand;
-__webpack_unused_export__ = PutBucketReplicationRequest$;
-__webpack_unused_export__ = PutBucketRequestPayment$;
-__webpack_unused_export__ = PutBucketRequestPaymentCommand;
-__webpack_unused_export__ = PutBucketRequestPaymentRequest$;
-__webpack_unused_export__ = PutBucketTagging$;
-__webpack_unused_export__ = PutBucketTaggingCommand;
-__webpack_unused_export__ = PutBucketTaggingRequest$;
-__webpack_unused_export__ = PutBucketVersioning$;
-__webpack_unused_export__ = PutBucketVersioningCommand;
-__webpack_unused_export__ = PutBucketVersioningRequest$;
-__webpack_unused_export__ = PutBucketWebsite$;
-__webpack_unused_export__ = PutBucketWebsiteCommand;
-__webpack_unused_export__ = PutBucketWebsiteRequest$;
-__webpack_unused_export__ = PutObject$;
-__webpack_unused_export__ = PutObjectAcl$;
-__webpack_unused_export__ = PutObjectAclCommand;
-__webpack_unused_export__ = PutObjectAclOutput$;
-__webpack_unused_export__ = PutObjectAclRequest$;
-__webpack_unused_export__ = PutObjectAnnotation$;
-__webpack_unused_export__ = PutObjectAnnotationCommand;
-__webpack_unused_export__ = PutObjectAnnotationOutput$;
-__webpack_unused_export__ = PutObjectAnnotationRequest$;
-__webpack_unused_export__ = PutObjectCommand;
-__webpack_unused_export__ = PutObjectLegalHold$;
-__webpack_unused_export__ = PutObjectLegalHoldCommand;
-__webpack_unused_export__ = PutObjectLegalHoldOutput$;
-__webpack_unused_export__ = PutObjectLegalHoldRequest$;
-__webpack_unused_export__ = PutObjectLockConfiguration$;
-__webpack_unused_export__ = PutObjectLockConfigurationCommand;
-__webpack_unused_export__ = PutObjectLockConfigurationOutput$;
-__webpack_unused_export__ = PutObjectLockConfigurationRequest$;
-__webpack_unused_export__ = PutObjectOutput$;
-__webpack_unused_export__ = PutObjectRequest$;
-__webpack_unused_export__ = PutObjectRetention$;
-__webpack_unused_export__ = PutObjectRetentionCommand;
-__webpack_unused_export__ = PutObjectRetentionOutput$;
-__webpack_unused_export__ = PutObjectRetentionRequest$;
-__webpack_unused_export__ = PutObjectTagging$;
-__webpack_unused_export__ = PutObjectTaggingCommand;
-__webpack_unused_export__ = PutObjectTaggingOutput$;
-__webpack_unused_export__ = PutObjectTaggingRequest$;
-__webpack_unused_export__ = PutPublicAccessBlock$;
-__webpack_unused_export__ = PutPublicAccessBlockCommand;
-__webpack_unused_export__ = PutPublicAccessBlockRequest$;
-__webpack_unused_export__ = QueueConfiguration$;
-__webpack_unused_export__ = QuoteFields;
-__webpack_unused_export__ = RecordExpiration$;
-__webpack_unused_export__ = RecordsEvent$;
-__webpack_unused_export__ = Redirect$;
-__webpack_unused_export__ = RedirectAllRequestsTo$;
-__webpack_unused_export__ = RenameObject$;
-__webpack_unused_export__ = RenameObjectCommand;
-__webpack_unused_export__ = RenameObjectOutput$;
-__webpack_unused_export__ = RenameObjectRequest$;
-__webpack_unused_export__ = ReplicaModifications$;
-__webpack_unused_export__ = ReplicaModificationsStatus;
-__webpack_unused_export__ = ReplicationConfiguration$;
-__webpack_unused_export__ = ReplicationRule$;
-__webpack_unused_export__ = ReplicationRuleAndOperator$;
-__webpack_unused_export__ = ReplicationRuleFilter$;
-__webpack_unused_export__ = ReplicationRuleStatus;
-__webpack_unused_export__ = ReplicationStatus;
-__webpack_unused_export__ = ReplicationTime$;
-__webpack_unused_export__ = ReplicationTimeStatus;
-__webpack_unused_export__ = ReplicationTimeValue$;
-__webpack_unused_export__ = RequestCharged;
-__webpack_unused_export__ = RequestPayer;
-__webpack_unused_export__ = RequestPaymentConfiguration$;
-__webpack_unused_export__ = RequestProgress$;
-__webpack_unused_export__ = RestoreObject$;
-__webpack_unused_export__ = RestoreObjectCommand;
-__webpack_unused_export__ = RestoreObjectOutput$;
-__webpack_unused_export__ = RestoreObjectRequest$;
-__webpack_unused_export__ = RestoreRequest$;
-__webpack_unused_export__ = RestoreRequestType;
-__webpack_unused_export__ = RestoreStatus$;
-__webpack_unused_export__ = RoutingRule$;
-__webpack_unused_export__ = S3;
-exports.YxF = S3Client;
-__webpack_unused_export__ = S3KeyFilter$;
-__webpack_unused_export__ = S3Location$;
-__webpack_unused_export__ = S3ServiceException;
-__webpack_unused_export__ = S3ServiceException$;
-__webpack_unused_export__ = S3TablesBucketType;
-__webpack_unused_export__ = S3TablesDestination$;
-__webpack_unused_export__ = S3TablesDestinationResult$;
-__webpack_unused_export__ = SSEKMS$;
-__webpack_unused_export__ = SSEKMSEncryption$;
-__webpack_unused_export__ = SSES3$;
-__webpack_unused_export__ = ScanRange$;
-__webpack_unused_export__ = SelectObjectContent$;
-__webpack_unused_export__ = SelectObjectContentCommand;
-__webpack_unused_export__ = SelectObjectContentEventStream$;
-__webpack_unused_export__ = SelectObjectContentOutput$;
-__webpack_unused_export__ = SelectObjectContentRequest$;
-__webpack_unused_export__ = SelectParameters$;
-__webpack_unused_export__ = ServerSideEncryption;
-__webpack_unused_export__ = ServerSideEncryptionByDefault$;
-__webpack_unused_export__ = ServerSideEncryptionConfiguration$;
-__webpack_unused_export__ = ServerSideEncryptionRule$;
-__webpack_unused_export__ = SessionCredentials$;
-__webpack_unused_export__ = SessionMode;
-__webpack_unused_export__ = SimplePrefix$;
-__webpack_unused_export__ = SourceSelectionCriteria$;
-__webpack_unused_export__ = SseKmsEncryptedObjects$;
-__webpack_unused_export__ = SseKmsEncryptedObjectsStatus;
-__webpack_unused_export__ = Stats$;
-__webpack_unused_export__ = StatsEvent$;
-__webpack_unused_export__ = StorageClass;
-__webpack_unused_export__ = StorageClassAnalysis$;
-__webpack_unused_export__ = StorageClassAnalysisDataExport$;
-__webpack_unused_export__ = StorageClassAnalysisSchemaVersion;
-__webpack_unused_export__ = TableSseAlgorithm;
-__webpack_unused_export__ = Tag$;
-__webpack_unused_export__ = Tagging$;
-__webpack_unused_export__ = TaggingDirective;
-__webpack_unused_export__ = TargetGrant$;
-__webpack_unused_export__ = TargetObjectKeyFormat$;
-__webpack_unused_export__ = Tier;
-__webpack_unused_export__ = Tiering$;
-__webpack_unused_export__ = TooManyParts;
-__webpack_unused_export__ = TooManyParts$;
-__webpack_unused_export__ = TopicConfiguration$;
-__webpack_unused_export__ = Transition$;
-__webpack_unused_export__ = TransitionDefaultMinimumObjectSize;
-__webpack_unused_export__ = TransitionStorageClass;
-__webpack_unused_export__ = Type;
-__webpack_unused_export__ = UnsupportedMediaType;
-__webpack_unused_export__ = UnsupportedMediaType$;
-__webpack_unused_export__ = UpdateBucketMetadataAnnotationTableConfiguration$;
-__webpack_unused_export__ = UpdateBucketMetadataAnnotationTableConfigurationCommand;
-__webpack_unused_export__ = UpdateBucketMetadataAnnotationTableConfigurationRequest$;
-__webpack_unused_export__ = UpdateBucketMetadataInventoryTableConfiguration$;
-__webpack_unused_export__ = UpdateBucketMetadataInventoryTableConfigurationCommand;
-__webpack_unused_export__ = UpdateBucketMetadataInventoryTableConfigurationRequest$;
-__webpack_unused_export__ = UpdateBucketMetadataJournalTableConfiguration$;
-__webpack_unused_export__ = UpdateBucketMetadataJournalTableConfigurationCommand;
-__webpack_unused_export__ = UpdateBucketMetadataJournalTableConfigurationRequest$;
-__webpack_unused_export__ = UpdateObjectEncryption$;
-__webpack_unused_export__ = UpdateObjectEncryptionCommand;
-__webpack_unused_export__ = UpdateObjectEncryptionRequest$;
-__webpack_unused_export__ = UpdateObjectEncryptionResponse$;
-__webpack_unused_export__ = UploadPart$;
-__webpack_unused_export__ = UploadPartCommand;
-__webpack_unused_export__ = UploadPartCopy$;
-__webpack_unused_export__ = UploadPartCopyCommand;
-__webpack_unused_export__ = UploadPartCopyOutput$;
-__webpack_unused_export__ = UploadPartCopyRequest$;
-__webpack_unused_export__ = UploadPartOutput$;
-__webpack_unused_export__ = UploadPartRequest$;
-__webpack_unused_export__ = VersioningConfiguration$;
-__webpack_unused_export__ = WebsiteConfiguration$;
-__webpack_unused_export__ = WriteGetObjectResponse$;
-__webpack_unused_export__ = WriteGetObjectResponseCommand;
-__webpack_unused_export__ = WriteGetObjectResponseRequest$;
-__webpack_unused_export__ = _Error$;
-__webpack_unused_export__ = _Object$;
-__webpack_unused_export__ = errorTypeRegistries;
-__webpack_unused_export__ = paginateListBuckets;
-__webpack_unused_export__ = paginateListDirectoryBuckets;
-__webpack_unused_export__ = paginateListObjectAnnotations;
-__webpack_unused_export__ = paginateListObjectsV2;
-__webpack_unused_export__ = paginateListParts;
-__webpack_unused_export__ = waitForBucketExists;
-__webpack_unused_export__ = waitForBucketNotExists;
-__webpack_unused_export__ = waitForObjectExists;
-__webpack_unused_export__ = waitForObjectNotExists;
-__webpack_unused_export__ = waitUntilBucketExists;
-__webpack_unused_export__ = waitUntilBucketNotExists;
-__webpack_unused_export__ = waitUntilObjectExists;
-__webpack_unused_export__ = waitUntilObjectNotExists;
+exports.AbacStatus$ = AbacStatus$;
+exports.AbortIncompleteMultipartUpload$ = AbortIncompleteMultipartUpload$;
+exports.AbortMultipartUpload$ = AbortMultipartUpload$;
+exports.AbortMultipartUploadCommand = AbortMultipartUploadCommand;
+exports.AbortMultipartUploadOutput$ = AbortMultipartUploadOutput$;
+exports.AbortMultipartUploadRequest$ = AbortMultipartUploadRequest$;
+exports.AccelerateConfiguration$ = AccelerateConfiguration$;
+exports.AccessControlPolicy$ = AccessControlPolicy$;
+exports.AccessControlTranslation$ = AccessControlTranslation$;
+exports.AccessDenied = AccessDenied;
+exports.AccessDenied$ = AccessDenied$;
+exports.AnalyticsAndOperator$ = AnalyticsAndOperator$;
+exports.AnalyticsConfiguration$ = AnalyticsConfiguration$;
+exports.AnalyticsExportDestination$ = AnalyticsExportDestination$;
+exports.AnalyticsFilter$ = AnalyticsFilter$;
+exports.AnalyticsS3BucketDestination$ = AnalyticsS3BucketDestination$;
+exports.AnalyticsS3ExportFileFormat = AnalyticsS3ExportFileFormat;
+exports.AnnotationConfigurationState = AnnotationConfigurationState;
+exports.AnnotationDirective = AnnotationDirective;
+exports.AnnotationEntry$ = AnnotationEntry$;
+exports.AnnotationLimitExceeded = AnnotationLimitExceeded;
+exports.AnnotationLimitExceeded$ = AnnotationLimitExceeded$;
+exports.AnnotationNameTooLong = AnnotationNameTooLong;
+exports.AnnotationNameTooLong$ = AnnotationNameTooLong$;
+exports.AnnotationTableConfiguration$ = AnnotationTableConfiguration$;
+exports.AnnotationTableConfigurationResult$ = AnnotationTableConfigurationResult$;
+exports.AnnotationTableConfigurationUpdates$ = AnnotationTableConfigurationUpdates$;
+exports.ArchiveStatus = ArchiveStatus;
+exports.BlockedEncryptionTypes$ = BlockedEncryptionTypes$;
+exports.Bucket$ = Bucket$;
+exports.BucketAbacStatus = BucketAbacStatus;
+exports.BucketAccelerateStatus = BucketAccelerateStatus;
+exports.BucketAlreadyExists = BucketAlreadyExists;
+exports.BucketAlreadyExists$ = BucketAlreadyExists$;
+exports.BucketAlreadyOwnedByYou = BucketAlreadyOwnedByYou;
+exports.BucketAlreadyOwnedByYou$ = BucketAlreadyOwnedByYou$;
+exports.BucketCannedACL = BucketCannedACL;
+exports.BucketInfo$ = BucketInfo$;
+exports.BucketLifecycleConfiguration$ = BucketLifecycleConfiguration$;
+exports.BucketLocationConstraint = BucketLocationConstraint;
+exports.BucketLoggingStatus$ = BucketLoggingStatus$;
+exports.BucketLogsPermission = BucketLogsPermission;
+exports.BucketNamespace = BucketNamespace;
+exports.BucketType = BucketType;
+exports.BucketVersioningStatus = BucketVersioningStatus;
+exports.CORSConfiguration$ = CORSConfiguration$;
+exports.CORSRule$ = CORSRule$;
+exports.CSVInput$ = CSVInput$;
+exports.CSVOutput$ = CSVOutput$;
+exports.Checksum$ = Checksum$;
+exports.ChecksumAlgorithm = ChecksumAlgorithm;
+exports.ChecksumMode = ChecksumMode;
+exports.ChecksumType = ChecksumType;
+exports.CommonPrefix$ = CommonPrefix$;
+exports.CompleteMultipartUpload$ = CompleteMultipartUpload$;
+exports.CompleteMultipartUploadCommand = CompleteMultipartUploadCommand;
+exports.CompleteMultipartUploadOutput$ = CompleteMultipartUploadOutput$;
+exports.CompleteMultipartUploadRequest$ = CompleteMultipartUploadRequest$;
+exports.CompletedMultipartUpload$ = CompletedMultipartUpload$;
+exports.CompletedPart$ = CompletedPart$;
+exports.CompressionType = CompressionType;
+exports.Condition$ = Condition$;
+exports.ContinuationEvent$ = ContinuationEvent$;
+exports.CopyObject$ = CopyObject$;
+exports.CopyObjectCommand = CopyObjectCommand;
+exports.CopyObjectOutput$ = CopyObjectOutput$;
+exports.CopyObjectRequest$ = CopyObjectRequest$;
+exports.CopyObjectResult$ = CopyObjectResult$;
+exports.CopyPartResult$ = CopyPartResult$;
+exports.CreateBucket$ = CreateBucket$;
+exports.CreateBucketCommand = CreateBucketCommand;
+exports.CreateBucketConfiguration$ = CreateBucketConfiguration$;
+exports.CreateBucketMetadataConfiguration$ = CreateBucketMetadataConfiguration$;
+exports.CreateBucketMetadataConfigurationCommand = CreateBucketMetadataConfigurationCommand;
+exports.CreateBucketMetadataConfigurationRequest$ = CreateBucketMetadataConfigurationRequest$;
+exports.CreateBucketMetadataTableConfiguration$ = CreateBucketMetadataTableConfiguration$;
+exports.CreateBucketMetadataTableConfigurationCommand = CreateBucketMetadataTableConfigurationCommand;
+exports.CreateBucketMetadataTableConfigurationRequest$ = CreateBucketMetadataTableConfigurationRequest$;
+exports.CreateBucketOutput$ = CreateBucketOutput$;
+exports.CreateBucketRequest$ = CreateBucketRequest$;
+exports.CreateMultipartUpload$ = CreateMultipartUpload$;
+exports.CreateMultipartUploadCommand = CreateMultipartUploadCommand;
+exports.CreateMultipartUploadOutput$ = CreateMultipartUploadOutput$;
+exports.CreateMultipartUploadRequest$ = CreateMultipartUploadRequest$;
+exports.CreateSession$ = CreateSession$;
+exports.CreateSessionCommand = CreateSessionCommand;
+exports.CreateSessionOutput$ = CreateSessionOutput$;
+exports.CreateSessionRequest$ = CreateSessionRequest$;
+exports.DataRedundancy = DataRedundancy;
+exports.DefaultRetention$ = DefaultRetention$;
+exports.Delete$ = Delete$;
+exports.DeleteBucket$ = DeleteBucket$;
+exports.DeleteBucketAnalyticsConfiguration$ = DeleteBucketAnalyticsConfiguration$;
+exports.DeleteBucketAnalyticsConfigurationCommand = DeleteBucketAnalyticsConfigurationCommand;
+exports.DeleteBucketAnalyticsConfigurationRequest$ = DeleteBucketAnalyticsConfigurationRequest$;
+exports.DeleteBucketCommand = DeleteBucketCommand;
+exports.DeleteBucketCors$ = DeleteBucketCors$;
+exports.DeleteBucketCorsCommand = DeleteBucketCorsCommand;
+exports.DeleteBucketCorsRequest$ = DeleteBucketCorsRequest$;
+exports.DeleteBucketEncryption$ = DeleteBucketEncryption$;
+exports.DeleteBucketEncryptionCommand = DeleteBucketEncryptionCommand;
+exports.DeleteBucketEncryptionRequest$ = DeleteBucketEncryptionRequest$;
+exports.DeleteBucketIntelligentTieringConfiguration$ = DeleteBucketIntelligentTieringConfiguration$;
+exports.DeleteBucketIntelligentTieringConfigurationCommand = DeleteBucketIntelligentTieringConfigurationCommand;
+exports.DeleteBucketIntelligentTieringConfigurationRequest$ = DeleteBucketIntelligentTieringConfigurationRequest$;
+exports.DeleteBucketInventoryConfiguration$ = DeleteBucketInventoryConfiguration$;
+exports.DeleteBucketInventoryConfigurationCommand = DeleteBucketInventoryConfigurationCommand;
+exports.DeleteBucketInventoryConfigurationRequest$ = DeleteBucketInventoryConfigurationRequest$;
+exports.DeleteBucketLifecycle$ = DeleteBucketLifecycle$;
+exports.DeleteBucketLifecycleCommand = DeleteBucketLifecycleCommand;
+exports.DeleteBucketLifecycleRequest$ = DeleteBucketLifecycleRequest$;
+exports.DeleteBucketMetadataConfiguration$ = DeleteBucketMetadataConfiguration$;
+exports.DeleteBucketMetadataConfigurationCommand = DeleteBucketMetadataConfigurationCommand;
+exports.DeleteBucketMetadataConfigurationRequest$ = DeleteBucketMetadataConfigurationRequest$;
+exports.DeleteBucketMetadataTableConfiguration$ = DeleteBucketMetadataTableConfiguration$;
+exports.DeleteBucketMetadataTableConfigurationCommand = DeleteBucketMetadataTableConfigurationCommand;
+exports.DeleteBucketMetadataTableConfigurationRequest$ = DeleteBucketMetadataTableConfigurationRequest$;
+exports.DeleteBucketMetricsConfiguration$ = DeleteBucketMetricsConfiguration$;
+exports.DeleteBucketMetricsConfigurationCommand = DeleteBucketMetricsConfigurationCommand;
+exports.DeleteBucketMetricsConfigurationRequest$ = DeleteBucketMetricsConfigurationRequest$;
+exports.DeleteBucketOwnershipControls$ = DeleteBucketOwnershipControls$;
+exports.DeleteBucketOwnershipControlsCommand = DeleteBucketOwnershipControlsCommand;
+exports.DeleteBucketOwnershipControlsRequest$ = DeleteBucketOwnershipControlsRequest$;
+exports.DeleteBucketPolicy$ = DeleteBucketPolicy$;
+exports.DeleteBucketPolicyCommand = DeleteBucketPolicyCommand;
+exports.DeleteBucketPolicyRequest$ = DeleteBucketPolicyRequest$;
+exports.DeleteBucketReplication$ = DeleteBucketReplication$;
+exports.DeleteBucketReplicationCommand = DeleteBucketReplicationCommand;
+exports.DeleteBucketReplicationRequest$ = DeleteBucketReplicationRequest$;
+exports.DeleteBucketRequest$ = DeleteBucketRequest$;
+exports.DeleteBucketTagging$ = DeleteBucketTagging$;
+exports.DeleteBucketTaggingCommand = DeleteBucketTaggingCommand;
+exports.DeleteBucketTaggingRequest$ = DeleteBucketTaggingRequest$;
+exports.DeleteBucketWebsite$ = DeleteBucketWebsite$;
+exports.DeleteBucketWebsiteCommand = DeleteBucketWebsiteCommand;
+exports.DeleteBucketWebsiteRequest$ = DeleteBucketWebsiteRequest$;
+exports.DeleteMarkerEntry$ = DeleteMarkerEntry$;
+exports.DeleteMarkerReplication$ = DeleteMarkerReplication$;
+exports.DeleteMarkerReplicationStatus = DeleteMarkerReplicationStatus;
+exports.DeleteObject$ = DeleteObject$;
+exports.DeleteObjectAnnotation$ = DeleteObjectAnnotation$;
+exports.DeleteObjectAnnotationCommand = DeleteObjectAnnotationCommand;
+exports.DeleteObjectAnnotationOutput$ = DeleteObjectAnnotationOutput$;
+exports.DeleteObjectAnnotationRequest$ = DeleteObjectAnnotationRequest$;
+exports.DeleteObjectCommand = DeleteObjectCommand;
+exports.DeleteObjectOutput$ = DeleteObjectOutput$;
+exports.DeleteObjectRequest$ = DeleteObjectRequest$;
+exports.DeleteObjectTagging$ = DeleteObjectTagging$;
+exports.DeleteObjectTaggingCommand = DeleteObjectTaggingCommand;
+exports.DeleteObjectTaggingOutput$ = DeleteObjectTaggingOutput$;
+exports.DeleteObjectTaggingRequest$ = DeleteObjectTaggingRequest$;
+exports.DeleteObjects$ = DeleteObjects$;
+exports.DeleteObjectsCommand = DeleteObjectsCommand;
+exports.DeleteObjectsOutput$ = DeleteObjectsOutput$;
+exports.DeleteObjectsRequest$ = DeleteObjectsRequest$;
+exports.DeletePublicAccessBlock$ = DeletePublicAccessBlock$;
+exports.DeletePublicAccessBlockCommand = DeletePublicAccessBlockCommand;
+exports.DeletePublicAccessBlockRequest$ = DeletePublicAccessBlockRequest$;
+exports.DeletedObject$ = DeletedObject$;
+exports.Destination$ = Destination$;
+exports.DestinationResult$ = DestinationResult$;
+exports.EncodingType = EncodingType;
+exports.Encryption$ = Encryption$;
+exports.EncryptionConfiguration$ = EncryptionConfiguration$;
+exports.EncryptionType = EncryptionType;
+exports.EncryptionTypeMismatch = EncryptionTypeMismatch;
+exports.EncryptionTypeMismatch$ = EncryptionTypeMismatch$;
+exports.EndEvent$ = EndEvent$;
+exports.ErrorDetails$ = ErrorDetails$;
+exports.ErrorDocument$ = ErrorDocument$;
+exports.Event = Event;
+exports.EventBridgeConfiguration$ = EventBridgeConfiguration$;
+exports.EventHoldDuration$ = EventHoldDuration$;
+exports.ExistingObjectReplication$ = ExistingObjectReplication$;
+exports.ExistingObjectReplicationStatus = ExistingObjectReplicationStatus;
+exports.ExpirationState = ExpirationState;
+exports.ExpirationStatus = ExpirationStatus;
+exports.ExpressionType = ExpressionType;
+exports.FileHeaderInfo = FileHeaderInfo;
+exports.FilterRule$ = FilterRule$;
+exports.FilterRuleName = FilterRuleName;
+exports.GetBucketAbac$ = GetBucketAbac$;
+exports.GetBucketAbacCommand = GetBucketAbacCommand;
+exports.GetBucketAbacOutput$ = GetBucketAbacOutput$;
+exports.GetBucketAbacRequest$ = GetBucketAbacRequest$;
+exports.GetBucketAccelerateConfiguration$ = GetBucketAccelerateConfiguration$;
+exports.GetBucketAccelerateConfigurationCommand = GetBucketAccelerateConfigurationCommand;
+exports.GetBucketAccelerateConfigurationOutput$ = GetBucketAccelerateConfigurationOutput$;
+exports.GetBucketAccelerateConfigurationRequest$ = GetBucketAccelerateConfigurationRequest$;
+exports.GetBucketAcl$ = GetBucketAcl$;
+exports.GetBucketAclCommand = GetBucketAclCommand;
+exports.GetBucketAclOutput$ = GetBucketAclOutput$;
+exports.GetBucketAclRequest$ = GetBucketAclRequest$;
+exports.GetBucketAnalyticsConfiguration$ = GetBucketAnalyticsConfiguration$;
+exports.GetBucketAnalyticsConfigurationCommand = GetBucketAnalyticsConfigurationCommand;
+exports.GetBucketAnalyticsConfigurationOutput$ = GetBucketAnalyticsConfigurationOutput$;
+exports.GetBucketAnalyticsConfigurationRequest$ = GetBucketAnalyticsConfigurationRequest$;
+exports.GetBucketCors$ = GetBucketCors$;
+exports.GetBucketCorsCommand = GetBucketCorsCommand;
+exports.GetBucketCorsOutput$ = GetBucketCorsOutput$;
+exports.GetBucketCorsRequest$ = GetBucketCorsRequest$;
+exports.GetBucketEncryption$ = GetBucketEncryption$;
+exports.GetBucketEncryptionCommand = GetBucketEncryptionCommand;
+exports.GetBucketEncryptionOutput$ = GetBucketEncryptionOutput$;
+exports.GetBucketEncryptionRequest$ = GetBucketEncryptionRequest$;
+exports.GetBucketIntelligentTieringConfiguration$ = GetBucketIntelligentTieringConfiguration$;
+exports.GetBucketIntelligentTieringConfigurationCommand = GetBucketIntelligentTieringConfigurationCommand;
+exports.GetBucketIntelligentTieringConfigurationOutput$ = GetBucketIntelligentTieringConfigurationOutput$;
+exports.GetBucketIntelligentTieringConfigurationRequest$ = GetBucketIntelligentTieringConfigurationRequest$;
+exports.GetBucketInventoryConfiguration$ = GetBucketInventoryConfiguration$;
+exports.GetBucketInventoryConfigurationCommand = GetBucketInventoryConfigurationCommand;
+exports.GetBucketInventoryConfigurationOutput$ = GetBucketInventoryConfigurationOutput$;
+exports.GetBucketInventoryConfigurationRequest$ = GetBucketInventoryConfigurationRequest$;
+exports.GetBucketLifecycleConfiguration$ = GetBucketLifecycleConfiguration$;
+exports.GetBucketLifecycleConfigurationCommand = GetBucketLifecycleConfigurationCommand;
+exports.GetBucketLifecycleConfigurationOutput$ = GetBucketLifecycleConfigurationOutput$;
+exports.GetBucketLifecycleConfigurationRequest$ = GetBucketLifecycleConfigurationRequest$;
+exports.GetBucketLocation$ = GetBucketLocation$;
+exports.GetBucketLocationCommand = GetBucketLocationCommand;
+exports.GetBucketLocationOutput$ = GetBucketLocationOutput$;
+exports.GetBucketLocationRequest$ = GetBucketLocationRequest$;
+exports.GetBucketLogging$ = GetBucketLogging$;
+exports.GetBucketLoggingCommand = GetBucketLoggingCommand;
+exports.GetBucketLoggingOutput$ = GetBucketLoggingOutput$;
+exports.GetBucketLoggingRequest$ = GetBucketLoggingRequest$;
+exports.GetBucketMetadataConfiguration$ = GetBucketMetadataConfiguration$;
+exports.GetBucketMetadataConfigurationCommand = GetBucketMetadataConfigurationCommand;
+exports.GetBucketMetadataConfigurationOutput$ = GetBucketMetadataConfigurationOutput$;
+exports.GetBucketMetadataConfigurationRequest$ = GetBucketMetadataConfigurationRequest$;
+exports.GetBucketMetadataConfigurationResult$ = GetBucketMetadataConfigurationResult$;
+exports.GetBucketMetadataTableConfiguration$ = GetBucketMetadataTableConfiguration$;
+exports.GetBucketMetadataTableConfigurationCommand = GetBucketMetadataTableConfigurationCommand;
+exports.GetBucketMetadataTableConfigurationOutput$ = GetBucketMetadataTableConfigurationOutput$;
+exports.GetBucketMetadataTableConfigurationRequest$ = GetBucketMetadataTableConfigurationRequest$;
+exports.GetBucketMetadataTableConfigurationResult$ = GetBucketMetadataTableConfigurationResult$;
+exports.GetBucketMetricsConfiguration$ = GetBucketMetricsConfiguration$;
+exports.GetBucketMetricsConfigurationCommand = GetBucketMetricsConfigurationCommand;
+exports.GetBucketMetricsConfigurationOutput$ = GetBucketMetricsConfigurationOutput$;
+exports.GetBucketMetricsConfigurationRequest$ = GetBucketMetricsConfigurationRequest$;
+exports.GetBucketNotificationConfiguration$ = GetBucketNotificationConfiguration$;
+exports.GetBucketNotificationConfigurationCommand = GetBucketNotificationConfigurationCommand;
+exports.GetBucketNotificationConfigurationRequest$ = GetBucketNotificationConfigurationRequest$;
+exports.GetBucketOwnershipControls$ = GetBucketOwnershipControls$;
+exports.GetBucketOwnershipControlsCommand = GetBucketOwnershipControlsCommand;
+exports.GetBucketOwnershipControlsOutput$ = GetBucketOwnershipControlsOutput$;
+exports.GetBucketOwnershipControlsRequest$ = GetBucketOwnershipControlsRequest$;
+exports.GetBucketPolicy$ = GetBucketPolicy$;
+exports.GetBucketPolicyCommand = GetBucketPolicyCommand;
+exports.GetBucketPolicyOutput$ = GetBucketPolicyOutput$;
+exports.GetBucketPolicyRequest$ = GetBucketPolicyRequest$;
+exports.GetBucketPolicyStatus$ = GetBucketPolicyStatus$;
+exports.GetBucketPolicyStatusCommand = GetBucketPolicyStatusCommand;
+exports.GetBucketPolicyStatusOutput$ = GetBucketPolicyStatusOutput$;
+exports.GetBucketPolicyStatusRequest$ = GetBucketPolicyStatusRequest$;
+exports.GetBucketReplication$ = GetBucketReplication$;
+exports.GetBucketReplicationCommand = GetBucketReplicationCommand;
+exports.GetBucketReplicationOutput$ = GetBucketReplicationOutput$;
+exports.GetBucketReplicationRequest$ = GetBucketReplicationRequest$;
+exports.GetBucketRequestPayment$ = GetBucketRequestPayment$;
+exports.GetBucketRequestPaymentCommand = GetBucketRequestPaymentCommand;
+exports.GetBucketRequestPaymentOutput$ = GetBucketRequestPaymentOutput$;
+exports.GetBucketRequestPaymentRequest$ = GetBucketRequestPaymentRequest$;
+exports.GetBucketTagging$ = GetBucketTagging$;
+exports.GetBucketTaggingCommand = GetBucketTaggingCommand;
+exports.GetBucketTaggingOutput$ = GetBucketTaggingOutput$;
+exports.GetBucketTaggingRequest$ = GetBucketTaggingRequest$;
+exports.GetBucketVersioning$ = GetBucketVersioning$;
+exports.GetBucketVersioningCommand = GetBucketVersioningCommand;
+exports.GetBucketVersioningOutput$ = GetBucketVersioningOutput$;
+exports.GetBucketVersioningRequest$ = GetBucketVersioningRequest$;
+exports.GetBucketWebsite$ = GetBucketWebsite$;
+exports.GetBucketWebsiteCommand = GetBucketWebsiteCommand;
+exports.GetBucketWebsiteOutput$ = GetBucketWebsiteOutput$;
+exports.GetBucketWebsiteRequest$ = GetBucketWebsiteRequest$;
+exports.GetObject$ = GetObject$;
+exports.GetObjectAcl$ = GetObjectAcl$;
+exports.GetObjectAclCommand = GetObjectAclCommand;
+exports.GetObjectAclOutput$ = GetObjectAclOutput$;
+exports.GetObjectAclRequest$ = GetObjectAclRequest$;
+exports.GetObjectAnnotation$ = GetObjectAnnotation$;
+exports.GetObjectAnnotationCommand = GetObjectAnnotationCommand;
+exports.GetObjectAnnotationOutput$ = GetObjectAnnotationOutput$;
+exports.GetObjectAnnotationRequest$ = GetObjectAnnotationRequest$;
+exports.GetObjectAttributes$ = GetObjectAttributes$;
+exports.GetObjectAttributesCommand = GetObjectAttributesCommand;
+exports.GetObjectAttributesOutput$ = GetObjectAttributesOutput$;
+exports.GetObjectAttributesParts$ = GetObjectAttributesParts$;
+exports.GetObjectAttributesRequest$ = GetObjectAttributesRequest$;
+exports.GetObjectCommand = GetObjectCommand;
+exports.GetObjectLegalHold$ = GetObjectLegalHold$;
+exports.GetObjectLegalHoldCommand = GetObjectLegalHoldCommand;
+exports.GetObjectLegalHoldOutput$ = GetObjectLegalHoldOutput$;
+exports.GetObjectLegalHoldRequest$ = GetObjectLegalHoldRequest$;
+exports.GetObjectLockConfiguration$ = GetObjectLockConfiguration$;
+exports.GetObjectLockConfigurationCommand = GetObjectLockConfigurationCommand;
+exports.GetObjectLockConfigurationOutput$ = GetObjectLockConfigurationOutput$;
+exports.GetObjectLockConfigurationRequest$ = GetObjectLockConfigurationRequest$;
+exports.GetObjectOutput$ = GetObjectOutput$;
+exports.GetObjectRequest$ = GetObjectRequest$;
+exports.GetObjectRetention$ = GetObjectRetention$;
+exports.GetObjectRetentionCommand = GetObjectRetentionCommand;
+exports.GetObjectRetentionOutput$ = GetObjectRetentionOutput$;
+exports.GetObjectRetentionRequest$ = GetObjectRetentionRequest$;
+exports.GetObjectTagging$ = GetObjectTagging$;
+exports.GetObjectTaggingCommand = GetObjectTaggingCommand;
+exports.GetObjectTaggingOutput$ = GetObjectTaggingOutput$;
+exports.GetObjectTaggingRequest$ = GetObjectTaggingRequest$;
+exports.GetObjectTorrent$ = GetObjectTorrent$;
+exports.GetObjectTorrentCommand = GetObjectTorrentCommand;
+exports.GetObjectTorrentOutput$ = GetObjectTorrentOutput$;
+exports.GetObjectTorrentRequest$ = GetObjectTorrentRequest$;
+exports.GetPublicAccessBlock$ = GetPublicAccessBlock$;
+exports.GetPublicAccessBlockCommand = GetPublicAccessBlockCommand;
+exports.GetPublicAccessBlockOutput$ = GetPublicAccessBlockOutput$;
+exports.GetPublicAccessBlockRequest$ = GetPublicAccessBlockRequest$;
+exports.GlacierJobParameters$ = GlacierJobParameters$;
+exports.Grant$ = Grant$;
+exports.Grantee$ = Grantee$;
+exports.HeadBucket$ = HeadBucket$;
+exports.HeadBucketCommand = HeadBucketCommand;
+exports.HeadBucketOutput$ = HeadBucketOutput$;
+exports.HeadBucketRequest$ = HeadBucketRequest$;
+exports.HeadObject$ = HeadObject$;
+exports.HeadObjectCommand = HeadObjectCommand;
+exports.HeadObjectOutput$ = HeadObjectOutput$;
+exports.HeadObjectRequest$ = HeadObjectRequest$;
+exports.IdempotencyParameterMismatch = IdempotencyParameterMismatch;
+exports.IdempotencyParameterMismatch$ = IdempotencyParameterMismatch$;
+exports.IndexDocument$ = IndexDocument$;
+exports.Initiator$ = Initiator$;
+exports.InputSerialization$ = InputSerialization$;
+exports.IntelligentTieringAccessTier = IntelligentTieringAccessTier;
+exports.IntelligentTieringAndOperator$ = IntelligentTieringAndOperator$;
+exports.IntelligentTieringConfiguration$ = IntelligentTieringConfiguration$;
+exports.IntelligentTieringFilter$ = IntelligentTieringFilter$;
+exports.IntelligentTieringStatus = IntelligentTieringStatus;
+exports.InvalidAnnotationName = InvalidAnnotationName;
+exports.InvalidAnnotationName$ = InvalidAnnotationName$;
+exports.InvalidObjectState = InvalidObjectState;
+exports.InvalidObjectState$ = InvalidObjectState$;
+exports.InvalidPrefix = InvalidPrefix;
+exports.InvalidPrefix$ = InvalidPrefix$;
+exports.InvalidRequest = InvalidRequest;
+exports.InvalidRequest$ = InvalidRequest$;
+exports.InvalidWriteOffset = InvalidWriteOffset;
+exports.InvalidWriteOffset$ = InvalidWriteOffset$;
+exports.InventoryConfiguration$ = InventoryConfiguration$;
+exports.InventoryConfigurationState = InventoryConfigurationState;
+exports.InventoryDestination$ = InventoryDestination$;
+exports.InventoryEncryption$ = InventoryEncryption$;
+exports.InventoryFilter$ = InventoryFilter$;
+exports.InventoryFormat = InventoryFormat;
+exports.InventoryFrequency = InventoryFrequency;
+exports.InventoryIncludedObjectVersions = InventoryIncludedObjectVersions;
+exports.InventoryOptionalField = InventoryOptionalField;
+exports.InventoryS3BucketDestination$ = InventoryS3BucketDestination$;
+exports.InventorySchedule$ = InventorySchedule$;
+exports.InventoryTableConfiguration$ = InventoryTableConfiguration$;
+exports.InventoryTableConfigurationResult$ = InventoryTableConfigurationResult$;
+exports.InventoryTableConfigurationUpdates$ = InventoryTableConfigurationUpdates$;
+exports.JSONInput$ = JSONInput$;
+exports.JSONOutput$ = JSONOutput$;
+exports.JSONType = JSONType;
+exports.JournalTableConfiguration$ = JournalTableConfiguration$;
+exports.JournalTableConfigurationResult$ = JournalTableConfigurationResult$;
+exports.JournalTableConfigurationUpdates$ = JournalTableConfigurationUpdates$;
+exports.LambdaFunctionConfiguration$ = LambdaFunctionConfiguration$;
+exports.LifecycleExpiration$ = LifecycleExpiration$;
+exports.LifecycleRule$ = LifecycleRule$;
+exports.LifecycleRuleAndOperator$ = LifecycleRuleAndOperator$;
+exports.LifecycleRuleFilter$ = LifecycleRuleFilter$;
+exports.ListBucketAnalyticsConfigurations$ = ListBucketAnalyticsConfigurations$;
+exports.ListBucketAnalyticsConfigurationsCommand = ListBucketAnalyticsConfigurationsCommand;
+exports.ListBucketAnalyticsConfigurationsOutput$ = ListBucketAnalyticsConfigurationsOutput$;
+exports.ListBucketAnalyticsConfigurationsRequest$ = ListBucketAnalyticsConfigurationsRequest$;
+exports.ListBucketIntelligentTieringConfigurations$ = ListBucketIntelligentTieringConfigurations$;
+exports.ListBucketIntelligentTieringConfigurationsCommand = ListBucketIntelligentTieringConfigurationsCommand;
+exports.ListBucketIntelligentTieringConfigurationsOutput$ = ListBucketIntelligentTieringConfigurationsOutput$;
+exports.ListBucketIntelligentTieringConfigurationsRequest$ = ListBucketIntelligentTieringConfigurationsRequest$;
+exports.ListBucketInventoryConfigurations$ = ListBucketInventoryConfigurations$;
+exports.ListBucketInventoryConfigurationsCommand = ListBucketInventoryConfigurationsCommand;
+exports.ListBucketInventoryConfigurationsOutput$ = ListBucketInventoryConfigurationsOutput$;
+exports.ListBucketInventoryConfigurationsRequest$ = ListBucketInventoryConfigurationsRequest$;
+exports.ListBucketMetricsConfigurations$ = ListBucketMetricsConfigurations$;
+exports.ListBucketMetricsConfigurationsCommand = ListBucketMetricsConfigurationsCommand;
+exports.ListBucketMetricsConfigurationsOutput$ = ListBucketMetricsConfigurationsOutput$;
+exports.ListBucketMetricsConfigurationsRequest$ = ListBucketMetricsConfigurationsRequest$;
+exports.ListBuckets$ = ListBuckets$;
+exports.ListBucketsCommand = ListBucketsCommand;
+exports.ListBucketsOutput$ = ListBucketsOutput$;
+exports.ListBucketsRequest$ = ListBucketsRequest$;
+exports.ListDirectoryBuckets$ = ListDirectoryBuckets$;
+exports.ListDirectoryBucketsCommand = ListDirectoryBucketsCommand;
+exports.ListDirectoryBucketsOutput$ = ListDirectoryBucketsOutput$;
+exports.ListDirectoryBucketsRequest$ = ListDirectoryBucketsRequest$;
+exports.ListMultipartUploads$ = ListMultipartUploads$;
+exports.ListMultipartUploadsCommand = ListMultipartUploadsCommand;
+exports.ListMultipartUploadsOutput$ = ListMultipartUploadsOutput$;
+exports.ListMultipartUploadsRequest$ = ListMultipartUploadsRequest$;
+exports.ListObjectAnnotations$ = ListObjectAnnotations$;
+exports.ListObjectAnnotationsCommand = ListObjectAnnotationsCommand;
+exports.ListObjectAnnotationsOutput$ = ListObjectAnnotationsOutput$;
+exports.ListObjectAnnotationsRequest$ = ListObjectAnnotationsRequest$;
+exports.ListObjectVersions$ = ListObjectVersions$;
+exports.ListObjectVersionsCommand = ListObjectVersionsCommand;
+exports.ListObjectVersionsOutput$ = ListObjectVersionsOutput$;
+exports.ListObjectVersionsRequest$ = ListObjectVersionsRequest$;
+exports.ListObjects$ = ListObjects$;
+exports.ListObjectsCommand = ListObjectsCommand;
+exports.ListObjectsOutput$ = ListObjectsOutput$;
+exports.ListObjectsRequest$ = ListObjectsRequest$;
+exports.ListObjectsV2$ = ListObjectsV2$;
+exports.ListObjectsV2Command = ListObjectsV2Command;
+exports.ListObjectsV2Output$ = ListObjectsV2Output$;
+exports.ListObjectsV2Request$ = ListObjectsV2Request$;
+exports.ListParts$ = ListParts$;
+exports.ListPartsCommand = ListPartsCommand;
+exports.ListPartsOutput$ = ListPartsOutput$;
+exports.ListPartsRequest$ = ListPartsRequest$;
+exports.LocationInfo$ = LocationInfo$;
+exports.LocationType = LocationType;
+exports.LoggingEnabled$ = LoggingEnabled$;
+exports.MFADelete = MFADelete;
+exports.MFADeleteStatus = MFADeleteStatus;
+exports.MetadataConfiguration$ = MetadataConfiguration$;
+exports.MetadataConfigurationResult$ = MetadataConfigurationResult$;
+exports.MetadataDirective = MetadataDirective;
+exports.MetadataEntry$ = MetadataEntry$;
+exports.MetadataTableConfiguration$ = MetadataTableConfiguration$;
+exports.MetadataTableConfigurationResult$ = MetadataTableConfigurationResult$;
+exports.MetadataTableEncryptionConfiguration$ = MetadataTableEncryptionConfiguration$;
+exports.Metrics$ = Metrics$;
+exports.MetricsAndOperator$ = MetricsAndOperator$;
+exports.MetricsConfiguration$ = MetricsConfiguration$;
+exports.MetricsFilter$ = MetricsFilter$;
+exports.MetricsStatus = MetricsStatus;
+exports.MultipartUpload$ = MultipartUpload$;
+exports.NoSuchAnnotation = NoSuchAnnotation;
+exports.NoSuchAnnotation$ = NoSuchAnnotation$;
+exports.NoSuchBucket = NoSuchBucket;
+exports.NoSuchBucket$ = NoSuchBucket$;
+exports.NoSuchKey = NoSuchKey;
+exports.NoSuchKey$ = NoSuchKey$;
+exports.NoSuchUpload = NoSuchUpload;
+exports.NoSuchUpload$ = NoSuchUpload$;
+exports.NoncurrentVersionExpiration$ = NoncurrentVersionExpiration$;
+exports.NoncurrentVersionTransition$ = NoncurrentVersionTransition$;
+exports.NotFound = NotFound;
+exports.NotFound$ = NotFound$;
+exports.NotificationConfiguration$ = NotificationConfiguration$;
+exports.NotificationConfigurationFilter$ = NotificationConfigurationFilter$;
+exports.ObjectAlreadyInActiveTierError = ObjectAlreadyInActiveTierError;
+exports.ObjectAlreadyInActiveTierError$ = ObjectAlreadyInActiveTierError$;
+exports.ObjectAttributes = ObjectAttributes;
+exports.ObjectCannedACL = ObjectCannedACL;
+exports.ObjectEncryption$ = ObjectEncryption$;
+exports.ObjectIdentifier$ = ObjectIdentifier$;
+exports.ObjectLockConfiguration$ = ObjectLockConfiguration$;
+exports.ObjectLockEnabled = ObjectLockEnabled;
+exports.ObjectLockEventHold = ObjectLockEventHold;
+exports.ObjectLockLegalHold$ = ObjectLockLegalHold$;
+exports.ObjectLockLegalHoldStatus = ObjectLockLegalHoldStatus;
+exports.ObjectLockMode = ObjectLockMode;
+exports.ObjectLockRetention$ = ObjectLockRetention$;
+exports.ObjectLockRetentionMode = ObjectLockRetentionMode;
+exports.ObjectLockRule$ = ObjectLockRule$;
+exports.ObjectNotInActiveTierError = ObjectNotInActiveTierError;
+exports.ObjectNotInActiveTierError$ = ObjectNotInActiveTierError$;
+exports.ObjectOwnership = ObjectOwnership;
+exports.ObjectPart$ = ObjectPart$;
+exports.ObjectStorageClass = ObjectStorageClass;
+exports.ObjectVersion$ = ObjectVersion$;
+exports.ObjectVersionStorageClass = ObjectVersionStorageClass;
+exports.OptionalObjectAttributes = OptionalObjectAttributes;
+exports.OutputLocation$ = OutputLocation$;
+exports.OutputSerialization$ = OutputSerialization$;
+exports.Owner$ = Owner$;
+exports.OwnerOverride = OwnerOverride;
+exports.OwnershipControls$ = OwnershipControls$;
+exports.OwnershipControlsRule$ = OwnershipControlsRule$;
+exports.ParquetInput$ = ParquetInput$;
+exports.Part$ = Part$;
+exports.PartitionDateSource = PartitionDateSource;
+exports.PartitionedPrefix$ = PartitionedPrefix$;
+exports.Payer = Payer;
+exports.Permission = Permission;
+exports.PolicyStatus$ = PolicyStatus$;
+exports.Progress$ = Progress$;
+exports.ProgressEvent$ = ProgressEvent$;
+exports.Protocol = Protocol;
+exports.PublicAccessBlockConfiguration$ = PublicAccessBlockConfiguration$;
+exports.PutBucketAbac$ = PutBucketAbac$;
+exports.PutBucketAbacCommand = PutBucketAbacCommand;
+exports.PutBucketAbacRequest$ = PutBucketAbacRequest$;
+exports.PutBucketAccelerateConfiguration$ = PutBucketAccelerateConfiguration$;
+exports.PutBucketAccelerateConfigurationCommand = PutBucketAccelerateConfigurationCommand;
+exports.PutBucketAccelerateConfigurationRequest$ = PutBucketAccelerateConfigurationRequest$;
+exports.PutBucketAcl$ = PutBucketAcl$;
+exports.PutBucketAclCommand = PutBucketAclCommand;
+exports.PutBucketAclRequest$ = PutBucketAclRequest$;
+exports.PutBucketAnalyticsConfiguration$ = PutBucketAnalyticsConfiguration$;
+exports.PutBucketAnalyticsConfigurationCommand = PutBucketAnalyticsConfigurationCommand;
+exports.PutBucketAnalyticsConfigurationRequest$ = PutBucketAnalyticsConfigurationRequest$;
+exports.PutBucketCors$ = PutBucketCors$;
+exports.PutBucketCorsCommand = PutBucketCorsCommand;
+exports.PutBucketCorsRequest$ = PutBucketCorsRequest$;
+exports.PutBucketEncryption$ = PutBucketEncryption$;
+exports.PutBucketEncryptionCommand = PutBucketEncryptionCommand;
+exports.PutBucketEncryptionRequest$ = PutBucketEncryptionRequest$;
+exports.PutBucketIntelligentTieringConfiguration$ = PutBucketIntelligentTieringConfiguration$;
+exports.PutBucketIntelligentTieringConfigurationCommand = PutBucketIntelligentTieringConfigurationCommand;
+exports.PutBucketIntelligentTieringConfigurationRequest$ = PutBucketIntelligentTieringConfigurationRequest$;
+exports.PutBucketInventoryConfiguration$ = PutBucketInventoryConfiguration$;
+exports.PutBucketInventoryConfigurationCommand = PutBucketInventoryConfigurationCommand;
+exports.PutBucketInventoryConfigurationRequest$ = PutBucketInventoryConfigurationRequest$;
+exports.PutBucketLifecycleConfiguration$ = PutBucketLifecycleConfiguration$;
+exports.PutBucketLifecycleConfigurationCommand = PutBucketLifecycleConfigurationCommand;
+exports.PutBucketLifecycleConfigurationOutput$ = PutBucketLifecycleConfigurationOutput$;
+exports.PutBucketLifecycleConfigurationRequest$ = PutBucketLifecycleConfigurationRequest$;
+exports.PutBucketLogging$ = PutBucketLogging$;
+exports.PutBucketLoggingCommand = PutBucketLoggingCommand;
+exports.PutBucketLoggingRequest$ = PutBucketLoggingRequest$;
+exports.PutBucketMetricsConfiguration$ = PutBucketMetricsConfiguration$;
+exports.PutBucketMetricsConfigurationCommand = PutBucketMetricsConfigurationCommand;
+exports.PutBucketMetricsConfigurationRequest$ = PutBucketMetricsConfigurationRequest$;
+exports.PutBucketNotificationConfiguration$ = PutBucketNotificationConfiguration$;
+exports.PutBucketNotificationConfigurationCommand = PutBucketNotificationConfigurationCommand;
+exports.PutBucketNotificationConfigurationRequest$ = PutBucketNotificationConfigurationRequest$;
+exports.PutBucketOwnershipControls$ = PutBucketOwnershipControls$;
+exports.PutBucketOwnershipControlsCommand = PutBucketOwnershipControlsCommand;
+exports.PutBucketOwnershipControlsRequest$ = PutBucketOwnershipControlsRequest$;
+exports.PutBucketPolicy$ = PutBucketPolicy$;
+exports.PutBucketPolicyCommand = PutBucketPolicyCommand;
+exports.PutBucketPolicyRequest$ = PutBucketPolicyRequest$;
+exports.PutBucketReplication$ = PutBucketReplication$;
+exports.PutBucketReplicationCommand = PutBucketReplicationCommand;
+exports.PutBucketReplicationRequest$ = PutBucketReplicationRequest$;
+exports.PutBucketRequestPayment$ = PutBucketRequestPayment$;
+exports.PutBucketRequestPaymentCommand = PutBucketRequestPaymentCommand;
+exports.PutBucketRequestPaymentRequest$ = PutBucketRequestPaymentRequest$;
+exports.PutBucketTagging$ = PutBucketTagging$;
+exports.PutBucketTaggingCommand = PutBucketTaggingCommand;
+exports.PutBucketTaggingRequest$ = PutBucketTaggingRequest$;
+exports.PutBucketVersioning$ = PutBucketVersioning$;
+exports.PutBucketVersioningCommand = PutBucketVersioningCommand;
+exports.PutBucketVersioningRequest$ = PutBucketVersioningRequest$;
+exports.PutBucketWebsite$ = PutBucketWebsite$;
+exports.PutBucketWebsiteCommand = PutBucketWebsiteCommand;
+exports.PutBucketWebsiteRequest$ = PutBucketWebsiteRequest$;
+exports.PutObject$ = PutObject$;
+exports.PutObjectAcl$ = PutObjectAcl$;
+exports.PutObjectAclCommand = PutObjectAclCommand;
+exports.PutObjectAclOutput$ = PutObjectAclOutput$;
+exports.PutObjectAclRequest$ = PutObjectAclRequest$;
+exports.PutObjectAnnotation$ = PutObjectAnnotation$;
+exports.PutObjectAnnotationCommand = PutObjectAnnotationCommand;
+exports.PutObjectAnnotationOutput$ = PutObjectAnnotationOutput$;
+exports.PutObjectAnnotationRequest$ = PutObjectAnnotationRequest$;
+exports.PutObjectCommand = PutObjectCommand;
+exports.PutObjectLegalHold$ = PutObjectLegalHold$;
+exports.PutObjectLegalHoldCommand = PutObjectLegalHoldCommand;
+exports.PutObjectLegalHoldOutput$ = PutObjectLegalHoldOutput$;
+exports.PutObjectLegalHoldRequest$ = PutObjectLegalHoldRequest$;
+exports.PutObjectLockConfiguration$ = PutObjectLockConfiguration$;
+exports.PutObjectLockConfigurationCommand = PutObjectLockConfigurationCommand;
+exports.PutObjectLockConfigurationOutput$ = PutObjectLockConfigurationOutput$;
+exports.PutObjectLockConfigurationRequest$ = PutObjectLockConfigurationRequest$;
+exports.PutObjectOutput$ = PutObjectOutput$;
+exports.PutObjectRequest$ = PutObjectRequest$;
+exports.PutObjectRetention$ = PutObjectRetention$;
+exports.PutObjectRetentionCommand = PutObjectRetentionCommand;
+exports.PutObjectRetentionOutput$ = PutObjectRetentionOutput$;
+exports.PutObjectRetentionRequest$ = PutObjectRetentionRequest$;
+exports.PutObjectTagging$ = PutObjectTagging$;
+exports.PutObjectTaggingCommand = PutObjectTaggingCommand;
+exports.PutObjectTaggingOutput$ = PutObjectTaggingOutput$;
+exports.PutObjectTaggingRequest$ = PutObjectTaggingRequest$;
+exports.PutPublicAccessBlock$ = PutPublicAccessBlock$;
+exports.PutPublicAccessBlockCommand = PutPublicAccessBlockCommand;
+exports.PutPublicAccessBlockRequest$ = PutPublicAccessBlockRequest$;
+exports.QueueConfiguration$ = QueueConfiguration$;
+exports.QuoteFields = QuoteFields;
+exports.RecordExpiration$ = RecordExpiration$;
+exports.RecordsEvent$ = RecordsEvent$;
+exports.Redirect$ = Redirect$;
+exports.RedirectAllRequestsTo$ = RedirectAllRequestsTo$;
+exports.RenameObject$ = RenameObject$;
+exports.RenameObjectCommand = RenameObjectCommand;
+exports.RenameObjectOutput$ = RenameObjectOutput$;
+exports.RenameObjectRequest$ = RenameObjectRequest$;
+exports.ReplicaModifications$ = ReplicaModifications$;
+exports.ReplicaModificationsStatus = ReplicaModificationsStatus;
+exports.ReplicationConfiguration$ = ReplicationConfiguration$;
+exports.ReplicationRule$ = ReplicationRule$;
+exports.ReplicationRuleAndOperator$ = ReplicationRuleAndOperator$;
+exports.ReplicationRuleFilter$ = ReplicationRuleFilter$;
+exports.ReplicationRuleStatus = ReplicationRuleStatus;
+exports.ReplicationStatus = ReplicationStatus;
+exports.ReplicationTime$ = ReplicationTime$;
+exports.ReplicationTimeStatus = ReplicationTimeStatus;
+exports.ReplicationTimeValue$ = ReplicationTimeValue$;
+exports.RequestCharged = RequestCharged;
+exports.RequestPayer = RequestPayer;
+exports.RequestPaymentConfiguration$ = RequestPaymentConfiguration$;
+exports.RequestProgress$ = RequestProgress$;
+exports.RestoreObject$ = RestoreObject$;
+exports.RestoreObjectCommand = RestoreObjectCommand;
+exports.RestoreObjectOutput$ = RestoreObjectOutput$;
+exports.RestoreObjectRequest$ = RestoreObjectRequest$;
+exports.RestoreRequest$ = RestoreRequest$;
+exports.RestoreRequestType = RestoreRequestType;
+exports.RestoreStatus$ = RestoreStatus$;
+exports.RoutingRule$ = RoutingRule$;
+exports.S3 = S3;
+exports.S3Client = S3Client;
+exports.S3KeyFilter$ = S3KeyFilter$;
+exports.S3Location$ = S3Location$;
+exports.S3ServiceException = S3ServiceException;
+exports.S3ServiceException$ = S3ServiceException$;
+exports.S3TablesBucketType = S3TablesBucketType;
+exports.S3TablesDestination$ = S3TablesDestination$;
+exports.S3TablesDestinationResult$ = S3TablesDestinationResult$;
+exports.SSEKMS$ = SSEKMS$;
+exports.SSEKMSEncryption$ = SSEKMSEncryption$;
+exports.SSES3$ = SSES3$;
+exports.ScanRange$ = ScanRange$;
+exports.SelectObjectContent$ = SelectObjectContent$;
+exports.SelectObjectContentCommand = SelectObjectContentCommand;
+exports.SelectObjectContentEventStream$ = SelectObjectContentEventStream$;
+exports.SelectObjectContentOutput$ = SelectObjectContentOutput$;
+exports.SelectObjectContentRequest$ = SelectObjectContentRequest$;
+exports.SelectParameters$ = SelectParameters$;
+exports.ServerSideEncryption = ServerSideEncryption;
+exports.ServerSideEncryptionByDefault$ = ServerSideEncryptionByDefault$;
+exports.ServerSideEncryptionConfiguration$ = ServerSideEncryptionConfiguration$;
+exports.ServerSideEncryptionRule$ = ServerSideEncryptionRule$;
+exports.SessionCredentials$ = SessionCredentials$;
+exports.SessionMode = SessionMode;
+exports.SimplePrefix$ = SimplePrefix$;
+exports.SourceSelectionCriteria$ = SourceSelectionCriteria$;
+exports.SseKmsEncryptedObjects$ = SseKmsEncryptedObjects$;
+exports.SseKmsEncryptedObjectsStatus = SseKmsEncryptedObjectsStatus;
+exports.Stats$ = Stats$;
+exports.StatsEvent$ = StatsEvent$;
+exports.StorageClass = StorageClass;
+exports.StorageClassAnalysis$ = StorageClassAnalysis$;
+exports.StorageClassAnalysisDataExport$ = StorageClassAnalysisDataExport$;
+exports.StorageClassAnalysisSchemaVersion = StorageClassAnalysisSchemaVersion;
+exports.TableSseAlgorithm = TableSseAlgorithm;
+exports.Tag$ = Tag$;
+exports.Tagging$ = Tagging$;
+exports.TaggingDirective = TaggingDirective;
+exports.TargetGrant$ = TargetGrant$;
+exports.TargetObjectKeyFormat$ = TargetObjectKeyFormat$;
+exports.Tier = Tier;
+exports.Tiering$ = Tiering$;
+exports.TooManyParts = TooManyParts;
+exports.TooManyParts$ = TooManyParts$;
+exports.TopicConfiguration$ = TopicConfiguration$;
+exports.Transition$ = Transition$;
+exports.TransitionDefaultMinimumObjectSize = TransitionDefaultMinimumObjectSize;
+exports.TransitionStorageClass = TransitionStorageClass;
+exports.Type = Type;
+exports.UnsupportedMediaType = UnsupportedMediaType;
+exports.UnsupportedMediaType$ = UnsupportedMediaType$;
+exports.UpdateBucketMetadataAnnotationTableConfiguration$ = UpdateBucketMetadataAnnotationTableConfiguration$;
+exports.UpdateBucketMetadataAnnotationTableConfigurationCommand = UpdateBucketMetadataAnnotationTableConfigurationCommand;
+exports.UpdateBucketMetadataAnnotationTableConfigurationRequest$ = UpdateBucketMetadataAnnotationTableConfigurationRequest$;
+exports.UpdateBucketMetadataInventoryTableConfiguration$ = UpdateBucketMetadataInventoryTableConfiguration$;
+exports.UpdateBucketMetadataInventoryTableConfigurationCommand = UpdateBucketMetadataInventoryTableConfigurationCommand;
+exports.UpdateBucketMetadataInventoryTableConfigurationRequest$ = UpdateBucketMetadataInventoryTableConfigurationRequest$;
+exports.UpdateBucketMetadataJournalTableConfiguration$ = UpdateBucketMetadataJournalTableConfiguration$;
+exports.UpdateBucketMetadataJournalTableConfigurationCommand = UpdateBucketMetadataJournalTableConfigurationCommand;
+exports.UpdateBucketMetadataJournalTableConfigurationRequest$ = UpdateBucketMetadataJournalTableConfigurationRequest$;
+exports.UpdateObjectEncryption$ = UpdateObjectEncryption$;
+exports.UpdateObjectEncryptionCommand = UpdateObjectEncryptionCommand;
+exports.UpdateObjectEncryptionRequest$ = UpdateObjectEncryptionRequest$;
+exports.UpdateObjectEncryptionResponse$ = UpdateObjectEncryptionResponse$;
+exports.UploadPart$ = UploadPart$;
+exports.UploadPartCommand = UploadPartCommand;
+exports.UploadPartCopy$ = UploadPartCopy$;
+exports.UploadPartCopyCommand = UploadPartCopyCommand;
+exports.UploadPartCopyOutput$ = UploadPartCopyOutput$;
+exports.UploadPartCopyRequest$ = UploadPartCopyRequest$;
+exports.UploadPartOutput$ = UploadPartOutput$;
+exports.UploadPartRequest$ = UploadPartRequest$;
+exports.VersioningConfiguration$ = VersioningConfiguration$;
+exports.WebsiteConfiguration$ = WebsiteConfiguration$;
+exports.WriteGetObjectResponse$ = WriteGetObjectResponse$;
+exports.WriteGetObjectResponseCommand = WriteGetObjectResponseCommand;
+exports.WriteGetObjectResponseRequest$ = WriteGetObjectResponseRequest$;
+exports._Error$ = _Error$;
+exports._Object$ = _Object$;
+exports.errorTypeRegistries = errorTypeRegistries;
+exports.paginateListBuckets = paginateListBuckets;
+exports.paginateListDirectoryBuckets = paginateListDirectoryBuckets;
+exports.paginateListObjectAnnotations = paginateListObjectAnnotations;
+exports.paginateListObjectsV2 = paginateListObjectsV2;
+exports.paginateListParts = paginateListParts;
+exports.waitForBucketExists = waitForBucketExists;
+exports.waitForBucketNotExists = waitForBucketNotExists;
+exports.waitForObjectExists = waitForObjectExists;
+exports.waitForObjectNotExists = waitForObjectNotExists;
+exports.waitUntilBucketExists = waitUntilBucketExists;
+exports.waitUntilBucketNotExists = waitUntilBucketNotExists;
+exports.waitUntilObjectExists = waitUntilObjectExists;
+exports.waitUntilObjectNotExists = waitUntilObjectNotExists;
 
 
 /***/ }),
@@ -13262,6 +13261,540 @@ const fromTokenFile = (init = {}) => async (awsIdentityProperties) => {
 
 exports.fromTokenFile = fromTokenFile;
 exports.fromWebToken = fromWebToken;
+
+
+/***/ }),
+
+/***/ 3638:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+var __webpack_unused_export__;
+const { PutObjectCommand, ChecksumAlgorithm, CreateMultipartUploadCommand, AbortMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, PutObjectTaggingCommand } = __nccwpck_require__(3439);
+const { toEndpointV1, getEndpointFromInstructions } = __nccwpck_require__(1125);
+const { extendedEncodeURIComponent } = __nccwpck_require__(8254);
+const { EventEmitter } = __nccwpck_require__(4434);
+const { Buffer } = __nccwpck_require__(181);
+const { statSync, ReadStream } = __nccwpck_require__(3024);
+const { Readable } = __nccwpck_require__(2203);
+
+const runtimeConfigShared = {
+    statSync: () => { },
+    isFileReadStream(f) {
+        return false;
+    },
+};
+
+const runtimeConfig = {
+    ...runtimeConfigShared,
+    runtime: "node",
+    statSync,
+    isFileReadStream(f) {
+        return f instanceof ReadStream;
+    },
+};
+
+const byteLength = (input) => {
+    if (input == null) {
+        return 0;
+    }
+    if (typeof input === "string") {
+        return Buffer.byteLength(input);
+    }
+    if (typeof input.byteLength === "number") {
+        return input.byteLength;
+    }
+    else if (typeof input.length === "number") {
+        return input.length;
+    }
+    else if (typeof input.size === "number") {
+        return input.size;
+    }
+    else if (typeof input.start === "number" && typeof input.end === "number") {
+        return input.end + 1 - input.start;
+    }
+    else if (runtimeConfig.isFileReadStream(input)) {
+        try {
+            return runtimeConfig.statSync(input.path).size;
+        }
+        catch (error) {
+            return undefined;
+        }
+    }
+    return undefined;
+};
+
+var BYTE_LENGTH_SOURCE;
+(function (BYTE_LENGTH_SOURCE) {
+    BYTE_LENGTH_SOURCE["EMPTY_INPUT"] = "a null or undefined Body";
+    BYTE_LENGTH_SOURCE["CONTENT_LENGTH"] = "the ContentLength property of the params set by the caller";
+    BYTE_LENGTH_SOURCE["STRING_LENGTH"] = "the encoded byte length of the Body string";
+    BYTE_LENGTH_SOURCE["TYPED_ARRAY"] = "the byteLength of a typed byte array such as Uint8Array";
+    BYTE_LENGTH_SOURCE["LENGTH"] = "the value of Body.length";
+    BYTE_LENGTH_SOURCE["SIZE"] = "the value of Body.size";
+    BYTE_LENGTH_SOURCE["START_END_DIFF"] = "the numeric difference between Body.start and Body.end";
+    BYTE_LENGTH_SOURCE["STAT"] = "the size of the file given by Body.path on disk as reported by statSync";
+})(BYTE_LENGTH_SOURCE || (BYTE_LENGTH_SOURCE = {}));
+const byteLengthSource = (input, override) => {
+    if (override != null) {
+        return BYTE_LENGTH_SOURCE.CONTENT_LENGTH;
+    }
+    if (input == null) {
+        return BYTE_LENGTH_SOURCE.EMPTY_INPUT;
+    }
+    if (typeof input === "string") {
+        return BYTE_LENGTH_SOURCE.STRING_LENGTH;
+    }
+    if (typeof input.byteLength === "number") {
+        return BYTE_LENGTH_SOURCE.TYPED_ARRAY;
+    }
+    else if (typeof input.length === "number") {
+        return BYTE_LENGTH_SOURCE.LENGTH;
+    }
+    else if (typeof input.size === "number") {
+        return BYTE_LENGTH_SOURCE.SIZE;
+    }
+    else if (typeof input.start === "number" && typeof input.end === "number") {
+        return BYTE_LENGTH_SOURCE.START_END_DIFF;
+    }
+    else if (runtimeConfig.isFileReadStream(input)) {
+        try {
+            runtimeConfig.statSync(input.path).size;
+            return BYTE_LENGTH_SOURCE.STAT;
+        }
+        catch (error) {
+            return undefined;
+        }
+    }
+    return undefined;
+};
+
+async function* getChunkStream(data, partSize, getNextData) {
+    let partNumber = 1;
+    const currentBuffer = { chunks: [], length: 0 };
+    for await (const datum of getNextData(data)) {
+        currentBuffer.chunks.push(datum);
+        currentBuffer.length += datum.byteLength;
+        while (currentBuffer.length > partSize) {
+            const dataChunk = currentBuffer.chunks.length > 1 ? Buffer.concat(currentBuffer.chunks) : currentBuffer.chunks[0];
+            yield {
+                partNumber,
+                data: dataChunk.subarray(0, partSize),
+            };
+            currentBuffer.chunks = [dataChunk.subarray(partSize)];
+            currentBuffer.length = currentBuffer.chunks[0].byteLength;
+            partNumber += 1;
+        }
+    }
+    yield {
+        partNumber,
+        data: currentBuffer.chunks.length !== 1 ? Buffer.concat(currentBuffer.chunks) : currentBuffer.chunks[0],
+        lastPart: true,
+    };
+}
+
+async function* getChunkUint8Array(data, partSize) {
+    let partNumber = 1;
+    let startByte = 0;
+    let endByte = partSize;
+    while (endByte < data.byteLength) {
+        yield {
+            partNumber,
+            data: data.subarray(startByte, endByte),
+        };
+        partNumber += 1;
+        startByte = endByte;
+        endByte = startByte + partSize;
+    }
+    yield {
+        partNumber,
+        data: data.subarray(startByte),
+        lastPart: true,
+    };
+}
+
+async function* getDataReadable(data) {
+    for await (const chunk of data) {
+        if (Buffer.isBuffer(chunk) || chunk instanceof Uint8Array) {
+            yield chunk;
+        }
+        else {
+            yield Buffer.from(chunk);
+        }
+    }
+}
+
+async function* getDataReadableStream(data) {
+    const reader = data.getReader();
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                return;
+            }
+            if (Buffer.isBuffer(value) || value instanceof Uint8Array) {
+                yield value;
+            }
+            else {
+                yield Buffer.from(value);
+            }
+        }
+    }
+    catch (e) {
+        throw e;
+    }
+    finally {
+        reader.releaseLock();
+    }
+}
+
+const getChunk = (data, partSize) => {
+    if (data instanceof Uint8Array) {
+        return getChunkUint8Array(data, partSize);
+    }
+    if (data instanceof Readable) {
+        return getChunkStream(data, partSize, getDataReadable);
+    }
+    if (data instanceof String || typeof data === "string") {
+        return getChunkUint8Array(Buffer.from(data), partSize);
+    }
+    if (typeof data.stream === "function") {
+        return getChunkStream(data.stream(), partSize, getDataReadableStream);
+    }
+    if (data instanceof ReadableStream) {
+        return getChunkStream(data, partSize, getDataReadableStream);
+    }
+    throw new Error("Body Data is unsupported format, expected data to be one of: string | Uint8Array | Buffer | Readable | ReadableStream | Blob;.");
+};
+
+class Upload extends EventEmitter {
+    static MIN_PART_SIZE = 1024 * 1024 * 5;
+    MAX_PARTS = 10_000;
+    queueSize = 4;
+    partSize;
+    leavePartsOnError = false;
+    tags = [];
+    client;
+    params;
+    totalBytes;
+    totalBytesSource;
+    bytesUploadedSoFar;
+    abortController;
+    concurrentUploaders = [];
+    createMultiPartPromise;
+    abortMultipartUploadCommand = null;
+    uploadedParts = [];
+    uploadEnqueuedPartsCount = 0;
+    expectedPartsCount;
+    uploadId;
+    uploadEvent;
+    isMultiPart = true;
+    singleUploadResult;
+    sent = false;
+    constructor(options) {
+        super();
+        this.queueSize = options.queueSize || this.queueSize;
+        this.leavePartsOnError = options.leavePartsOnError || this.leavePartsOnError;
+        this.tags = options.tags || this.tags;
+        this.client = options.client;
+        this.params = options.params;
+        if (!this.params) {
+            throw new Error(`InputError: Upload requires params to be passed to upload.`);
+        }
+        this.totalBytes = this.params.ContentLength ?? byteLength(this.params.Body);
+        this.totalBytesSource = byteLengthSource(this.params.Body, this.params.ContentLength);
+        this.bytesUploadedSoFar = 0;
+        this.abortController = options.abortController ?? new AbortController();
+        this.partSize =
+            options.partSize || Math.max(Upload.MIN_PART_SIZE, Math.ceil((this.totalBytes || 0) / this.MAX_PARTS));
+        if (this.totalBytes !== undefined) {
+            this.expectedPartsCount = Math.ceil(this.totalBytes / this.partSize);
+        }
+        this.__validateInput();
+    }
+    async abort() {
+        this.abortController.abort();
+    }
+    async done() {
+        if (this.sent) {
+            throw new Error("@aws-sdk/lib-storage: this instance of Upload has already executed .done(). Create a new instance.");
+        }
+        this.sent = true;
+        return await Promise.race([this.__doMultipartUpload(), this.__abortTimeout(this.abortController.signal)]);
+    }
+    on(event, listener) {
+        this.uploadEvent = event;
+        return super.on(event, listener);
+    }
+    async __uploadUsingPut(dataPart) {
+        this.isMultiPart = false;
+        const params = { ...this.params, Body: dataPart.data };
+        const clientConfig = this.client.config;
+        const requestHandler = clientConfig.requestHandler;
+        const eventEmitter = requestHandler instanceof EventEmitter ? requestHandler : null;
+        const uploadEventListener = (event) => {
+            this.bytesUploadedSoFar = event.loaded;
+            this.totalBytes = event.total;
+            this.__notifyProgress({
+                loaded: this.bytesUploadedSoFar,
+                total: this.totalBytes,
+                part: dataPart.partNumber,
+                Key: this.params.Key,
+                Bucket: this.params.Bucket,
+            });
+        };
+        if (eventEmitter !== null) {
+            eventEmitter.on("xhr.upload.progress", uploadEventListener);
+        }
+        const resolved = await Promise.all([this.client.send(new PutObjectCommand(params)), clientConfig?.endpoint?.()]);
+        const putResult = resolved[0];
+        let endpoint = resolved[1];
+        if (!endpoint) {
+            endpoint = toEndpointV1(await getEndpointFromInstructions(params, PutObjectCommand, {
+                ...clientConfig,
+            }));
+        }
+        if (!endpoint) {
+            throw new Error('Could not resolve endpoint from S3 "client.config.endpoint()" nor EndpointsV2.');
+        }
+        if (eventEmitter !== null) {
+            eventEmitter.off("xhr.upload.progress", uploadEventListener);
+        }
+        const locationKey = this.params
+            .Key.split("/")
+            .map((segment) => extendedEncodeURIComponent(segment))
+            .join("/");
+        const locationBucket = extendedEncodeURIComponent(this.params.Bucket);
+        const Location = (() => {
+            const endpointHostnameIncludesBucket = endpoint.hostname.startsWith(`${locationBucket}.`);
+            const forcePathStyle = this.client.config.forcePathStyle;
+            const optionalPort = endpoint.port ? `:${endpoint.port}` : ``;
+            if (forcePathStyle) {
+                return `${endpoint.protocol}//${endpoint.hostname}${optionalPort}/${locationBucket}/${locationKey}`;
+            }
+            if (endpointHostnameIncludesBucket) {
+                return `${endpoint.protocol}//${endpoint.hostname}${optionalPort}/${locationKey}`;
+            }
+            return `${endpoint.protocol}//${locationBucket}.${endpoint.hostname}${optionalPort}/${locationKey}`;
+        })();
+        this.singleUploadResult = {
+            ...putResult,
+            Bucket: this.params.Bucket,
+            Key: this.params.Key,
+            Location,
+        };
+        const totalSize = byteLength(dataPart.data);
+        this.__notifyProgress({
+            loaded: totalSize,
+            total: totalSize,
+            part: 1,
+            Key: this.params.Key,
+            Bucket: this.params.Bucket,
+        });
+    }
+    async __createMultipartUpload() {
+        const requestChecksumCalculation = await this.client.config.requestChecksumCalculation();
+        if (!this.createMultiPartPromise) {
+            const createCommandParams = { ...this.params, Body: undefined };
+            if (requestChecksumCalculation === "WHEN_SUPPORTED") {
+                createCommandParams.ChecksumAlgorithm = this.params.ChecksumAlgorithm || ChecksumAlgorithm.CRC32;
+            }
+            this.createMultiPartPromise = this.client
+                .send(new CreateMultipartUploadCommand(createCommandParams))
+                .then((createMpuResponse) => {
+                this.abortMultipartUploadCommand = new AbortMultipartUploadCommand({
+                    Bucket: this.params.Bucket,
+                    Key: this.params.Key,
+                    UploadId: createMpuResponse.UploadId,
+                });
+                return createMpuResponse;
+            });
+        }
+        return this.createMultiPartPromise;
+    }
+    async __doConcurrentUpload(dataFeeder) {
+        for await (const dataPart of dataFeeder) {
+            if (this.uploadEnqueuedPartsCount > this.MAX_PARTS) {
+                throw new Error(`Exceeded ${this.MAX_PARTS} parts in multipart upload to Bucket: ${this.params.Bucket} Key: ${this.params.Key}.`);
+            }
+            if (this.abortController.signal.aborted) {
+                return;
+            }
+            if (dataPart.partNumber === 1 && dataPart.lastPart) {
+                return await this.__uploadUsingPut(dataPart);
+            }
+            if (!this.uploadId) {
+                const { UploadId } = await this.__createMultipartUpload();
+                this.uploadId = UploadId;
+                if (this.abortController.signal.aborted) {
+                    return;
+                }
+            }
+            const partSize = byteLength(dataPart.data) || 0;
+            const requestHandler = this.client.config.requestHandler;
+            const eventEmitter = requestHandler instanceof EventEmitter ? requestHandler : null;
+            let lastSeenBytes = 0;
+            const uploadEventListener = (event, request) => {
+                const requestPartSize = Number(request.query["partNumber"]) || -1;
+                if (requestPartSize !== dataPart.partNumber) {
+                    return;
+                }
+                if (event.total && partSize) {
+                    this.bytesUploadedSoFar += event.loaded - lastSeenBytes;
+                    lastSeenBytes = event.loaded;
+                }
+                this.__notifyProgress({
+                    loaded: this.bytesUploadedSoFar,
+                    total: this.totalBytes,
+                    part: dataPart.partNumber,
+                    Key: this.params.Key,
+                    Bucket: this.params.Bucket,
+                });
+            };
+            if (eventEmitter !== null) {
+                eventEmitter.on("xhr.upload.progress", uploadEventListener);
+            }
+            this.uploadEnqueuedPartsCount += 1;
+            this.__validateUploadPart(dataPart);
+            const partResult = await this.client.send(new UploadPartCommand({
+                ...this.params,
+                ContentLength: undefined,
+                UploadId: this.uploadId,
+                Body: dataPart.data,
+                PartNumber: dataPart.partNumber,
+            }));
+            if (eventEmitter !== null) {
+                eventEmitter.off("xhr.upload.progress", uploadEventListener);
+            }
+            if (this.abortController.signal.aborted) {
+                return;
+            }
+            if (!partResult.ETag) {
+                throw new Error(`Part ${dataPart.partNumber} is missing ETag in UploadPart response. Missing Bucket CORS configuration for ETag header?`);
+            }
+            this.uploadedParts.push({
+                PartNumber: dataPart.partNumber,
+                ETag: partResult.ETag,
+                ...(partResult.ChecksumCRC32 && { ChecksumCRC32: partResult.ChecksumCRC32 }),
+                ...(partResult.ChecksumCRC32C && { ChecksumCRC32C: partResult.ChecksumCRC32C }),
+                ...(partResult.ChecksumSHA1 && { ChecksumSHA1: partResult.ChecksumSHA1 }),
+                ...(partResult.ChecksumSHA256 && { ChecksumSHA256: partResult.ChecksumSHA256 }),
+            });
+            if (eventEmitter === null) {
+                this.bytesUploadedSoFar += partSize;
+            }
+            this.__notifyProgress({
+                loaded: this.bytesUploadedSoFar,
+                total: this.totalBytes,
+                part: dataPart.partNumber,
+                Key: this.params.Key,
+                Bucket: this.params.Bucket,
+            });
+        }
+    }
+    async __doMultipartUpload() {
+        const dataFeeder = getChunk(this.params.Body, this.partSize);
+        const concurrentUploaderFailures = [];
+        for (let index = 0; index < this.queueSize; index++) {
+            const currentUpload = this.__doConcurrentUpload(dataFeeder).catch((err) => {
+                concurrentUploaderFailures.push(err);
+            });
+            this.concurrentUploaders.push(currentUpload);
+        }
+        await Promise.all(this.concurrentUploaders);
+        if (concurrentUploaderFailures.length >= 1) {
+            await this.markUploadAsAborted();
+            throw concurrentUploaderFailures[0];
+        }
+        if (this.abortController.signal.aborted) {
+            await this.markUploadAsAborted();
+            throw Object.assign(new Error("Upload aborted."), { name: "AbortError" });
+        }
+        let result;
+        if (this.isMultiPart) {
+            const { expectedPartsCount, uploadedParts, totalBytes, totalBytesSource } = this;
+            if (totalBytes !== undefined && expectedPartsCount !== undefined && uploadedParts.length !== expectedPartsCount) {
+                await this.markUploadAsAborted();
+                throw new Error(`Expected ${expectedPartsCount} part(s) but uploaded ${uploadedParts.length} part(s).
+The expected part count is based on the byte-count of the input.params.Body,
+which was read from ${totalBytesSource} and is ${totalBytes}.
+If this is not correct, provide an override value by setting a number
+to input.params.ContentLength in bytes.
+`);
+            }
+            this.uploadedParts.sort((a, b) => a.PartNumber - b.PartNumber);
+            const uploadCompleteParams = {
+                ...this.params,
+                Body: undefined,
+                UploadId: this.uploadId,
+                MultipartUpload: {
+                    Parts: this.uploadedParts,
+                },
+            };
+            result = await this.client.send(new CompleteMultipartUploadCommand(uploadCompleteParams));
+            if (typeof result?.Location === "string" && result.Location.includes("%2F")) {
+                result.Location = result.Location.replace(/%2F/g, "/");
+            }
+        }
+        else {
+            result = this.singleUploadResult;
+        }
+        this.abortMultipartUploadCommand = null;
+        if (this.tags.length) {
+            await this.client.send(new PutObjectTaggingCommand({
+                ...this.params,
+                Tagging: {
+                    TagSet: this.tags,
+                },
+            }));
+        }
+        return result;
+    }
+    async markUploadAsAborted() {
+        if (this.uploadId && !this.leavePartsOnError && null !== this.abortMultipartUploadCommand) {
+            await this.client.send(this.abortMultipartUploadCommand);
+            this.abortMultipartUploadCommand = null;
+        }
+    }
+    __notifyProgress(progress) {
+        if (this.uploadEvent) {
+            this.emit(this.uploadEvent, progress);
+        }
+    }
+    async __abortTimeout(abortSignal) {
+        return new Promise((resolve, reject) => {
+            abortSignal.onabort = () => {
+                const abortError = new Error("Upload aborted.");
+                abortError.name = "AbortError";
+                reject(abortError);
+            };
+        });
+    }
+    __validateUploadPart(dataPart) {
+        const actualPartSize = byteLength(dataPart.data);
+        if (actualPartSize === undefined) {
+            throw new Error(`A dataPart was generated without a measurable data chunk size for part number ${dataPart.partNumber}`);
+        }
+        if (dataPart.partNumber === 1 && dataPart.lastPart) {
+            return;
+        }
+        if (!dataPart.lastPart && actualPartSize !== this.partSize) {
+            throw new Error(`The byte size for part number ${dataPart.partNumber}, size ${actualPartSize} does not match expected size ${this.partSize}`);
+        }
+    }
+    __validateInput() {
+        if (!this.client) {
+            throw new Error(`InputError: Upload requires a AWS client to do uploads with.`);
+        }
+        if (this.partSize < Upload.MIN_PART_SIZE) {
+            throw new Error(`EntityTooSmall: Your proposed upload part size [${this.partSize}] is smaller than the minimum allowed size [${Upload.MIN_PART_SIZE}] (5MB)`);
+        }
+        if (this.queueSize < 1) {
+            throw new Error(`Queue size: Must have at least one uploading queue.`);
+        }
+    }
+}
+
+__webpack_unused_export__ = Upload;
 
 
 /***/ }),
@@ -61217,6 +61750,13 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("assert");
 
 /***/ }),
 
+/***/ 181:
+/***/ ((module) => {
+
+module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("buffer");
+
+/***/ }),
+
 /***/ 4434:
 /***/ ((module) => {
 
@@ -61438,6 +61978,13 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:zlib");
 /***/ ((module) => {
 
 module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("path");
+
+/***/ }),
+
+/***/ 2203:
+/***/ ((module) => {
+
+module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("stream");
 
 /***/ }),
 
@@ -62955,7 +63502,7 @@ const _summary = new Summary();
  * @deprecated use `core.summary`
  */
 const markdownSummary = (/* unused pure expression or super */ null && (_summary));
-const summary = (/* unused pure expression or super */ null && (_summary));
+const summary = _summary;
 //# sourceMappingURL=summary.js.map
 ;// CONCATENATED MODULE: ../cloud-cache-action/node_modules/@actions/core/lib/path-utils.js
 
@@ -64427,13 +64974,13 @@ function info(message) {
  * @param name The name of the output group
  */
 function startGroup(name) {
-    issue('group', name);
+    command_issue('group', name);
 }
 /**
  * End an output group.
  */
 function endGroup() {
-    issue('endgroup');
+    command_issue('endgroup');
 }
 /**
  * Wrap an asynchronous function call in a group.
@@ -65337,8 +65884,8 @@ class internal_globber_DefaultGlobber {
     }
 }
 //# sourceMappingURL=internal-globber.js.map
-;// CONCATENATED MODULE: external "stream"
-const external_stream_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("stream");
+// EXTERNAL MODULE: external "stream"
+var external_stream_ = __nccwpck_require__(2203);
 // EXTERNAL MODULE: external "util"
 var external_util_ = __nccwpck_require__(9023);
 ;// CONCATENATED MODULE: ../cloud-cache-action/node_modules/@actions/glob/lib/internal-hash-files.js
@@ -65525,7 +66072,7 @@ function isCovered(entry, entries) {
     return false;
 }
 /** Expands `path` patterns like actions/cache: globs, `~`, and ordered `!` exclusions. */
-async function resolveCachePaths(patterns, workspace = getWorkspace()) {
+async function paths_resolveCachePaths(patterns, workspace = getWorkspace()) {
     const prepared = patterns
         .map((line) => line.trim())
         .filter((line) => line !== '')
@@ -65632,7 +66179,7 @@ var Outputs;
     Outputs["CandidateCount"] = "candidate-count";
     Outputs["Report"] = "report";
 })(Outputs || (Outputs = {}));
-var State;
+var constants_State;
 (function (State) {
     State["CachePrimaryKey"] = "CACHE_PRIMARY_KEY";
     State["CacheMatchedKey"] = "CACHE_MATCHED_KEY";
@@ -65659,7 +66206,7 @@ var State;
     State["CacheHitSource"] = "CACHE_HIT_SOURCE";
     State["CacheJobSummary"] = "CACHE_JOB_SUMMARY";
     State["CacheMetricsFile"] = "CACHE_METRICS_FILE";
-})(State || (State = {}));
+})(constants_State || (constants_State = {}));
 var constants_Events;
 (function (Events) {
     Events["Key"] = "GITHUB_EVENT_NAME";
@@ -65675,6 +66222,671 @@ const Defaults = {
     /** Mixed into every cache version; bump it when the archive format changes incompatibly. */
     VersionSalt: 'cloud-cache-1',
 };
+
+;// CONCATENATED MODULE: ./src/utils/inputUtils.ts
+
+
+function getInputAsArray(name, options) {
+    return getInput(name, options)
+        .split('\n')
+        .map((s) => s.trim())
+        .filter((x) => x !== '');
+}
+const TRUE_VALUES = ['true', 'True', 'TRUE'];
+const FALSE_VALUES = ['false', 'False', 'FALSE'];
+function getInputAsBool(name, defaultValue = false, options) {
+    const value = getInput(name, options).trim();
+    if (!value) {
+        return defaultValue;
+    }
+    if (TRUE_VALUES.includes(value)) {
+        return true;
+    }
+    if (FALSE_VALUES.includes(value)) {
+        return false;
+    }
+    core_warning(`Input "${name}" must be one of true, True, TRUE, false, False, FALSE; got "${value}". Using "${defaultValue}".`);
+    return defaultValue;
+}
+function getInputAsEnum(name, allowed, defaultValue) {
+    const value = getInput(name).trim();
+    if (!value) {
+        return defaultValue;
+    }
+    if (allowed.includes(value)) {
+        return value;
+    }
+    core_warning(`Input "${name}" must be one of ${allowed.join(', ')}; got "${value}". Using "${defaultValue}".`);
+    return defaultValue;
+}
+function getInputAsInt(name, defaultValue, options) {
+    const value = getInput(name, options);
+    if (!value) {
+        return defaultValue;
+    }
+    const parsed = parseInt(value, 10);
+    if (isNaN(parsed) || parsed < 0) {
+        return defaultValue;
+    }
+    return parsed;
+}
+function getInputWithEnv(inputName, envVarNames = [], camelCaseInputName) {
+    // Check primary input
+    let value = getInput(inputName);
+    if (value) {
+        return value;
+    }
+    // Check camelCase alias if provided
+    if (camelCaseInputName) {
+        value = getInput(camelCaseInputName);
+        if (value) {
+            return value;
+        }
+    }
+    // Check environment variables
+    for (const envVar of envVarNames) {
+        const envVal = process.env[envVar];
+        if (envVal !== undefined && envVal !== '') {
+            return envVal;
+        }
+    }
+    return '';
+}
+function inputUtils_isExactKeyMatch(primaryKey, matchedKey) {
+    if (!matchedKey) {
+        return false;
+    }
+    return primaryKey.trim().toLowerCase() === matchedKey.trim().toLowerCase();
+}
+function isValidEvent() {
+    const event = process.env[Events.Key];
+    // GitHub Actions events that are not tied to a ref (e.g. issues, discussion) might not be appropriate for caching
+    // actions/cache warns if event is not ref-based, but allows execution
+    return Boolean(event);
+}
+function inputUtils_formatSize(bytes) {
+    if (bytes === undefined || bytes === null || isNaN(bytes)) {
+        return '0 B';
+    }
+    if (bytes === 0)
+        return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const unitIndex = Math.min(i, units.length - 1);
+    const size = (bytes / Math.pow(1024, unitIndex)).toFixed(2);
+    return `${size} ${units[unitIndex]}`;
+}
+/**
+ * Reads an input that must be a positive integer, failing the step on anything else: a typo
+ * silently falling back to a default would hide a wrong-looking result rather than report it.
+ */
+function parsePositiveInt(raw, name) {
+    const trimmed = raw.trim();
+    if (!/^[0-9]+$/.test(trimmed) || Number(trimmed) <= 0) {
+        throw new Error(`Input "${name}" must be a positive integer; got "${raw}".`);
+    }
+    return Number(trimmed);
+}
+
+;// CONCATENATED MODULE: ./src/core/objectAttributes.ts
+
+/** User metadata keys starting with this are set by the action and never by the user. */
+const USER_METADATA_RESERVED_PREFIX = 'cloud-cache-';
+/** Object metadata key holding the archive's sha256, verified before extracting on restore. */
+const objectAttributes_SHA256_METADATA_KEY = 'cloud-cache-sha256';
+/** S3's limit on user metadata: the sum of every key and value length, in bytes. */
+const METADATA_LIMIT_BYTES = 2048;
+/** Length of a hex sha256 digest, reserved out of the metadata budget. */
+const SHA256_ENTRY_BYTES = objectAttributes_SHA256_METADATA_KEY.length + 64;
+const MAX_TAGS = 10;
+const METADATA_KEY_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
+const PRINTABLE_ASCII = /^[\x20-\x7E]*$/;
+const TAG_CHARS = /^[A-Za-z0-9 +\-=._:/@]*$/;
+function lines(raw) {
+    return raw
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== '');
+}
+function splitPair(line, inputName) {
+    const at = line.indexOf('=');
+    if (at === -1) {
+        throw new Error(`Invalid "${inputName}" line "${line}": expected key=value.`);
+    }
+    return [line.slice(0, at).trim(), line.slice(at + 1).trim()];
+}
+function metadataBytes(metadata) {
+    return Object.entries(metadata).reduce((sum, [key, value]) => sum + key.length + value.length, 0);
+}
+/**
+ * Parses the `metadata` input: one `key=value` per line, keys lower-cased as S3 does, values
+ * printable ASCII. Fails (so the step fails before any S3 call) on a reserved key or when the
+ * total, plus the sha256 entry the save adds, would exceed S3's limit.
+ */
+function parseMetadata(raw, inputName = 'metadata') {
+    const metadata = {};
+    for (const line of lines(raw)) {
+        const [rawKey, value] = splitPair(line, inputName);
+        const key = rawKey.toLowerCase();
+        if (!METADATA_KEY_PATTERN.test(key)) {
+            throw new Error(`Invalid "${inputName}" key "${rawKey}": use letters, digits, ".", "_" or "-", starting with a letter or digit.`);
+        }
+        if (key.startsWith(USER_METADATA_RESERVED_PREFIX)) {
+            throw new Error(`"${inputName}" key "${key}" is reserved (${USER_METADATA_RESERVED_PREFIX}* keys are set by the action).`);
+        }
+        if (!PRINTABLE_ASCII.test(value)) {
+            throw new Error(`Invalid "${inputName}" value for "${key}": only printable ASCII is allowed.`);
+        }
+        if (key in metadata) {
+            core_warning(`"${inputName}" sets "${key}" more than once; the last value wins.`);
+        }
+        metadata[key] = value;
+    }
+    const total = metadataBytes(metadata) + SHA256_ENTRY_BYTES;
+    if (total > METADATA_LIMIT_BYTES) {
+        throw new Error(`${inputName} is too large: ${total} bytes with the ${objectAttributes_SHA256_METADATA_KEY} entry; the S3 limit is ${METADATA_LIMIT_BYTES}.`);
+    }
+    return metadata;
+}
+/** Parses the `tags` input: up to 10 `key=value` lines with S3's tag character set. */
+function parseTags(raw, inputName = 'tags') {
+    const tags = [];
+    const seen = new Set();
+    for (const line of lines(raw)) {
+        const [key, value] = splitPair(line, inputName);
+        if (key === '' || !TAG_CHARS.test(key)) {
+            throw new Error(`Invalid "${inputName}" key "${key}": use letters, digits, spaces or + - = . _ : / @.`);
+        }
+        if (key.length > 128) {
+            throw new Error(`Invalid "${inputName}" key "${key}": at most 128 characters.`);
+        }
+        if (!TAG_CHARS.test(value)) {
+            throw new Error(`Invalid "${inputName}" value for "${key}": use letters, digits, spaces or + - = . _ : / @.`);
+        }
+        if (value.length > 256) {
+            throw new Error(`Invalid "${inputName}" value for "${key}": at most 256 characters.`);
+        }
+        if (seen.has(key)) {
+            throw new Error(`Duplicate "${inputName}" key "${key}".`);
+        }
+        seen.add(key);
+        tags.push({ Key: key, Value: value });
+    }
+    if (tags.length > MAX_TAGS) {
+        throw new Error(`"${inputName}" allows at most ${MAX_TAGS} tags; got ${tags.length}.`);
+    }
+    return tags;
+}
+/** The `Tagging` request header value (a URL-encoded query string), or undefined when empty. */
+function objectAttributes_encodeTagging(tags) {
+    if (tags.length === 0) {
+        return undefined;
+    }
+    return tags
+        .map((tag) => `${encodeURIComponent(tag.Key)}=${encodeURIComponent(tag.Value)}`)
+        .join('&');
+}
+/** User metadata as reported to workflows: everything except the action's own keys. */
+function objectAttributes_stripReservedMetadata(metadata) {
+    const result = {};
+    for (const [key, value] of Object.entries(metadata ?? {})) {
+        if (!key.startsWith(USER_METADATA_RESERVED_PREFIX)) {
+            result[key] = value;
+        }
+    }
+    return result;
+}
+
+;// CONCATENATED MODULE: ./src/core/config.ts
+
+
+
+
+const RESTORE_PRIORITIES = ['s3-first', 'github-first'];
+const DUAL_CACHE_STRATEGIES = ['backfill', 'skip-on-hit'];
+function readDualCacheStrategy() {
+    if (getInput(Inputs.DualCacheStrategy).trim() === 'independent') {
+        core_warning('dual-cache-strategy "independent" was removed in v1.1; using "backfill", which now checks each tier before uploading.');
+        return 'backfill';
+    }
+    return getInputAsEnum(Inputs.DualCacheStrategy, DUAL_CACHE_STRATEGIES, 'backfill');
+}
+/**
+ * Reads the action inputs. When `state` is given (the post step), values the restore step
+ * persisted win, so both steps compute the same object keys and warnings are not repeated.
+ */
+function readCacheConfig(state) {
+    const persisted = (key) => state?.getState(key) ?? '';
+    const bool = (key, read) => {
+        const value = persisted(key);
+        return value === '' ? read() : value === 'true';
+    };
+    const text = (key, read) => persisted(key) || read();
+    const json = (key, read) => {
+        const value = persisted(key);
+        return value === '' ? read() : JSON.parse(value);
+    };
+    const retryCountState = persisted(constants_State.CacheRetryCount);
+    return {
+        primaryKey: text(constants_State.CachePrimaryKey, () => getInput(Inputs.Key).trim()),
+        paths: getInputAsArray(Inputs.Path),
+        restoreKeys: getInputAsArray(Inputs.RestoreKeys),
+        lookupOnly: getInputAsBool(Inputs.LookupOnly),
+        failOnCacheMiss: getInputAsBool(Inputs.FailOnCacheMiss),
+        readOnly: bool(constants_State.CacheReadOnly, () => getInputAsBool(Inputs.ReadOnly)),
+        enableCrossOsArchive: getInputAsBool(Inputs.EnableCrossOsArchive),
+        uploadChunkSize: getInputAsInt(Inputs.UploadChunkSize),
+        s3KeyPattern: text(constants_State.CacheS3KeyPattern, () => getInput(Inputs.S3KeyPattern) || Defaults.DefaultS3KeyPattern),
+        prefix: text(constants_State.CachePrefix, () => getInput(Inputs.Prefix)),
+        scopedToRepository: bool(constants_State.CacheScopedToRepository, () => getInputAsBool(Inputs.ScopedToRepository, true)),
+        scopedToRef: bool(constants_State.CacheScopedToRef, () => getInputAsBool(Inputs.ScopedToRef, true)),
+        retryEnabled: bool(constants_State.CacheRetry, () => getInputAsBool(Inputs.Retry, true)),
+        retryCount: retryCountState !== ''
+            ? Number(retryCountState)
+            : (getInputAsInt(Inputs.RetryCount) ?? Defaults.DefaultRetryCount),
+        useFallback: getInputAsBool(Inputs.UseFallback),
+        dualCache: bool(constants_State.CacheDualCache, () => getInputAsBool(Inputs.DualCache)),
+        restorePriority: text(constants_State.CacheRestorePriority, () => getInputAsEnum(Inputs.RestorePriority, RESTORE_PRIORITIES, 's3-first')),
+        dualCacheStrategy: text(constants_State.CacheDualCacheStrategy, readDualCacheStrategy),
+        dualCacheStrict: bool(constants_State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
+        streaming: bool(constants_State.CacheStreaming, () => getInputAsBool(Inputs.Streaming)),
+        jobSummary: bool(constants_State.CacheJobSummary, () => getInputAsBool(Inputs.JobSummary, true)),
+        metadata: json(constants_State.CacheMetadata, () => parseMetadata(getInput(Inputs.Metadata))),
+        tags: json(constants_State.CacheTags, () => parseTags(getInput(Inputs.Tags))),
+        explain: getInputAsBool(Inputs.Explain),
+        metricsFile: text(constants_State.CacheMetricsFile, () => getInput(Inputs.MetricsFile).trim()),
+    };
+}
+/** Saves what the post step must agree on with the restore step. */
+function persistCacheConfig(state, config) {
+    state.setState(State.CachePrimaryKey, config.primaryKey);
+    state.setState(State.CacheReadOnly, String(config.readOnly));
+    state.setState(State.CacheS3KeyPattern, config.s3KeyPattern);
+    state.setState(State.CachePrefix, config.prefix);
+    state.setState(State.CacheScopedToRepository, String(config.scopedToRepository));
+    state.setState(State.CacheScopedToRef, String(config.scopedToRef));
+    state.setState(State.CacheRetry, String(config.retryEnabled));
+    state.setState(State.CacheRetryCount, String(config.retryCount));
+    state.setState(State.CacheDualCache, String(config.dualCache));
+    state.setState(State.CacheRestorePriority, config.restorePriority);
+    state.setState(State.CacheDualCacheStrategy, config.dualCacheStrategy);
+    state.setState(State.CacheDualCacheStrict, String(config.dualCacheStrict));
+    state.setState(State.CacheStreaming, String(config.streaming));
+    state.setState(State.CacheJobSummary, String(config.jobSummary));
+    state.setState(State.CacheMetadata, JSON.stringify(config.metadata));
+    state.setState(State.CacheTags, JSON.stringify(config.tags));
+    state.setState(State.CacheMetricsFile, config.metricsFile);
+}
+
+// EXTERNAL MODULE: external "node:fs"
+var external_node_fs_ = __nccwpck_require__(3024);
+;// CONCATENATED MODULE: external "node:stream/promises"
+const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:stream/promises");
+;// CONCATENATED MODULE: ./src/archive/compression.ts
+
+
+let cachedConfig = null;
+async function getCompressionConfig() {
+    if (cachedConfig) {
+        return cachedConfig;
+    }
+    try {
+        const zstdPath = await which('zstd', false);
+        if (zstdPath) {
+            core_debug(`zstd binary found at: ${zstdPath}`);
+            cachedConfig = {
+                method: 'zstd',
+                archiveFilename: 'cache.tar.zst',
+            };
+            return cachedConfig;
+        }
+    }
+    catch (err) {
+        core_debug(`zstd detection error: ${err}`);
+    }
+    core_debug('zstd binary not found; falling back to gzip');
+    cachedConfig = {
+        method: 'gzip',
+        archiveFilename: 'cache.tar.gz',
+    };
+    return cachedConfig;
+}
+function resetCompressionConfigCache() {
+    cachedConfig = null;
+}
+
+// EXTERNAL MODULE: external "node:crypto"
+var external_node_crypto_ = __nccwpck_require__(7598);
+// EXTERNAL MODULE: external "node:stream"
+var external_node_stream_ = __nccwpck_require__(7075);
+;// CONCATENATED MODULE: ./src/archive/checksum.ts
+
+
+
+/** Hashes a file on disk with sha256, streaming it chunk by chunk. */
+async function checksum_sha256File(filePath) {
+    const hash = crypto.createHash('sha256');
+    for await (const chunk of fs.createReadStream(filePath)) {
+        hash.update(chunk);
+    }
+    return hash.digest('hex');
+}
+/** A sha256 tap for streaming pipelines (used by Task 8): hashes data as it flows through. */
+function checksum_createSha256Tap() {
+    const hash = crypto.createHash('sha256');
+    const stream = new Transform({
+        transform(chunk, _encoding, callback) {
+            hash.update(chunk);
+            callback(null, chunk);
+        },
+    });
+    return {
+        stream,
+        digest: () => hash.digest('hex'),
+    };
+}
+
+;// CONCATENATED MODULE: ./src/archive/tar.ts
+
+
+
+
+
+const ZSTD_COMPRESS = 'zstd -T0 --long=30';
+const ZSTD_DECOMPRESS = 'zstd -d --long=30';
+function systemLookup() {
+    return {
+        platform: process.platform,
+        env: process.env,
+        which: (tool) => io.which(tool, false),
+        exists: (file) => fs.existsSync(file),
+    };
+}
+/** Picks tar the way actions/cache does: GNU tar where available, BSD tar otherwise. */
+async function tar_findTar(lookup = systemLookup()) {
+    if (lookup.platform === 'win32') {
+        const programFiles = lookup.env.ProgramFiles || 'C:\\Program Files';
+        const gnuTar = path.win32.join(programFiles, 'Git', 'usr', 'bin', 'tar.exe');
+        if (lookup.exists(gnuTar)) {
+            return { path: gnuTar, flavor: 'gnu' };
+        }
+        const systemRoot = lookup.env.SystemRoot || 'C:\\Windows';
+        const systemTar = path.win32.join(systemRoot, 'System32', 'tar.exe');
+        if (lookup.exists(systemTar)) {
+            return { path: systemTar, flavor: 'bsd' };
+        }
+        throw new Error(`tar was not found at ${gnuTar} or ${systemTar}`);
+    }
+    if (lookup.platform === 'darwin') {
+        const gtar = await lookup.which('gtar');
+        if (gtar) {
+            return { path: gtar, flavor: 'gnu' };
+        }
+    }
+    const tar = await lookup.which('tar');
+    if (!tar) {
+        throw new Error('tar was not found on PATH');
+    }
+    return { path: tar, flavor: lookup.platform === 'darwin' ? 'bsd' : 'gnu' };
+}
+const slashes = (value) => value.replace(/\\/g, '/');
+/**
+ * BSD tar on Windows cannot pipe through zstd reliably, so zstd runs as its own command. This
+ * also means that combination cannot stream (Task 8): callers that want to stream check this
+ * first and fall back to a temporary archive file when it is true.
+ */
+function tar_usesSeparateZstd(plan) {
+    return plan.tar.flavor === 'bsd' && plan.platform === 'win32' && plan.compression === 'zstd';
+}
+function platformFlags(plan) {
+    if (plan.tar.flavor !== 'gnu') {
+        return [];
+    }
+    if (plan.platform === 'win32') {
+        return ['--force-local'];
+    }
+    if (plan.platform === 'darwin') {
+        return ['--delay-directory-restore'];
+    }
+    return [];
+}
+function compressionFlags(method, program) {
+    return method === 'zstd' ? ['--use-compress-program', program] : ['-z'];
+}
+/** One entry per line; entries starting with '-' get './' so no tar treats them as options. */
+function tar_formatManifest(entries) {
+    return `${entries.map((entry) => (entry.startsWith('-') ? `./${entry}` : entry)).join('\n')}\n`;
+}
+function tar_buildCreateCommands(plan) {
+    const separateZstd = tar_usesSeparateZstd(plan);
+    const tarFile = separateZstd ? path.join(plan.tempDir, 'cache.tar') : plan.archivePath;
+    const args = [];
+    if (plan.tar.flavor === 'gnu') {
+        args.push('--posix');
+    }
+    args.push('-cf', slashes(tarFile), '-P', '-C', slashes(plan.workspace));
+    if (plan.tar.flavor === 'gnu') {
+        args.push('--verbatim-files-from');
+    }
+    args.push('-T', slashes(plan.manifestPath), ...platformFlags(plan));
+    if (!separateZstd) {
+        args.push(...compressionFlags(plan.compression, ZSTD_COMPRESS));
+        return [{ tool: plan.tar.path, args }];
+    }
+    return [
+        { tool: plan.tar.path, args },
+        {
+            tool: 'zstd',
+            args: ['-T0', '--long=30', '--force', '-o', slashes(plan.archivePath), slashes(tarFile)],
+        },
+    ];
+}
+function tar_buildExtractCommands(plan) {
+    if (tar_usesSeparateZstd(plan)) {
+        const tarFile = path.join(plan.tempDir, 'cache.tar');
+        return [
+            {
+                tool: 'zstd',
+                args: ['-d', '--long=30', '--force', '-o', slashes(tarFile), slashes(plan.archivePath)],
+            },
+            {
+                tool: plan.tar.path,
+                args: ['-xf', slashes(tarFile), '-P', '-C', slashes(plan.workspace)],
+            },
+        ];
+    }
+    return [
+        {
+            tool: plan.tar.path,
+            args: [
+                '-xf',
+                slashes(plan.archivePath),
+                '-P',
+                '-C',
+                slashes(plan.workspace),
+                ...platformFlags(plan),
+                ...compressionFlags(plan.compression, ZSTD_DECOMPRESS),
+            ],
+        },
+    ];
+}
+/**
+ * Options for every tar and zstd command. Like actions/cache, sets MSYS so Git's MSYS tar on
+ * Windows extracts symlinks as native links instead of copies; other platforms ignore it.
+ */
+function tar_archiveExecOptions(env = process.env) {
+    const inherited = {};
+    for (const [name, value] of Object.entries(env)) {
+        if (value !== undefined) {
+            inherited[name] = value;
+        }
+    }
+    return { env: { ...inherited, MSYS: 'winsymlinks:nativestrict' } };
+}
+async function run(commands) {
+    const options = tar_archiveExecOptions();
+    for (const command of commands) {
+        // exec parses its first argument as a command line, so quote paths that contain spaces.
+        await exec.exec(`"${command.tool}"`, command.args, options);
+    }
+}
+async function tar_createArchive(archivePath, entries, compression, workspace) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-tar-'));
+    try {
+        const manifestPath = path.join(tempDir, 'manifest.txt');
+        fs.writeFileSync(manifestPath, tar_formatManifest(entries));
+        fs.mkdirSync(path.dirname(archivePath), { recursive: true });
+        const tar = await tar_findTar();
+        await run(tar_buildCreateCommands({
+            tar,
+            platform: process.platform,
+            compression: compression.method,
+            archivePath,
+            workspace,
+            tempDir,
+            manifestPath,
+        }));
+    }
+    finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+async function tar_extractArchive(archivePath, compression, workspace) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-tar-'));
+    try {
+        fs.mkdirSync(workspace, { recursive: true });
+        const tar = await tar_findTar();
+        await run(tar_buildExtractCommands({
+            tar,
+            platform: process.platform,
+            compression: compression.method,
+            archivePath,
+            workspace,
+            tempDir,
+        }));
+    }
+    finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+function tar_getArchiveSize(archivePath) {
+    try {
+        return fs.statSync(archivePath).size;
+    }
+    catch {
+        return 0;
+    }
+}
+
+// EXTERNAL MODULE: external "node:child_process"
+var external_node_child_process_ = __nccwpck_require__(1421);
+;// CONCATENATED MODULE: ./src/archive/stream.ts
+
+
+
+/**
+ * Spawns one tar/zstd command for streaming (Task 8): no shell, so paths and arguments never
+ * need quoting, unlike the `exec.exec` command line `run()` uses for the file-based path.
+ */
+function stream_spawnArchiveCommand(command, stdio) {
+    return spawn(command.tool, command.args, {
+        env: archiveExecOptions().env,
+        windowsHide: true,
+        stdio,
+    });
+}
+/**
+ * Resolves with the exit code once the process AND its stdio streams have fully closed (the
+ * 'close' event, not 'exit'), so by the time this resolves, everything the process wrote to
+ * stdout/stderr has already drained and is safe to read. Rejects when it could not be spawned at
+ * all (e.g. the tool is missing) or was terminated by a signal.
+ */
+function stream_waitForExit(child) {
+    return new Promise((resolve, reject) => {
+        child.once('error', reject);
+        child.once('close', (code, signal) => {
+            if (code !== null) {
+                resolve(code);
+                return;
+            }
+            reject(new Error(`${child.spawnfile ?? 'the archive command'} was terminated by signal ${signal}`));
+        });
+    });
+}
+/** Kills the process only if it has not already exited or been signalled, so this never throws. */
+function stream_killIfRunning(child) {
+    if (child.exitCode === null && child.signalCode === null) {
+        child.kill();
+    }
+}
+/**
+ * Kills the process if it is still running, then waits (bounded) for `settle` — typically the
+ * same promise `waitForExit` returned for this child, or a caller's own wrapper that depends on
+ * it (e.g. "tar closed and the pipe finished") — so a caller's cleanup (removing a temp
+ * directory, reading the final stderr tail) does not race stdio that is still draining or a
+ * process that still has open files. Pass the exact promise `waitForExit` returned rather than a
+ * fresh call: a fresh call would attach a listener for a one-shot event that may already have
+ * fired, and would then hang until the timeout. Kills first, so a process that never settles on
+ * its own (and anything only waiting on it) cannot hang this past `timeoutMs` either. Never
+ * rejects: giving up on an orderly wait after `timeoutMs` is not a caller-visible failure.
+ */
+async function stream_waitForExitAfterKill(child, settle, timeoutMs = 5000) {
+    stream_killIfRunning(child);
+    let timer;
+    const timeout = new Promise((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+    });
+    try {
+        await Promise.race([
+            settle.then(() => undefined, () => undefined),
+            timeout,
+        ]);
+    }
+    finally {
+        clearTimeout(timer);
+    }
+}
+/** Caps unterminated output so one very long (or binary) line cannot grow this without bound. */
+const MAX_PARTIAL_LENGTH = (/* unused pure expression or super */ null && (8 * 1024));
+/** Collects up to `maxLines` of the most recent text a stream has produced, for error messages. */
+function stream_captureStderrTail(stream, maxLines = 20) {
+    const tail = [];
+    let partial = '';
+    const push = (line) => {
+        tail.push(line);
+        if (tail.length > maxLines) {
+            tail.shift();
+        }
+    };
+    // setEncoding decodes multi-byte UTF-8 characters correctly across chunk boundaries, which
+    // chunk.toString('utf8') per chunk cannot.
+    stream?.setEncoding('utf8');
+    stream?.on('data', (chunk) => {
+        partial += chunk;
+        const lines = partial.split(/\r?\n/);
+        partial = lines.pop() ?? '';
+        for (const line of lines) {
+            push(line);
+        }
+        if (partial.length > MAX_PARTIAL_LENGTH) {
+            partial = partial.slice(-MAX_PARTIAL_LENGTH);
+        }
+    });
+    return {
+        lines: () => (partial ? [...tail, partial].slice(-maxLines) : tail.slice(-maxLines)),
+    };
+}
+/** Counts bytes flowing through a streaming pipeline, standing in for a known archive size. */
+function stream_createByteCounter() {
+    let total = 0;
+    const stream = new Transform({
+        transform(chunk, _encoding, callback) {
+            total += chunk.length;
+            callback(null, chunk);
+        },
+    });
+    return { stream, count: () => total };
+}
 
 // EXTERNAL MODULE: ../cloud-cache-action/node_modules/@aws-sdk/client-s3/dist-cjs/index.js
 var dist_cjs = __nccwpck_require__(3439);
@@ -65824,112 +67036,6 @@ function resolveProviderDefaults(endpointInput, regionInput, forcePathStyleInput
     };
 }
 
-;// CONCATENATED MODULE: ./src/utils/inputUtils.ts
-
-
-function getInputAsArray(name, options) {
-    return core
-        .getInput(name, options)
-        .split('\n')
-        .map((s) => s.trim())
-        .filter((x) => x !== '');
-}
-const TRUE_VALUES = ['true', 'True', 'TRUE'];
-const FALSE_VALUES = ['false', 'False', 'FALSE'];
-function getInputAsBool(name, defaultValue = false, options) {
-    const value = getInput(name, options).trim();
-    if (!value) {
-        return defaultValue;
-    }
-    if (TRUE_VALUES.includes(value)) {
-        return true;
-    }
-    if (FALSE_VALUES.includes(value)) {
-        return false;
-    }
-    core_warning(`Input "${name}" must be one of true, True, TRUE, false, False, FALSE; got "${value}". Using "${defaultValue}".`);
-    return defaultValue;
-}
-function getInputAsEnum(name, allowed, defaultValue) {
-    const value = core.getInput(name).trim();
-    if (!value) {
-        return defaultValue;
-    }
-    if (allowed.includes(value)) {
-        return value;
-    }
-    core.warning(`Input "${name}" must be one of ${allowed.join(', ')}; got "${value}". Using "${defaultValue}".`);
-    return defaultValue;
-}
-function getInputAsInt(name, defaultValue, options) {
-    const value = getInput(name, options);
-    if (!value) {
-        return defaultValue;
-    }
-    const parsed = parseInt(value, 10);
-    if (isNaN(parsed) || parsed < 0) {
-        return defaultValue;
-    }
-    return parsed;
-}
-function getInputWithEnv(inputName, envVarNames = [], camelCaseInputName) {
-    // Check primary input
-    let value = getInput(inputName);
-    if (value) {
-        return value;
-    }
-    // Check camelCase alias if provided
-    if (camelCaseInputName) {
-        value = getInput(camelCaseInputName);
-        if (value) {
-            return value;
-        }
-    }
-    // Check environment variables
-    for (const envVar of envVarNames) {
-        const envVal = process.env[envVar];
-        if (envVal !== undefined && envVal !== '') {
-            return envVal;
-        }
-    }
-    return '';
-}
-function isExactKeyMatch(primaryKey, matchedKey) {
-    if (!matchedKey) {
-        return false;
-    }
-    return primaryKey.trim().toLowerCase() === matchedKey.trim().toLowerCase();
-}
-function isValidEvent() {
-    const event = process.env[Events.Key];
-    // GitHub Actions events that are not tied to a ref (e.g. issues, discussion) might not be appropriate for caching
-    // actions/cache warns if event is not ref-based, but allows execution
-    return Boolean(event);
-}
-function formatSize(bytes) {
-    if (bytes === undefined || bytes === null || isNaN(bytes)) {
-        return '0 B';
-    }
-    if (bytes === 0)
-        return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    const unitIndex = Math.min(i, units.length - 1);
-    const size = (bytes / Math.pow(1024, unitIndex)).toFixed(2);
-    return `${size} ${units[unitIndex]}`;
-}
-/**
- * Reads an input that must be a positive integer, failing the step on anything else: a typo
- * silently falling back to a default would hide a wrong-looking result rather than report it.
- */
-function parsePositiveInt(raw, name) {
-    const trimmed = raw.trim();
-    if (!/^[0-9]+$/.test(trimmed) || Number(trimmed) <= 0) {
-        throw new Error(`Input "${name}" must be a positive integer; got "${raw}".`);
-    }
-    return Number(trimmed);
-}
-
 ;// CONCATENATED MODULE: ./src/storage/client.ts
 
 
@@ -65982,10 +67088,321 @@ function createStorageContext(options) {
     }
     core_debug(`Configuring S3 client for provider: ${providerConfig.provider} (endpoint: ${providerConfig.endpoint || 'AWS default'}, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle}, maxAttempts: ${clientConfig.maxAttempts})`);
     return {
-        client: new dist_cjs/* S3Client */.YxF(clientConfig),
+        client: new dist_cjs.S3Client(clientConfig),
         providerConfig,
         bucket,
     };
+}
+
+// EXTERNAL MODULE: ../cloud-cache-action/node_modules/@aws-sdk/lib-storage/dist-cjs/index.js
+var lib_storage_dist_cjs = __nccwpck_require__(3638);
+;// CONCATENATED MODULE: external "stream/promises"
+const external_stream_promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("stream/promises");
+;// CONCATENATED MODULE: ./src/storage/operations.ts
+
+
+
+
+
+
+async function operations_checkObjectExists(client, bucket, key) {
+    try {
+        const cmd = new HeadObjectCommand({
+            Bucket: bucket,
+            Key: key,
+        });
+        const response = await client.send(cmd);
+        return {
+            key,
+            size: response.ContentLength || 0,
+            lastModified: response.LastModified,
+            etag: response.ETag,
+        };
+    }
+    catch (err) {
+        const error = err;
+        if (error.name === 'NotFound' ||
+            error.name === 'NoSuchKey' ||
+            error.$metadata?.httpStatusCode === 404) {
+            return null;
+        }
+        throw err;
+    }
+}
+/** Lists every object under `prefix`, following continuation tokens, in the order S3 lists them. */
+async function listObjects(client, bucket, prefix, pageSize = 1000) {
+    const objects = [];
+    let continuationToken;
+    do {
+        const page = await client.send(new dist_cjs.ListObjectsV2Command({
+            Bucket: bucket,
+            Prefix: prefix,
+            MaxKeys: pageSize,
+            ContinuationToken: continuationToken,
+        }));
+        for (const object of page.Contents ?? []) {
+            if (object.Key) {
+                objects.push({
+                    key: object.Key,
+                    size: object.Size ?? 0,
+                    lastModified: object.LastModified,
+                    etag: object.ETag,
+                });
+            }
+        }
+        continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (continuationToken);
+    return objects;
+}
+/**
+ * The most recently modified object under `prefix` that `accept` allows. When timestamps tie,
+ * the first object listed wins.
+ */
+async function operations_findNewestObject(client, bucket, prefix, accept, pageSize = 1000) {
+    let newest;
+    for (const object of await listObjects(client, bucket, prefix, pageSize)) {
+        if (!accept(object.key)) {
+            continue;
+        }
+        if (!newest || (object.lastModified?.getTime() ?? 0) > (newest.lastModified?.getTime() ?? 0)) {
+            newest = object;
+        }
+    }
+    return newest;
+}
+/** S3 parts must be at least 5 MiB; a smaller or unset chunk size uses 10 MiB parts. */
+function resolvePartSize(uploadChunkSize) {
+    return uploadChunkSize && uploadChunkSize >= 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024;
+}
+/**
+ * Awaits `upload.done()`. When it rejects after a multipart upload was created, sends
+ * AbortMultipartUpload for it before rethrowing the original error, unchanged.
+ *
+ * lib-storage aborts the multipart upload itself only when a part fails, the upload is aborted,
+ * or the part count is wrong; not when CompleteMultipartUpload itself fails (a 412 from a lost
+ * conditional-write race, or a 501 from a server that rejects `If-None-Match`). Without this,
+ * every such failure leaves its uploaded parts behind, stored and billed until a lifecycle rule
+ * removes them. When lib-storage has already aborted the upload, this second abort fails with
+ * NoSuchUpload, which is expected and only logged at debug level.
+ */
+async function completeOrAbort(client, bucket, key, upload) {
+    try {
+        return await upload.done();
+    }
+    catch (err) {
+        const uploadId = upload.uploadId;
+        if (uploadId) {
+            try {
+                await client.send(new AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId }));
+                core.debug(`Aborted multipart upload ${uploadId} for s3://${bucket}/${key}.`);
+            }
+            catch (abortErr) {
+                const error = abortErr;
+                const message = `Could not abort multipart upload ${uploadId} for s3://${bucket}/${key}: ${error.message ?? String(abortErr)}`;
+                if (error.name === 'NoSuchUpload' || error.$metadata?.httpStatusCode === 404) {
+                    core.debug(`${message} (it was already aborted).`);
+                }
+                else {
+                    core.warning(`${message}. Its parts stay stored until a bucket lifecycle rule (AbortIncompleteMultipartUpload) removes them.`);
+                }
+            }
+        }
+        throw err;
+    }
+}
+async function operations_downloadFile(client, bucket, key, destinationPath) {
+    // Ensure target folder exists
+    const dir = path.dirname(destinationPath);
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+    const cmd = new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+    });
+    const response = await client.send(cmd);
+    if (!response.Body) {
+        throw new Error(`Empty response body received from S3 for key: ${key}`);
+    }
+    const fileStream = fs.createWriteStream(destinationPath);
+    await pipeline(response.Body, fileStream);
+    return { metadata: response.Metadata };
+}
+/**
+ * Like `downloadFile`, but for streaming (Task 8): returns the response body stream itself
+ * instead of writing it to a file, so the caller can pipe it straight into a tar extract.
+ */
+async function operations_getObjectStream(client, bucket, key) {
+    const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    if (!response.Body) {
+        throw new Error(`Empty response body received from S3 for key: ${key}`);
+    }
+    return { body: response.Body, metadata: response.Metadata };
+}
+async function operations_uploadFile(client, bucket, key, sourcePath, uploadChunkSize, options) {
+    const stats = fs.statSync(sourcePath);
+    const fileStream = fs.createReadStream(sourcePath);
+    const partSize = resolvePartSize(uploadChunkSize);
+    const parallelUpload = new Upload({
+        client,
+        params: {
+            Bucket: bucket,
+            Key: key,
+            Body: fileStream,
+            Metadata: options?.metadata,
+            IfNoneMatch: options?.ifNoneMatch,
+            Tagging: options?.tagging,
+        },
+        partSize,
+        queueSize: 4,
+        leavePartsOnError: false,
+    });
+    parallelUpload.on('httpUploadProgress', (progress) => {
+        if (progress.total && progress.loaded) {
+            const pct = Math.round((progress.loaded / progress.total) * 100);
+            core.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
+        }
+    });
+    const result = await completeOrAbort(client, bucket, key, parallelUpload);
+    return {
+        size: stats.size,
+        etag: result.ETag,
+    };
+}
+/**
+ * Like `uploadFile`, but for streaming (Task 8): takes a readable stream body (tar's stdout,
+ * via a byte counter) instead of a file path, and returns the upload instead of awaiting it, so
+ * the caller can race it against the archiving process and abort it on failure. Its `done()`
+ * aborts a multipart upload that fails, the same way `uploadFile` does.
+ * Metadata is attached afterwards by `replaceObjectMetadata`: a streamed archive's sha256 cannot
+ * be known before it finishes.
+ */
+function operations_createStreamUpload(client, bucket, key, body, uploadChunkSize, options) {
+    const upload = new Upload({
+        client,
+        params: {
+            Bucket: bucket,
+            Key: key,
+            Body: body,
+            IfNoneMatch: options?.ifNoneMatch,
+            Tagging: options?.tagging,
+        },
+        partSize: resolvePartSize(uploadChunkSize),
+        queueSize: 4,
+        leavePartsOnError: false,
+    });
+    upload.on('httpUploadProgress', (progress) => {
+        if (progress.total && progress.loaded) {
+            const pct = Math.round((progress.loaded / progress.total) * 100);
+            core.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
+        }
+    });
+    return {
+        done: () => completeOrAbort(client, bucket, key, upload),
+        abort: () => upload.abort(),
+    };
+}
+/**
+ * Encodes a CopySource header value: the bucket and each key segment percent-encoded, joined by
+ * `/`. Per segment, so `#`, `?`, `&` and `%` in a key are escaped (encodeURI leaves them intact)
+ * while the separators stay real separators.
+ */
+function encodeCopySource(bucket, key) {
+    return [bucket, ...key.split('/')].map(encodeURIComponent).join('/');
+}
+/**
+ * Replaces an object's user metadata in place (S3 has no metadata-only update): a CopyObject
+ * onto itself with MetadataDirective REPLACE. Tags are kept. Used after a streamed save, whose
+ * sha256 is only known once the upload has finished. `ifMatch` (the ETag the save just wrote)
+ * makes the copy fail with 412 rather than stamp this metadata onto another writer's body.
+ * Only for objects up to 5 GiB: a larger one needs a multipart copy.
+ */
+async function operations_replaceObjectMetadata(client, bucket, key, metadata, ifMatch) {
+    const result = await client.send(new CopyObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        CopySource: encodeCopySource(bucket, key),
+        CopySourceIfMatch: ifMatch,
+        MetadataDirective: 'REPLACE',
+        TaggingDirective: 'COPY',
+        Metadata: metadata,
+    }));
+    return { etag: result.CopyObjectResult?.ETag };
+}
+
+;// CONCATENATED MODULE: ./src/storage/retry.ts
+
+const RETRYABLE_ERROR_NAMES = new Set([
+    'SlowDown',
+    'Throttling',
+    'ThrottlingException',
+    'RequestTimeout',
+    'RequestTimeoutException',
+    'TimeoutError',
+]);
+const RETRYABLE_NETWORK_CODES = new Set([
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'EPIPE',
+    'ECONNREFUSED',
+    'EAI_AGAIN',
+    'ERR_STREAM_PREMATURE_CLOSE',
+]);
+/** True for failures worth another attempt: 5xx, 429, throttling and dropped connections. */
+function isRetryableError(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    const status = error.$metadata?.httpStatusCode;
+    if (status !== undefined && (status >= 500 || status === 429)) {
+        return true;
+    }
+    if (error.$retryable) {
+        return true;
+    }
+    if (error.name !== undefined && RETRYABLE_ERROR_NAMES.has(error.name)) {
+        return true;
+    }
+    if (error.code !== undefined && RETRYABLE_NETWORK_CODES.has(error.code)) {
+        return true;
+    }
+    return /socket hang up|premature close/i.test(error.message ?? '');
+}
+/**
+ * True only for network and stream failures the SDK has not retried itself. Errors that passed
+ * through the SDK carry `$metadata` (an HTTP status or an attempt count) and already used every
+ * attempt the client allows, so retrying the whole stream again would multiply the requests.
+ */
+function retry_isRetryableStreamError(err) {
+    if (!isRetryableError(err)) {
+        return false;
+    }
+    const metadata = err
+        .$metadata;
+    return metadata?.httpStatusCode === undefined && metadata?.attempts === undefined;
+}
+async function retry_withRetry(operation, options) {
+    const retries = Math.max(0, options.retries);
+    const minTimeout = options.minTimeoutMs ?? 1000;
+    const factor = options.factor ?? 2;
+    const maxJitter = options.maxJitterMs ?? 500;
+    const shouldRetry = options.shouldRetry ?? isRetryableError;
+    const opName = options.operationName || 'S3 operation';
+    for (let attempt = 1;; attempt++) {
+        try {
+            return await operation();
+        }
+        catch (err) {
+            if (attempt > retries || !shouldRetry(err)) {
+                throw err;
+            }
+            const delay = Math.round(minTimeout * factor ** (attempt - 1) + Math.random() * maxJitter);
+            const message = err instanceof Error ? err.message : String(err);
+            core.info(`${opName}: attempt ${attempt}/${retries + 1} failed: ${message}. Retrying in ${delay}ms...`);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+    }
 }
 
 ;// CONCATENATED MODULE: ./src/core/keyTemplate.ts
@@ -66282,11 +67699,1022 @@ function compileKeyTemplate(options) {
     };
 }
 
-// EXTERNAL MODULE: external "node:fs"
-var external_node_fs_ = __nccwpck_require__(3024);
+;// CONCATENATED MODULE: ./src/core/refs.ts
+
+function readDefaultBranch(eventPath, readFile) {
+    if (!eventPath) {
+        return undefined;
+    }
+    try {
+        const payload = JSON.parse(readFile(eventPath));
+        const branch = payload.repository?.default_branch;
+        return typeof branch === 'string' && branch ? branch : undefined;
+    }
+    catch {
+        return undefined;
+    }
+}
+/** Mirrors actions/cache: a run may restore from its own ref, its PR base, and the default branch. */
+function resolveRefCandidates(env = process.env, readFile = (file) => (0,external_node_fs_.readFileSync)(file, 'utf8')) {
+    const current = env.GITHUB_REF?.trim() || undefined;
+    if (!current) {
+        return { current: undefined, restore: [] };
+    }
+    const candidates = [current];
+    const baseRef = env.GITHUB_BASE_REF?.trim();
+    if (baseRef) {
+        candidates.push(`refs/heads/${baseRef}`);
+    }
+    const defaultBranch = readDefaultBranch(env.GITHUB_EVENT_PATH, readFile);
+    if (defaultBranch) {
+        candidates.push(`refs/heads/${defaultBranch}`);
+    }
+    return { current, restore: [...new Set(candidates)] };
+}
+
+;// CONCATENATED MODULE: ./src/core/version.ts
+
+
+const VERSION_LENGTH = 16;
+/**
+ * Identifies what a cache archive contains, as actions/cache does: the raw `path` patterns
+ * (not the files they match, so `~/.npm` is stable across machines), the compression
+ * method, and whether a Windows cache may be shared with other operating systems.
+ */
+function computeCacheVersion(paths, compression, enableCrossOsArchive, platform = process.platform) {
+    const components = paths.map((p) => p.trim());
+    components.push(compression);
+    if (platform === 'win32' && !enableCrossOsArchive) {
+        components.push('windows-only');
+    }
+    components.push(Defaults.VersionSalt);
+    return (0,external_node_crypto_.createHash)('sha256').update(components.join('|')).digest('hex').slice(0, VERSION_LENGTH);
+}
+
+;// CONCATENATED MODULE: ./src/core/s3Tier.ts
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/** Logged when streaming is requested but the plan needs the BSD-tar-plus-zstd two-step on Windows. */
+const STREAMING_FALLBACK_MESSAGE = 'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.';
+/** True when a failed conditional upload means another job already won the write. */
+function isPreconditionFailed(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    return error.$metadata?.httpStatusCode === 412 || error.name === 'PreconditionFailed';
+}
+/**
+ * True when a conditional upload hit a 409 ConditionalRequestConflict: a concurrent write or
+ * delete of the same key (a parallel prune, for example) landed while it was in progress. Worth
+ * one more attempt with the same condition.
+ */
+function isConditionalConflict(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    return error.$metadata?.httpStatusCode === 409 || error.name === 'ConditionalRequestConflict';
+}
+const CONDITION_REJECTED_NAMES = new Set(['NotImplemented', 'NotSupported', 'InvalidArgument']);
+/** True when the server rejected the `If-None-Match` header itself, rather than the condition. */
+function isConditionUnsupported(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    if (error.$metadata?.httpStatusCode === 501) {
+        return true;
+    }
+    return (error.name !== undefined &&
+        CONDITION_REJECTED_NAMES.has(error.name) &&
+        /if-none-match/i.test(error.message ?? ''));
+}
+/**
+ * Records that this context's server cannot store object tags, so later uploads omit them, and
+ * warns about it once per run. Only called once a tag-free upload has actually succeeded.
+ */
+function noteObjectTaggingUnsupported(tier, bucket) {
+    if (!tier.storage.objectTaggingUnsupported) {
+        core.warning(`s3://${bucket} does not support object tags; saved without them.`);
+    }
+    tier.storage.objectTaggingUnsupported = true;
+}
+/** True when the server rejected the request because it does not implement object tagging. */
+function isTaggingUnsupported(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    const message = (error.message ?? '').toLowerCase();
+    return (error.name === 'NotImplemented' ||
+        error.$metadata?.httpStatusCode === 501 ||
+        message.includes('tagging') ||
+        message.includes('x-amz-tagging'));
+}
+const COMPRESSION_CONFIGS = {
+    zstd: { method: 'zstd', archiveFilename: Defaults.DefaultArchiveFilenameZstd },
+    gzip: { method: 'gzip', archiveFilename: Defaults.DefaultArchiveFilenameGzip },
+};
+async function resolveCompression(persisted) {
+    if (persisted === 'zstd' || persisted === 'gzip') {
+        core_debug(`Using the ${persisted} compression the restore step used.`);
+        return COMPRESSION_CONFIGS[persisted];
+    }
+    return getCompressionConfig();
+}
+async function buildS3Tier(config, env = process.env, options = {}) {
+    const storage = createStorageContext({
+        maxAttempts: config.retryEnabled ? config.retryCount + 1 : 1,
+    });
+    const compression = await resolveCompression(options.compression);
+    const refs = resolveRefCandidates(env);
+    const scopedToRef = config.scopedToRef && refs.current !== undefined;
+    if (config.scopedToRef && !scopedToRef) {
+        core_debug('GITHUB_REF is not set, so caches are not scoped to a ref.');
+    }
+    const template = compileKeyTemplate({
+        pattern: config.s3KeyPattern,
+        repository: env.GITHUB_REPOSITORY ?? '',
+        prefix: config.prefix,
+        scopedToRepository: config.scopedToRepository,
+        scopedToRef,
+        version: computeCacheVersion(config.paths, compression.method, config.enableCrossOsArchive),
+        archiveFilename: compression.archiveFilename,
+        env,
+    });
+    for (const warning of template.warnings) {
+        core_warning(warning);
+    }
+    // A pattern without ${ref} gives every ref the same object keys; search them only once.
+    const usesRef = scopedToRef && template.objectKey('a', '') !== template.objectKey('b', '');
+    return {
+        storage,
+        template,
+        restoreRefs: usesRef ? refs.restore : [''],
+        saveRef: usesRef ? refs.current : '',
+        compression,
+        workspace: getWorkspace(env),
+        streamRetries: config.retryEnabled ? config.retryCount : 0,
+        streaming: config.streaming,
+        metadata: config.metadata,
+        tags: config.tags,
+    };
+}
+/**
+ * Every object under the listing prefix for `ref` and `keyPrefix`, accepted or not, in the order
+ * the server lists them. `findS3Match` takes the newest accepted one; the explain report shows
+ * them all, with the version each carries, to say why they were rejected.
+ */
+async function listCandidates(tier, ref, keyPrefix) {
+    const { client, bucket } = tier.storage;
+    const prefix = tier.template.searchPrefix(ref, keyPrefix);
+    core_debug(`Listing s3://${bucket}/${prefix}`);
+    const objects = await listObjects(client, bucket, prefix);
+    return objects.map((object) => {
+        const key = tier.template.extractKey(ref, object.key);
+        return {
+            objectKey: object.key,
+            key,
+            version: tier.template.extractVersion(ref, object.key),
+            size: object.size,
+            lastModified: object.lastModified,
+            accepted: key !== undefined,
+        };
+    });
+}
+/**
+ * For each ref in order: the exact key, then the primary key as a prefix, then each restore
+ * key as a prefix, taking the newest object for a prefix. Only objects the template accepts
+ * (same version and archive format) count. The first hit wins.
+ */
+async function findS3Match(tier, primaryKey, restoreKeys) {
+    const { client, bucket } = tier.storage;
+    for (const ref of tier.restoreRefs) {
+        const exactKey = tier.template.objectKey(ref, primaryKey);
+        core.debug(`Checking s3://${bucket}/${exactKey}`);
+        const exact = await checkObjectExists(client, bucket, exactKey);
+        if (exact) {
+            return {
+                matchedKey: primaryKey,
+                exact: true,
+                objectKey: exactKey,
+                size: exact.size,
+                etag: exact.etag,
+                ref,
+            };
+        }
+        for (const keyPrefix of [primaryKey, ...restoreKeys]) {
+            const searchPrefix = tier.template.searchPrefix(ref, keyPrefix);
+            core.debug(`Listing s3://${bucket}/${searchPrefix}`);
+            const newest = await findNewestObject(client, bucket, searchPrefix, (objectKey) => tier.template.extractKey(ref, objectKey) !== undefined);
+            if (newest) {
+                const matchedKey = tier.template.extractKey(ref, newest.key);
+                return {
+                    matchedKey,
+                    exact: isExactKeyMatch(primaryKey, matchedKey),
+                    objectKey: newest.key,
+                    size: newest.size,
+                    etag: newest.etag,
+                    ref,
+                };
+            }
+        }
+    }
+    return undefined;
+}
+async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
+    let match;
+    try {
+        match = await findS3Match(tier, primaryKey, restoreKeys);
+    }
+    catch (err) {
+        return { kind: 'error', error: toError(err) };
+    }
+    if (!match) {
+        return { kind: 'miss' };
+    }
+    const found = match;
+    const hit = {
+        kind: 'hit',
+        matchedKey: found.matchedKey,
+        exact: found.exact,
+        s3: { objectKey: found.objectKey, size: found.size, etag: found.etag },
+    };
+    if (lookupOnly) {
+        return hit;
+    }
+    const where = found.ref ? ` on ${found.ref}` : '';
+    core.info(`S3 cache ${found.exact ? 'hit' : 'partial hit'} for key "${found.matchedKey}"${where} (${formatSize(found.size)})`);
+    if (tier.streaming) {
+        try {
+            const tar = await findTar();
+            if (!usesSeparateZstd({
+                tar,
+                platform: process.platform,
+                compression: tier.compression.method,
+            })) {
+                return await restoreFromS3Streaming(tier, found, tar, hit);
+            }
+            core.info(STREAMING_FALLBACK_MESSAGE);
+        }
+        catch (err) {
+            return { kind: 'error', error: toError(err) };
+        }
+    }
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-restore-'));
+    try {
+        const archivePath = path.join(tempDir, tier.compression.archiveFilename);
+        const { client, bucket } = tier.storage;
+        const transferStart = Date.now();
+        const { metadata } = await withRetry(() => downloadFile(client, bucket, found.objectKey, archivePath), {
+            retries: tier.streamRetries,
+            operationName: `Download of ${found.objectKey}`,
+            shouldRetry: isRetryableStreamError,
+        });
+        if (hit.kind === 'hit') {
+            hit.transferMs = Date.now() - transferStart;
+        }
+        const expectedSha256 = metadata?.[SHA256_METADATA_KEY];
+        if (expectedSha256) {
+            const actualSha256 = await sha256File(archivePath);
+            if (actualSha256 !== expectedSha256) {
+                return {
+                    kind: 'error',
+                    error: new Error(`Integrity check failed for s3://${bucket}/${found.objectKey}: expected sha256 ${expectedSha256}, got ${actualSha256}`),
+                };
+            }
+        }
+        else {
+            core.debug(`s3://${bucket}/${found.objectKey} has no ${SHA256_METADATA_KEY} metadata; skipping integrity check.`);
+        }
+        await extractArchive(archivePath, tier.compression, tier.workspace);
+        if (hit.kind === 'hit' && hit.s3) {
+            hit.s3.metadata = stripReservedMetadata(metadata);
+        }
+        return hit;
+    }
+    catch (err) {
+        return { kind: 'error', error: toError(err) };
+    }
+    finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+async function saveToS3(tier, primaryKey, patterns, uploadChunkSize) {
+    const { client, bucket } = tier.storage;
+    const objectKey = tier.template.objectKey(tier.saveRef, primaryKey);
+    try {
+        const existing = await checkObjectExists(client, bucket, objectKey);
+        if (existing) {
+            core.info(`Cache already exists at s3://${bucket}/${objectKey}; not uploading it again.`);
+            return { kind: 'exists', s3: { objectKey, size: existing.size, etag: existing.etag } };
+        }
+        const { entries } = await resolveCachePaths(patterns, tier.workspace);
+        if (entries.length === 0) {
+            core.warning('Path Validation Error: Path(s) specified in the action for caching do(es) not exist, hence no cache is being saved.');
+            return { kind: 'skipped', reason: 'no paths matched' };
+        }
+        if (tier.streaming) {
+            const tar = await findTar();
+            if (!usesSeparateZstd({ tar, platform: process.platform, compression: tier.compression.method })) {
+                return await saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uploadChunkSize);
+            }
+            core.info(STREAMING_FALLBACK_MESSAGE);
+        }
+        return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+    }
+    catch (err) {
+        return { kind: 'error', error: toError(err) };
+    }
+}
+/**
+ * File-based save: archives to a temporary file, uploads it, and handles the Task 4 conditional
+ * write outcomes (412 -> exists; a 409 conflict is retried once with the same condition; a
+ * condition the server rejects outright is retried once without it). Used both as the default
+ * (non-streaming) save path, and as the fallback a streaming save takes when its server rejects
+ * `If-None-Match` outright or its conditional write conflicts (see `saveToS3Streaming`) — reused
+ * rather than duplicated, so both paths agree on precondition handling. `retryConflict: false`
+ * is passed by that 409 fallback, which already is the one retry, and `omitTags: true` by the
+ * fallback a streamed tagged upload takes, which must not send tags again without latching the
+ * tier-wide flag first.
+ */
+async function saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize, retryConflict = true, omitTags = false) {
+    const { client, bucket } = tier.storage;
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+    try {
+        const archivePath = path.join(tempDir, tier.compression.archiveFilename);
+        await createArchive(archivePath, entries, tier.compression, tier.workspace);
+        const archiveSize = getArchiveSize(archivePath);
+        core.info(`Uploading ${formatSize(archiveSize)} to s3://${bucket}/${objectKey}...`);
+        const checksum = await sha256File(archivePath);
+        const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: checksum };
+        const attemptUpload = (ifNoneMatch, tagging) => withRetry(() => uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize, {
+            metadata,
+            ifNoneMatch,
+            tagging,
+        }), {
+            retries: tier.streamRetries,
+            operationName: `Upload of ${objectKey}`,
+            shouldRetry: isRetryableStreamError,
+        });
+        const transferStart = Date.now();
+        const transferMs = () => Date.now() - transferStart;
+        const sendCondition = !tier.storage.conditionalWriteUnsupported;
+        const attemptConditionalUpload = async (tagging) => {
+            try {
+                return await attemptUpload('*', tagging);
+            }
+            catch (err) {
+                if (!retryConflict || !isConditionalConflict(err)) {
+                    throw err;
+                }
+                core.info(`A concurrent write to s3://${bucket}/${objectKey} conflicted with this upload; retrying it once.`);
+                return await attemptUpload('*', tagging);
+            }
+        };
+        const uploadWith = (tagging) => sendCondition ? attemptConditionalUpload(tagging) : attemptUpload(undefined, tagging);
+        // Omitted upfront once this context's server has told us it cannot store tags, and when the
+        // caller (a streaming save whose tagged upload was rejected) asks for a tag-free retry.
+        const tagging = tier.storage.objectTaggingUnsupported || omitTags ? undefined : encodeTagging(tier.tags);
+        try {
+            let uploaded;
+            try {
+                uploaded = await uploadWith(tagging);
+            }
+            catch (err) {
+                // Checked before the condition outcomes below, and only for a request that carried a
+                // `Tagging` header: a provider without tagging support answers the same 501 NotImplemented
+                // an unsupported `If-None-Match` does.
+                if (tagging === undefined || !isTaggingUnsupported(err)) {
+                    throw err;
+                }
+                // Only a retry that actually succeeds without tags proves the tags were the problem. When
+                // it fails too, the flag stays unset and the error goes to the 412/501/409 handling below,
+                // whose unconditional retry sends the tags again — the 501 was about `If-None-Match`.
+                uploaded = await uploadWith(undefined);
+                noteObjectTaggingUnsupported(tier, bucket);
+            }
+            core.info(`Cache saved to S3 with key: ${primaryKey}`);
+            return {
+                kind: 'saved',
+                s3: { objectKey, size: uploaded.size, etag: uploaded.etag },
+                transferMs: transferMs(),
+            };
+        }
+        catch (err) {
+            if (sendCondition && isPreconditionFailed(err)) {
+                core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
+                return {
+                    kind: 'exists',
+                    s3: { objectKey, size: archiveSize, etag: undefined },
+                    transferMs: transferMs(),
+                };
+            }
+            if (sendCondition && isConditionUnsupported(err)) {
+                core.debug(`s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`);
+                tier.storage.conditionalWriteUnsupported = true;
+                const uploaded = await attemptUpload(undefined, tier.storage.objectTaggingUnsupported ? undefined : tagging);
+                core.info(`Cache saved to S3 with key: ${primaryKey}`);
+                return {
+                    kind: 'saved',
+                    s3: { objectKey, size: uploaded.size, etag: uploaded.etag },
+                    transferMs: transferMs(),
+                };
+            }
+            throw err;
+        }
+    }
+    catch (err) {
+        return { kind: 'error', error: toError(err) };
+    }
+    finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+/** A single CopyObject can only copy up to 5 GiB; a larger object would need a multipart copy. */
+const MAX_COPY_SIZE = (/* unused pure expression or super */ null && (5 * 1024 * 1024 * 1024));
+/**
+ * Attaches a streamed save's sha256 and user metadata once the upload has finished, the only
+ * point at which the digest is known: a CopyObject onto the object itself. Best-effort — the
+ * cache is already saved, so a provider that cannot do this copy (or an archive too large for
+ * one) costs the metadata and warns once, never the save. Returns the ETag to report: the copy
+ * rewrites the object, so its ETag supersedes the upload's; on any failure the upload's stands.
+ */
+async function attachStreamedMetadata(tier, objectKey, metadata, size, uploadedEtag) {
+    const { client, bucket } = tier.storage;
+    if (size > MAX_COPY_SIZE) {
+        core.warning(`Saved s3://${bucket}/${objectKey} but could not attach metadata: archives over 5 GiB cannot be copied in one request.`);
+        return uploadedEtag;
+    }
+    try {
+        // `CopySourceIfMatch`, when the upload reported an ETag: a concurrent writer that replaced
+        // the object between the upload and this copy must not get this save's metadata stamped onto
+        // its body. The 412 that then comes back is handled like any other copy failure.
+        const copied = await withRetry(() => replaceObjectMetadata(client, bucket, objectKey, metadata, uploadedEtag), {
+            retries: tier.streamRetries,
+            operationName: `Metadata for ${objectKey}`,
+            shouldRetry: isRetryableStreamError,
+        });
+        return copied.etag ?? uploadedEtag;
+    }
+    catch (err) {
+        core.warning(`Saved s3://${bucket}/${objectKey} but could not attach metadata: ${toError(err).message}`);
+        return uploadedEtag;
+    }
+}
+/** Wraps a failure with tar's recent stderr output, for a clearer error message. */
+function withStderrTail(err, tail) {
+    const base = toError(err);
+    if (tail.length === 0) {
+        return base;
+    }
+    return new Error(`${base.message}\n${tail.join('\n')}`, { cause: base });
+}
+/**
+ * Streaming save (Task 8): spawns tar writing the archive to stdout and pipes it, through a
+ * sha256 tap and a byte counter (there is no file to hash or stat for the size), into an S3
+ * multipart upload. The sha256 and the user metadata are attached afterwards, best-effort, by a
+ * CopyObject onto the saved object. Tar and
+ * the upload run concurrently, but the upload body is only ever told the archive is complete
+ * (`counter.stream.end()`) once tar has actually closed with exit code 0; any other outcome —
+ * a non-zero exit, a signal, or the pipe itself breaking — destroys the body with an error
+ * first, so lib-storage can never send the final PutObject/CompleteMultipartUpload for a
+ * truncated archive. `If-None-Match` would otherwise keep such a bad object forever.
+ */
+async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uploadChunkSize) {
+    const { client, bucket } = tier.storage;
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+    let child;
+    let tarClose;
+    // Set once the inner catch below has killed tar and waited for it, so the outer catch (which
+    // its rethrow also reaches) does not wait a second time.
+    let tarReaped = false;
+    try {
+        const manifestPath = path.join(tempDir, 'manifest.txt');
+        fs.writeFileSync(manifestPath, formatManifest(entries));
+        const [command] = buildCreateCommands({
+            tar,
+            platform: process.platform,
+            compression: tier.compression.method,
+            archivePath: '-',
+            workspace: tier.workspace,
+            tempDir,
+            manifestPath,
+        });
+        child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
+        const stderrTail = captureStderrTail(child.stderr);
+        tarClose = waitForExit(child);
+        const counter = createByteCounter();
+        // Hashes the archive as it streams past, so the sha256 a restore verifies is known once the
+        // upload finishes (there is no file to hash afterwards).
+        const tap = createSha256Tap();
+        // A stream this code may `destroy(err)` itself (below) needs a permanent error listener:
+        // pipeline's own listener is only attached while it is in flight, and is gone by the time
+        // finalizeBody calls destroy() after pipeline has already settled.
+        counter.stream.on('error', () => undefined);
+        // `end: false`: tar's stdout reaching EOF must never by itself end the upload body — only a
+        // confirmed clean exit (below) may do that.
+        // The tap goes first so `end: false` — which `pipeline` applies to the last stream only —
+        // still governs the upload body alone: the tap is ended by tar's stdout reaching EOF (which
+        // is what finalizes its digest), while `counter.stream` stays under the explicit end below.
+        const pipePromise = pipeline(child.stdout, tap.stream, counter.stream, {
+            end: false,
+        });
+        // Captured once and reused (not re-invoked) so every branch below can await the same
+        // settlement, whichever of upload.done()/finalizeBody() the outer Promise.all resolved on.
+        const finalized = (async () => {
+            let code;
+            try {
+                [, code] = await Promise.all([pipePromise, tarClose]);
+            }
+            catch (err) {
+                counter.stream.destroy(toError(err));
+                throw err;
+            }
+            if (code !== 0) {
+                const failure = new Error(`tar exited with code ${code}`);
+                counter.stream.destroy(failure);
+                throw failure;
+            }
+            counter.stream.end();
+        })();
+        // Keeps `finalized` "handled" from Node's perspective even if nothing below ever awaits it
+        // (a synchronous throw between here and the inner try, e.g. from createStreamUpload, would
+        // otherwise leave its eventual rejection unhandled, which is fatal on Node 24). The `finalized`
+        // binding itself is untouched, so the real await below still observes its outcome.
+        finalized.catch(() => undefined);
+        const sendCondition = !tier.storage.conditionalWriteUnsupported;
+        const transferStart = Date.now();
+        core.info(`Streaming upload to s3://${bucket}/${objectKey}...`);
+        const tagging = tier.storage.objectTaggingUnsupported ? undefined : encodeTagging(tier.tags);
+        const upload = createStreamUpload(client, bucket, objectKey, counter.stream, uploadChunkSize, {
+            ifNoneMatch: sendCondition ? '*' : undefined,
+            tagging,
+        });
+        // Captured once so the failure path below can wait for it to settle.
+        const uploadDone = upload.done();
+        try {
+            const [uploaded] = await Promise.all([uploadDone, finalized]);
+            core.info(`Cache saved to S3 with key: ${primaryKey}`);
+            const size = counter.count();
+            const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: tap.digest() };
+            const transferMs = Date.now() - transferStart;
+            const etag = await attachStreamedMetadata(tier, objectKey, metadata, size, uploaded.ETag);
+            return { kind: 'saved', s3: { objectKey, size, etag }, transferMs };
+        }
+        catch (err) {
+            // Fail the body first. When the upload stopped reading it, tar's stdout is paused with data
+            // still buffered, so it never closes and tar's close never fires; destroying the body makes
+            // pipeline destroy that stdout too. (When tar failed first, finalized already did this.)
+            counter.stream.destroy(toError(err));
+            // Kill tar before any network wait below, so a hung tar never outlives a slow abort request.
+            killIfRunning(child);
+            // When tar failed first, the upload may still be running: stop it, then wait for done()
+            // to settle, which is where a multipart upload it created gets aborted (see
+            // createStreamUpload). abort() makes done() reject promptly, so this wait is short; when
+            // done() already rejected, it has already sent the abort and this does nothing.
+            await upload.abort().catch(() => undefined);
+            await uploadDone.catch(() => undefined);
+            // Kill tar again (a no-op when it has exited), then wait, bounded, for it to close,
+            // so no failure mode can block this step indefinitely. Wait on tar's own close, not on
+            // finalized: once the pipe has failed, finalized rejects while tar may still be alive,
+            // and the temp directory must not be removed under a live tar. Only after this do we read
+            // the byte count or the final stderr tail below.
+            await waitForExitAfterKill(child, tarClose);
+            tarReaped = true;
+            // Before the condition outcomes below, and only for a request that carried a `Tagging`
+            // header: a provider without tagging support answers the same 501 an unsupported
+            // `If-None-Match` does. A streamed body cannot be replayed, so the retry without tags is a
+            // file-mode save, which omits them once the flag below is set.
+            if (tagging !== undefined && isTaggingUnsupported(err)) {
+                const outcome = await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize, true, true);
+                // Only a save that actually succeeded without tags proves the tags were the problem; the
+                // same 501 also means an unsupported `If-None-Match`, which that save handles itself.
+                if (outcome.kind === 'saved') {
+                    noteObjectTaggingUnsupported(tier, bucket);
+                }
+                return outcome;
+            }
+            if (sendCondition && isPreconditionFailed(err)) {
+                core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
+                return {
+                    kind: 'exists',
+                    s3: { objectKey, size: counter.count(), etag: undefined },
+                    transferMs: Date.now() - transferStart,
+                };
+            }
+            if (sendCondition && isConditionUnsupported(err)) {
+                core.debug(`s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`);
+                tier.storage.conditionalWriteUnsupported = true;
+                return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+            }
+            if (sendCondition && isConditionalConflict(err)) {
+                // A streamed body cannot be replayed, so the one retry is a file-mode save, which keeps
+                // the condition.
+                core.info(`A concurrent write to s3://${bucket}/${objectKey} conflicted with this upload; retrying it once from a temporary archive file.`);
+                return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize, false);
+            }
+            throw withStderrTail(err, stderrTail.lines());
+        }
+    }
+    catch (err) {
+        // Reached by the inner catch's rethrow, which has already killed tar and waited for it, and
+        // by a failure before the inner try took charge of tar (createStreamUpload throwing, for
+        // example). Only the latter still has tar to stop: destroy its stdout, which nothing may be
+        // reading, so its close can fire, then kill it and wait, bounded, before removing tempDir.
+        if (child && !tarReaped) {
+            child.stdout?.destroy();
+            if (tarClose) {
+                await waitForExitAfterKill(child, tarClose);
+            }
+            else {
+                killIfRunning(child);
+            }
+        }
+        return { kind: 'error', error: toError(err) };
+    }
+    finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+/**
+ * Streaming restore (Task 8): pipes the GetObject body through the sha256 tap into a spawned
+ * tar extract reading from stdin, so nothing touches disk except the extracted files themselves.
+ */
+async function restoreFromS3Streaming(tier, found, tar, hit) {
+    const { client, bucket } = tier.storage;
+    let body;
+    let child;
+    let tarClose;
+    // Set once the inner catch below has killed tar and waited for it, so the outer catch (which
+    // its rethrow also reaches) does not wait a second time.
+    let tarReaped = false;
+    const transferStart = Date.now();
+    try {
+        const stream = await getObjectStream(client, bucket, found.objectKey);
+        body = stream.body;
+        const { metadata } = stream;
+        fs.mkdirSync(tier.workspace, { recursive: true });
+        const [command] = buildExtractCommands({
+            tar,
+            platform: process.platform,
+            compression: tier.compression.method,
+            archivePath: '-',
+            workspace: tier.workspace,
+            tempDir: os.tmpdir(),
+        });
+        child = spawnArchiveCommand(command, ['pipe', 'ignore', 'pipe']);
+        const stderrTail = captureStderrTail(child.stderr);
+        tarClose = waitForExit(child);
+        // Keeps `tarClose` "handled" from Node's perspective if a synchronous throw below (from
+        // createSha256Tap or the pipeline() call itself) reaches the outer catch before the
+        // Promise.all below ever attaches its own handler to it.
+        tarClose.catch(() => undefined);
+        const tap = createSha256Tap();
+        const pipePromise = pipeline(body, tap.stream, child.stdin);
+        try {
+            const [, code] = await Promise.all([pipePromise, tarClose]);
+            if (code !== 0) {
+                throw new Error(`tar exited with code ${code}`);
+            }
+            if (hit.kind === 'hit') {
+                hit.transferMs = Date.now() - transferStart;
+            }
+        }
+        catch (err) {
+            // tar's stdout is ignored and its stderr is always being read, so a killed tar closes
+            // promptly (unlike the save side, nothing here can hold its close back): wait for that
+            // before reading the final stderr tail.
+            await waitForExitAfterKill(child, tarClose);
+            tarReaped = true;
+            throw withStderrTail(err, stderrTail.lines());
+        }
+        const expectedSha256 = metadata?.[SHA256_METADATA_KEY];
+        if (expectedSha256) {
+            const actualSha256 = tap.digest();
+            if (actualSha256 !== expectedSha256) {
+                return {
+                    kind: 'error',
+                    error: new Error(`Integrity check failed for s3://${bucket}/${found.objectKey}: expected sha256 ${expectedSha256}, got ${actualSha256}; files may already have been extracted`),
+                };
+            }
+        }
+        else {
+            core.debug(`s3://${bucket}/${found.objectKey} has no ${SHA256_METADATA_KEY} metadata; skipping integrity check.`);
+        }
+        if (hit.kind === 'hit' && hit.s3) {
+            hit.s3.metadata = stripReservedMetadata(metadata);
+        }
+        return hit;
+    }
+    catch (err) {
+        // Reached by the inner catch's rethrow (a failed download, pipe or tar, with tar already
+        // killed and waited for there), and by any failure before the inner try took charge: the
+        // GetObject request failing, or a throw before or right after spawning tar, before the
+        // pipeline started. In the latter case stop tar here: release its stdin, kill it and wait,
+        // bounded, for it to close. Either way release the GetObject body, so its connection is
+        // never left dangling. The workspace may already hold partly extracted files.
+        if (child && !tarReaped) {
+            child.stdin?.destroy();
+            if (tarClose) {
+                await waitForExitAfterKill(child, tarClose);
+            }
+            else {
+                killIfRunning(child);
+            }
+        }
+        body?.destroy();
+        return { kind: 'error', error: toError(err) };
+    }
+}
+
 ;// CONCATENATED MODULE: ./src/core/outcomes.ts
-function toError(err) {
+function outcomes_toError(err) {
     return err instanceof Error ? err : new Error(String(err));
+}
+
+;// CONCATENATED MODULE: ./src/core/summary.ts
+
+
+
+function formatDuration(durationMs) {
+    return `${(durationMs / 1000).toFixed(2)} s`;
+}
+function formatOptionalSize(size) {
+    return size === undefined ? '—' : formatSize(size);
+}
+/**
+ * core.summary writes the text it is given into the HTML as is, so a key containing `<` or `&`
+ * would break the markup. Every table cell and every `<pre>` line built from user data — here
+ * and in the explain report's summary section — goes through this.
+ */
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+/** Only write when the job-summary input is on and GitHub gave us a summary file to write to. */
+function canWrite(jobSummary) {
+    return jobSummary && Boolean(process.env.GITHUB_STEP_SUMMARY);
+}
+/** A write failure (missing/unwritable summary file) is logged at debug level and never thrown. */
+async function flush() {
+    try {
+        await summary.write();
+    }
+    catch (err) {
+        core_debug(`Failed to write the job summary: ${outcomes_toError(err).message}`);
+        summary.emptyBuffer();
+    }
+}
+async function writeRestoreSummary(data) {
+    if (!canWrite(data.jobSummary)) {
+        return;
+    }
+    core.summary.addHeading('Cloud cache restore').addTable([
+        [
+            { data: 'Primary key', header: true },
+            { data: 'Matched key', header: true },
+            { data: 'Cache hit', header: true },
+            { data: 'Source', header: true },
+            { data: 'Size', header: true },
+            { data: 'Duration', header: true },
+        ],
+        [
+            escapeHtml(data.primaryKey),
+            data.matchedKey === undefined ? '—' : escapeHtml(data.matchedKey),
+            String(data.cacheHit),
+            escapeHtml(data.source),
+            formatOptionalSize(data.size),
+            formatDuration(data.durationMs),
+        ],
+    ]);
+    if (data.metadata && Object.keys(data.metadata).length > 0) {
+        core.summary.addDetails('Object metadata', `<ul>${Object.entries(data.metadata)
+            .map(([k, v]) => `<li><code>${escapeHtml(k)}</code>: ${escapeHtml(v)}</li>`)
+            .join('')}</ul>`);
+    }
+    await flush();
+}
+async function writeSaveSummary(data) {
+    if (!canWrite(data.jobSummary)) {
+        return;
+    }
+    core.summary.addHeading('Cloud cache save').addTable([
+        [
+            { data: 'Key', header: true },
+            { data: 'Saved to', header: true },
+            { data: 'Size', header: true },
+            { data: 'Duration', header: true },
+        ],
+        [
+            escapeHtml(data.key),
+            data.savedTo.length > 0 ? escapeHtml(data.savedTo.join(', ')) : 'none',
+            formatOptionalSize(data.size),
+            formatDuration(data.durationMs),
+        ],
+    ]);
+    await flush();
+}
+
+;// CONCATENATED MODULE: ./src/core/explain.ts
+/**
+ * Builds the "why did my cache miss?" report: every object the restore lookup would list, the
+ * version each carries and the sentence that explains the outcome. It lists, and never downloads
+ * or writes anything, so it is safe to run before (or instead of) a restore.
+ */
+
+
+
+
+const DEFAULT_MAX_CANDIDATES = 20;
+function toCandidateView(candidate) {
+    return {
+        objectKey: candidate.objectKey,
+        version: candidate.version ?? '',
+        sizeBytes: candidate.size,
+        lastModified: candidate.lastModified?.toISOString() ?? '',
+        versionMatches: candidate.accepted,
+    };
+}
+function byNewest(a, b) {
+    return (b.lastModified?.getTime() ?? 0) - (a.lastModified?.getTime() ?? 0);
+}
+function resolveTiers(config) {
+    if (config.dualCache) {
+        return config.restorePriority === 'github-first' ? ['github', 's3'] : ['s3', 'github'];
+    }
+    return config.useFallback ? ['s3', 'github'] : ['s3'];
+}
+/** How a ref reads in a sentence; the empty ref means the pattern has no `${ref}`. */
+function refLabel(ref) {
+    return ref || 'the unscoped prefix';
+}
+function count(searched) {
+    return searched.candidates.length + searched.truncated;
+}
+/**
+ * One sentence per key prefix that failed: the refs where nothing was listed at all are named
+ * together, and every ref that listed objects of another version gets its own sentence, since
+ * it needs the count and the version inputs.
+ */
+function buildReasons(report, config, compression, hitSearch) {
+    const reasons = [];
+    // A restore key repeating the primary key searches the same (ref, prefix) twice; the lookup
+    // really does list it twice, but one sentence per (key prefix, ref) is enough to explain it.
+    for (const keyPrefix of new Set([config.primaryKey, ...config.restoreKeys])) {
+        const searches = new Map();
+        for (const searched of report.searches) {
+            if (searched.key === keyPrefix && searched !== hitSearch) {
+                const ref = refLabel(searched.ref ?? '');
+                if (!searches.has(ref)) {
+                    searches.set(ref, searched);
+                }
+            }
+        }
+        const empty = [...searches].filter(([, searched]) => count(searched) === 0);
+        if (empty.length > 0) {
+            reasons.push(`No objects match key prefix "${keyPrefix}" on ${empty.map(([ref]) => ref).join(', ')}.`);
+        }
+        for (const searched of [...searches.values()].filter((one) => count(one) > 0)) {
+            const total = count(searched);
+            reasons.push(`${total} object${total === 1 ? ' matches' : 's match'} key prefix "${keyPrefix}" on ` +
+                `${refLabel(searched.ref ?? '')} but none has version ${report.version} ` +
+                `(this job hashes paths ${config.paths.join(', ')} with ${compression}; they were ` +
+                `saved with different paths, compression or cross-OS setting).`);
+        }
+    }
+    if (report.wouldHit) {
+        reasons.push(`Would restore ${report.wouldHit.objectKey} (key "${report.wouldHit.matchedKey}", ` +
+            `${report.wouldHit.ref ?? 'unscoped'}).`);
+    }
+    return reasons;
+}
+/**
+ * Lists every candidate the restore lookup would consider, in the same order, and stops at the
+ * first search that would hit — exactly where the restore would stop. No exact-key HEAD check is
+ * needed: the listing under the primary key's prefix already contains the exact object.
+ */
+async function buildExplainReport(tier, config, options = {}) {
+    const maxCandidates = options.maxCandidates ?? DEFAULT_MAX_CANDIDATES;
+    const report = {
+        provider: tier.storage.providerConfig.provider,
+        bucket: tier.storage.bucket,
+        pattern: tier.template.pattern,
+        resolvedPattern: tier.template.resolvedPattern,
+        version: tier.template.version,
+        versionInputs: {
+            paths: [...config.paths],
+            compression: tier.compression.method,
+            crossOs: config.enableCrossOsArchive,
+        },
+        refs: tier.restoreRefs.filter((ref) => ref !== ''),
+        primaryKey: config.primaryKey,
+        restoreKeys: [...config.restoreKeys],
+        tiers: resolveTiers(config),
+        searches: [],
+        reasons: [],
+    };
+    let hitSearch;
+    for (const ref of tier.restoreRefs) {
+        for (const keyPrefix of [config.primaryKey, ...config.restoreKeys]) {
+            const all = await listCandidates(tier, ref, keyPrefix);
+            const shown = all.slice(0, maxCandidates);
+            const searched = {
+                ref: ref || null,
+                key: keyPrefix,
+                prefix: tier.template.searchPrefix(ref, keyPrefix),
+                candidates: shown.map(toCandidateView),
+                truncated: all.length - shown.length,
+            };
+            report.searches.push(searched);
+            const accepted = all.filter((candidate) => candidate.accepted).sort(byNewest);
+            // findS3Match HEADs the exact key before it lists, so the exact object wins over a newer
+            // sibling under the same prefix. The listing already contains it; no HEAD is needed here.
+            const exactHit = keyPrefix === config.primaryKey
+                ? accepted.find((candidate) => candidate.objectKey === tier.template.objectKey(ref, config.primaryKey))
+                : undefined;
+            const hit = exactHit ?? accepted[0];
+            if (hit) {
+                const matchedKey = hit.key;
+                report.wouldHit = {
+                    objectKey: hit.objectKey,
+                    matchedKey,
+                    exact: inputUtils_isExactKeyMatch(config.primaryKey, matchedKey),
+                    ref: ref || null,
+                };
+                hitSearch = searched;
+                break;
+            }
+        }
+        if (hitSearch) {
+            break;
+        }
+    }
+    report.reasons = buildReasons(report, config, tier.compression.method, hitSearch);
+    return report;
+}
+/** The report as log lines, in the order a reader wants them. */
+function renderExplain(report) {
+    const lines = [
+        `Cache lookup for key "${report.primaryKey}"`,
+        `Pattern: ${report.pattern} → ${report.resolvedPattern}`,
+        `Version: ${report.version} (paths: ${report.versionInputs.paths.join(', ')}; ` +
+            `compression: ${report.versionInputs.compression}; cross-OS: ${report.versionInputs.crossOs})`,
+        report.refs.length > 0 ? `Refs searched: ${report.refs.join(' → ')}` : 'Not scoped to a ref',
+        `Tiers: ${report.tiers.join(' → ')}`,
+    ];
+    if (report.restoreKeys.length > 0) {
+        lines.push(`Restore keys: ${report.restoreKeys.join(', ')}`);
+    }
+    for (const searched of report.searches) {
+        const total = count(searched);
+        lines.push(`[${searched.ref ?? 'unscoped'}] prefix "${searched.prefix}": ` +
+            `${total} candidate${total === 1 ? '' : 's'}`);
+        for (const candidate of searched.candidates) {
+            lines.push(`  ${candidate.versionMatches ? '✓' : '✗'} ${candidate.objectKey} ` +
+                `(version ${candidate.version || 'unknown'}, ${inputUtils_formatSize(candidate.sizeBytes)}, ` +
+                `${candidate.lastModified || 'unknown'})`);
+        }
+        if (searched.truncated > 0) {
+            lines.push(`  … and ${searched.truncated} more not shown`);
+        }
+    }
+    for (const reason of report.reasons) {
+        lines.push(`Result: ${reason}`);
+    }
+    return lines;
+}
+/** Adds the rendered report to the job summary, when the job-summary input allows it. */
+async function writeExplainSummary(report, jobSummary) {
+    if (!jobSummary || !process.env.GITHUB_STEP_SUMMARY) {
+        return;
+    }
+    summary
+        .addHeading('Cache lookup explained')
+        .addRaw(`<pre>${renderExplain(report).map(escapeHtml).join('\n')}</pre>`, true);
+    await flush();
 }
 
 ;// CONCATENATED MODULE: ./src/core/metrics.ts
@@ -66312,138 +68740,16 @@ function emitMetrics(metrics, metricsFile, workspace) {
         external_node_fs_.appendFileSync(resolved, `${line}\n`);
     }
     catch (err) {
-        core_warning(`Could not write metrics to ${resolved}: ${toError(err).message}`);
+        core_warning(`Could not write metrics to ${resolved}: ${outcomes_toError(err).message}`);
     }
 }
 
-;// CONCATENATED MODULE: ./src/core/prune.ts
-
-
-
-
-const DEFAULT_CONCURRENCY = 8;
-const LOG_CAP = 200;
-const ERROR_SAMPLE_CAP = 5;
-const DAY_MS = 24 * 60 * 60 * 1000;
-/** Lists every object under `prefix` that `accept` allows, following continuation tokens. */
-async function listArchiveObjects(client, bucket, prefix, accept, pageSize = 1000) {
-    const objects = [];
-    let continuationToken;
-    do {
-        const page = await client.send(new dist_cjs/* ListObjectsV2Command */.u6x({
-            Bucket: bucket,
-            Prefix: prefix,
-            MaxKeys: pageSize,
-            ContinuationToken: continuationToken,
-        }));
-        for (const object of page.Contents ?? []) {
-            if (!object.Key || !accept(object.Key)) {
-                continue;
-            }
-            objects.push({
-                key: object.Key,
-                size: object.Size ?? 0,
-                lastModified: object.LastModified,
-            });
-        }
-        continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
-    } while (continuationToken);
-    return objects;
-}
-/** Runs `fn` over `items` with at most `concurrency` calls in flight at once. */
-async function mapWithConcurrency(items, concurrency, fn) {
-    let nextIndex = 0;
-    async function worker() {
-        for (;;) {
-            const index = nextIndex++;
-            if (index >= items.length) {
-                return;
-            }
-            await fn(items[index]);
-        }
-    }
-    const workerCount = Math.max(1, Math.min(concurrency, items.length));
-    await Promise.all(Array.from({ length: workerCount }, () => worker()));
-}
-function logPruned(objects, now, dryRun) {
-    const verb = dryRun ? 'Would prune' : 'Pruned';
-    for (const object of objects.slice(0, LOG_CAP)) {
-        const ageDays = object.lastModified
-            ? Math.floor((now.getTime() - object.lastModified.getTime()) / DAY_MS)
-            : 0;
-        info(`${verb} ${object.key} (${formatSize(object.size)}, ${ageDays}d old)`);
-    }
-    const totalBytes = objects.reduce((total, object) => total + object.size, 0);
-    info(`${verb} ${objects.length} cache object(s) totaling ${formatSize(totalBytes)}.`);
-}
-function refusal(problem, ref) {
-    switch (problem) {
-        case 'no-archive-filename':
-            return 'Refusing to prune: s3-key-pattern has no ${archive_filename}, so cache archives cannot be told apart from other objects.';
-        case 'repository-shares-segment':
-            return 'Refusing to prune: s3-key-pattern puts ${GITHUB_REPOSITORY} in a path segment with ${key}, ${version} or a preceding ${ref}, so other repositories\' caches could match. Separate ${GITHUB_REPOSITORY} from them with "/".';
-        case 'ref-shares-segment':
-            return `Refusing to prune ref "${ref}": s3-key-pattern puts \${ref} in a path segment with \${key}, \${version} or another \${ref}, so other refs' caches could match. Separate \${ref} from them with "/", or leave "ref" empty to prune every ref.`;
-        case 'no-ref':
-            return `Refusing to prune ref "${ref}": s3-key-pattern has no \${ref}, so every ref shares the same object keys. Leave "ref" empty to prune them all.`;
-    }
-}
+;// CONCATENATED MODULE: ./src/core/inspectImpl.ts
 /**
- * Deletes cache archives older than `options.olderThanDays` in the repository/ref scope
- * `tier.template` resolves, or lists them without deleting when `options.dryRun` is set. Objects
- * are listed under the template's fixed scope prefix, and only those whose whole key matches the
- * template (any key and version, either archive filename) are candidates, so nothing outside the
- * scope and nothing that is not a cache archive is ever touched. Refuses a scope the template
- * cannot tell apart from other repositories or refs.
+ * The `inspect` sub-action: it runs the restore lookup's listing pass and reports which object a
+ * restore would download, without downloading or writing anything. Read-only by construction —
+ * it only lists, so it is safe to run on any branch, in any job.
  */
-async function pruneCaches(tier, options) {
-    const problem = tier.template.scopeProblem(options.ref);
-    if (problem) {
-        throw new Error(refusal(problem, options.ref));
-    }
-    const prefix = tier.template.scopePrefix(options.ref);
-    if (prefix === '') {
-        throw new Error('Refusing to prune: s3-key-pattern leaves no fixed prefix to list under, which would scan the whole bucket. Set "prefix", keep "scoped-to-repository" enabled, or set "ref" when the pattern starts with ${ref}.');
-    }
-    const { client, bucket } = tier.storage;
-    const matcher = tier.template.scopeMatcher(options.ref);
-    const now = options.now ?? new Date();
-    const cutoff = now.getTime() - options.olderThanDays * DAY_MS;
-    const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
-    const candidates = await listArchiveObjects(client, bucket, prefix, (key) => matcher.test(key));
-    const stale = candidates.filter((object) => object.lastModified !== undefined && object.lastModified.getTime() < cutoff);
-    const keptCount = candidates.length - stale.length;
-    const deletedKeys = new Set();
-    const failures = [];
-    if (!options.dryRun) {
-        await mapWithConcurrency(stale, concurrency, async (object) => {
-            try {
-                await client.send(new dist_cjs/* DeleteObjectCommand */.k4j({ Bucket: bucket, Key: object.key }));
-                deletedKeys.add(object.key);
-            }
-            catch (err) {
-                failures.push({ key: object.key, error: err });
-            }
-        });
-    }
-    const prunedObjects = options.dryRun
-        ? stale
-        : stale.filter((object) => deletedKeys.has(object.key));
-    logPruned(prunedObjects, now, options.dryRun);
-    if (failures.length > 0) {
-        const sample = failures.slice(0, ERROR_SAMPLE_CAP).map((failure) => failure.key);
-        const more = failures.length > ERROR_SAMPLE_CAP ? `, and ${failures.length - ERROR_SAMPLE_CAP} more` : '';
-        throw new AggregateError(failures.map((failure) => toError(failure.error)), `Failed to delete ${failures.length} cache object(s): ${sample.join(', ')}${more}`);
-    }
-    return {
-        pruned: prunedObjects.map(({ key, size, lastModified }) => ({ key, size, lastModified })),
-        keptCount,
-        prunedBytes: prunedObjects.reduce((total, object) => total + object.size, 0),
-        dryRun: options.dryRun,
-    };
-}
-
-;// CONCATENATED MODULE: ./src/core/pruneImpl.ts
 
 
 
@@ -66453,111 +68759,82 @@ async function pruneCaches(tier, options) {
 
 
 
-const pruneImpl_TRUE_VALUES = ['true', 'True', 'TRUE'];
-const pruneImpl_FALSE_VALUES = ['false', 'False', 'FALSE'];
+/** GitHub truncates step outputs well before this, and a huge report is unusable anyway. */
+const MAX_REPORT_BYTES = 65536;
 /**
- * Unlike `getInputAsBool`, which warns and falls back to a default on an unrecognized value,
- * an unrecognized `dry-run` value must fail the step: silently treating it as `false` would
- * turn a typo (e.g. "Flase") into a real, unintended deletion.
+ * The report as JSON, or a small summary when the full report would not fit an output.
+ * Consumers can always read `truncated` to tell the two shapes apart.
  */
-function parseDryRun(raw) {
-    if (raw === '') {
-        return false;
+function reportJson(report, candidateCount) {
+    const full = JSON.stringify(report);
+    if (Buffer.byteLength(full) <= MAX_REPORT_BYTES) {
+        return full;
     }
-    if (pruneImpl_TRUE_VALUES.includes(raw)) {
-        return true;
-    }
-    if (pruneImpl_FALSE_VALUES.includes(raw)) {
-        return false;
-    }
-    throw new Error(`Invalid "dry-run" value "${raw}": use true or false.`);
-}
-function readPruneConfig() {
-    return {
-        olderThanDays: parsePositiveInt(getInput(Inputs.OlderThanDays), 'older-than-days'),
-        ref: getInput(Inputs.Ref).trim(),
-        dryRun: parseDryRun(getInput(Inputs.DryRun)),
-        prefix: getInput(Inputs.Prefix),
-        s3KeyPattern: getInput(Inputs.S3KeyPattern) || Defaults.DefaultS3KeyPattern,
-        scopedToRepository: getInputAsBool(Inputs.ScopedToRepository, true),
-        scopedToRef: getInputAsBool(Inputs.ScopedToRef, true),
-        retryEnabled: getInputAsBool(Inputs.Retry, true),
-        retryCount: getInputAsInt(Inputs.RetryCount) ?? Defaults.DefaultRetryCount,
-        metricsFile: getInput(Inputs.MetricsFile).trim(),
-    };
-}
-/**
- * Builds the storage/template pair pruning needs. No version or archive-format concern applies:
- * the template is compiled with an empty version and the zstd archive filename, and `./prune`
- * matches saved objects through `KeyTemplate.scopeMatcher`, which accepts any version and both
- * known archive filenames.
- */
-function buildPruneTier(config, env = process.env) {
-    const storage = createStorageContext({
-        maxAttempts: config.retryEnabled ? config.retryCount + 1 : 1,
+    return JSON.stringify({
+        truncated: true,
+        wouldHit: Boolean(report.wouldHit),
+        candidateCount,
     });
-    const template = compileKeyTemplate({
-        pattern: config.s3KeyPattern,
-        repository: env.GITHUB_REPOSITORY ?? '',
-        prefix: config.prefix,
-        scopedToRepository: config.scopedToRepository,
-        scopedToRef: config.scopedToRef,
-        version: '',
-        archiveFilename: Defaults.DefaultArchiveFilenameZstd,
-        env,
-    });
-    for (const warning of template.warnings) {
-        core_warning(warning);
-    }
-    return { storage, template };
 }
-async function pruneImpl() {
+async function inspectImpl() {
     const start = Date.now();
     try {
-        const config = readPruneConfig();
-        if (config.ref && !config.scopedToRef) {
-            throw new Error('Refusing to prune: "ref" is set but "scoped-to-ref" is false, so cache keys contain no ref.');
+        const config = readCacheConfig();
+        if (!config.primaryKey) {
+            throw new Error('Input required and not supplied: key');
         }
-        if (config.ref && !config.ref.startsWith('refs/')) {
-            core_warning(`The "ref" input "${config.ref}" is not a full Git ref. Prune expects a full ref such as refs/heads/main, so it may match no caches.`);
+        if (config.paths.length === 0) {
+            throw new Error('Input required and not supplied: path');
         }
-        const tier = buildPruneTier(config);
-        const result = await pruneCaches(tier, {
-            olderThanDays: config.olderThanDays,
-            ref: config.ref || undefined,
-            dryRun: config.dryRun,
-        });
-        setOutput(Outputs.PrunedCount, String(result.pruned.length));
-        setOutput(Outputs.PrunedBytes, String(result.prunedBytes));
-        setOutput(Outputs.KeptCount, String(result.keptCount));
+        const maxCandidates = parsePositiveInt(getInput(Inputs.MaxCandidates) || '20', 'max-candidates');
+        const tier = await buildS3Tier(config);
+        setOutput(Outputs.CacheStorageProvider, tier.storage.providerConfig.provider);
+        const report = await buildExplainReport(tier, config, { maxCandidates });
+        startGroup('Cache lookup explained');
+        try {
+            for (const line of renderExplain(report)) {
+                info(line);
+            }
+        }
+        finally {
+            endGroup();
+        }
+        await writeExplainSummary(report, config.jobSummary);
+        const candidateCount = report.searches.reduce((total, searched) => total + searched.candidates.length + searched.truncated, 0);
+        setOutput(Outputs.WouldHit, String(Boolean(report.wouldHit)));
+        setOutput(Outputs.WouldMatchKey, report.wouldHit?.matchedKey ?? '');
+        setOutput(Outputs.WouldMatchObject, report.wouldHit?.objectKey ?? '');
+        setOutput(Outputs.CandidateCount, String(candidateCount));
+        setOutput(Outputs.Report, reportJson(report, candidateCount));
         emitMetrics({
-            step: 'prune',
+            step: 'inspect',
             timestamp: new Date().toISOString(),
             provider: tier.storage.providerConfig.provider,
-            bytes: result.prunedBytes,
+            key: config.primaryKey,
+            matchedKey: report.wouldHit?.matchedKey,
+            objectKey: report.wouldHit?.objectKey,
+            bytes: 0,
             durationMs: Date.now() - start,
-            outcome: 'pruned',
-            extra: {
-                prunedCount: result.pruned.length,
-                prunedBytes: result.prunedBytes,
-                keptCount: result.keptCount,
-                dryRun: result.dryRun,
-            },
+            outcome: report.wouldHit ? 'would-hit' : 'would-miss',
+            extra: { candidateCount },
         }, config.metricsFile, getWorkspace());
+        if (!report.wouldHit && config.failOnCacheMiss) {
+            throw new Error(`No cache would be restored for key "${config.primaryKey}".`);
+        }
     }
     catch (err) {
-        setFailed(toError(err).message);
+        setFailed(outcomes_toError(err).message);
     }
 }
-async function runPrune(earlyExit = true) {
-    await pruneImpl();
+async function runInspect(earlyExit = true) {
+    await inspectImpl();
     if (earlyExit) {
         // An explicit exit code overrides process.exitCode, so keep the one core.setFailed set.
         process.exit(process.exitCode ?? 0);
     }
 }
 
-;// CONCATENATED MODULE: ./src/prune.ts
+;// CONCATENATED MODULE: ./src/inspect.ts
 
-runPrune(true);
+runInspect(true);
 
