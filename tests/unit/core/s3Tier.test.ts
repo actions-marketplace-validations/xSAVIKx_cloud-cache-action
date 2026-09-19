@@ -44,6 +44,8 @@ const mockFindNewestObject =
       accept: (key: string) => boolean
     ) => Promise<CacheObjectMetadata | undefined>
   >();
+const mockListObjects =
+  jest.fn<(client: S3Client, bucket: string, prefix: string) => Promise<CacheObjectMetadata[]>>();
 const mockDownloadFile =
   jest.fn<
     (
@@ -187,6 +189,7 @@ jest.unstable_mockModule('../../../src/archive/stream', () => ({
 jest.unstable_mockModule('../../../src/storage/operations', () => ({
   checkObjectExists: mockCheckObjectExists,
   findNewestObject: mockFindNewestObject,
+  listObjects: mockListObjects,
   downloadFile: mockDownloadFile,
   uploadFile: mockUploadFile,
   getObjectStream: mockGetObjectStream,
@@ -198,7 +201,7 @@ jest.unstable_mockModule('../../../src/archive/checksum', () => ({
   createSha256Tap: () => mockCreateSha256Tap(),
 }));
 
-const { buildS3Tier, findS3Match, restoreFromS3, saveToS3 } = await import(
+const { buildS3Tier, findS3Match, listCandidates, restoreFromS3, saveToS3 } = await import(
   '../../../src/core/s3Tier'
 );
 type S3Tier = Awaited<ReturnType<typeof buildS3Tier>>;
@@ -273,6 +276,17 @@ beforeEach(() => {
     }
     return newest;
   });
+  mockListObjects.mockImplementation(async (_client, _bucket, prefix) =>
+    [...objects.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([key, found]) => ({
+        key,
+        size: found.size,
+        lastModified: found.lastModified,
+        etag: found.etag,
+      }))
+  );
   mockDownloadFile.mockResolvedValue({});
   mockExtractArchive.mockResolvedValue();
   mockCreateArchive.mockResolvedValue();
@@ -1697,5 +1711,31 @@ describe('restoreFromS3 streaming', () => {
     } finally {
       process.off('unhandledRejection', onUnhandledRejection);
     }
+  });
+});
+
+describe('listCandidates', () => {
+  it('returns every object under the prefix with its key, version and acceptance', async () => {
+    put(FEATURE, 'k-one', 1);
+    put(FEATURE, 'k-two', 2, 'other-version');
+    put(MAIN, 'k-three', 3);
+    objects.set(`octo/app/${encodeURIComponent(FEATURE)}/k-four/notes.txt`, {
+      size: 1,
+      lastModified: new Date(),
+      etag: '"x"',
+    });
+
+    const candidates = await listCandidates(tier(), FEATURE, 'k-');
+
+    expect(candidates).toEqual([
+      expect.objectContaining({ objectKey: expect.stringContaining('notes.txt'), accepted: false }),
+      expect.objectContaining({ key: 'k-one', version: VERSION, accepted: true, size: 101 }),
+      expect.objectContaining({ key: undefined, version: 'other-version', accepted: false }),
+    ]);
+    expect(mockListObjects).toHaveBeenCalledWith(
+      storage.client,
+      storage.bucket,
+      `octo/app/${encodeURIComponent(FEATURE)}/k-`
+    );
   });
 });

@@ -39,6 +39,7 @@ import {
   downloadFile,
   findNewestObject,
   getObjectStream,
+  listObjects,
   replaceObjectMetadata,
   uploadFile,
 } from '../storage/operations';
@@ -215,6 +216,46 @@ export async function buildS3Tier(
     metadata: config.metadata,
     tags: config.tags,
   };
+}
+
+/** One object under a search prefix, with what the template makes of it. */
+export interface Candidate {
+  objectKey: string;
+  /** The cache key the object carries, or undefined when it does not fit the pattern. */
+  key?: string;
+  /** The `${version}` the object carries, or undefined when it does not fit the pattern. */
+  version?: string;
+  size: number;
+  lastModified?: Date;
+  /** True when the template accepts the object: same key pattern, version and archive format. */
+  accepted: boolean;
+}
+
+/**
+ * Every object under the listing prefix for `ref` and `keyPrefix`, accepted or not, in the order
+ * the server lists them. `findS3Match` takes the newest accepted one; the explain report shows
+ * them all, with the version each carries, to say why they were rejected.
+ */
+export async function listCandidates(
+  tier: S3Tier,
+  ref: string,
+  keyPrefix: string
+): Promise<Candidate[]> {
+  const { client, bucket } = tier.storage;
+  const prefix = tier.template.searchPrefix(ref, keyPrefix);
+  core.debug(`Listing s3://${bucket}/${prefix}`);
+  const objects = await listObjects(client, bucket, prefix);
+  return objects.map((object) => {
+    const key = tier.template.extractKey(ref, object.key);
+    return {
+      objectKey: object.key,
+      key,
+      version: tier.template.extractVersion(ref, object.key),
+      size: object.size,
+      lastModified: object.lastModified,
+      accepted: key !== undefined,
+    };
+  });
 }
 
 /**

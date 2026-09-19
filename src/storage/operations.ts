@@ -50,18 +50,14 @@ export async function checkObjectExists(
   }
 }
 
-/**
- * Lists every object under `prefix`, following continuation tokens, and returns the most
- * recently modified one that `accept` allows. When timestamps tie, the first object listed wins.
- */
-export async function findNewestObject(
+/** Lists every object under `prefix`, following continuation tokens, in the order S3 lists them. */
+export async function listObjects(
   client: S3Client,
   bucket: string,
   prefix: string,
-  accept: (key: string) => boolean,
   pageSize = 1000
-): Promise<CacheObjectMetadata | undefined> {
-  let newest: CacheObjectMetadata | undefined;
+): Promise<CacheObjectMetadata[]> {
+  const objects: CacheObjectMetadata[] = [];
   let continuationToken: string | undefined;
   do {
     const page = await client.send(
@@ -73,21 +69,40 @@ export async function findNewestObject(
       })
     );
     for (const object of page.Contents ?? []) {
-      if (!object.Key || !accept(object.Key)) {
-        continue;
-      }
-      const modified = object.LastModified?.getTime() ?? 0;
-      if (!newest || modified > (newest.lastModified?.getTime() ?? 0)) {
-        newest = {
+      if (object.Key) {
+        objects.push({
           key: object.Key,
           size: object.Size ?? 0,
           lastModified: object.LastModified,
           etag: object.ETag,
-        };
+        });
       }
     }
     continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
   } while (continuationToken);
+  return objects;
+}
+
+/**
+ * The most recently modified object under `prefix` that `accept` allows. When timestamps tie,
+ * the first object listed wins.
+ */
+export async function findNewestObject(
+  client: S3Client,
+  bucket: string,
+  prefix: string,
+  accept: (key: string) => boolean,
+  pageSize = 1000
+): Promise<CacheObjectMetadata | undefined> {
+  let newest: CacheObjectMetadata | undefined;
+  for (const object of await listObjects(client, bucket, prefix, pageSize)) {
+    if (!accept(object.key)) {
+      continue;
+    }
+    if (!newest || (object.lastModified?.getTime() ?? 0) > (newest.lastModified?.getTime() ?? 0)) {
+      newest = object;
+    }
+  }
   return newest;
 }
 

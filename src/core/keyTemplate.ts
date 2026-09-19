@@ -58,6 +58,12 @@ export interface KeyTemplate {
   searchPrefix(ref: string, keyPrefix: string): string;
   extractKey(ref: string, objectKey: string): string | undefined;
   /**
+   * The `${version}` hash an object key carries, or undefined when the key does not fit the
+   * pattern for `ref` at all, or when the pattern has no `${version}`. Used by the explain
+   * report to say why a candidate was rejected.
+   */
+  extractVersion(ref: string, objectKey: string): string | undefined;
+  /**
    * The longest fixed listing prefix that contains every object this template can produce for
    * `ref`, or for every ref when `ref` is undefined, whatever its key, version and archive
    * filename. Used to enumerate a scope for pruning.
@@ -75,6 +81,16 @@ export interface KeyTemplate {
    */
   scopeProblem(ref?: string): ScopeProblem | undefined;
   readonly warnings: readonly string[];
+  /** The `s3-key-pattern` input as it was written, before any resolution. */
+  readonly pattern: string;
+  /**
+   * The pattern after the scoping options removed placeholders and `${GITHUB_REPOSITORY}` and
+   * `${prefix}` were substituted, with `${ref}`, `${key}`, `${version}` and
+   * `${archive_filename}` left symbolic. Shown to humans; never used to build object keys.
+   */
+  readonly resolvedPattern: string;
+  /** The `${version}` hash of the job this template was compiled for. */
+  readonly version: string;
 }
 
 /** Encodes a Git ref as one path segment: refs/heads/main becomes refs%2Fheads%2Fmain. */
@@ -232,6 +248,22 @@ export function compileKeyTemplate(options: KeyTemplateOptions): KeyTemplate {
     });
   const baseOf = (ref: string): string => tidy(fill(before, ref)).replace(/^\//, '');
   const suffixOf = (ref: string): string => tidy(fill(after, ref));
+  // Human-readable form: only the parts that are fixed for the whole job are substituted.
+  const resolvedPattern = tidy(
+    `${before}${KEY_PLACEHOLDER}${after}`.replace(
+      RESOLVED_PLACEHOLDERS,
+      (match: string, name: string) => {
+        switch (name) {
+          case 'GITHUB_REPOSITORY':
+            return options.repository;
+          case 'prefix':
+            return prefix;
+          default:
+            return match;
+        }
+      }
+    )
+  ).replace(/^\//, '');
 
   // Scope text resolves like baseOf and suffixOf, but leaves the version, the archive filename
   // and (for every ref) the ref as marked wildcards. None of them is ever empty in a saved object
@@ -325,8 +357,22 @@ export function compileKeyTemplate(options: KeyTemplateOptions): KeyTemplate {
   const indexesOf = (kind: Token['kind']): number[] =>
     tokens.flatMap((token, index) => (token.kind === kind ? [index] : []));
 
+  /** One anchored matcher per ref, built like scopeMatcher's, reused across candidates. */
+  const versionMatchers = new Map<string, RegExp>();
+  const versionMatcher = (ref: string): RegExp => {
+    let matcher = versionMatchers.get(ref);
+    if (!matcher) {
+      matcher = new RegExp(`^${scopeSource(before, after, ref, '')}$`, 's');
+      versionMatchers.set(ref, matcher);
+    }
+    return matcher;
+  };
+
   return {
     warnings,
+    pattern: options.pattern,
+    resolvedPattern,
+    version: options.version,
     objectKey: (ref, key) => `${baseOf(ref)}${key}${suffixOf(ref)}`,
     searchPrefix: (ref, keyPrefix) => `${baseOf(ref)}${keyPrefix}`,
     scopePrefix: (ref) => scopeBaseOf(ref).split(MARK)[0],
@@ -373,5 +419,6 @@ export function compileKeyTemplate(options: KeyTemplateOptions): KeyTemplate {
       }
       return objectKey.slice(head.length, objectKey.length - tail.length);
     },
+    extractVersion: (ref, objectKey) => versionMatcher(ref).exec(objectKey)?.groups?.version,
   };
 }

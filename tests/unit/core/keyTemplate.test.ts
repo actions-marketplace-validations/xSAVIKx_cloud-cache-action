@@ -433,3 +433,63 @@ describe('scope matching', () => {
     expect(template.scopeProblem()).toBeUndefined();
   });
 });
+
+describe('introspection', () => {
+  it('keeps the raw pattern and the job version', () => {
+    const template = compileKeyTemplate(base);
+    expect(template.pattern).toBe(PATTERN);
+    expect(template.version).toBe(VERSION);
+  });
+
+  it('resolves the repository and prefix but leaves key, version and filename symbolic', () => {
+    const template = compileKeyTemplate({ ...base, prefix: 'web' });
+    expect(template.resolvedPattern).toBe(
+      'octo/app/web/${ref}/${key}/${version}/${archive_filename}'
+    );
+  });
+
+  it('drops the placeholders the scoping options remove', () => {
+    const template = compileKeyTemplate({ ...base, scopedToRepository: false, scopedToRef: false });
+    expect(template.resolvedPattern).toBe('${key}/${version}/${archive_filename}');
+  });
+
+  describe('extractVersion', () => {
+    it('reads the version out of an object key', () => {
+      expect(
+        compileKeyTemplate(base).extractVersion(
+          MAIN,
+          `octo/app/refs%2Fheads%2Fmain/k/other-version/cache.tar.gz`
+        )
+      ).toBe('other-version');
+    });
+
+    it('reads the version when the key itself contains slashes', () => {
+      expect(
+        compileKeyTemplate(base).extractVersion(
+          MAIN,
+          `octo/app/refs%2Fheads%2Fmain/a/b/c/other-version/cache.tar.zst`
+        )
+      ).toBe('other-version');
+    });
+
+    it('returns undefined for a key that does not fit the pattern', () => {
+      const template = compileKeyTemplate(base);
+      expect(template.extractVersion(MAIN, 'octo/app/refs%2Fheads%2Fmain/k/v/notes.txt')).toBe(
+        undefined
+      );
+      expect(
+        template.extractVersion(MAIN, 'other/repo/refs%2Fheads%2Fmain/k/v/cache.tar.zst')
+      ).toBe(undefined);
+    });
+
+    it('returns undefined when the pattern has no version', () => {
+      const template = compileKeyTemplate({
+        ...base,
+        pattern: '${GITHUB_REPOSITORY}/${ref}/${key}/${archive_filename}',
+      });
+      expect(template.extractVersion(MAIN, 'octo/app/refs%2Fheads%2Fmain/k/cache.tar.zst')).toBe(
+        undefined
+      );
+    });
+  });
+});

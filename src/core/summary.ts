@@ -37,7 +37,7 @@ function formatOptionalSize(size?: number): string {
  * core.summary.addTable writes cell text into the HTML table as is, so a key containing `<` or
  * `&` would break the markup. Every cell built from user data goes through this.
  */
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -51,7 +51,7 @@ function canWrite(jobSummary: boolean): boolean {
 }
 
 /** A write failure (missing/unwritable summary file) is logged at debug level and never thrown. */
-async function flush(): Promise<void> {
+export async function flush(): Promise<void> {
   try {
     await core.summary.write();
   } catch (err) {
