@@ -63,17 +63,25 @@ same object as v1.2 did.
     fails earlier writes none.
   - Writing the file is best-effort: a failure only warns and never fails the step.
 - **Parallel downloads.** A restore now fetches any archive larger than `download-chunk-size`
-  (default `8388608`, 8 MiB) as concurrent `Range` requests, `download-concurrency` (default `8`,
-  1–32) at a time, in both file and streaming mode. Each part is retried on its own. Archives no
-  larger than one chunk, and every restore with `download-concurrency: 1`, use a single request as
-  before. A provider that answers a ranged request with the whole object logs
+  (default `4194304`, 4 MiB) as concurrent `Range` requests, `download-concurrency` (default `8`,
+  1–32) at a time, in both file and streaming mode, the same fan-out and block size `actions/cache`
+  uses. Each part is retried on its own. Archives no larger than one chunk, and every restore with
+  `download-concurrency: 1`, use a single request as before. A provider that answers a ranged
+  request with the whole object logs
   `s3://<bucket>/<key> does not support ranged GET requests; downloading it in one request.` and
   gets the single request. The restore's metrics line reports the part count as `downloadParts`.
+- **`upload-concurrency` input** (default `8`, 1–32) on the main and `save` actions: how many
+  multipart parts a save sends at once, in both file and streaming mode. It was fixed at 4.
 - **Documentation:** a new "Inspecting Lookups" guide on the documentation site, plus metrics
   sections in the README and the Getting Started and Pruning guides.
 
 ### Changed
 
+- **Upload defaults follow `actions/cache`.** The default `upload-chunk-size` is 64 MiB instead of
+  10 MiB and a save sends 8 parts at once instead of 4, so a save may hold up to 512 MiB of parts
+  in memory. Set `upload-concurrency: 4` and `upload-chunk-size: 10485760` to keep the v1.2
+  footprint. An `upload-chunk-size` below 5 MiB or above 128 MiB now warns and uses the default;
+  before, a small value was silently replaced by 10 MiB.
 - **`cache-etag` on streaming saves.** With `streaming: true` the output now reports the ETag of
   the object after its metadata copy, rather than the multipart upload's ETag.
 - **Live cloud CI gating.** The Amazon S3, Cloudflare R2 and Google Cloud Storage suites now run on
