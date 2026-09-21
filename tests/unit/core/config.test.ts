@@ -30,6 +30,7 @@ describe('readCacheConfig', () => {
       readOnly: false,
       enableCrossOsArchive: false,
       uploadChunkSize: undefined,
+      uploadConcurrency: 8,
       s3KeyPattern: Defaults.DefaultS3KeyPattern,
       prefix: '',
       scopedToRepository: true,
@@ -43,7 +44,7 @@ describe('readCacheConfig', () => {
       dualCacheStrict: false,
       streaming: false,
       downloadConcurrency: 8,
-      downloadChunkSize: 8388608,
+      downloadChunkSize: 4194304,
       jobSummary: true,
       metadata: {},
       tags: [],
@@ -77,8 +78,10 @@ describe('readCacheConfig', () => {
     [Inputs.DownloadConcurrency, '0', 'downloadConcurrency', 8, '1 and 32'],
     [Inputs.DownloadConcurrency, '33', 'downloadConcurrency', 8, '1 and 32'],
     [Inputs.DownloadConcurrency, 'eight', 'downloadConcurrency', 8, '1 and 32'],
-    [Inputs.DownloadChunkSize, '1048575', 'downloadChunkSize', 8388608, '1048576 and 134217728'],
-    [Inputs.DownloadChunkSize, '-5', 'downloadChunkSize', 8388608, '1048576 and 134217728'],
+    [Inputs.DownloadChunkSize, '1048575', 'downloadChunkSize', 4194304, '1048576 and 134217728'],
+    [Inputs.DownloadChunkSize, '-5', 'downloadChunkSize', 4194304, '1048576 and 134217728'],
+    [Inputs.UploadConcurrency, '0', 'uploadConcurrency', 8, '1 and 32'],
+    [Inputs.UploadConcurrency, '40', 'uploadConcurrency', 8, '1 and 32'],
   ])('warns and uses the default when %s is %s', (name, raw, field, expected, bounds) => {
     inputs.set(name, raw);
     expect(readCacheConfig()).toMatchObject({ [field]: expected });
@@ -86,6 +89,24 @@ describe('readCacheConfig', () => {
       `Input "${name}" must be an integer between ${bounds}; got "${raw}". Using ${expected}.`
     );
   });
+
+  it('reads upload-chunk-size and upload-concurrency', () => {
+    inputs.set(Inputs.UploadChunkSize, '33554432');
+    inputs.set(Inputs.UploadConcurrency, '16');
+    expect(readCacheConfig()).toMatchObject({ uploadChunkSize: 33554432, uploadConcurrency: 16 });
+    expect(mockWarning).not.toHaveBeenCalled();
+  });
+
+  it.each(['5242879', '134217729', '10mb'])(
+    'warns and leaves upload-chunk-size unset when it is %s',
+    (raw) => {
+      inputs.set(Inputs.UploadChunkSize, raw);
+      expect(readCacheConfig().uploadChunkSize).toBeUndefined();
+      expect(mockWarning).toHaveBeenCalledWith(
+        `Input "upload-chunk-size" must be an integer between 5242880 and 134217728; got "${raw}". Using 67108864.`
+      );
+    }
+  );
 
   it('accepts the download bounds themselves', () => {
     inputs.set(Inputs.DownloadConcurrency, '1');

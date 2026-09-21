@@ -83,6 +83,8 @@ export interface S3Tier {
   streaming?: boolean;
   /** Ranged, parallel download settings; objects larger than `partSize` are fetched in parts. */
   download: DownloadSettings;
+  /** Multipart upload settings: the part size and how many parts are in flight at once. */
+  upload: UploadSettings;
   /** User metadata written on every save, next to the action's own sha256 entry. */
   metadata: Record<string, string>;
   /** Object tags written on every save, when the provider supports them. */
@@ -93,6 +95,13 @@ export interface DownloadSettings {
   /** Ranged GET requests in flight at once; 1 means one request for the whole object. */
   concurrency: number;
   /** Bytes per ranged GET request. */
+  partSize: number;
+}
+
+export interface UploadSettings {
+  /** Multipart parts in flight at once. */
+  concurrency: number;
+  /** Bytes per multipart part. */
   partSize: number;
 }
 
@@ -243,6 +252,10 @@ export async function buildS3Tier(
     streamRetries: config.retryEnabled ? config.retryCount : 0,
     streaming: config.streaming,
     download: { concurrency: config.downloadConcurrency, partSize: config.downloadChunkSize },
+    upload: {
+      concurrency: config.uploadConcurrency,
+      partSize: config.uploadChunkSize ?? Defaults.DefaultUploadChunkSize,
+    },
     metadata: config.metadata,
     tags: config.tags,
   };
@@ -430,8 +443,7 @@ export async function restoreFromS3(
 export async function saveToS3(
   tier: S3Tier,
   primaryKey: string,
-  patterns: readonly string[],
-  uploadChunkSize?: number
+  patterns: readonly string[]
 ): Promise<SaveOutcome> {
   const { client, bucket } = tier.storage;
   const objectKey = tier.template.objectKey(tier.saveRef, primaryKey);
@@ -455,12 +467,12 @@ export async function saveToS3(
       if (
         !usesSeparateZstd({ tar, platform: process.platform, compression: tier.compression.method })
       ) {
-        return await saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uploadChunkSize);
+        return await saveToS3Streaming(tier, objectKey, entries, tar, primaryKey);
       }
       core.info(STREAMING_FALLBACK_MESSAGE);
     }
 
-    return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+    return await saveToS3FileMode(tier, objectKey, entries, primaryKey);
   } catch (err) {
     return { kind: 'error', error: toError(err) };
   }
@@ -482,7 +494,6 @@ async function saveToS3FileMode(
   objectKey: string,
   entries: readonly string[],
   primaryKey: string,
-  uploadChunkSize?: number,
   retryConflict = true,
   omitTags = false
 ): Promise<SaveOutcome> {
@@ -498,7 +509,7 @@ async function saveToS3FileMode(
     const attemptUpload = (ifNoneMatch: string | undefined, tagging: string | undefined) =>
       withRetry(
         () =>
-          uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize, {
+          uploadFile(client, bucket, objectKey, archivePath, tier.upload, {
             metadata,
             ifNoneMatch,
             tagging,
@@ -659,8 +670,7 @@ async function saveToS3Streaming(
   objectKey: string,
   entries: readonly string[],
   tar: TarTool,
-  primaryKey: string,
-  uploadChunkSize?: number
+  primaryKey: string
 ): Promise<SaveOutcome> {
   const { client, bucket } = tier.storage;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
@@ -729,7 +739,7 @@ async function saveToS3Streaming(
     const transferStart = Date.now();
     core.info(`Streaming upload to s3://${bucket}/${objectKey}...`);
     const tagging = tier.storage.objectTaggingUnsupported ? undefined : encodeTagging(tier.tags);
-    const upload = createStreamUpload(client, bucket, objectKey, counter.stream, uploadChunkSize, {
+    const upload = createStreamUpload(client, bucket, objectKey, counter.stream, tier.upload, {
       ifNoneMatch: sendCondition ? '*' : undefined,
       tagging,
     });
@@ -769,15 +779,7 @@ async function saveToS3Streaming(
       // `If-None-Match` does. A streamed body cannot be replayed, so the retry without tags is a
       // file-mode save, which omits them once the flag below is set.
       if (tagging !== undefined && isTaggingUnsupported(err)) {
-        const outcome = await saveToS3FileMode(
-          tier,
-          objectKey,
-          entries,
-          primaryKey,
-          uploadChunkSize,
-          true,
-          true
-        );
+        const outcome = await saveToS3FileMode(tier, objectKey, entries, primaryKey, true, true);
         // Only a save that actually succeeded without tags proves the tags were the problem; the
         // same 501 also means an unsupported `If-None-Match`, which that save handles itself.
         if (outcome.kind === 'saved') {
@@ -798,7 +800,7 @@ async function saveToS3Streaming(
           `s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`
         );
         tier.storage.conditionalWriteUnsupported = true;
-        return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+        return await saveToS3FileMode(tier, objectKey, entries, primaryKey);
       }
       if (sendCondition && isConditionalConflict(err)) {
         // A streamed body cannot be replayed, so the one retry is a file-mode save, which keeps
@@ -806,7 +808,7 @@ async function saveToS3Streaming(
         core.info(
           `A concurrent write to s3://${bucket}/${objectKey} conflicted with this upload; retrying it once from a temporary archive file.`
         );
-        return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize, false);
+        return await saveToS3FileMode(tier, objectKey, entries, primaryKey, false);
       }
       throw withStderrTail(err, stderrTail.lines());
     }

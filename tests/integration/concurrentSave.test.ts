@@ -84,6 +84,7 @@ function buildTier(workspace: string): S3Tier {
     streamRetries: 0,
     streaming: false,
     download: { concurrency: 8, partSize: 8 * 1024 * 1024 },
+    upload: { concurrency: 8, partSize: 5 * 1024 * 1024 },
     metadata: {},
     tags: [],
   };
@@ -254,7 +255,7 @@ describe('concurrent saves for the same key', () => {
           competitorBody
         );
 
-        const outcome = await saveToS3(tier, key, ['payload.bin'], 5 * 1024 * 1024);
+        const outcome = await saveToS3(tier, key, ['payload.bin']);
 
         expect(outcome.kind).not.toBe('error');
         if (s3.provider === 'garage') {

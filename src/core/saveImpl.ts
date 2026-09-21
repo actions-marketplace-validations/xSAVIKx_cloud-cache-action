@@ -69,7 +69,7 @@ async function saveSingleTier(
   // A tier error the step only warned about still makes the outcome an error, not a plain skip.
   let warnedError: string | undefined;
   if (s3) {
-    const outcome = await saveToS3(s3, config.primaryKey, config.paths, config.uploadChunkSize);
+    const outcome = await saveToS3(s3, config.primaryKey, config.paths);
     switch (outcome.kind) {
       case 'saved':
       case 'exists':
@@ -161,7 +161,7 @@ async function saveBothTiers(
   if (s3ExactHit) {
     present.add('s3');
   } else if (!skipBoth && s3) {
-    const outcome = await saveToS3(s3, config.primaryKey, config.paths, config.uploadChunkSize);
+    const outcome = await saveToS3(s3, config.primaryKey, config.paths);
     switch (outcome.kind) {
       case 'saved':
       case 'exists':

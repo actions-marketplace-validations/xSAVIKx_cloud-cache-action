@@ -24,6 +24,8 @@ import * as os from 'os';
 import { Readable } from 'stream';
 
 const s3Mock = mockClient(S3Client);
+/** 5 MiB parts, so a 12 MiB fixture goes through the multipart path. */
+const MULTIPART = { partSize: 5 * 1024 * 1024 };
 
 describe('Storage Operations', () => {
   let client: S3Client;
@@ -282,13 +284,9 @@ describe('Storage Operations', () => {
         ETag: '"mocked-etag"',
       });
 
-      const res = await uploadFile(
-        client,
-        'test-bucket',
-        'uploaded-key',
-        sampleFile,
-        10 * 1024 * 1024
-      );
+      const res = await uploadFile(client, 'test-bucket', 'uploaded-key', sampleFile, {
+        partSize: 10 * 1024 * 1024,
+      });
 
       expect(res.size).toBe(1024);
       expect(res.etag).toBe('"mocked-etag"');
@@ -298,23 +296,67 @@ describe('Storage Operations', () => {
 
     it.each([
       ['at exactly 5 MiB, the S3 minimum, as 5 MiB parts', 5 * 1024 * 1024, 3],
-      ['just under 5 MiB as 10 MiB parts', 5 * 1024 * 1024 - 1, 2],
-      ['unset as 10 MiB parts', undefined, 2],
-    ])('uploads 12 MiB with the chunk size %s', async (_label, chunkSize, parts) => {
+      ['at 6 MiB as 6 MiB parts', 6 * 1024 * 1024, 2],
+      ['just under 5 MiB as one 64 MiB part', 5 * 1024 * 1024 - 1, 0],
+      ['unset as one 64 MiB part', undefined, 0],
+    ])('uploads 12 MiB with the part size %s', async (_label, partSize, parts) => {
+      const {
+        CompleteMultipartUploadCommand,
+        CreateMultipartUploadCommand,
+        PutObjectCommand,
+        UploadPartCommand,
+      } = await import('@aws-sdk/client-s3');
+      const { uploadFile } = await import('../../src/storage/operations');
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-upload-'));
+      const sampleFile = path.join(tempDir, 'large.bin');
+      fs.writeFileSync(sampleFile, Buffer.alloc(12 * 1024 * 1024, 'a'));
+      s3Mock.on(PutObjectCommand).resolves({ ETag: '"single"' });
+      s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
+      s3Mock.on(UploadPartCommand).resolves({ ETag: '"part"' });
+      s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
+
+      try {
+        await uploadFile(client, 'test-bucket', 'large-key', sampleFile, { partSize });
+        expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(parts);
+        expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(parts === 0 ? 1 : 0);
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    // lib-storage holds the final part back until the stream ends, so three parts never show
+    // more than two in flight; the cap, not the ceiling, is what these pin.
+    it.each([
+      [1, 1],
+      [2, 2],
+    ])('sends at most %s parts at once, over 3 parts', async (concurrency, peakExpected) => {
       const { CompleteMultipartUploadCommand, CreateMultipartUploadCommand, UploadPartCommand } =
         await import('@aws-sdk/client-s3');
       const { uploadFile } = await import('../../src/storage/operations');
 
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-upload-'));
       const sampleFile = path.join(tempDir, 'large.bin');
-      fs.writeFileSync(sampleFile, Buffer.alloc(12 * 1024 * 1024, 'a'));
+      fs.writeFileSync(sampleFile, Buffer.alloc(15 * 1024 * 1024, 'a'));
+      let inFlight = 0;
+      let peak = 0;
       s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
-      s3Mock.on(UploadPartCommand).resolves({ ETag: '"part"' });
+      s3Mock.on(UploadPartCommand).callsFake(async () => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        inFlight -= 1;
+        return { ETag: '"part"' };
+      });
       s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
 
       try {
-        await uploadFile(client, 'test-bucket', 'large-key', sampleFile, chunkSize);
-        expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(parts);
+        await uploadFile(client, 'test-bucket', 'large-key', sampleFile, {
+          partSize: 5 * 1024 * 1024,
+          concurrency,
+        });
+        expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(3);
+        expect(peak).toBe(peakExpected);
       } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }
@@ -329,7 +371,7 @@ describe('Storage Operations', () => {
       s3Mock.on(PutObjectCommand).resolves({ ETag: '"mocked-etag"' });
 
       try {
-        await uploadFile(client, 'test-bucket', 'meta-key', sampleFile, undefined, {
+        await uploadFile(client, 'test-bucket', 'meta-key', sampleFile, MULTIPART, {
           metadata: { 'cloud-cache-sha256': 'deadbeef' },
           ifNoneMatch: '*',
         });
@@ -357,7 +399,7 @@ describe('Storage Operations', () => {
       s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
 
       try {
-        await uploadFile(client, 'test-bucket', 'large-meta-key', sampleFile, undefined, {
+        await uploadFile(client, 'test-bucket', 'large-meta-key', sampleFile, MULTIPART, {
           metadata: { 'cloud-cache-sha256': 'feedface' },
           ifNoneMatch: '*',
         });
@@ -379,7 +421,7 @@ describe('Storage Operations', () => {
       s3Mock.on(PutObjectCommand).resolves({ ETag: '"e"' });
 
       try {
-        await uploadFile(client, 'b', 'k', smallFile, undefined, {
+        await uploadFile(client, 'b', 'k', smallFile, MULTIPART, {
           metadata: { 'cloud-cache-sha256': 'abc', team: 'x' },
           tagging: 'repo=acme%2Fapp',
         });
@@ -403,7 +445,7 @@ describe('Storage Operations', () => {
       s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
 
       try {
-        await uploadFile(client, 'b', 'k', largeFile, undefined, {
+        await uploadFile(client, 'b', 'k', largeFile, MULTIPART, {
           metadata: { 'cloud-cache-sha256': 'abc' },
           tagging: 'repo=acme%2Fapp',
         });
@@ -426,7 +468,7 @@ describe('Storage Operations', () => {
       s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
 
       try {
-        await uploadFile(client, 'test-bucket', 'large-condition-key', sampleFile, undefined, {
+        await uploadFile(client, 'test-bucket', 'large-condition-key', sampleFile, MULTIPART, {
           ifNoneMatch: '*',
         });
         const [call] = s3Mock.commandCalls(CompleteMultipartUploadCommand);
@@ -468,7 +510,7 @@ describe('Storage Operations', () => {
       s3Mock.on(AbortMultipartUploadCommand).resolves({});
 
       await expect(
-        uploadFile(client, 'test-bucket', 'large-key', largeFile(), undefined, { ifNoneMatch: '*' })
+        uploadFile(client, 'test-bucket', 'large-key', largeFile(), MULTIPART, { ifNoneMatch: '*' })
       ).rejects.toBe(failure);
 
       const aborts = s3Mock.commandCalls(AbortMultipartUploadCommand);
@@ -487,7 +529,7 @@ describe('Storage Operations', () => {
       s3Mock.on(AbortMultipartUploadCommand).rejects(new Error('abort failed'));
 
       await expect(
-        uploadFile(client, 'test-bucket', 'large-key', largeFile(), undefined, { ifNoneMatch: '*' })
+        uploadFile(client, 'test-bucket', 'large-key', largeFile(), MULTIPART, { ifNoneMatch: '*' })
       ).rejects.toBe(failure);
       expect(s3Mock.commandCalls(AbortMultipartUploadCommand)).toHaveLength(1);
     });
@@ -500,7 +542,7 @@ describe('Storage Operations', () => {
       fs.writeFileSync(smallFile, Buffer.alloc(1024, 'a'));
 
       await expect(
-        uploadFile(client, 'test-bucket', 'small-key', smallFile, undefined, { ifNoneMatch: '*' })
+        uploadFile(client, 'test-bucket', 'small-key', smallFile, MULTIPART, { ifNoneMatch: '*' })
       ).rejects.toBe(failure);
       expect(s3Mock.commandCalls(AbortMultipartUploadCommand)).toHaveLength(0);
     });
@@ -512,7 +554,7 @@ describe('Storage Operations', () => {
       s3Mock.on(AbortMultipartUploadCommand).resolves({});
 
       const body = Readable.from([Buffer.alloc(12 * 1024 * 1024, 'z')]);
-      const upload = createStreamUpload(client, 'test-bucket', 'stream-key', body, undefined, {
+      const upload = createStreamUpload(client, 'test-bucket', 'stream-key', body, MULTIPART, {
         ifNoneMatch: '*',
       });
       await expect(upload.done()).rejects.toBe(failure);
@@ -578,7 +620,7 @@ describe('Storage Operations', () => {
       s3Mock.on(PutObjectCommand).resolves({ ETag: '"cond"' });
 
       const body = Readable.from([Buffer.alloc(10, 'y')]);
-      const upload = createStreamUpload(client, 'test-bucket', 'cond-key', body, undefined, {
+      const upload = createStreamUpload(client, 'test-bucket', 'cond-key', body, MULTIPART, {
         ifNoneMatch: '*',
       });
       await upload.done();
@@ -592,7 +634,7 @@ describe('Storage Operations', () => {
       s3Mock.on(PutObjectCommand).resolves({ ETag: '"tagged"' });
 
       const body = Readable.from([Buffer.alloc(10, 'y')]);
-      const upload = createStreamUpload(client, 'test-bucket', 'tagged-key', body, undefined, {
+      const upload = createStreamUpload(client, 'test-bucket', 'tagged-key', body, MULTIPART, {
         tagging: 'repo=acme%2Fapp',
       });
       await upload.done();
@@ -601,17 +643,31 @@ describe('Storage Operations', () => {
       expect(call.args[0].input.Tagging).toBe('repo=acme%2Fapp');
     });
 
-    it('uses a larger part size for large uploads, same rule as uploadFile', async () => {
+    it('splits a stream by the given part size, same rule as uploadFile', async () => {
       const { createStreamUpload } = await import('../../src/storage/operations');
       s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
       s3Mock.on(UploadPartCommand).resolves({ ETag: '"part"' });
       s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
 
       const body = Readable.from([Buffer.alloc(12 * 1024 * 1024, 'z')]);
-      const upload = createStreamUpload(client, 'test-bucket', 'large-stream-key', body);
+      const upload = createStreamUpload(client, 'test-bucket', 'large-stream-key', body, {
+        partSize: 6 * 1024 * 1024,
+      });
       await upload.done();
 
       expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(2);
+    });
+
+    it('uploads a 12 MiB stream as one 64 MiB part when no part size is given', async () => {
+      const { createStreamUpload } = await import('../../src/storage/operations');
+      s3Mock.on(PutObjectCommand).resolves({ ETag: '"single"' });
+
+      const body = Readable.from([Buffer.alloc(12 * 1024 * 1024, 'z')]);
+      const upload = createStreamUpload(client, 'test-bucket', 'large-stream-key', body);
+      await upload.done();
+
+      expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(1);
+      expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(0);
     });
   });
 

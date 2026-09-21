@@ -14,8 +14,12 @@ inputs:
     description: 'An ordered multiline string listing the prefix-matched keys, used for restoring stale cache if no cache hit occurred for key'
     required: false
   upload-chunk-size:
-    description: 'The chunk size used to split up large files during upload, in bytes'
+    description: 'The chunk size used to split up large files during upload, in bytes (5 MiB to 128 MiB; default 64 MiB, as in actions/cache)'
     required: false
+  upload-concurrency:
+    description: 'How many multipart upload parts are sent at once (1-32)'
+    required: false
+    default: '8'
   enableCrossOsArchive:
     description: 'An optional boolean when enabled, allows windows runners to save or restore caches that can be restored or saved respectively on other platforms'
     default: 'false'
@@ -112,7 +116,7 @@ inputs:
   download-chunk-size:
     description: 'Bytes per ranged GET request of a parallel download (1 MiB to 128 MiB). Archives no larger than this are downloaded in one request.'
     required: false
-    default: '8388608'
+    default: '4194304'
 
   # Dual-cache inputs
   dual-cache:

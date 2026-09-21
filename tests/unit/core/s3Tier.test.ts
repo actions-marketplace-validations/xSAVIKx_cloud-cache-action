@@ -267,6 +267,7 @@ const tier = (overrides: Partial<S3Tier> = {}): S3Tier => ({
   streamRetries: 0,
   streaming: false,
   download: { concurrency: 8, partSize: 8 * 1024 * 1024 },
+  upload: { concurrency: 8, partSize: 64 * 1024 * 1024 },
   metadata: {},
   tags: [],
   ...overrides,
@@ -616,12 +617,10 @@ describe('saveToS3', () => {
   });
 
   it('archives the resolved entries and uploads them under the current ref', async () => {
-    const outcome = await saveToS3(
-      tier(),
-      'k',
-      ['node_modules', '!node_modules/.cache'],
-      5_242_880
-    );
+    const outcome = await saveToS3(tier({ upload: { concurrency: 8, partSize: 5_242_880 } }), 'k', [
+      'node_modules',
+      '!node_modules/.cache',
+    ]);
     const objectKey = `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`;
     expect(outcome).toEqual({
       kind: 'saved',
@@ -644,7 +643,7 @@ describe('saveToS3', () => {
       'bucket',
       objectKey,
       archivePath,
-      5_242_880,
+      { concurrency: 8, partSize: 5_242_880 },
       { metadata: { 'cloud-cache-sha256': 'archive-sha256' }, ifNoneMatch: '*' }
     );
     expect(fs.existsSync(path.dirname(archivePath))).toBe(false);
@@ -976,6 +975,7 @@ describe('buildS3Tier', () => {
     readOnly: false,
     enableCrossOsArchive: false,
     uploadChunkSize: undefined,
+    uploadConcurrency: 8,
     s3KeyPattern: PATTERN,
     prefix: '',
     scopedToRepository: true,
@@ -989,7 +989,7 @@ describe('buildS3Tier', () => {
     dualCacheStrict: false,
     streaming: false,
     downloadConcurrency: 8,
-    downloadChunkSize: 8388608,
+    downloadChunkSize: 4194304,
     jobSummary: true,
     metadata: {},
     tags: [],
@@ -1126,7 +1126,11 @@ describe('saveToS3 streaming', () => {
       abort: jest.fn(async () => undefined),
     }));
 
-    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules'], 5_242_880);
+    const outcome = await saveToS3(
+      tier({ streaming: true, upload: { concurrency: 8, partSize: 5_242_880 } }),
+      'k',
+      ['node_modules']
+    );
 
     const objectKey = `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`;
     expect(outcome).toEqual({
@@ -1149,7 +1153,7 @@ describe('saveToS3 streaming', () => {
     const call = mockCreateStreamUpload.mock.calls[0];
     expect(call[1]).toBe('bucket');
     expect(call[2]).toBe(objectKey);
-    expect(call[4]).toBe(5_242_880);
+    expect(call[4]).toEqual({ concurrency: 8, partSize: 5_242_880 });
     expect(call[5]).toEqual({ ifNoneMatch: '*' });
   });
 

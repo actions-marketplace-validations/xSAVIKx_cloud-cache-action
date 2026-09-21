@@ -12,6 +12,7 @@ import * as path from 'path';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import * as core from '@actions/core';
+import { Defaults } from '../constants';
 
 export interface CacheObjectMetadata {
   key: string;
@@ -118,9 +119,23 @@ export interface ObjectStreamResult {
   metadata?: Record<string, string>;
 }
 
-/** S3 parts must be at least 5 MiB; a smaller or unset chunk size uses 10 MiB parts. */
-function resolvePartSize(uploadChunkSize?: number): number {
-  return uploadChunkSize && uploadChunkSize >= 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024;
+/** How a multipart upload is split and fanned out; unset fields take the actions/cache defaults. */
+export interface UploadTransfer {
+  /** Bytes per part; S3 parts must be at least 5 MiB, so a smaller value uses the default. */
+  partSize?: number;
+  /** Parts in flight at once. */
+  concurrency?: number;
+}
+
+function resolvePartSize(transfer?: UploadTransfer): number {
+  const partSize = transfer?.partSize;
+  return partSize && partSize >= Defaults.MinUploadChunkSize
+    ? partSize
+    : Defaults.DefaultUploadChunkSize;
+}
+
+function resolveQueueSize(transfer?: UploadTransfer): number {
+  return Math.max(1, transfer?.concurrency ?? Defaults.DefaultUploadConcurrency);
 }
 
 export interface UploadOptions {
@@ -242,12 +257,12 @@ export async function uploadFile(
   bucket: string,
   key: string,
   sourcePath: string,
-  uploadChunkSize?: number,
+  transfer?: UploadTransfer,
   options?: UploadOptions
 ): Promise<{ size: number; etag?: string }> {
   const stats = fs.statSync(sourcePath);
   const fileStream = fs.createReadStream(sourcePath);
-  const partSize = resolvePartSize(uploadChunkSize);
+  const partSize = resolvePartSize(transfer);
 
   const parallelUpload = new Upload({
     client,
@@ -260,7 +275,7 @@ export async function uploadFile(
       Tagging: options?.tagging,
     },
     partSize,
-    queueSize: 4,
+    queueSize: resolveQueueSize(transfer),
     leavePartsOnError: false,
   });
 
@@ -292,7 +307,7 @@ export function createStreamUpload(
   bucket: string,
   key: string,
   body: Readable,
-  uploadChunkSize?: number,
+  transfer?: UploadTransfer,
   options?: Pick<UploadOptions, 'ifNoneMatch' | 'tagging'>
 ): StreamUpload {
   const upload = new Upload({
@@ -304,8 +319,8 @@ export function createStreamUpload(
       IfNoneMatch: options?.ifNoneMatch,
       Tagging: options?.tagging,
     },
-    partSize: resolvePartSize(uploadChunkSize),
-    queueSize: 4,
+    partSize: resolvePartSize(transfer),
+    queueSize: resolveQueueSize(transfer),
     leavePartsOnError: false,
   });
 

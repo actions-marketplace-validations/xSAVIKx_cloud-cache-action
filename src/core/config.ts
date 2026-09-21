@@ -23,7 +23,13 @@ export interface CacheConfig {
   failOnCacheMiss: boolean;
   readOnly: boolean;
   enableCrossOsArchive: boolean;
+  /**
+   * Bytes per multipart upload part, when set; undefined leaves each tier to its own default
+   * (64 MiB on S3, the toolkit's on the GitHub tier). An out-of-range value warns and is unset.
+   */
   uploadChunkSize?: number;
+  /** Multipart upload parts in flight at once on the S3 tier. */
+  uploadConcurrency: number;
   s3KeyPattern: string;
   prefix: string;
   scopedToRepository: boolean;
@@ -61,8 +67,17 @@ function readDualCacheStrategy(): DualCacheStrategy {
   return getInputAsEnum(Inputs.DualCacheStrategy, DUAL_CACHE_STRATEGIES, 'backfill');
 }
 
-/** Reads an integer input within [min, max]; anything else warns and uses the default. */
-function readBoundedInt(name: Inputs, defaultValue: number, min: number, max: number): number {
+/**
+ * Reads an integer input within [min, max]; anything else warns and uses the default. The
+ * warning names `effective`, the value the default stands for, when the default is undefined.
+ */
+function readBoundedInt<T extends number | undefined>(
+  name: Inputs,
+  defaultValue: T,
+  min: number,
+  max: number,
+  effective: number = defaultValue as number
+): number | T {
   const raw = core.getInput(name).trim();
   if (raw === '') {
     return defaultValue;
@@ -70,7 +85,7 @@ function readBoundedInt(name: Inputs, defaultValue: number, min: number, max: nu
   const value = /^[0-9]+$/.test(raw) ? Number(raw) : Number.NaN;
   if (Number.isNaN(value) || value < min || value > max) {
     core.warning(
-      `Input "${name}" must be an integer between ${min} and ${max}; got "${raw}". Using ${defaultValue}.`
+      `Input "${name}" must be an integer between ${min} and ${max}; got "${raw}". Using ${effective}.`
     );
     return defaultValue;
   }
@@ -102,7 +117,19 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     failOnCacheMiss: getInputAsBool(Inputs.FailOnCacheMiss),
     readOnly: bool(State.CacheReadOnly, () => getInputAsBool(Inputs.ReadOnly)),
     enableCrossOsArchive: getInputAsBool(Inputs.EnableCrossOsArchive),
-    uploadChunkSize: getInputAsInt(Inputs.UploadChunkSize),
+    uploadChunkSize: readBoundedInt(
+      Inputs.UploadChunkSize,
+      undefined,
+      Defaults.MinUploadChunkSize,
+      Defaults.MaxUploadChunkSize,
+      Defaults.DefaultUploadChunkSize
+    ),
+    uploadConcurrency: readBoundedInt(
+      Inputs.UploadConcurrency,
+      Defaults.DefaultUploadConcurrency,
+      1,
+      Defaults.MaxUploadConcurrency
+    ),
     s3KeyPattern: text(
       State.CacheS3KeyPattern,
       () => core.getInput(Inputs.S3KeyPattern) || Defaults.DefaultS3KeyPattern

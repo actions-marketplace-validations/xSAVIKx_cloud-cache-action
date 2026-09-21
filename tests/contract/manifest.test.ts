@@ -133,6 +133,9 @@ describe('action manifests', () => {
     };
     expectDefault(Inputs.S3KeyPattern, Defaults.DefaultS3KeyPattern);
     expectDefault(Inputs.RetryCount, String(Defaults.DefaultRetryCount));
+    expectDefault(Inputs.DownloadConcurrency, String(Defaults.DefaultDownloadConcurrency));
+    expectDefault(Inputs.DownloadChunkSize, String(Defaults.DefaultDownloadChunkSize));
+    expectDefault(Inputs.UploadConcurrency, String(Defaults.DefaultUploadConcurrency));
     expectDefault(Inputs.RestorePriority, Defaults.DefaultRestorePriority);
     expectDefault(Inputs.DualCacheStrategy, Defaults.DefaultDualCacheStrategy);
   });

@@ -217,9 +217,8 @@ describe('saveImpl', () => {
 
   describe('pure S3 mode', () => {
     it('saves to S3 and reports the object', async () => {
-      inputs.set(Inputs.UploadChunkSize, '10485760');
       await expect(saveImpl(state)).resolves.toBe(2048);
-      expect(mockSaveToS3).toHaveBeenCalledWith(tier, 'Linux-npm-abc', ['~/.npm'], 10485760);
+      expect(mockSaveToS3).toHaveBeenCalledWith(tier, 'Linux-npm-abc', ['~/.npm']);
       expect(Object.fromEntries(outputs)).toEqual({
         'cache-storage-provider': 'seaweedfs',
         'cache-s3-key': s3Info.objectKey,

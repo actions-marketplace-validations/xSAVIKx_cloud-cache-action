@@ -117,6 +117,7 @@ const tier = (streaming: boolean): S3Tier => ({
   streamRetries: 0,
   streaming,
   download: { concurrency: 8, partSize: 8 * 1024 * 1024 },
+  upload: { concurrency: 8, partSize: PART },
   metadata: {},
   tags: [],
 });
@@ -170,7 +171,7 @@ describe('saveToS3 multipart uploads that fail to complete', () => {
   it('file mode: aborts the multipart upload when Complete gets a 412, and still reports exists', async () => {
     s3Mock.on(CompleteMultipartUploadCommand).rejects(preconditionFailed());
 
-    const outcome = await saveToS3(tier(false), 'k', ['node_modules'], PART);
+    const outcome = await saveToS3(tier(false), 'k', ['node_modules']);
 
     expect(outcome).toEqual({
       kind: 'exists',
@@ -187,7 +188,7 @@ describe('saveToS3 multipart uploads that fail to complete', () => {
       .rejectsOnce(notImplemented())
       .resolves({ ETag: '"fallback"' });
 
-    const outcome = await saveToS3(tier(false), 'k', ['node_modules'], PART);
+    const outcome = await saveToS3(tier(false), 'k', ['node_modules']);
 
     expect(outcome).toEqual({
       kind: 'saved',
@@ -203,7 +204,7 @@ describe('saveToS3 multipart uploads that fail to complete', () => {
     tarWriting(ARCHIVE_SIZE, 0);
     s3Mock.on(CompleteMultipartUploadCommand).rejects(preconditionFailed());
 
-    const outcome = await saveToS3(tier(true), 'k', ['node_modules'], PART);
+    const outcome = await saveToS3(tier(true), 'k', ['node_modules']);
 
     expect(outcome).toEqual({
       kind: 'exists',
@@ -220,7 +221,7 @@ describe('saveToS3 multipart uploads that fail to complete', () => {
       .rejectsOnce(notImplemented())
       .resolves({ ETag: '"fallback"' });
 
-    const outcome = await saveToS3(tier(true), 'k', ['node_modules'], PART);
+    const outcome = await saveToS3(tier(true), 'k', ['node_modules']);
 
     expect(outcome).toMatchObject({ kind: 'saved', s3: { etag: '"fallback"' } });
     expect(abortedUploadIds()).toEqual(['upload-1']);
@@ -246,7 +247,7 @@ describe('saveToS3 multipart uploads that fail to complete', () => {
     });
     s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"must-not-complete"' });
 
-    const outcome = await saveToS3(tier(true), 'k', ['node_modules'], PART);
+    const outcome = await saveToS3(tier(true), 'k', ['node_modules']);
 
     expect(outcome.kind).toBe('error');
     expect(outcome.kind === 'error' ? outcome.error.message : '').toContain(
@@ -263,7 +264,7 @@ describe('saveToS3 multipart uploads that fail to complete', () => {
       .on(UploadPartCommand)
       .rejects(Object.assign(new Error('Access Denied'), { name: 'AccessDenied' }));
 
-    const outcome = await saveToS3(tier(true), 'k', ['node_modules'], PART);
+    const outcome = await saveToS3(tier(true), 'k', ['node_modules']);
 
     expect(outcome.kind).toBe('error');
     expect(outcome.kind === 'error' ? outcome.error.message : '').toContain('Access Denied');

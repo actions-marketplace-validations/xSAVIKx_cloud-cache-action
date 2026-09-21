@@ -10,8 +10,12 @@ inputs:
     description: 'An explicit key for saving the cache'
     required: true
   upload-chunk-size:
-    description: 'The chunk size used to split up large files during upload, in bytes'
+    description: 'The chunk size used to split up large files during upload, in bytes (5 MiB to 128 MiB; default 64 MiB, as in actions/cache)'
     required: false
+  upload-concurrency:
+    description: 'How many multipart upload parts are sent at once (1-32)'
+    required: false
+    default: '8'
   enableCrossOsArchive:
     description: 'An optional boolean when enabled, allows windows runners to save caches that can be restored on other platforms'
     default: 'false'
