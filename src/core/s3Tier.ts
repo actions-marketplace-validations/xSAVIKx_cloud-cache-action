@@ -43,6 +43,13 @@ import {
   replaceObjectMetadata,
   uploadFile,
 } from '../storage/operations';
+import {
+  downloadFileInParts,
+  openObjectPartsStream,
+  RangeNotSupportedError,
+  shouldDownloadInParts,
+  type PartDownloadOptions,
+} from '../storage/parallelDownload';
 import { isRetryableStreamError, withRetry } from '../storage/retry';
 import { formatSize, isExactKeyMatch } from '../utils/inputUtils';
 import type { CacheConfig } from './config';
@@ -74,10 +81,19 @@ export interface S3Tier {
   streamRetries: number;
   /** Stream archives directly between tar and S3 instead of using a temporary file (Task 8). */
   streaming?: boolean;
+  /** Ranged, parallel download settings; objects larger than `partSize` are fetched in parts. */
+  download: DownloadSettings;
   /** User metadata written on every save, next to the action's own sha256 entry. */
   metadata: Record<string, string>;
   /** Object tags written on every save, when the provider supports them. */
   tags: ObjectTag[];
+}
+
+export interface DownloadSettings {
+  /** Ranged GET requests in flight at once; 1 means one request for the whole object. */
+  concurrency: number;
+  /** Bytes per ranged GET request. */
+  partSize: number;
 }
 
 export interface S3Match {
@@ -226,6 +242,7 @@ export async function buildS3Tier(
     workspace: getWorkspace(env),
     streamRetries: config.retryEnabled ? config.retryCount : 0,
     streaming: config.streaming,
+    download: { concurrency: config.downloadConcurrency, partSize: config.downloadChunkSize },
     metadata: config.metadata,
     tags: config.tags,
   };
@@ -348,6 +365,10 @@ export async function restoreFromS3(
   if (lookupOnly) {
     return hit;
   }
+  const recordDownload = (parts: number, transferStart: number): void => {
+    hit.transferMs = Date.now() - transferStart;
+    hit.downloadParts = parts;
+  };
   const where = found.ref ? ` on ${found.ref}` : '';
   core.info(
     `S3 cache ${found.exact ? 'hit' : 'partial hit'} for key "${found.matchedKey}"${where} (${formatSize(found.size)})`
@@ -374,19 +395,10 @@ export async function restoreFromS3(
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-restore-'));
   try {
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
-    const { client, bucket } = tier.storage;
+    const { bucket } = tier.storage;
     const transferStart = Date.now();
-    const { metadata } = await withRetry(
-      () => downloadFile(client, bucket, found.objectKey, archivePath),
-      {
-        retries: tier.streamRetries,
-        operationName: `Download of ${found.objectKey}`,
-        shouldRetry: isRetryableStreamError,
-      }
-    );
-    if (hit.kind === 'hit') {
-      hit.transferMs = Date.now() - transferStart;
-    }
+    const { metadata, parts } = await downloadArchive(tier, found, archivePath);
+    recordDownload(parts, transferStart);
     const expectedSha256 = metadata?.[SHA256_METADATA_KEY];
     if (expectedSha256) {
       const actualSha256 = await sha256File(archivePath);
@@ -817,6 +829,79 @@ async function saveToS3Streaming(
   }
 }
 
+/** Part settings for one object, or undefined when it should be fetched in a single request. */
+function partPlan(tier: S3Tier, found: S3Match): PartDownloadOptions | undefined {
+  const { concurrency, partSize } = tier.download;
+  if (concurrency <= 1 || !shouldDownloadInParts(found.size, partSize)) {
+    return undefined;
+  }
+  const parts = Math.ceil(found.size / partSize);
+  core.info(
+    `Downloading ${formatSize(found.size)} in ${parts} parts of ${formatSize(partSize)}, ${Math.min(concurrency, parts)} at a time`
+  );
+  return { size: found.size, partSize, concurrency, retries: tier.streamRetries };
+}
+
+/** Logged once when a provider answers a ranged GET with the whole object. */
+function logRangeFallback(tier: S3Tier, found: S3Match): void {
+  core.info(
+    `s3://${tier.storage.bucket}/${found.objectKey} does not support ranged GET requests; downloading it in one request.`
+  );
+}
+
+/**
+ * Downloads the archive to `archivePath`: in concurrent ranged parts when the object is large
+ * enough and the settings allow, otherwise in one request retried as a whole. A provider that
+ * ignores `Range` gets the single request, which is what it would have served anyway.
+ */
+async function downloadArchive(
+  tier: S3Tier,
+  found: S3Match,
+  archivePath: string
+): Promise<{ metadata?: Record<string, string>; parts: number }> {
+  const { client, bucket } = tier.storage;
+  const plan = partPlan(tier, found);
+  if (plan) {
+    try {
+      return await downloadFileInParts(client, bucket, found.objectKey, archivePath, plan);
+    } catch (err) {
+      if (!(err instanceof RangeNotSupportedError)) {
+        throw err;
+      }
+      logRangeFallback(tier, found);
+    }
+  }
+  const { metadata } = await withRetry(
+    () => downloadFile(client, bucket, found.objectKey, archivePath),
+    {
+      retries: tier.streamRetries,
+      operationName: `Download of ${found.objectKey}`,
+      shouldRetry: isRetryableStreamError,
+    }
+  );
+  return { metadata, parts: 1 };
+}
+
+/** The streaming counterpart of `downloadArchive`: the archive bytes as one ordered stream. */
+async function openArchiveStream(
+  tier: S3Tier,
+  found: S3Match
+): Promise<{ body: Readable; metadata?: Record<string, string>; parts: number }> {
+  const { client, bucket } = tier.storage;
+  const plan = partPlan(tier, found);
+  if (plan) {
+    try {
+      return await openObjectPartsStream(client, bucket, found.objectKey, plan);
+    } catch (err) {
+      if (!(err instanceof RangeNotSupportedError)) {
+        throw err;
+      }
+      logRangeFallback(tier, found);
+    }
+  }
+  const stream = await getObjectStream(client, bucket, found.objectKey);
+  return { body: stream.body, metadata: stream.metadata, parts: 1 };
+}
 /**
  * Streaming restore (Task 8): pipes the GetObject body through the sha256 tap into a spawned
  * tar extract reading from stdin, so nothing touches disk except the extracted files themselves.
@@ -827,7 +912,7 @@ async function restoreFromS3Streaming(
   tar: TarTool,
   hit: RestoreOutcome
 ): Promise<RestoreOutcome> {
-  const { client, bucket } = tier.storage;
+  const { bucket } = tier.storage;
   let body: Readable | undefined;
   let child: ChildProcess | undefined;
   let tarClose: Promise<number> | undefined;
@@ -836,7 +921,7 @@ async function restoreFromS3Streaming(
   let tarReaped = false;
   const transferStart = Date.now();
   try {
-    const stream = await getObjectStream(client, bucket, found.objectKey);
+    const stream = await openArchiveStream(tier, found);
     body = stream.body;
     const { metadata } = stream;
     fs.mkdirSync(tier.workspace, { recursive: true });
@@ -866,6 +951,7 @@ async function restoreFromS3Streaming(
       }
       if (hit.kind === 'hit') {
         hit.transferMs = Date.now() - transferStart;
+        hit.downloadParts = stream.parts;
       }
     } catch (err) {
       // tar's stdout is ignored and its stderr is always being read, so a killed tar closes

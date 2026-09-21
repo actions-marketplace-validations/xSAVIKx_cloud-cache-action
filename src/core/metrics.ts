@@ -25,6 +25,8 @@ export interface StepMetrics {
   /** Time spent on the S3 download or upload alone, when one happened. */
   transferDurationMs?: number;
   streaming?: boolean;
+  /** Ranged requests the restore download used; 1 for a single GetObject, 0 with no download. */
+  downloadParts?: number;
   outcome:
     | 'hit'
     | 'miss'

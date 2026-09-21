@@ -175,6 +175,7 @@ export async function restoreImpl(
             bytes,
             transferDurationMs: outcome.transferMs ?? 0,
             streaming: config.streaming,
+            downloadParts: outcome.downloadParts ?? 0,
             outcome: 'hit',
           });
           await writeRestoreSummary({
@@ -218,6 +219,7 @@ export async function restoreImpl(
       bytes: 0,
       transferDurationMs: 0,
       streaming: config.streaming,
+      downloadParts: 0,
       outcome: 'miss',
     });
     await writeRestoreSummary({

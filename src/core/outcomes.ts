@@ -10,7 +10,15 @@ export interface S3ObjectInfo {
  * `transferMs` is the S3 download alone, so a step's metrics can separate it from archiving.
  */
 export type RestoreOutcome =
-  | { kind: 'hit'; matchedKey: string; exact: boolean; s3?: S3ObjectInfo; transferMs?: number }
+  | {
+      kind: 'hit';
+      matchedKey: string;
+      exact: boolean;
+      s3?: S3ObjectInfo;
+      transferMs?: number;
+      /** Ranged requests the S3 download used; 1 for a single GetObject. */
+      downloadParts?: number;
+    }
   | { kind: 'miss' }
   | { kind: 'error'; error: Error };
 

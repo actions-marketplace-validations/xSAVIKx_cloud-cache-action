@@ -12,6 +12,7 @@ import { compileKeyTemplate } from '../../../src/core/keyTemplate';
 import { computeCacheVersion } from '../../../src/core/version';
 import type { StorageContext } from '../../../src/storage/client';
 import type { CacheObjectMetadata, ObjectStreamResult } from '../../../src/storage/operations';
+import type { PartDownloadOptions } from '../../../src/storage/parallelDownload';
 import { makeTempDir, removeDir } from '../../support/tempTree';
 
 const mockWarning = jest.fn<(message: string) => void>();
@@ -196,6 +197,33 @@ jest.unstable_mockModule('../../../src/storage/operations', () => ({
   createStreamUpload: mockCreateStreamUpload,
   replaceObjectMetadata: mockReplaceObjectMetadata,
 }));
+const mockDownloadFileInParts =
+  jest.fn<
+    (
+      client: S3Client,
+      bucket: string,
+      key: string,
+      destination: string,
+      options: PartDownloadOptions
+    ) => Promise<{ metadata?: Record<string, string>; parts: number }>
+  >();
+const mockOpenObjectPartsStream =
+  jest.fn<
+    (
+      client: S3Client,
+      bucket: string,
+      key: string,
+      options: PartDownloadOptions
+    ) => Promise<{ body: Readable; metadata?: Record<string, string>; parts: number }>
+  >();
+const realParallelDownload = await import('../../../src/storage/parallelDownload');
+jest.unstable_mockModule('../../../src/storage/parallelDownload', () => ({
+  ...realParallelDownload,
+  downloadFileInParts: mockDownloadFileInParts,
+  openObjectPartsStream: mockOpenObjectPartsStream,
+}));
+const { RangeNotSupportedError } = realParallelDownload;
+
 jest.unstable_mockModule('../../../src/archive/checksum', () => ({
   sha256File: mockSha256File,
   createSha256Tap: () => mockCreateSha256Tap(),
@@ -238,6 +266,7 @@ const tier = (overrides: Partial<S3Tier> = {}): S3Tier => ({
   workspace: '/ws',
   streamRetries: 0,
   streaming: false,
+  download: { concurrency: 8, partSize: 8 * 1024 * 1024 },
   metadata: {},
   tags: [],
   ...overrides,
@@ -289,6 +318,7 @@ beforeEach(() => {
       }))
   );
   mockDownloadFile.mockResolvedValue({});
+  mockDownloadFileInParts.mockResolvedValue({ parts: 3 });
   mockExtractArchive.mockResolvedValue();
   mockCreateArchive.mockResolvedValue();
   mockGetArchiveSize.mockReturnValue(2048);
@@ -958,6 +988,8 @@ describe('buildS3Tier', () => {
     dualCacheStrategy: 'backfill',
     dualCacheStrict: false,
     streaming: false,
+    downloadConcurrency: 8,
+    downloadChunkSize: 8388608,
     jobSummary: true,
     metadata: {},
     tags: [],
@@ -1628,6 +1660,145 @@ describe('saveToS3 streaming failure timing', () => {
     expect(tar.child()?.kill).toHaveBeenCalled();
     expect(elapsed).toBeLessThan(2000);
   }, 20_000);
+});
+
+describe('restoreFromS3 parallel download', () => {
+  const MiB = 1024 * 1024;
+  // 20 MiB + 1 byte: three 8 MiB parts, so the object is larger than one part.
+  const large = (): string => {
+    const objectKey = put(FEATURE, 'k', 1);
+    objects.set(objectKey, {
+      ...(objects.get(objectKey) as { size: number; lastModified: Date; etag: string }),
+      size: 20 * MiB + 1,
+    });
+    return objectKey;
+  };
+
+  it('downloads a large object in ranged parts, with the tier settings and stream retries', async () => {
+    const objectKey = large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'good-hash' },
+      parts: 3,
+    });
+    mockSha256File.mockResolvedValue('good-hash');
+    const outcome = await restoreFromS3(tier({ streamRetries: 2 }), 'k', [], false);
+    expect(outcome).toMatchObject({ kind: 'hit', matchedKey: 'k', downloadParts: 3 });
+    const [, bucket, key, target, options] = mockDownloadFileInParts.mock.calls[0];
+    expect([bucket, key, path.basename(target)]).toEqual(['bucket', objectKey, 'cache.tar.zst']);
+    expect(options).toEqual({ size: 20 * MiB + 1, partSize: 8 * MiB, concurrency: 8, retries: 2 });
+    expect(mockDownloadFile).not.toHaveBeenCalled();
+    expect(mockExtractArchive).toHaveBeenCalledWith(target, zstd, '/ws');
+    expect(mockInfo).toHaveBeenCalledWith(
+      'Downloading 20.00 MB in 3 parts of 8.00 MB, 3 at a time'
+    );
+  });
+
+  it('uses one request, and reports one part, for an object no larger than a part', async () => {
+    put(FEATURE, 'k', 1);
+    const outcome = await restoreFromS3(tier(), 'k', [], false);
+    expect(outcome).toMatchObject({ kind: 'hit', downloadParts: 1 });
+    expect(mockDownloadFileInParts).not.toHaveBeenCalled();
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1);
+    expect(mockInfo).not.toHaveBeenCalledWith(expect.stringContaining('parts of'));
+  });
+
+  it('uses one request when download-concurrency is 1', async () => {
+    large();
+    const outcome = await restoreFromS3(
+      tier({ download: { concurrency: 1, partSize: 8 * MiB } }),
+      'k',
+      [],
+      false
+    );
+    expect(outcome).toMatchObject({ kind: 'hit', downloadParts: 1 });
+    expect(mockDownloadFileInParts).not.toHaveBeenCalled();
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to one request, with an info line, when the server ignores Range', async () => {
+    const objectKey = large();
+    mockDownloadFileInParts.mockRejectedValue(new RangeNotSupportedError('bucket', objectKey));
+    const outcome = await restoreFromS3(tier(), 'k', [], false);
+    expect(outcome).toMatchObject({ kind: 'hit', downloadParts: 1 });
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1);
+    expect(mockInfo).toHaveBeenCalledWith(
+      `s3://bucket/${objectKey} does not support ranged GET requests; downloading it in one request.`
+    );
+    expect(mockExtractArchive).toHaveBeenCalled();
+  });
+
+  it('returns any other part failure as an error, without a single-request retry', async () => {
+    large();
+    mockDownloadFileInParts.mockRejectedValue(new Error('Access Denied'));
+    const outcome = await restoreFromS3(tier(), 'k', [], false);
+    expect(outcome.kind === 'error' && outcome.error.message).toBe('Access Denied');
+    expect(mockDownloadFile).not.toHaveBeenCalled();
+    expect(mockExtractArchive).not.toHaveBeenCalled();
+  });
+
+  it('verifies the sha256 of an archive assembled from parts', async () => {
+    large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'expected-hash' },
+      parts: 3,
+    });
+    mockSha256File.mockResolvedValue('actual-hash');
+    const outcome = await restoreFromS3(tier(), 'k', [], false);
+    expect(outcome.kind === 'error' && outcome.error.message).toContain('Integrity check failed');
+    expect(mockExtractArchive).not.toHaveBeenCalled();
+  });
+
+  describe('streaming', () => {
+    let workspace: string;
+    beforeEach(() => {
+      workspace = makeTempDir('parallel-stream-restore-ws');
+      mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+      mockWaitForExit.mockResolvedValue(0);
+    });
+    afterEach(() => removeDir(workspace));
+
+    it('pipes the ordered parts stream into tar and reports the part count', async () => {
+      const objectKey = large();
+      const payload = Buffer.from('archive-payload');
+      mockOpenObjectPartsStream.mockResolvedValue({
+        body: Readable.from([payload]),
+        metadata: {
+          'cloud-cache-sha256': crypto.createHash('sha256').update(payload).digest('hex'),
+        },
+        parts: 3,
+      });
+      const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
+      expect(outcome).toMatchObject({ kind: 'hit', downloadParts: 3 });
+      const [, bucket, key, options] = mockOpenObjectPartsStream.mock.calls[0];
+      expect([bucket, key]).toEqual(['bucket', objectKey]);
+      expect(options).toEqual({
+        size: 20 * MiB + 1,
+        partSize: 8 * MiB,
+        concurrency: 8,
+        retries: 0,
+      });
+      expect(mockGetObjectStream).not.toHaveBeenCalled();
+    });
+
+    it('falls back to a single GetObject stream when the server ignores Range', async () => {
+      const objectKey = large();
+      mockOpenObjectPartsStream.mockRejectedValue(new RangeNotSupportedError('bucket', objectKey));
+      mockGetObjectStream.mockResolvedValue({ body: Readable.from([Buffer.from('data')]) });
+      const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
+      expect(outcome).toMatchObject({ kind: 'hit', downloadParts: 1 });
+      expect(mockGetObjectStream).toHaveBeenCalledTimes(1);
+      expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining('does not support ranged GET'));
+    });
+
+    it('returns an error, without spawning tar, when the parts stream cannot be opened', async () => {
+      large();
+      mockOpenObjectPartsStream.mockRejectedValue(new Error('Access Denied'));
+      const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
+      expect(outcome.kind === 'error' && outcome.error.message).toBe('Access Denied');
+      expect(mockSpawnArchiveCommand).not.toHaveBeenCalled();
+      expect(mockGetObjectStream).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('restoreFromS3 streaming', () => {

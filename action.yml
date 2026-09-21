@@ -105,6 +105,14 @@ inputs:
   tags:
     description: 'Object tags to set on every saved cache object, one key=value per line (up to 10; ignored with a warning on providers without object tagging)'
     required: false
+  download-concurrency:
+    description: 'How many ranged GET requests a restore runs at once when the archive is larger than download-chunk-size (1-32). Set to 1 to download the archive in one request.'
+    required: false
+    default: '8'
+  download-chunk-size:
+    description: 'Bytes per ranged GET request of a parallel download (1 MiB to 128 MiB). Archives no larger than this are downloaded in one request.'
+    required: false
+    default: '8388608'
 
   # Dual-cache inputs
   dual-cache:

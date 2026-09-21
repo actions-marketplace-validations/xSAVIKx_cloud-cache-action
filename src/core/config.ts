@@ -36,6 +36,10 @@ export interface CacheConfig {
   dualCacheStrategy: DualCacheStrategy;
   dualCacheStrict: boolean;
   streaming: boolean;
+  /** Ranged GET requests a restore runs at once; 1 downloads the object in one request. */
+  downloadConcurrency: number;
+  /** Bytes per ranged GET request; objects no larger than this use one request. */
+  downloadChunkSize: number;
   jobSummary: boolean;
   /** User metadata written on every object this step saves (Task 1 parsing rules). */
   metadata: Record<string, string>;
@@ -55,6 +59,22 @@ function readDualCacheStrategy(): DualCacheStrategy {
     return 'backfill';
   }
   return getInputAsEnum(Inputs.DualCacheStrategy, DUAL_CACHE_STRATEGIES, 'backfill');
+}
+
+/** Reads an integer input within [min, max]; anything else warns and uses the default. */
+function readBoundedInt(name: Inputs, defaultValue: number, min: number, max: number): number {
+  const raw = core.getInput(name).trim();
+  if (raw === '') {
+    return defaultValue;
+  }
+  const value = /^[0-9]+$/.test(raw) ? Number(raw) : Number.NaN;
+  if (Number.isNaN(value) || value < min || value > max) {
+    core.warning(
+      `Input "${name}" must be an integer between ${min} and ${max}; got "${raw}". Using ${defaultValue}.`
+    );
+    return defaultValue;
+  }
+  return value;
 }
 
 /**
@@ -105,6 +125,18 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     dualCacheStrategy: text(State.CacheDualCacheStrategy, readDualCacheStrategy),
     dualCacheStrict: bool(State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
     streaming: bool(State.CacheStreaming, () => getInputAsBool(Inputs.Streaming)),
+    downloadConcurrency: readBoundedInt(
+      Inputs.DownloadConcurrency,
+      Defaults.DefaultDownloadConcurrency,
+      1,
+      Defaults.MaxDownloadConcurrency
+    ),
+    downloadChunkSize: readBoundedInt(
+      Inputs.DownloadChunkSize,
+      Defaults.DefaultDownloadChunkSize,
+      Defaults.MinDownloadChunkSize,
+      Defaults.MaxDownloadChunkSize
+    ),
     jobSummary: bool(State.CacheJobSummary, () => getInputAsBool(Inputs.JobSummary, true)),
     metadata: json(State.CacheMetadata, () => parseMetadata(core.getInput(Inputs.Metadata))),
     tags: json(State.CacheTags, () => parseTags(core.getInput(Inputs.Tags))),

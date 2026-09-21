@@ -42,6 +42,8 @@ describe('readCacheConfig', () => {
       dualCacheStrategy: 'backfill',
       dualCacheStrict: false,
       streaming: false,
+      downloadConcurrency: 8,
+      downloadChunkSize: 8388608,
       jobSummary: true,
       metadata: {},
       tags: [],
@@ -59,6 +61,40 @@ describe('readCacheConfig', () => {
   it('reads the streaming input', () => {
     inputs.set(Inputs.Streaming, 'true');
     expect(readCacheConfig().streaming).toBe(true);
+  });
+
+  it('reads download-concurrency and download-chunk-size', () => {
+    inputs.set(Inputs.DownloadConcurrency, '4');
+    inputs.set(Inputs.DownloadChunkSize, '16777216');
+    expect(readCacheConfig()).toMatchObject({
+      downloadConcurrency: 4,
+      downloadChunkSize: 16777216,
+    });
+    expect(mockWarning).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [Inputs.DownloadConcurrency, '0', 'downloadConcurrency', 8, '1 and 32'],
+    [Inputs.DownloadConcurrency, '33', 'downloadConcurrency', 8, '1 and 32'],
+    [Inputs.DownloadConcurrency, 'eight', 'downloadConcurrency', 8, '1 and 32'],
+    [Inputs.DownloadChunkSize, '1048575', 'downloadChunkSize', 8388608, '1048576 and 134217728'],
+    [Inputs.DownloadChunkSize, '-5', 'downloadChunkSize', 8388608, '1048576 and 134217728'],
+  ])('warns and uses the default when %s is %s', (name, raw, field, expected, bounds) => {
+    inputs.set(name, raw);
+    expect(readCacheConfig()).toMatchObject({ [field]: expected });
+    expect(mockWarning).toHaveBeenCalledWith(
+      `Input "${name}" must be an integer between ${bounds}; got "${raw}". Using ${expected}.`
+    );
+  });
+
+  it('accepts the download bounds themselves', () => {
+    inputs.set(Inputs.DownloadConcurrency, '1');
+    inputs.set(Inputs.DownloadChunkSize, '134217728');
+    expect(readCacheConfig()).toMatchObject({
+      downloadConcurrency: 1,
+      downloadChunkSize: 134217728,
+    });
+    expect(mockWarning).not.toHaveBeenCalled();
   });
 
   it('honours retry-count: 0', () => {

@@ -83,6 +83,7 @@ function buildTier(workspace: string): S3Tier {
     workspace,
     streamRetries: 0,
     streaming: false,
+    download: { concurrency: 8, partSize: 8 * 1024 * 1024 },
     metadata: {},
     tags: [],
   };
