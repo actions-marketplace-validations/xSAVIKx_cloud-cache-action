@@ -107,6 +107,7 @@ export default defineConfig({
           { text: 'Garage S3', link: '/providers/garage' },
           { text: 'SeaweedFS S3', link: '/providers/seaweedfs' },
           { text: 'MinIO S3', link: '/providers/minio' },
+          { text: 'RustFS', link: '/providers/rustfs' },
         ],
       },
       {

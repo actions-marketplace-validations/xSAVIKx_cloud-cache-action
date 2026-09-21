@@ -8,6 +8,17 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+### Added
+
+- **RustFS provider preset.** `provider: rustfs` selects path-style addressing and the `us-east-1`
+  default region for [RustFS](https://rustfs.com/), the Apache-2.0 Rust object store that reached
+  1.0 in September 2026. The full integration suite runs against RustFS 1.0.0 in CI, next to
+  Garage, SeaweedFS and MinIO. Ranged downloads, multipart uploads, object tagging, user metadata
+  and conditional writes all work, so no feature is disabled for it.
+  - RustFS serves S3 on port 9000, the port MinIO uses, so endpoint sniffing cannot tell the two
+    apart and reports `minio`. Both presets resolve to the same settings; set `provider: rustfs`
+    to name it in the log.
+
 ## [1.4.0] - 2026-09-21
 
 No breaking changes. Caches saved by v1.1, v1.2 and v1.3 stay valid.

@@ -1,7 +1,7 @@
 name: cloud-cache-test
 
 # Local S3 servers for the integration suite. Credentials match tests/support/s3Server.ts:
-#   seaweedfs, minio: cloudcacheci / cloudcachecisecret
+#   seaweedfs, minio, rustfs: cloudcacheci / cloudcachecisecret
 #   garage: run `bash tests/ci/start-garage.sh` after `up`, then use the key in that script.
 services:
   garage:
@@ -38,4 +38,19 @@ services:
     tmpfs:
       - /data:uid=65532,gid=65532
     command: 'server /data'
+    restart: unless-stopped
+
+  rustfs:
+    # RustFS serves S3 on 9000, the same port MinIO uses, so it is published on 9010 here to let
+    # both run at once. The container runs as uid/gid 10001 and needs /data and /logs writable.
+    image: rustfs/rustfs:1.0.0
+    container_name: cloud-cache-rustfs
+    ports:
+      - '9010:9000' # S3 API
+    environment:
+      - RUSTFS_ACCESS_KEY=cloudcacheci
+      - RUSTFS_SECRET_KEY=cloudcachecisecret
+    tmpfs:
+      - /data:uid=10001,gid=10001
+      - /logs:uid=10001,gid=10001
     restart: unless-stopped

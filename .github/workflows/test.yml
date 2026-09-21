@@ -79,6 +79,12 @@ jobs:
             region: us-east-1
             access-key: cloudcacheci
             secret-key: cloudcachecisecret
+          # RustFS serves S3 on 9000 like MinIO, so docker-compose.test.yml publishes it on 9010.
+          - server: rustfs
+            endpoint: http://127.0.0.1:9010
+            region: us-east-1
+            access-key: cloudcacheci
+            secret-key: cloudcachecisecret
     env:
       TEST_S3_ENDPOINT: ${{ matrix.endpoint }}
       TEST_S3_REGION: ${{ matrix.region }}

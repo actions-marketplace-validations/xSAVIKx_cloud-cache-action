@@ -45,6 +45,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
   - **Fastly Object Storage**
   - **Garage S3** (Lightweight self-hosted S3)
   - **SeaweedFS S3**
+  - **RustFS** (Rust, Apache-2.0, S3-compatible)
   - **MinIO / LocalStack / Ceph**
 - **Smart Provider Auto-Detection**: Automatically determines optimal regions and path-style addressing from your endpoint URL.
 - **Custom S3 Key & Environment Templating**: Default pattern `${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}` with full override capability and support for dynamic environment variables (`${RUNNER_OS}`, `${GITHUB_JOB}`, `${WORKLOAD_TYPE}`).
@@ -186,6 +187,23 @@ Zero egress fees for CI caches:
     provider: garage # or seaweedfs
     access-key: ${{ secrets.GARAGE_ACCESS_KEY }}
     secret-key: ${{ secrets.GARAGE_SECRET_KEY }}
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: build/
+```
+
+### Self-Hosted: RustFS
+
+[RustFS](https://rustfs.com/) is an Apache-2.0, Rust object store that reached 1.0 in September 2026. Its S3 API covers everything this action uses: ranged downloads, multipart uploads, object tagging, user metadata and conditional writes. The whole integration suite passes against RustFS 1.0.0.
+
+```yaml
+- name: Cache dependencies using RustFS
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: ci-cache
+    endpoint: http://127.0.0.1:9000 # or https://rustfs.internal:9000
+    provider: rustfs
+    access-key: ${{ secrets.RUSTFS_ACCESS_KEY }}
+    secret-key: ${{ secrets.RUSTFS_SECRET_KEY }}
     key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
     path: build/
 ```
@@ -643,7 +661,7 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | `restore-keys`                   |    No    |                             —                              | Multiline string of prefix keys for fallback matching                       |
 | `endpoint`                       |    No    |                          Auto/AWS                          | Custom S3 endpoint URL                                                      |
 | `region`                         |    No    |                      Auto/`us-east-1`                      | AWS or S3 provider region                                                   |
-| `provider`                       |    No    |                            Auto                            | Preset: `aws`, `r2`, `gcs`, `b2`, `fastly`, `garage`, `seaweedfs`, `minio`  |
+| `provider`                       |    No    |                            Auto                            | Preset: `aws`, `r2`, `gcs`, `b2`, `fastly`, `garage`, `seaweedfs`, `minio`, `rustfs`  |
 | `access-key` / `accessKey`       |    No    |                    `AWS_ACCESS_KEY_ID`                     | S3 Access Key ID                                                            |
 | `secret-key` / `secretKey`       |    No    |                  `AWS_SECRET_ACCESS_KEY`                   | S3 Secret Access Key                                                        |
 | `session-token` / `sessionToken` |    No    |                    `AWS_SESSION_TOKEN`                     | S3 Session Token                                                            |

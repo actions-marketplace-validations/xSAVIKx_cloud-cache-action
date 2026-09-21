@@ -66941,6 +66941,7 @@ const KNOWN_PROVIDERS = [
     'seaweedfs',
     'seaweed',
     'minio',
+    'rustfs',
 ];
 function isKnownProvider(name) {
     return KNOWN_PROVIDERS.includes(name.toLowerCase().trim());
@@ -66970,6 +66971,8 @@ function detectProvider(endpointInput, explicitProvider) {
                 return 'seaweedfs';
             case 'minio':
                 return 'minio';
+            case 'rustfs':
+                return 'rustfs';
             default:
                 return 'generic-s3';
         }
@@ -66999,6 +67002,8 @@ function detectProvider(endpointInput, explicitProvider) {
     if (ep.includes(':8333')) {
         return 'seaweedfs';
     }
+    // RustFS serves S3 on the same default port as MinIO, so the port alone cannot tell them
+    // apart; both take the same defaults here. Set `provider: rustfs` to name it in the log.
     if (ep.includes(':9000')) {
         return 'minio';
     }
@@ -67057,6 +67062,7 @@ function resolveProviderDefaults(endpointInput, regionInput, forcePathStyleInput
                 forcePathStyle = true;
             break;
         case 'minio':
+        case 'rustfs':
         case 'generic-s3':
         default:
             region = region || 'us-east-1';

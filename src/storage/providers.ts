@@ -7,6 +7,7 @@ export type StorageProvider =
   | 'garage'
   | 'seaweedfs'
   | 'minio'
+  | 'rustfs'
   | 'generic-s3';
 
 export interface ProviderConfig {
@@ -30,6 +31,7 @@ export const KNOWN_PROVIDERS = [
   'seaweedfs',
   'seaweed',
   'minio',
+  'rustfs',
 ] as const;
 
 export function isKnownProvider(name: string): boolean {
@@ -61,6 +63,8 @@ export function detectProvider(endpointInput?: string, explicitProvider?: string
         return 'seaweedfs';
       case 'minio':
         return 'minio';
+      case 'rustfs':
+        return 'rustfs';
       default:
         return 'generic-s3';
     }
@@ -92,6 +96,8 @@ export function detectProvider(endpointInput?: string, explicitProvider?: string
   if (ep.includes(':8333')) {
     return 'seaweedfs';
   }
+  // RustFS serves S3 on the same default port as MinIO, so the port alone cannot tell them
+  // apart; both take the same defaults here. Set `provider: rustfs` to name it in the log.
   if (ep.includes(':9000')) {
     return 'minio';
   }
@@ -160,6 +166,7 @@ export function resolveProviderDefaults(
       break;
 
     case 'minio':
+    case 'rustfs':
     case 'generic-s3':
     default:
       region = region || 'us-east-1';
