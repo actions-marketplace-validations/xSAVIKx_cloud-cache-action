@@ -22,6 +22,9 @@ No breaking changes. Caches saved by v1.1, v1.2 and v1.3 stay valid.
   gets the single request. The restore's metrics line reports the part count as `downloadParts`.
 - **`upload-concurrency` input** (default `8`, 1–32) on the main and `save` actions: how many
   multipart parts a save sends at once, in both file and streaming mode. It was fixed at 4.
+- **Transfer benchmark workflow** (`benchmark.yml`, manual) that measures save and restore speed
+  for several transfer settings against the live providers, and a "Transfer Performance" guide
+  with the measured tables and the settings that measured best.
 
 ### Changed
 
