@@ -65560,6 +65560,7 @@ var Inputs;
     Inputs["Path"] = "path";
     Inputs["RestoreKeys"] = "restore-keys";
     Inputs["UploadChunkSize"] = "upload-chunk-size";
+    Inputs["UploadConcurrency"] = "upload-concurrency";
     Inputs["EnableCrossOsArchive"] = "enableCrossOsArchive";
     Inputs["FailOnCacheMiss"] = "fail-on-cache-miss";
     Inputs["LookupOnly"] = "lookup-only";
@@ -65672,14 +65673,19 @@ const Defaults = {
     DefaultArchiveFilenameZstd: 'cache.tar.zst',
     DefaultArchiveFilenameGzip: 'cache.tar.gz',
     DefaultRetryCount: 3,
-    /** Ranged GET requests in flight per restore; actions/cache downloads with the same fan-out. */
+    // Transfer defaults follow actions/cache: it downloads 8 concurrent 4 MiB blocks and uploads
+    // 8 concurrent 64 MiB parts, capping the fan-out at 32 and the part size at 128 MiB.
     DefaultDownloadConcurrency: 8,
-    /** Cap on download-concurrency, the same cap actions/cache puts on its upload fan-out. */
     MaxDownloadConcurrency: 32,
-    /** Bytes per ranged GET request: the AWS CLI and CRT part size. */
-    DefaultDownloadChunkSize: 8 * 1024 * 1024,
+    DefaultDownloadChunkSize: 4 * 1024 * 1024,
     MinDownloadChunkSize: 1024 * 1024,
     MaxDownloadChunkSize: 128 * 1024 * 1024,
+    DefaultUploadConcurrency: 8,
+    MaxUploadConcurrency: 32,
+    DefaultUploadChunkSize: 64 * 1024 * 1024,
+    /** S3, R2, B2 and GCS all reject multipart parts smaller than 5 MiB (except the last). */
+    MinUploadChunkSize: 5 * 1024 * 1024,
+    MaxUploadChunkSize: 128 * 1024 * 1024,
     DefaultRestorePriority: 's3-first',
     DefaultDualCacheStrategy: 'backfill',
     /** Mixed into every cache version; bump it when the archive format changes incompatibly. */

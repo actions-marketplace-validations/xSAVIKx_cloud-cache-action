@@ -75937,6 +75937,7 @@ var Inputs;
     Inputs["Path"] = "path";
     Inputs["RestoreKeys"] = "restore-keys";
     Inputs["UploadChunkSize"] = "upload-chunk-size";
+    Inputs["UploadConcurrency"] = "upload-concurrency";
     Inputs["EnableCrossOsArchive"] = "enableCrossOsArchive";
     Inputs["FailOnCacheMiss"] = "fail-on-cache-miss";
     Inputs["LookupOnly"] = "lookup-only";
@@ -76049,14 +76050,19 @@ const Defaults = {
     DefaultArchiveFilenameZstd: 'cache.tar.zst',
     DefaultArchiveFilenameGzip: 'cache.tar.gz',
     DefaultRetryCount: 3,
-    /** Ranged GET requests in flight per restore; actions/cache downloads with the same fan-out. */
+    // Transfer defaults follow actions/cache: it downloads 8 concurrent 4 MiB blocks and uploads
+    // 8 concurrent 64 MiB parts, capping the fan-out at 32 and the part size at 128 MiB.
     DefaultDownloadConcurrency: 8,
-    /** Cap on download-concurrency, the same cap actions/cache puts on its upload fan-out. */
     MaxDownloadConcurrency: 32,
-    /** Bytes per ranged GET request: the AWS CLI and CRT part size. */
-    DefaultDownloadChunkSize: 8 * 1024 * 1024,
+    DefaultDownloadChunkSize: 4 * 1024 * 1024,
     MinDownloadChunkSize: 1024 * 1024,
     MaxDownloadChunkSize: 128 * 1024 * 1024,
+    DefaultUploadConcurrency: 8,
+    MaxUploadConcurrency: 32,
+    DefaultUploadChunkSize: 64 * 1024 * 1024,
+    /** S3, R2, B2 and GCS all reject multipart parts smaller than 5 MiB (except the last). */
+    MinUploadChunkSize: 5 * 1024 * 1024,
+    MaxUploadChunkSize: 128 * 1024 * 1024,
     DefaultRestorePriority: 's3-first',
     DefaultDualCacheStrategy: 'backfill',
     /** Mixed into every cache version; bump it when the archive format changes incompatibly. */
@@ -76318,15 +76324,18 @@ function readDualCacheStrategy() {
     }
     return getInputAsEnum(Inputs.DualCacheStrategy, DUAL_CACHE_STRATEGIES, 'backfill');
 }
-/** Reads an integer input within [min, max]; anything else warns and uses the default. */
-function readBoundedInt(name, defaultValue, min, max) {
+/**
+ * Reads an integer input within [min, max]; anything else warns and uses the default. The
+ * warning names `effective`, the value the default stands for, when the default is undefined.
+ */
+function readBoundedInt(name, defaultValue, min, max, effective = defaultValue) {
     const raw = getInput(name).trim();
     if (raw === '') {
         return defaultValue;
     }
     const value = /^[0-9]+$/.test(raw) ? Number(raw) : Number.NaN;
     if (Number.isNaN(value) || value < min || value > max) {
-        core_warning(`Input "${name}" must be an integer between ${min} and ${max}; got "${raw}". Using ${defaultValue}.`);
+        core_warning(`Input "${name}" must be an integer between ${min} and ${max}; got "${raw}". Using ${effective}.`);
         return defaultValue;
     }
     return value;
@@ -76355,7 +76364,8 @@ function readCacheConfig(state) {
         failOnCacheMiss: getInputAsBool(Inputs.FailOnCacheMiss),
         readOnly: bool(constants_State.CacheReadOnly, () => getInputAsBool(Inputs.ReadOnly)),
         enableCrossOsArchive: getInputAsBool(Inputs.EnableCrossOsArchive),
-        uploadChunkSize: getInputAsInt(Inputs.UploadChunkSize),
+        uploadChunkSize: readBoundedInt(Inputs.UploadChunkSize, undefined, Defaults.MinUploadChunkSize, Defaults.MaxUploadChunkSize, Defaults.DefaultUploadChunkSize),
+        uploadConcurrency: readBoundedInt(Inputs.UploadConcurrency, Defaults.DefaultUploadConcurrency, 1, Defaults.MaxUploadConcurrency),
         s3KeyPattern: text(constants_State.CacheS3KeyPattern, () => getInput(Inputs.S3KeyPattern) || Defaults.DefaultS3KeyPattern),
         prefix: text(constants_State.CachePrefix, () => getInput(Inputs.Prefix)),
         scopedToRepository: bool(constants_State.CacheScopedToRepository, () => getInputAsBool(Inputs.ScopedToRepository, true)),
@@ -129159,6 +129169,7 @@ const external_stream_promises_namespaceObject = __WEBPACK_EXTERNAL_createRequir
 
 
 
+
 async function operations_checkObjectExists(client, bucket, key) {
     try {
         const cmd = new dist_cjs.HeadObjectCommand({
@@ -129224,9 +129235,14 @@ async function operations_findNewestObject(client, bucket, prefix, accept, pageS
     }
     return newest;
 }
-/** S3 parts must be at least 5 MiB; a smaller or unset chunk size uses 10 MiB parts. */
-function resolvePartSize(uploadChunkSize) {
-    return uploadChunkSize && uploadChunkSize >= 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024;
+function resolvePartSize(transfer) {
+    const partSize = transfer?.partSize;
+    return partSize && partSize >= Defaults.MinUploadChunkSize
+        ? partSize
+        : Defaults.DefaultUploadChunkSize;
+}
+function resolveQueueSize(transfer) {
+    return Math.max(1, transfer?.concurrency ?? Defaults.DefaultUploadConcurrency);
 }
 /**
  * Awaits `upload.done()`. When it rejects after a multipart upload was created, sends
@@ -129293,10 +129309,10 @@ async function operations_getObjectStream(client, bucket, key) {
     }
     return { body: response.Body, metadata: response.Metadata };
 }
-async function operations_uploadFile(client, bucket, key, sourcePath, uploadChunkSize, options) {
+async function operations_uploadFile(client, bucket, key, sourcePath, transfer, options) {
     const stats = external_fs_namespaceObject.statSync(sourcePath);
     const fileStream = external_fs_namespaceObject.createReadStream(sourcePath);
-    const partSize = resolvePartSize(uploadChunkSize);
+    const partSize = resolvePartSize(transfer);
     const parallelUpload = new lib_storage_dist_cjs/* Upload */._({
         client,
         params: {
@@ -129308,7 +129324,7 @@ async function operations_uploadFile(client, bucket, key, sourcePath, uploadChun
             Tagging: options?.tagging,
         },
         partSize,
-        queueSize: 4,
+        queueSize: resolveQueueSize(transfer),
         leavePartsOnError: false,
     });
     parallelUpload.on('httpUploadProgress', (progress) => {
@@ -129331,7 +129347,7 @@ async function operations_uploadFile(client, bucket, key, sourcePath, uploadChun
  * Metadata is attached afterwards by `replaceObjectMetadata`: a streamed archive's sha256 cannot
  * be known before it finishes.
  */
-function createStreamUpload(client, bucket, key, body, uploadChunkSize, options) {
+function createStreamUpload(client, bucket, key, body, transfer, options) {
     const upload = new lib_storage_dist_cjs/* Upload */._({
         client,
         params: {
@@ -129341,8 +129357,8 @@ function createStreamUpload(client, bucket, key, body, uploadChunkSize, options)
             IfNoneMatch: options?.ifNoneMatch,
             Tagging: options?.tagging,
         },
-        partSize: resolvePartSize(uploadChunkSize),
-        queueSize: 4,
+        partSize: resolvePartSize(transfer),
+        queueSize: resolveQueueSize(transfer),
         leavePartsOnError: false,
     });
     upload.on('httpUploadProgress', (progress) => {
@@ -130220,6 +130236,10 @@ async function buildS3Tier(config, env = process.env, options = {}) {
         streamRetries: config.retryEnabled ? config.retryCount : 0,
         streaming: config.streaming,
         download: { concurrency: config.downloadConcurrency, partSize: config.downloadChunkSize },
+        upload: {
+            concurrency: config.uploadConcurrency,
+            partSize: config.uploadChunkSize ?? Defaults.DefaultUploadChunkSize,
+        },
         metadata: config.metadata,
         tags: config.tags,
     };
@@ -130362,7 +130382,7 @@ async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
         fs.rmSync(tempDir, { recursive: true, force: true });
     }
 }
-async function saveToS3(tier, primaryKey, patterns, uploadChunkSize) {
+async function saveToS3(tier, primaryKey, patterns) {
     const { client, bucket } = tier.storage;
     const objectKey = tier.template.objectKey(tier.saveRef, primaryKey);
     try {
@@ -130379,11 +130399,11 @@ async function saveToS3(tier, primaryKey, patterns, uploadChunkSize) {
         if (tier.streaming) {
             const tar = await tar_findTar();
             if (!tar_usesSeparateZstd({ tar, platform: process.platform, compression: tier.compression.method })) {
-                return await saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uploadChunkSize);
+                return await saveToS3Streaming(tier, objectKey, entries, tar, primaryKey);
             }
             info(STREAMING_FALLBACK_MESSAGE);
         }
-        return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+        return await saveToS3FileMode(tier, objectKey, entries, primaryKey);
     }
     catch (err) {
         return { kind: 'error', error: outcomes_toError(err) };
@@ -130400,7 +130420,7 @@ async function saveToS3(tier, primaryKey, patterns, uploadChunkSize) {
  * fallback a streamed tagged upload takes, which must not send tags again without latching the
  * tier-wide flag first.
  */
-async function saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize, retryConflict = true, omitTags = false) {
+async function saveToS3FileMode(tier, objectKey, entries, primaryKey, retryConflict = true, omitTags = false) {
     const { client, bucket } = tier.storage;
     const tempDir = external_node_fs_.mkdtempSync(external_node_path_.join(external_node_os_.tmpdir(), 'cloud-cache-save-'));
     try {
@@ -130410,7 +130430,7 @@ async function saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChun
         info(`Uploading ${inputUtils_formatSize(archiveSize)} to s3://${bucket}/${objectKey}...`);
         const checksum = await checksum_sha256File(archivePath);
         const metadata = { ...tier.metadata, [objectAttributes_SHA256_METADATA_KEY]: checksum };
-        const attemptUpload = (ifNoneMatch, tagging) => retry_withRetry(() => operations_uploadFile(client, bucket, objectKey, archivePath, uploadChunkSize, {
+        const attemptUpload = (ifNoneMatch, tagging) => retry_withRetry(() => operations_uploadFile(client, bucket, objectKey, archivePath, tier.upload, {
             metadata,
             ifNoneMatch,
             tagging,
@@ -130543,7 +130563,7 @@ function withStderrTail(err, tail) {
  * first, so lib-storage can never send the final PutObject/CompleteMultipartUpload for a
  * truncated archive. `If-None-Match` would otherwise keep such a bad object forever.
  */
-async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uploadChunkSize) {
+async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey) {
     const { client, bucket } = tier.storage;
     const tempDir = external_node_fs_.mkdtempSync(external_node_path_.join(external_node_os_.tmpdir(), 'cloud-cache-save-'));
     let child;
@@ -130609,7 +130629,7 @@ async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uplo
         const transferStart = Date.now();
         info(`Streaming upload to s3://${bucket}/${objectKey}...`);
         const tagging = tier.storage.objectTaggingUnsupported ? undefined : encodeTagging(tier.tags);
-        const upload = createStreamUpload(client, bucket, objectKey, counter.stream, uploadChunkSize, {
+        const upload = createStreamUpload(client, bucket, objectKey, counter.stream, tier.upload, {
             ifNoneMatch: sendCondition ? '*' : undefined,
             tagging,
         });
@@ -130649,7 +130669,7 @@ async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uplo
             // `If-None-Match` does. A streamed body cannot be replayed, so the retry without tags is a
             // file-mode save, which omits them once the flag below is set.
             if (tagging !== undefined && isTaggingUnsupported(err)) {
-                const outcome = await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize, true, true);
+                const outcome = await saveToS3FileMode(tier, objectKey, entries, primaryKey, true, true);
                 // Only a save that actually succeeded without tags proves the tags were the problem; the
                 // same 501 also means an unsupported `If-None-Match`, which that save handles itself.
                 if (outcome.kind === 'saved') {
@@ -130668,13 +130688,13 @@ async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uplo
             if (sendCondition && isConditionUnsupported(err)) {
                 core_debug(`s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`);
                 tier.storage.conditionalWriteUnsupported = true;
-                return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize);
+                return await saveToS3FileMode(tier, objectKey, entries, primaryKey);
             }
             if (sendCondition && isConditionalConflict(err)) {
                 // A streamed body cannot be replayed, so the one retry is a file-mode save, which keeps
                 // the condition.
                 info(`A concurrent write to s3://${bucket}/${objectKey} conflicted with this upload; retrying it once from a temporary archive file.`);
-                return await saveToS3FileMode(tier, objectKey, entries, primaryKey, uploadChunkSize, false);
+                return await saveToS3FileMode(tier, objectKey, entries, primaryKey, false);
             }
             throw withStderrTail(err, stderrTail.lines());
         }
@@ -130983,7 +131003,7 @@ async function saveSingleTier(config, s3, s3ExactHit) {
     // A tier error the step only warned about still makes the outcome an error, not a plain skip.
     let warnedError;
     if (s3) {
-        const outcome = await saveToS3(s3, config.primaryKey, config.paths, config.uploadChunkSize);
+        const outcome = await saveToS3(s3, config.primaryKey, config.paths);
         switch (outcome.kind) {
             case 'saved':
             case 'exists':
@@ -131060,7 +131080,7 @@ async function saveBothTiers(config, s3, s3ExactHit, githubExactHit) {
         present.add('s3');
     }
     else if (!skipBoth && s3) {
-        const outcome = await saveToS3(s3, config.primaryKey, config.paths, config.uploadChunkSize);
+        const outcome = await saveToS3(s3, config.primaryKey, config.paths);
         switch (outcome.kind) {
             case 'saved':
             case 'exists':
