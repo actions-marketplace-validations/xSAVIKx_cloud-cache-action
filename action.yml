@@ -116,7 +116,7 @@ inputs:
   download-chunk-size:
     description: 'Bytes per ranged GET request of a parallel download (1 MiB to 128 MiB). Archives no larger than this are downloaded in one request.'
     required: false
-    default: '4194304'
+    default: '8388608'
 
   # Dual-cache inputs
   dual-cache:

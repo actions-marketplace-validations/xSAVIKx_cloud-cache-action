@@ -60,7 +60,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 - **Explain a Lookup**: `explain: true` logs why a lookup hits or misses — the resolved pattern, the `${version}` hash, every ref searched and every candidate object — and the `inspect` sub-action reports the same thing as step outputs, without restoring anything. See [Inspecting a cache lookup](#inspecting-a-cache-lookup).
 - **Metrics**: Every step exposes its timings and byte count as outputs and can append one JSON line per step to a `metrics-file`. See [Metrics and Timings](#metrics-and-timings).
 - **Opt-in Streaming (Experimental)**: Stream archives directly between `tar` and S3 without a temporary file, with `streaming: true`. See [Streaming Archives](#streaming-archives-experimental).
-- **Parallel Transfers**: Restores fetch archives larger than 4 MiB as concurrent `Range` requests, and saves send multipart parts concurrently, 8 at a time each by default, the same fan-out as `actions/cache`. See [Parallel Transfers](#parallel-transfers).
+- **Parallel Transfers**: Restores fetch archives larger than 8 MiB as concurrent `Range` requests, and saves send multipart parts concurrently, 8 at a time each by default, the same fan-out as `actions/cache`. See [Parallel Transfers](#parallel-transfers).
 - **Resilient**: Automatic exponential backoff retries on transient network errors.
 
 ---
@@ -489,9 +489,10 @@ conditional-create and Garage fallback rules as [Safe Concurrent Saves](#safe-co
 
 ## Parallel Transfers
 
-Both directions move a large archive over several connections at once, with the same defaults
-`actions/cache` uses for the GitHub cache service: 8 concurrent 4 MiB blocks on download and
-8 concurrent 64 MiB parts on upload.
+Both directions move a large archive over several connections at once, with the fan-out
+`actions/cache` uses for the GitHub cache service: 8 concurrent 8 MiB blocks on download and
+8 concurrent 64 MiB parts on upload. (`actions/cache` downloads 4 MiB blocks; 8 MiB measured
+1.4× to 2.6× faster on every provider, see below.)
 
 ```yaml
     download-concurrency: 16   # 1–32; 1 turns the parallel download off
@@ -500,10 +501,10 @@ Both directions move a large archive over several connections at once, with the 
     upload-chunk-size: 33554432   # bytes per part, 5 MiB–128 MiB
 ```
 
-**Downloads.** A restore fetches any archive larger than `download-chunk-size` (default 4 MiB) as
+**Downloads.** A restore fetches any archive larger than `download-chunk-size` (default 8 MiB) as
 concurrent `Range` requests, `download-concurrency` (default `8`) at a time, so a large cache uses
 the whole link a runner has instead of one connection. Archives no larger than one chunk are
-downloaded in a single request, as before. On a hosted runner the default keeps at most 32 MiB of
+downloaded in a single request, as before. On a hosted runner the default keeps at most 64 MiB of
 parts in memory.
 
 - **Per-part retries.** Each part is retried on its own (`retry-count` times) when its connection
@@ -583,8 +584,8 @@ integrity check.
 One default changes:
 
 - **[Parallel transfers](#parallel-transfers)** follow the `actions/cache` defaults. Restores of
-  archives larger than 4 MiB download in 8 concurrent ranged parts, controlled by the new
-  `download-concurrency` (default `8`) and `download-chunk-size` (default `4194304`) inputs; set
+  archives larger than 8 MiB download in 8 concurrent ranged parts, controlled by the new
+  `download-concurrency` (default `8`) and `download-chunk-size` (default `8388608`) inputs; set
   `download-concurrency: 1` to keep the single-request download of v1.3. Saves send 8 parts at
   once instead of 4, controlled by the new `upload-concurrency` input, and the default
   `upload-chunk-size` is now 64 MiB instead of 10 MiB, so a save may hold up to 512 MiB of parts in
@@ -664,7 +665,7 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | `dual-cache-strict`              |    No    |                          `false`                           | Fail the step when either tier errors during restore or save |
 | `streaming`                      |    No    |                          `false`                           | Stream archives directly between `tar` and S3 without a temporary file (experimental; see [Streaming Archives](#streaming-archives-experimental)) |
 | `download-concurrency`           |    No    |                            `8`                             | Ranged GET requests a restore runs at once for archives larger than `download-chunk-size` (1–32); `1` downloads in one request (see [Parallel Transfers](#parallel-transfers)) |
-| `download-chunk-size`            |    No    |                         `4194304`                          | Bytes per ranged GET request (1 MiB–128 MiB); archives no larger than this use one request |
+| `download-chunk-size`            |    No    |                         `8388608`                          | Bytes per ranged GET request (1 MiB–128 MiB); archives no larger than this use one request |
 | `upload-concurrency`             |    No    |                            `8`                             | Multipart upload parts sent at once (1–32)                                  |
 | `upload-chunk-size`              |    No    |                         `67108864`                         | Bytes per multipart upload part (5 MiB–128 MiB); the same input `actions/cache` takes |
 | `job-summary`                    |    No    |                           `true`                           | Write a job summary table with the cache keys, hit, source, size and duration |

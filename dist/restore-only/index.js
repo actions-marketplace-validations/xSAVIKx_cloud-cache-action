@@ -76044,11 +76044,12 @@ const constants_Defaults = {
     DefaultArchiveFilenameZstd: 'cache.tar.zst',
     DefaultArchiveFilenameGzip: 'cache.tar.gz',
     DefaultRetryCount: 3,
-    // Transfer defaults follow actions/cache: it downloads 8 concurrent 4 MiB blocks and uploads
-    // 8 concurrent 64 MiB parts, capping the fan-out at 32 and the part size at 128 MiB.
+    // Transfer defaults follow actions/cache (8 concurrent downloads, 8 concurrent 64 MiB upload
+    // parts, fan-out capped at 32 and part size at 128 MiB), except the download block: actions/cache
+    // uses 4 MiB, but 8 MiB measured 1.4x to 2.6x faster on R2, S3 and GCS (docs/guide/performance.md).
     DefaultDownloadConcurrency: 8,
     MaxDownloadConcurrency: 32,
-    DefaultDownloadChunkSize: 4 * 1024 * 1024,
+    DefaultDownloadChunkSize: 8 * 1024 * 1024,
     MinDownloadChunkSize: 1024 * 1024,
     MaxDownloadChunkSize: 128 * 1024 * 1024,
     DefaultUploadConcurrency: 8,

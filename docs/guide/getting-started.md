@@ -48,7 +48,7 @@ Symlinks are archived as links, never followed and re-created as copies. On Wind
    - Connects to your S3 bucket using modern `@aws-sdk/client-s3`.
    - Checks if an exact match exists for the `key` parameter.
    - If not found, evaluates `restore-keys` in order and downloads the most recently updated matching archive.
-   - Downloads an archive larger than `download-chunk-size` (default 4 MiB) as concurrent `Range` requests, `download-concurrency` (default `8`) at a time, each retried on its own; set `download-concurrency: 1` for a single request. A provider that ignores `Range` gets the single request automatically.
+   - Downloads an archive larger than `download-chunk-size` (default 8 MiB) as concurrent `Range` requests, `download-concurrency` (default `8`) at a time, each retried on its own; set `download-concurrency: 1` for a single request. A provider that ignores `Range` gets the single request automatically.
    - Verifies the archive's sha256 checksum, when the object carries one, before extracting it; a mismatch is logged as a warning and counts as a cache miss (with `dual-cache: true` and `dual-cache-strict: true`, it fails the step).
    - With `streaming: true`, extracts the archive as it downloads instead, verifying the checksum at the end: a network or `tar` failure mid-stream, or a checksum mismatch, becomes a cache miss with the workspace possibly partly extracted, and there is no whole-download retry as there is in the default file mode.
    - Decompresses the archive using `zstd` (or `gzip` fallback) directly into your workspace.

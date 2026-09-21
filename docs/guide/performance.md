@@ -97,8 +97,8 @@ transfer time matters, these settings measured best:
     upload-chunk-size: 10485760
 ```
 
-Memory per transfer is concurrency × chunk size: 32 MiB for the default download and 512 MiB for
-the default upload, which also matches `actions/cache`.
+Memory per transfer is concurrency × chunk size: 64 MiB for the default download and 512 MiB for
+the default upload.
 
 ## Running the benchmark yourself
 

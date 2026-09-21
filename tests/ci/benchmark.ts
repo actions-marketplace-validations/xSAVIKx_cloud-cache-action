@@ -75,12 +75,13 @@ const UPLOADS: UploadConfig[] = [
 
 const DOWNLOADS: DownloadConfig[] = [
   { name: 'single request (concurrency 1)', concurrency: 1, chunkSize: 4 * MiB, streaming: false },
-  { name: 'defaults: 8 x 4 MiB', concurrency: 8, chunkSize: 4 * MiB, streaming: false },
+  { name: 'actions/cache: 8 x 4 MiB', concurrency: 8, chunkSize: 4 * MiB, streaming: false },
+  { name: 'defaults: 8 x 8 MiB', concurrency: 8, chunkSize: 8 * MiB, streaming: false },
   { name: '8 x 16 MiB', concurrency: 8, chunkSize: 16 * MiB, streaming: false },
   { name: '16 x 8 MiB', concurrency: 16, chunkSize: 8 * MiB, streaming: false },
   { name: '32 x 16 MiB', concurrency: 32, chunkSize: 16 * MiB, streaming: false },
   { name: 'streaming, single request', concurrency: 1, chunkSize: 4 * MiB, streaming: true },
-  { name: 'streaming, defaults: 8 x 4 MiB', concurrency: 8, chunkSize: 4 * MiB, streaming: true },
+  { name: 'streaming, defaults: 8 x 8 MiB', concurrency: 8, chunkSize: 8 * MiB, streaming: true },
   { name: 'streaming, 16 x 8 MiB', concurrency: 16, chunkSize: 8 * MiB, streaming: true },
 ];
 

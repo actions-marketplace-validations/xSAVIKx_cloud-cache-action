@@ -989,7 +989,7 @@ describe('buildS3Tier', () => {
     dualCacheStrict: false,
     streaming: false,
     downloadConcurrency: 8,
-    downloadChunkSize: 4194304,
+    downloadChunkSize: 8388608,
     jobSummary: true,
     metadata: {},
     tags: [],
