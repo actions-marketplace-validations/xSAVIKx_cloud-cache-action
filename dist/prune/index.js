@@ -65583,6 +65583,8 @@ var Inputs;
     Inputs["RetryCount"] = "retry-count";
     Inputs["UseFallback"] = "use-fallback";
     Inputs["Streaming"] = "streaming";
+    Inputs["DownloadConcurrency"] = "download-concurrency";
+    Inputs["DownloadChunkSize"] = "download-chunk-size";
     Inputs["Metadata"] = "metadata";
     Inputs["Tags"] = "tags";
     // Prune-only inputs
@@ -65670,6 +65672,14 @@ const Defaults = {
     DefaultArchiveFilenameZstd: 'cache.tar.zst',
     DefaultArchiveFilenameGzip: 'cache.tar.gz',
     DefaultRetryCount: 3,
+    /** Ranged GET requests in flight per restore; actions/cache downloads with the same fan-out. */
+    DefaultDownloadConcurrency: 8,
+    /** Cap on download-concurrency, the same cap actions/cache puts on its upload fan-out. */
+    MaxDownloadConcurrency: 32,
+    /** Bytes per ranged GET request: the AWS CLI and CRT part size. */
+    DefaultDownloadChunkSize: 8 * 1024 * 1024,
+    MinDownloadChunkSize: 1024 * 1024,
+    MaxDownloadChunkSize: 128 * 1024 * 1024,
     DefaultRestorePriority: 's3-first',
     DefaultDualCacheStrategy: 'backfill',
     /** Mixed into every cache version; bump it when the archive format changes incompatibly. */

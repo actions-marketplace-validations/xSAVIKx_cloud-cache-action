@@ -75960,6 +75960,8 @@ var Inputs;
     Inputs["RetryCount"] = "retry-count";
     Inputs["UseFallback"] = "use-fallback";
     Inputs["Streaming"] = "streaming";
+    Inputs["DownloadConcurrency"] = "download-concurrency";
+    Inputs["DownloadChunkSize"] = "download-chunk-size";
     Inputs["Metadata"] = "metadata";
     Inputs["Tags"] = "tags";
     // Prune-only inputs
@@ -76047,6 +76049,14 @@ const Defaults = {
     DefaultArchiveFilenameZstd: 'cache.tar.zst',
     DefaultArchiveFilenameGzip: 'cache.tar.gz',
     DefaultRetryCount: 3,
+    /** Ranged GET requests in flight per restore; actions/cache downloads with the same fan-out. */
+    DefaultDownloadConcurrency: 8,
+    /** Cap on download-concurrency, the same cap actions/cache puts on its upload fan-out. */
+    MaxDownloadConcurrency: 32,
+    /** Bytes per ranged GET request: the AWS CLI and CRT part size. */
+    DefaultDownloadChunkSize: 8 * 1024 * 1024,
+    MinDownloadChunkSize: 1024 * 1024,
+    MaxDownloadChunkSize: 128 * 1024 * 1024,
     DefaultRestorePriority: 's3-first',
     DefaultDualCacheStrategy: 'backfill',
     /** Mixed into every cache version; bump it when the archive format changes incompatibly. */
@@ -76308,6 +76318,19 @@ function readDualCacheStrategy() {
     }
     return getInputAsEnum(Inputs.DualCacheStrategy, DUAL_CACHE_STRATEGIES, 'backfill');
 }
+/** Reads an integer input within [min, max]; anything else warns and uses the default. */
+function readBoundedInt(name, defaultValue, min, max) {
+    const raw = getInput(name).trim();
+    if (raw === '') {
+        return defaultValue;
+    }
+    const value = /^[0-9]+$/.test(raw) ? Number(raw) : Number.NaN;
+    if (Number.isNaN(value) || value < min || value > max) {
+        core_warning(`Input "${name}" must be an integer between ${min} and ${max}; got "${raw}". Using ${defaultValue}.`);
+        return defaultValue;
+    }
+    return value;
+}
 /**
  * Reads the action inputs. When `state` is given (the post step), values the restore step
  * persisted win, so both steps compute the same object keys and warnings are not repeated.
@@ -76347,6 +76370,8 @@ function readCacheConfig(state) {
         dualCacheStrategy: text(constants_State.CacheDualCacheStrategy, readDualCacheStrategy),
         dualCacheStrict: bool(constants_State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
         streaming: bool(constants_State.CacheStreaming, () => getInputAsBool(Inputs.Streaming)),
+        downloadConcurrency: readBoundedInt(Inputs.DownloadConcurrency, Defaults.DefaultDownloadConcurrency, 1, Defaults.MaxDownloadConcurrency),
+        downloadChunkSize: readBoundedInt(Inputs.DownloadChunkSize, Defaults.DefaultDownloadChunkSize, Defaults.MinDownloadChunkSize, Defaults.MaxDownloadChunkSize),
         jobSummary: bool(constants_State.CacheJobSummary, () => getInputAsBool(Inputs.JobSummary, true)),
         metadata: json(constants_State.CacheMetadata, () => parseMetadata(getInput(Inputs.Metadata))),
         tags: json(constants_State.CacheTags, () => parseTags(getInput(Inputs.Tags))),
@@ -129434,6 +129459,285 @@ async function retry_withRetry(operation, options) {
     }
 }
 
+;// CONCATENATED MODULE: ./src/storage/parallelDownload.ts
+/**
+ * Ranged, parallel object downloads. A restore of a large archive is bound by the throughput of
+ * one HTTP connection when it uses a single GetObject; splitting the object into `Range` parts
+ * fetched concurrently uses the whole link a runner has. Each part is retried on its own, so a
+ * dropped connection costs one part, not the whole download.
+ */
+
+
+
+
+
+/**
+ * Thrown when the server answers a `Range` request with the whole object (HTTP 200) instead of
+ * the requested part (HTTP 206). Callers fall back to a single GetObject.
+ */
+class parallelDownload_RangeNotSupportedError extends Error {
+    constructor(bucket, key) {
+        super(`s3://${bucket}/${key} does not support ranged GET requests`);
+        this.name = 'RangeNotSupportedError';
+    }
+}
+/**
+ * A part body that ended before its declared length. Reported with the same code Node uses for a
+ * stream that closed early, so the per-part retry treats it as the dropped connection it is.
+ */
+class ShortPartError extends Error {
+    code = 'ERR_STREAM_PREMATURE_CLOSE';
+    constructor(part, received) {
+        super(`Part ${part.index + 1} (bytes ${part.start}-${part.end}) ended after ${received} of ${part.end - part.start + 1} bytes`);
+        this.name = 'ShortPartError';
+    }
+}
+/** Splits `size` bytes into consecutive ranges of at most `partSize` bytes. */
+function planParts(size, partSize) {
+    if (!Number.isInteger(size) || size < 0) {
+        throw new Error(`Cannot plan parts for an object size of ${size}`);
+    }
+    if (!Number.isInteger(partSize) || partSize <= 0) {
+        throw new Error(`Part size must be a positive integer; got ${partSize}`);
+    }
+    const parts = [];
+    for (let start = 0; start < size; start += partSize) {
+        parts.push({ index: parts.length, start, end: Math.min(start + partSize, size) - 1 });
+    }
+    return parts;
+}
+/** True when an object of `size` bytes is worth more than one request. */
+function parallelDownload_shouldDownloadInParts(size, partSize) {
+    return size > partSize;
+}
+/** Fetches one part and checks that the server honoured the range. */
+async function getObjectRange(client, bucket, key, part, signal) {
+    const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key, Range: `bytes=${part.start}-${part.end}` }), { abortSignal: signal });
+    const body = response.Body;
+    if (!body) {
+        throw new Error(`Empty response body received from S3 for key: ${key}`);
+    }
+    if (response.$metadata?.httpStatusCode === 200) {
+        body.destroy();
+        throw new parallelDownload_RangeNotSupportedError(bucket, key);
+    }
+    const expected = part.end - part.start + 1;
+    if (response.ContentLength !== undefined && response.ContentLength !== expected) {
+        body.destroy();
+        throw new Error(`s3://${bucket}/${key} returned ${response.ContentLength} bytes for range ${part.start}-${part.end}; expected ${expected}`);
+    }
+    return { body, metadata: response.Metadata };
+}
+/**
+ * Feeds one part's body to `sink` chunk by chunk and confirms the byte count. The sink receives
+ * the offset of every chunk within the object, so a file writer can place it without buffering.
+ */
+async function consumePart(part, body, sink) {
+    const expected = part.end - part.start + 1;
+    let received = 0;
+    try {
+        for await (const chunk of body) {
+            const buffer = chunk;
+            if (received + buffer.length > expected) {
+                throw new Error(`Part ${part.index + 1} (bytes ${part.start}-${part.end}) delivered more than ${expected} bytes`);
+            }
+            await sink(buffer, part.start + received);
+            received += buffer.length;
+        }
+    }
+    finally {
+        body.destroy();
+    }
+    if (received !== expected) {
+        throw new ShortPartError(part, received);
+    }
+}
+/**
+ * Shared machinery: fetches parts with per-part retries and one abort signal for the whole
+ * download. The first part is requested up front, so an unsupported `Range` (or any other
+ * immediate failure) surfaces before the caller opens a file or spawns tar.
+ */
+class PartSource {
+    client;
+    bucket;
+    key;
+    options;
+    controller = new AbortController();
+    parts;
+    first;
+    constructor(client, bucket, key, options) {
+        this.client = client;
+        this.bucket = bucket;
+        this.key = key;
+        this.options = options;
+        this.parts = planParts(options.size, options.partSize);
+        if (this.parts.length === 0) {
+            throw new Error(`Nothing to download: s3://${bucket}/${key} is empty`);
+        }
+    }
+    /** Requests the first part and returns its metadata; the body is consumed later, in order. */
+    async open() {
+        this.first = this.fetch(this.parts[0]);
+        try {
+            return (await this.first).metadata;
+        }
+        catch (err) {
+            this.first = undefined;
+            throw err;
+        }
+    }
+    /** Downloads one part through `sink`, retrying the fetch and the consumption together. */
+    download(part, sink) {
+        return withRetry(async () => {
+            let response;
+            if (part.index === 0 && this.first) {
+                response = await this.first;
+                this.first = undefined;
+            }
+            else {
+                response = await this.fetch(part);
+            }
+            await consumePart(part, response.body, sink);
+        }, {
+            retries: this.options.retries,
+            operationName: `Download of ${this.key} part ${part.index + 1}/${this.parts.length}`,
+            shouldRetry: (err) => !this.controller.signal.aborted && isRetryableStreamError(err),
+        });
+    }
+    /** Stops every request still in flight; later fetches fail with an AbortError. */
+    abort() {
+        this.controller.abort();
+        this.first?.then((response) => response.body.destroy()).catch(() => undefined);
+    }
+    fetch(part) {
+        return getObjectRange(this.client, this.bucket, this.key, part, this.controller.signal);
+    }
+}
+/**
+ * Runs `fn` over `items` with at most `concurrency` calls in flight. The first failure calls
+ * `onFailure` at once (so the caller can abort the other calls), and is rethrown once every
+ * worker has stopped.
+ */
+async function forEachConcurrently(items, concurrency, fn, onFailure) {
+    let next = 0;
+    let failure;
+    let failed = false;
+    const worker = async () => {
+        while (next < items.length && !failed) {
+            const item = items[next++];
+            try {
+                await fn(item);
+            }
+            catch (err) {
+                if (!failed) {
+                    failed = true;
+                    failure = err;
+                    onFailure();
+                }
+            }
+        }
+    };
+    const workerCount = Math.max(1, Math.min(concurrency, items.length));
+    await Promise.all(Array.from({ length: workerCount }, worker));
+    if (failed) {
+        throw failure;
+    }
+}
+/**
+ * Downloads an object into `destinationPath` as concurrent ranged parts. Each part's chunks are
+ * written at their offset as they arrive, so the memory used is the SDK's socket buffers, not the
+ * parts. Throws `RangeNotSupportedError` before the file exists when the server ignores `Range`.
+ */
+async function parallelDownload_downloadFileInParts(client, bucket, key, destinationPath, options) {
+    const source = new PartSource(client, bucket, key, options);
+    const metadata = await source.open();
+    fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+    const handle = await fs.promises.open(destinationPath, 'w');
+    try {
+        await handle.truncate(options.size);
+        await forEachConcurrently(source.parts, options.concurrency, (part) => source.download(part, async (chunk, offset) => {
+            await handle.write(chunk, 0, chunk.length, offset);
+        }), () => source.abort());
+    }
+    finally {
+        await handle.close();
+    }
+    return { metadata, parts: source.parts.length };
+}
+/**
+ * Opens an object as one ordered stream assembled from concurrent ranged parts. Up to
+ * `concurrency` parts are fetched ahead of the reader and each is buffered whole until its turn,
+ * so memory is bounded by `concurrency * partSize`. Resolves once the first part has been
+ * requested, so an unsupported `Range` is reported before the caller starts a consumer.
+ */
+async function parallelDownload_openObjectPartsStream(client, bucket, key, options) {
+    const source = new PartSource(client, bucket, key, options);
+    const metadata = await source.open();
+    const window = Math.max(1, options.concurrency);
+    const bufferPart = (part) => {
+        const chunks = [];
+        return source
+            .download(part, (chunk) => {
+            chunks.push(chunk);
+        })
+            .then(() => Buffer.concat(chunks));
+    };
+    async function* ordered() {
+        const pending = [];
+        let next = 0;
+        // Failures of prefetched parts must not become unhandled rejections while an earlier part
+        // is still streaming; the error resurfaces when that part's turn comes.
+        const start = () => {
+            const promise = bufferPart(source.parts[next++]);
+            promise.catch(() => undefined);
+            pending.push(promise);
+        };
+        try {
+            while (pending.length < window && next < source.parts.length) {
+                start();
+            }
+            while (pending.length > 0) {
+                const buffer = await pending.shift();
+                // A consumer that destroyed the stream while this part was in flight has already
+                // aborted the source; do not start another part for it.
+                if (next < source.parts.length && !source.controller.signal.aborted) {
+                    start();
+                }
+                yield buffer;
+            }
+        }
+        finally {
+            // Reached on completion, on an error and when the consumer destroys the stream early.
+            source.abort();
+        }
+    }
+    // Not Readable.from(): its destroy waits for the generator, which cannot be returned while it
+    // awaits a part, and the requests must stop as soon as the consumer destroys the stream.
+    const iterator = ordered();
+    let reading = false;
+    const body = new Readable({
+        read() {
+            if (reading) {
+                return;
+            }
+            reading = true;
+            iterator.next().then(({ value, done }) => {
+                reading = false;
+                if (this.destroyed) {
+                    return;
+                }
+                this.push(done ? null : value);
+            }, (err) => this.destroy(err));
+        },
+        destroy(err, callback) {
+            source.abort();
+            iterator.return(undefined).catch(() => undefined);
+            callback(err);
+        },
+    });
+    return { body, metadata, parts: source.parts.length };
+}
+
 ;// CONCATENATED MODULE: ./src/core/keyTemplate.ts
 /**
  * Turns `s3-key-pattern` into object keys, listing prefixes and key extraction.
@@ -129801,6 +130105,7 @@ function computeCacheVersion(paths, compression, enableCrossOsArchive, platform 
 
 
 
+
 /** Logged when streaming is requested but the plan needs the BSD-tar-plus-zstd two-step on Windows. */
 const STREAMING_FALLBACK_MESSAGE = 'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.';
 /** True when a failed conditional upload means another job already won the write. */
@@ -129914,6 +130219,7 @@ async function buildS3Tier(config, env = process.env, options = {}) {
         workspace: getWorkspace(env),
         streamRetries: config.retryEnabled ? config.retryCount : 0,
         streaming: config.streaming,
+        download: { concurrency: config.downloadConcurrency, partSize: config.downloadChunkSize },
         metadata: config.metadata,
         tags: config.tags,
     };
@@ -130001,6 +130307,10 @@ async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
     if (lookupOnly) {
         return hit;
     }
+    const recordDownload = (parts, transferStart) => {
+        hit.transferMs = Date.now() - transferStart;
+        hit.downloadParts = parts;
+    };
     const where = found.ref ? ` on ${found.ref}` : '';
     core.info(`S3 cache ${found.exact ? 'hit' : 'partial hit'} for key "${found.matchedKey}"${where} (${formatSize(found.size)})`);
     if (tier.streaming) {
@@ -130022,16 +130332,10 @@ async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-restore-'));
     try {
         const archivePath = path.join(tempDir, tier.compression.archiveFilename);
-        const { client, bucket } = tier.storage;
+        const { bucket } = tier.storage;
         const transferStart = Date.now();
-        const { metadata } = await withRetry(() => downloadFile(client, bucket, found.objectKey, archivePath), {
-            retries: tier.streamRetries,
-            operationName: `Download of ${found.objectKey}`,
-            shouldRetry: isRetryableStreamError,
-        });
-        if (hit.kind === 'hit') {
-            hit.transferMs = Date.now() - transferStart;
-        }
+        const { metadata, parts } = await downloadArchive(tier, found, archivePath);
+        recordDownload(parts, transferStart);
         const expectedSha256 = metadata?.[SHA256_METADATA_KEY];
         if (expectedSha256) {
             const actualSha256 = await sha256File(archivePath);
@@ -130395,12 +130699,70 @@ async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey, uplo
         external_node_fs_.rmSync(tempDir, { recursive: true, force: true });
     }
 }
+/** Part settings for one object, or undefined when it should be fetched in a single request. */
+function partPlan(tier, found) {
+    const { concurrency, partSize } = tier.download;
+    if (concurrency <= 1 || !shouldDownloadInParts(found.size, partSize)) {
+        return undefined;
+    }
+    const parts = Math.ceil(found.size / partSize);
+    core.info(`Downloading ${formatSize(found.size)} in ${parts} parts of ${formatSize(partSize)}, ${Math.min(concurrency, parts)} at a time`);
+    return { size: found.size, partSize, concurrency, retries: tier.streamRetries };
+}
+/** Logged once when a provider answers a ranged GET with the whole object. */
+function logRangeFallback(tier, found) {
+    core.info(`s3://${tier.storage.bucket}/${found.objectKey} does not support ranged GET requests; downloading it in one request.`);
+}
+/**
+ * Downloads the archive to `archivePath`: in concurrent ranged parts when the object is large
+ * enough and the settings allow, otherwise in one request retried as a whole. A provider that
+ * ignores `Range` gets the single request, which is what it would have served anyway.
+ */
+async function downloadArchive(tier, found, archivePath) {
+    const { client, bucket } = tier.storage;
+    const plan = partPlan(tier, found);
+    if (plan) {
+        try {
+            return await downloadFileInParts(client, bucket, found.objectKey, archivePath, plan);
+        }
+        catch (err) {
+            if (!(err instanceof RangeNotSupportedError)) {
+                throw err;
+            }
+            logRangeFallback(tier, found);
+        }
+    }
+    const { metadata } = await withRetry(() => downloadFile(client, bucket, found.objectKey, archivePath), {
+        retries: tier.streamRetries,
+        operationName: `Download of ${found.objectKey}`,
+        shouldRetry: isRetryableStreamError,
+    });
+    return { metadata, parts: 1 };
+}
+/** The streaming counterpart of `downloadArchive`: the archive bytes as one ordered stream. */
+async function openArchiveStream(tier, found) {
+    const { client, bucket } = tier.storage;
+    const plan = partPlan(tier, found);
+    if (plan) {
+        try {
+            return await openObjectPartsStream(client, bucket, found.objectKey, plan);
+        }
+        catch (err) {
+            if (!(err instanceof RangeNotSupportedError)) {
+                throw err;
+            }
+            logRangeFallback(tier, found);
+        }
+    }
+    const stream = await getObjectStream(client, bucket, found.objectKey);
+    return { body: stream.body, metadata: stream.metadata, parts: 1 };
+}
 /**
  * Streaming restore (Task 8): pipes the GetObject body through the sha256 tap into a spawned
  * tar extract reading from stdin, so nothing touches disk except the extracted files themselves.
  */
 async function restoreFromS3Streaming(tier, found, tar, hit) {
-    const { client, bucket } = tier.storage;
+    const { bucket } = tier.storage;
     let body;
     let child;
     let tarClose;
@@ -130409,7 +130771,7 @@ async function restoreFromS3Streaming(tier, found, tar, hit) {
     let tarReaped = false;
     const transferStart = Date.now();
     try {
-        const stream = await getObjectStream(client, bucket, found.objectKey);
+        const stream = await openArchiveStream(tier, found);
         body = stream.body;
         const { metadata } = stream;
         fs.mkdirSync(tier.workspace, { recursive: true });
@@ -130437,6 +130799,7 @@ async function restoreFromS3Streaming(tier, found, tar, hit) {
             }
             if (hit.kind === 'hit') {
                 hit.transferMs = Date.now() - transferStart;
+                hit.downloadParts = stream.parts;
             }
         }
         catch (err) {
