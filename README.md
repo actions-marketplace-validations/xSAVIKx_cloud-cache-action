@@ -60,6 +60,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 - **Explain a Lookup**: `explain: true` logs why a lookup hits or misses — the resolved pattern, the `${version}` hash, every ref searched and every candidate object — and the `inspect` sub-action reports the same thing as step outputs, without restoring anything. See [Inspecting a cache lookup](#inspecting-a-cache-lookup).
 - **Metrics**: Every step exposes its timings and byte count as outputs and can append one JSON line per step to a `metrics-file`. See [Metrics and Timings](#metrics-and-timings).
 - **Opt-in Streaming (Experimental)**: Stream archives directly between `tar` and S3 without a temporary file, with `streaming: true`. See [Streaming Archives](#streaming-archives-experimental).
+- **Parallel Downloads**: Restores fetch archives larger than 8 MiB as concurrent `Range` requests (8 at a time by default), retried part by part, in both file and streaming mode. See [Parallel Downloads](#parallel-downloads).
 - **Resilient**: Automatic exponential backoff retries on transient network errors.
 
 ---
@@ -401,12 +402,14 @@ debug line. Set `metrics-file` to append the same JSON as one line to a file, re
 ```
 
 ```json
-{"step":"restore","timestamp":"2026-09-17T06:02:41.912Z","provider":"r2","key":"Linux-node-9f2c1a","matchedKey":"Linux-node-9f2c1a","objectKey":"octo/app/refs%2Fheads%2Fmain/Linux-node-9f2c1a/4d0f1b2c9a7e35f1/cache.tar.zst","source":"s3","bytes":199687424,"durationMs":8123,"transferDurationMs":5310,"streaming":false,"outcome":"hit"}
+{"step":"restore","timestamp":"2026-09-17T06:02:41.912Z","provider":"r2","key":"Linux-node-9f2c1a","matchedKey":"Linux-node-9f2c1a","objectKey":"octo/app/refs%2Fheads%2Fmain/Linux-node-9f2c1a/4d0f1b2c9a7e35f1/cache.tar.zst","source":"s3","bytes":199687424,"durationMs":8123,"transferDurationMs":5310,"streaming":false,"downloadParts":24,"outcome":"hit"}
 ```
 
 `transferDurationMs` measures the S3 transfer alone in the default file mode; with
 `streaming: true` the archive is extracted (or compressed) as it moves, so the same field covers
-download-plus-extract — the line's `streaming` field tells the two apart. `prune` and `inspect`
+download-plus-extract — the line's `streaming` field tells the two apart. On a restore,
+`downloadParts` is how many ranged requests fetched the archive (`1` for a single request, `0`
+when nothing was downloaded; see [Parallel Downloads](#parallel-downloads)). `prune` and `inspect`
 write their line once the step has finished its work, so a step that fails earlier writes none.
 Writing the file is best-effort: a failure only logs
 `Could not write metrics to <path>: <reason>` and never fails the step.
@@ -484,6 +487,40 @@ conditional-create and Garage fallback rules as [Safe Concurrent Saves](#safe-co
 
 ---
 
+## Parallel Downloads
+
+A restore fetches any archive larger than `download-chunk-size` (default 8 MiB) as concurrent
+`Range` requests, `download-concurrency` (default `8`) at a time, so a large cache uses the whole
+link a runner has instead of one connection. The defaults match what `actions/cache` uses for its
+own downloads (8 concurrent segments) and the part size the AWS CLI uses (8 MiB); on a GitHub-hosted
+runner that keeps at most 64 MiB of parts in memory. Archives no larger than one chunk are
+downloaded in a single request, as before.
+
+```yaml
+    download-concurrency: 16   # 1–32; 1 turns the parallel download off
+    download-chunk-size: 16777216   # bytes per request, 1 MiB–128 MiB
+```
+
+- **Per-part retries.** Each part is retried on its own (`retry-count` times) when its connection
+  drops, so a failure late in a large download costs one part, not the whole archive. The
+  single-request path keeps its whole-download retry.
+- **Both modes.** In the default file mode every part is written straight into the archive file at
+  its offset, and the sha256 check runs on the assembled file. With `streaming: true` the parts are
+  fetched ahead and handed to `tar` in order, so memory is bounded by
+  `download-concurrency × download-chunk-size`.
+- **Providers that ignore `Range`.** If the server answers the first ranged request with the whole
+  object, the restore logs
+  `s3://<bucket>/<key> does not support ranged GET requests; downloading it in one request.` and
+  continues with a single request. AWS S3, Cloudflare R2, Google Cloud Storage, Backblaze B2,
+  MinIO, SeaweedFS and Garage all serve ranged requests.
+- **Uploads are unchanged.** `upload-chunk-size` still controls the multipart upload, which already
+  sends parts concurrently.
+
+The restore's `cloud-cache-metrics` line reports the number of parts as `downloadParts`; see
+[Metrics and Timings](#metrics-and-timings).
+
+---
+
 ## Changelog
 
 Every release is listed in [CHANGELOG.md](CHANGELOG.md), which is also published on the [documentation site](https://xsavikx.github.io/cloud-cache-action/changelog.html).
@@ -532,6 +569,9 @@ inputs writes the same object as v1.2 did. Every addition is opt-in:
 - **Streaming saves now carry a checksum.** A `streaming: true` save attaches
   `cloud-cache-sha256` after the upload, so streamed archives are integrity-checked on restore like
   file-mode ones. See [Streaming Archives](#streaming-archives-experimental).
+- **[Parallel downloads](#parallel-downloads)** are on by default for archives larger than 8 MiB,
+  with the new `download-concurrency` (default `8`) and `download-chunk-size` (default `8388608`)
+  inputs. Set `download-concurrency: 1` to keep the single-request download of v1.2.
 
 ## Saving after failed steps
 
@@ -586,6 +626,8 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | `dual-cache-strategy`            |    No    |                         `backfill`                         | `backfill` (upload to a tier only if it lacks the key) or `skip-on-hit` |
 | `dual-cache-strict`              |    No    |                          `false`                           | Fail the step when either tier errors during restore or save |
 | `streaming`                      |    No    |                          `false`                           | Stream archives directly between `tar` and S3 without a temporary file (experimental; see [Streaming Archives](#streaming-archives-experimental)) |
+| `download-concurrency`           |    No    |                            `8`                             | Ranged GET requests a restore runs at once for archives larger than `download-chunk-size` (1–32); `1` downloads in one request (see [Parallel Downloads](#parallel-downloads)) |
+| `download-chunk-size`            |    No    |                         `8388608`                          | Bytes per ranged GET request (1 MiB–128 MiB); archives no larger than this use one request |
 | `job-summary`                    |    No    |                           `true`                           | Write a job summary table with the cache keys, hit, source, size and duration |
 | `metadata`                       |    No    |                             —                              | User metadata (`x-amz-meta-*`) for every saved object, one `key=value` per line, with surrounding whitespace trimmed (see [Object Metadata and Tags](#object-metadata-and-tags)) |
 | `tags`                           |    No    |                             —                              | Object tags for every saved object, one `key=value` per line (up to 10) |

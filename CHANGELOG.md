@@ -62,6 +62,13 @@ same object as v1.2 did.
   - `prune` and `inspect` write their line once the step has finished its work, so a step that
     fails earlier writes none.
   - Writing the file is best-effort: a failure only warns and never fails the step.
+- **Parallel downloads.** A restore now fetches any archive larger than `download-chunk-size`
+  (default `8388608`, 8 MiB) as concurrent `Range` requests, `download-concurrency` (default `8`,
+  1–32) at a time, in both file and streaming mode. Each part is retried on its own. Archives no
+  larger than one chunk, and every restore with `download-concurrency: 1`, use a single request as
+  before. A provider that answers a ranged request with the whole object logs
+  `s3://<bucket>/<key> does not support ranged GET requests; downloading it in one request.` and
+  gets the single request. The restore's metrics line reports the part count as `downloadParts`.
 - **Documentation:** a new "Inspecting Lookups" guide on the documentation site, plus metrics
   sections in the README and the Getting Started and Pruning guides.
 

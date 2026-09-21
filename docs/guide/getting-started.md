@@ -48,6 +48,7 @@ Symlinks are archived as links, never followed and re-created as copies. On Wind
    - Connects to your S3 bucket using modern `@aws-sdk/client-s3`.
    - Checks if an exact match exists for the `key` parameter.
    - If not found, evaluates `restore-keys` in order and downloads the most recently updated matching archive.
+   - Downloads an archive larger than `download-chunk-size` (default 8 MiB) as concurrent `Range` requests, `download-concurrency` (default `8`) at a time, each retried on its own; set `download-concurrency: 1` for a single request. A provider that ignores `Range` gets the single request automatically.
    - Verifies the archive's sha256 checksum, when the object carries one, before extracting it; a mismatch is logged as a warning and counts as a cache miss (with `dual-cache: true` and `dual-cache-strict: true`, it fails the step).
    - With `streaming: true`, extracts the archive as it downloads instead, verifying the checksum at the end: a network or `tar` failure mid-stream, or a checksum mismatch, becomes a cache miss with the workspace possibly partly extracted, and there is no whole-download retry as there is in the default file mode.
    - Decompresses the archive using `zstd` (or `gzip` fallback) directly into your workspace.
@@ -100,11 +101,12 @@ Every step — restore, save, `prune` and `inspect` — also writes one `cloud-c
 ```
 
 ```json
-{"step":"restore","timestamp":"2026-09-17T06:02:41.912Z","provider":"r2","key":"Linux-node-9f2c1a","matchedKey":"Linux-node-9f2c1a","objectKey":"octo/app/refs%2Fheads%2Fmain/Linux-node-9f2c1a/4d0f1b2c9a7e35f1/cache.tar.zst","source":"s3","bytes":199687424,"durationMs":8123,"transferDurationMs":5310,"streaming":false,"outcome":"hit"}
+{"step":"restore","timestamp":"2026-09-17T06:02:41.912Z","provider":"r2","key":"Linux-node-9f2c1a","matchedKey":"Linux-node-9f2c1a","objectKey":"octo/app/refs%2Fheads%2Fmain/Linux-node-9f2c1a/4d0f1b2c9a7e35f1/cache.tar.zst","source":"s3","bytes":199687424,"durationMs":8123,"transferDurationMs":5310,"streaming":false,"downloadParts":24,"outcome":"hit"}
 ```
 
 - `step` is `restore`, `save`, `prune` or `inspect`, and `outcome` is one of `hit`, `miss`, `saved`, `exists`, `skipped`, `error`, `pruned`, `would-hit` or `would-miss`.
 - `transferDurationMs` measures the S3 transfer alone in the default file mode. With `streaming: true` the archive is extracted (or compressed) as it moves, so the same field covers download-plus-extract; the `streaming` field on the line tells the two apart.
+- `downloadParts` on a restore is how many ranged requests fetched the archive: `1` for a single request and `0` when nothing was downloaded.
 - `prune` and `inspect` write their line once the step has finished its work, so a step that fails earlier writes none. `prune` reports its tallies in `extra` (`prunedCount`, `prunedBytes`, `keptCount`, `dryRun`) and `inspect` reports `candidateCount`.
 - Writing the file is best-effort by design: a machine-readable timing record must never fail a cache step, so a write error only logs `Could not write metrics to <path>: <reason>`.
 
