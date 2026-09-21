@@ -560,6 +560,19 @@ integrity check.
 - **Tag-triggered runs:** if a run started by pushing a tag is the only place that saves a given cache, no pull request or branch build will ever restore it — restores never search `refs/tags/*`. Save on the default branch instead (a `push` there, or `workflow_dispatch`), or see [Tag-triggered runs and refs](https://xsavikx.github.io/cloud-cache-action/guide/migration.html#tag-triggered-runs-and-refs) for using `scoped-to-ref: false`.
 - **Maintenance:** Dependabot now keeps npm and GitHub Actions dependencies up to date, and publishing a GitHub release runs `.github/workflows/release.yml` automatically — see [Releasing](#releasing).
 
+## Upgrading to v1.4
+
+**There are no breaking changes in v1.4.** Caches saved by earlier versions restore normally.
+One default changes:
+
+- **[Parallel transfers](#parallel-transfers)** follow the `actions/cache` defaults. Restores of
+  archives larger than 4 MiB download in 8 concurrent ranged parts, controlled by the new
+  `download-concurrency` (default `8`) and `download-chunk-size` (default `4194304`) inputs; set
+  `download-concurrency: 1` to keep the single-request download of v1.3. Saves send 8 parts at
+  once instead of 4, controlled by the new `upload-concurrency` input, and the default
+  `upload-chunk-size` is now 64 MiB instead of 10 MiB, so a save may hold up to 512 MiB of parts in
+  memory; set `upload-concurrency: 4` and `upload-chunk-size: 10485760` to keep the v1.3 footprint.
+
 ## Upgrading to v1.3
 
 **There are no breaking changes in v1.3.** Caches saved by v1.1 and v1.2 restore normally, the key
@@ -579,13 +592,6 @@ inputs writes the same object as v1.2 did. Every addition is opt-in:
 - **Streaming saves now carry a checksum.** A `streaming: true` save attaches
   `cloud-cache-sha256` after the upload, so streamed archives are integrity-checked on restore like
   file-mode ones. See [Streaming Archives](#streaming-archives-experimental).
-- **[Parallel transfers](#parallel-transfers)** follow the `actions/cache` defaults. Restores of
-  archives larger than 4 MiB download in 8 concurrent ranged parts, controlled by the new
-  `download-concurrency` (default `8`) and `download-chunk-size` (default `4194304`) inputs; set
-  `download-concurrency: 1` to keep the single-request download of v1.2. Saves send 8 parts at
-  once instead of 4, controlled by the new `upload-concurrency` input, and the default
-  `upload-chunk-size` is now 64 MiB instead of 10 MiB, so a save may hold up to 512 MiB of parts in
-  memory; set `upload-concurrency: 4` and `upload-chunk-size: 10485760` to keep the v1.2 footprint.
 
 ## Saving after failed steps
 
