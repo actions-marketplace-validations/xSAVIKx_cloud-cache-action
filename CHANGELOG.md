@@ -8,6 +8,8 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-21
+
 No breaking changes. Caches saved by v1.1 and v1.2 stay valid: the key layout, `${version}`
 hashing and archive format are unchanged, and a save that sets none of the new inputs writes the
 same object as v1.2 did.
@@ -228,7 +230,8 @@ Initial pre-release.
 - zstd compression with a gzip fallback, chunked multipart uploads and retries.
 - `restore` and `save` sub-actions.
 
-[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v0.1.0...v1.0.0
