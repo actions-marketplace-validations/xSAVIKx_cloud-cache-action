@@ -492,7 +492,7 @@ conditional-create and Garage fallback rules as [Safe Concurrent Saves](#safe-co
 Both directions move a large archive over several connections at once, with the fan-out
 `actions/cache` uses for the GitHub cache service: 8 concurrent 8 MiB blocks on download and
 8 concurrent 64 MiB parts on upload. (`actions/cache` downloads 4 MiB blocks; 8 MiB measured
-1.4× to 2.6× faster on every provider, see below.)
+1.2× to 2.6× faster on every provider across two runs, see below.)
 
 ```yaml
     download-concurrency: 16   # 1–32; 1 turns the parallel download off
@@ -527,22 +527,22 @@ client's `retry-count`. The upload buffers up to `upload-concurrency × upload-c
 A value of `upload-chunk-size` below 5 MiB or above 128 MiB warns and uses the default, since
 every S3-compatible provider rejects smaller parts.
 
-**Measured on a hosted runner** (512 MiB archive, `ubuntu-latest`, 2026-09-21; the full tables
-and the settings that measured best are in the
+**Measured on a hosted runner** (512 MiB archive, `ubuntu-latest`, 2026-09-21; the full tables,
+the run-to-run variance and the settings that measured best are in the
 [Transfer Performance](https://xsavikx.github.io/cloud-cache-action/guide/performance) guide):
 
 | | Cloudflare R2 | Amazon S3 | Google Cloud Storage |
 | --- | ---: | ---: | ---: |
-| Restore, single request | 13.2 s | 6.2 s | 12.5 s |
-| Restore, default 8 × 4 MiB | 3.9 s | 2.6 s | 9.6 s |
-| Restore, 16 × 8 MiB | 2.5 s | 1.9 s | 3.1 s |
-| Save, v1.3 default 4 × 10 MiB | 17.1 s | 6.6 s | 14.1 s |
-| Save, default 8 × 64 MiB | 7.7 s | 2.5 s | 3.7 s |
+| Restore, single request | 13.6 s | 10.7 s | 4.1 s |
+| Restore, `actions/cache` 8 × 4 MiB | 4.6 s | 2.5 s | 3.7 s |
+| Restore, default 8 × 8 MiB | 3.7 s | 1.9 s | 2.4 s |
+| Restore, 8 × 16 MiB | 3.2 s | 1.8 s | 1.9 s |
+| Save, v1.3 default 4 × 10 MiB | 17.0 s | 4.0 s | 4.8 s |
+| Save, default 8 × 64 MiB | 9.1 s | 2.3 s | 2.3 s |
 
-Larger download parts pay off most on Google Cloud Storage, where 4 MiB requests are
-latency-bound; `download-chunk-size: 8388608` with `download-concurrency: 16` measured fastest on
-all three. The `Transfer benchmark` workflow (`gh workflow run benchmark.yml`) reproduces these
-tables against your own buckets.
+Larger download parts pay off on every provider, most on Google Cloud Storage; more connections
+pay off most on Cloudflare R2. The `Transfer benchmark` workflow (`gh workflow run benchmark.yml`)
+reproduces these tables against your own buckets.
 
 The restore's `cloud-cache-metrics` line reports the number of parts as `downloadParts`; see
 [Metrics and Timings](#metrics-and-timings).

@@ -18,7 +18,7 @@ compress, with several upload settings, then restores it with several download s
 verifies every restored file. Each configuration ran twice and the tables show the median.
 
 - Runner: `ubuntu-latest` (4 vCPU), Node 24.20.0, run
-  [35653417989](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/35653417989) on
+  [35654848985](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/35654848985) on
   2026-09-21.
 - **Transfer** is the S3 transfer alone (`cache-transfer-duration-ms`). In streaming mode the
   archive is extracted or compressed as it moves, so the same figure covers download plus extract
@@ -32,45 +32,58 @@ verifies every restored file. Each configuration ran twice and the tables show t
 
 | Configuration | Cloudflare R2 | Amazon S3 | Google Cloud Storage |
 | --- | ---: | ---: | ---: |
-| `download-concurrency: 1` (single request) | 13.2 s, 39 MiB/s | 6.2 s, 83 MiB/s | 12.5 s, 41 MiB/s |
-| **Default: 8 × 4 MiB** | 3.9 s, 130 MiB/s | 2.6 s, 201 MiB/s | 9.6 s, 53 MiB/s |
-| 8 × 16 MiB | 2.4 s, 215 MiB/s | 1.8 s, 289 MiB/s | 3.7 s, 137 MiB/s |
-| 16 × 8 MiB | 2.5 s, 209 MiB/s | 1.9 s, 274 MiB/s | 3.1 s, 163 MiB/s |
-| 32 × 16 MiB | 2.1 s, 249 MiB/s | 1.9 s, 273 MiB/s | 2.3 s, 218 MiB/s |
-| `streaming: true`, single request | 10.5 s, 49 MiB/s | 5.4 s, 95 MiB/s | 9.4 s, 55 MiB/s |
-| `streaming: true`, default 8 × 4 MiB | 5.7 s, 90 MiB/s | 3.7 s, 138 MiB/s | 9.5 s, 54 MiB/s |
-| `streaming: true`, 16 × 8 MiB | 3.9 s, 132 MiB/s | 3.5 s, 145 MiB/s | 3.7 s, 137 MiB/s |
+| `download-concurrency: 1` (single request) | 13.6 s, 38 MiB/s | 10.7 s, 48 MiB/s | 4.1 s, 124 MiB/s |
+| `actions/cache` values: 8 × 4 MiB | 4.6 s, 111 MiB/s | 2.5 s, 203 MiB/s | 3.7 s, 138 MiB/s |
+| **Default: 8 × 8 MiB** | 3.7 s, 140 MiB/s | 1.9 s, 268 MiB/s | 2.4 s, 213 MiB/s |
+| 8 × 16 MiB | 3.2 s, 159 MiB/s | 1.8 s, 287 MiB/s | 1.9 s, 264 MiB/s |
+| 16 × 8 MiB | 2.4 s, 209 MiB/s | 2.0 s, 254 MiB/s | 2.1 s, 249 MiB/s |
+| 32 × 16 MiB | 2.3 s, 225 MiB/s | 2.1 s, 248 MiB/s | 2.1 s, 243 MiB/s |
+| `streaming: true`, single request | 6.0 s, 86 MiB/s | 5.4 s, 95 MiB/s | 2.8 s, 180 MiB/s |
+| `streaming: true`, default 8 × 8 MiB | 4.0 s, 129 MiB/s | 3.3 s, 157 MiB/s | 3.3 s, 156 MiB/s |
+| `streaming: true`, 16 × 8 MiB | 4.1 s, 125 MiB/s | 3.3 s, 156 MiB/s | 3.4 s, 151 MiB/s |
 
 What the table says:
 
-- **The parallel download is the big win.** Against a single request, the default 8 × 4 MiB cuts
-  the transfer 3.4× on R2 and 2.4× on S3.
-- **4 MiB parts are small for GCS.** Its per-request latency dominates, so the default only gains
-  1.3× there. Raising `download-chunk-size` to 8 or 16 MiB gives another 2.6× to 3× on GCS and
-  1.4× to 1.6× on R2 and S3.
-- **Past 16 connections the gains flatten** on S3 and R2. Only GCS keeps improving up to 32 × 16
-  MiB.
-- **Streaming restores are slower than file mode here** because one `tar` process must consume the
-  bytes in order while the parallel parts wait. Streaming still saves the disk space of the
-  temporary archive, and its whole-step time is close to file mode's once the chunk size is raised.
+- **The parallel download is the big win.** Against a single request, the default cuts the
+  transfer 3.7× on R2 and 5.6× on S3. GCS served the single request unusually fast in this run
+  (an earlier run took 12.5 s); the default still gains 1.7× there.
+- **8 MiB blocks beat the `actions/cache` 4 MiB** by 1.2× to 1.5× on every provider, and by
+  more on GCS in the earlier run, which is why 8 MiB is the default here.
+- **Past 8 × 16 MiB or 16 × 8 MiB the gains flatten.** R2 keeps improving up to 16 connections;
+  S3 and GCS do not.
+- **Streaming restores gain less from parallel parts**, because one `tar` process consumes the
+  bytes in order while the parts wait, and on GCS a single streamed request was fastest. Streaming
+  still saves the disk space of the temporary archive.
 
 ## Save
 
 | Configuration | Cloudflare R2 | Amazon S3 | Google Cloud Storage |
 | --- | ---: | ---: | ---: |
-| v1.3 defaults: 4 × 10 MiB | 17.1 s, 30 MiB/s | 6.6 s, 77 MiB/s | 14.1 s, 36 MiB/s |
-| **Default: 8 × 64 MiB** | 7.7 s, 67 MiB/s | 2.5 s, 204 MiB/s | 3.7 s, 139 MiB/s |
-| 16 × 32 MiB | 4.9 s, 105 MiB/s | 2.7 s, 187 MiB/s | 3.0 s, 169 MiB/s |
-| `streaming: true`, default 8 × 64 MiB | 10.9 s, 47 MiB/s | 3.5 s, 147 MiB/s | 4.1 s, 125 MiB/s |
+| v1.3 defaults: 4 × 10 MiB | 17.0 s, 30 MiB/s | 4.0 s, 127 MiB/s | 4.8 s, 106 MiB/s |
+| **Default: 8 × 64 MiB** | 9.1 s, 56 MiB/s | 2.3 s, 221 MiB/s | 2.3 s, 227 MiB/s |
+| 16 × 32 MiB | 5.2 s, 98 MiB/s | 2.2 s, 228 MiB/s | 2.2 s, 232 MiB/s |
+| `streaming: true`, default 8 × 64 MiB | 6.2 s, 82 MiB/s | 2.9 s, 176 MiB/s | 2.8 s, 183 MiB/s |
 
 What the table says:
 
-- **The new upload defaults are 2.2× to 3.8× faster than v1.3's** 4 × 10 MiB on every provider.
-- **R2 benefits from more connections.** 16 × 32 MiB is another 1.6× faster there, and holds the
+- **The new upload defaults are 1.7× to 2.1× faster than v1.3's** 4 × 10 MiB on every provider,
+  and were 2.2× to 3.8× faster in the earlier run.
+- **R2 benefits from more connections.** 16 × 32 MiB is another 1.75× faster there, and holds the
   same 512 MiB of parts in memory as the default.
-- **Streaming saves pay for the metadata copy.** On S3 the whole step took 10.9 s against 3.5 s of
-  transfer, because the sha256 is attached by copying the 512 MiB object onto itself after the
-  upload. R2 and GCS copy faster. File mode sends the checksum with the upload and has no copy.
+- **Streaming saves pay for the metadata copy on S3.** The whole step took 10.9 s against 2.9 s
+  of transfer in both runs, because the sha256 is attached by copying the 512 MiB object onto
+  itself after the upload. R2 and GCS copy in well under a second. File mode sends the checksum
+  with the upload and has no copy.
+
+## Run-to-run variance
+
+The same workflow ran twice, about two hours apart
+([35653417989](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/35653417989) and
+[35654848985](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/35654848985)). The ranking
+of the settings was the same both times, but single figures moved a lot: the GCS single-request
+restore took 12.5 s and then 4.1 s, the S3 one 6.2 s and then 10.7 s, and every R2 save was 15%
+to 20% slower the second time. Treat a difference under about 30% between two rows as noise, and
+run the benchmark more than once before tuning for one provider.
 
 ## Recommended settings
 
@@ -78,13 +91,13 @@ The defaults are the `actions/cache` values and are a safe starting point on eve
 transfer time matters, these settings measured best:
 
 ```yaml
-# Fastest restores on every provider measured; 128 MiB of parts in memory in streaming mode.
+# Fastest restores on Amazon S3 and Google Cloud Storage: larger parts.
+    download-concurrency: 8
+    download-chunk-size: 16777216    # 16 MiB; 128 MiB of parts in memory in streaming mode
+
+# Fastest restores on Cloudflare R2: more connections.
     download-concurrency: 16
     download-chunk-size: 8388608     # 8 MiB
-
-# Google Cloud Storage: larger parts matter most.
-    download-concurrency: 32
-    download-chunk-size: 16777216    # 16 MiB
 
 # Cloudflare R2 saves: more, smaller parts.
     upload-concurrency: 16
