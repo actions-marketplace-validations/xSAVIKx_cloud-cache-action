@@ -37,7 +37,7 @@ Please migrate all GitHub Actions caching steps in this repository to `xSAVIKx/c
        - Inputs: `bucket`, `endpoint: https://storage.googleapis.com`, `access-key: ${{ secrets.GCS_HMAC_ACCESS_ID }}`, `secret-key: ${{ secrets.GCS_HMAC_SECRET }}`
      - **Backblaze B2**:
        - Inputs: `bucket`, `endpoint: https://s3.<region>.backblazeb2.com`, `access-key: ${{ secrets.B2_KEY_ID }}`, `secret-key: ${{ secrets.B2_APPLICATION_KEY }}`
-     - **Self-Hosted (MinIO / Garage / SeaweedFS)**:
+     - **Self-Hosted (MinIO / Garage / SeaweedFS / RustFS)**:
        - Inputs: `bucket`, `endpoint`, `access-key`, `secret-key` (and `force-path-style: true` for MinIO).
    - If I have not specified a provider yet, prompt me or default to **Cloudflare R2** or **AWS S3**.
 
@@ -71,6 +71,7 @@ Share this quick reference with your team or agent when setting up repository se
 | **Garage S3** | `GARAGE_ACCESS_KEY`<br>`GARAGE_SECRET_KEY` | `http://garage.internal:3900` |
 | **SeaweedFS S3** | `SEAWEED_ACCESS_KEY`<br>`SEAWEED_SECRET_KEY` | `http://seaweedfs.internal:8333` |
 | **MinIO S3** | `MINIO_ACCESS_KEY`<br>`MINIO_SECRET_KEY` | `http://minio.internal:9000`<br>*(Requires `force-path-style: true`)* |
+| **RustFS** | `RUSTFS_ACCESS_KEY`<br>`RUSTFS_SECRET_KEY` | `http://rustfs.internal:9000`<br>*(Set `provider: rustfs`)* |
 
 ---
 

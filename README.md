@@ -321,7 +321,7 @@ verification; this is not a breaking change.
 ## Safe Concurrent Saves
 
 Uploads use a conditional create (`If-None-Match: *`). On providers that enforce it (verified on
-AWS S3, MinIO and SeaweedFS), when two jobs race to save the same key, only the first upload
+AWS S3, MinIO, SeaweedFS and RustFS), when two jobs race to save the same key, only the first upload
 succeeds; the second detects the precondition failure, logs `Another job saved s3://<bucket>/<key>
 first; keeping its cache.`, and finishes without overwriting it. A `409 ConditionalRequestConflict`
 (a concurrent write or delete of the same key, such as a prune, landing mid-upload) is retried once
@@ -463,17 +463,18 @@ Both are best-effort extras: neither can fail the save.
 |---|---|---|
 | MinIO | ✅ verified | ✅ verified |
 | SeaweedFS | ✅ verified | ✅ verified |
+| RustFS | ✅ verified | ✅ verified |
 | Garage | ✅ verified | ⚠️ accepted on upload, but Garage implements no tagging API (`GetObjectTagging`/`PutObjectTagging` answer `501 NotImplemented`), so the tags cannot be read back and should be assumed dropped |
 | AWS S3, Cloudflare R2, GCS, B2, Fastly | ✅ | see provider docs |
 
 Verified rows were measured by `tests/integration/objectAttributes.test.ts` against local MinIO,
-SeaweedFS and Garage servers; the last row is not covered by the local integration suite.
+SeaweedFS, RustFS and Garage servers; the last row is not covered by the local integration suite.
 
 With [streaming](#streaming-archives-experimental), the metadata (and the sha256) is attached by a
 copy of the object onto itself right after the upload, since the checksum is only known once the
 stream has finished. A provider that cannot do that copy costs the metadata, not the cache: the
 save logs `Saved s3://<bucket>/<key> but could not attach metadata: <reason>` and succeeds. The
-copy was verified to work on MinIO, SeaweedFS and Garage.
+copy was verified to work on MinIO, SeaweedFS, RustFS and Garage.
 
 ---
 
@@ -536,7 +537,7 @@ parts in memory.
   object, the restore logs
   `s3://<bucket>/<key> does not support ranged GET requests; downloading it in one request.` and
   continues with a single request. AWS S3, Cloudflare R2, Google Cloud Storage, Backblaze B2,
-  MinIO, SeaweedFS and Garage all serve ranged requests.
+  MinIO, SeaweedFS, RustFS and Garage all serve ranged requests.
 
 **Uploads.** A save sends the multipart upload's parts `upload-concurrency` (default `8`) at a time,
 each `upload-chunk-size` bytes (default 64 MiB). Every part is retried by the S3 SDK with the
@@ -752,7 +753,7 @@ npm install
 # Run unit and contract test suites
 npm test
 
-# Spin up local Garage or SeaweedFS for integration tests
+# Spin up a local S3 server for integration tests (garage, seaweedfs, minio or rustfs)
 docker compose -f docker-compose.test.yml up -d garage
 
 # Build distribution bundles (dist/)
