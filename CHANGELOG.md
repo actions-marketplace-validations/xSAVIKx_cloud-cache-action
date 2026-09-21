@@ -8,6 +8,8 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-21
+
 No breaking changes. Caches saved by v1.1, v1.2 and v1.3 stay valid.
 
 ### Added
@@ -15,8 +17,9 @@ No breaking changes. Caches saved by v1.1, v1.2 and v1.3 stay valid.
 - **Parallel downloads.** A restore now fetches any archive larger than `download-chunk-size`
   (default `8388608`, 8 MiB) as concurrent `Range` requests, `download-concurrency` (default `8`,
   1–32) at a time, in both file and streaming mode, the same fan-out `actions/cache` uses with a
-  larger block (it uses 4 MiB; 8 MiB measured faster on every provider). Each part is retried on its own. Archives no larger than one chunk, and every restore with
-  `download-concurrency: 1`, use a single request as before. A provider that answers a ranged
+  larger block (it uses 4 MiB; 8 MiB measured faster on every provider). Each part is retried on
+  its own. Archives no larger than one chunk, and every restore with `download-concurrency: 1`,
+  use a single request as before. A provider that answers a ranged
   request with the whole object logs
   `s3://<bucket>/<key> does not support ranged GET requests; downloading it in one request.` and
   gets the single request. The restore's metrics line reports the part count as `downloadParts`.
@@ -256,7 +259,8 @@ Initial pre-release.
 - zstd compression with a gzip fallback, chunked multipart uploads and retries.
 - `restore` and `save` sub-actions.
 
-[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.0.0...v1.1.0
