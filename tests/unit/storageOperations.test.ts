@@ -326,41 +326,56 @@ describe('Storage Operations', () => {
     });
 
     // lib-storage holds the final part back until the stream ends, so three parts never show
-    // more than two in flight; the cap, not the ceiling, is what these pin.
+    // more than two in flight; the cap, not the ceiling, is what these pin. Each part blocks
+    // until the expected peak is reached rather than for a fixed time, so a runner that reads
+    // the file more slowly than the parts complete cannot make this miss an overlap.
     it.each([
       [1, 1],
       [2, 2],
-    ])('sends at most %s parts at once, over 3 parts', async (concurrency, peakExpected) => {
-      const { CompleteMultipartUploadCommand, CreateMultipartUploadCommand, UploadPartCommand } =
-        await import('@aws-sdk/client-s3');
-      const { uploadFile } = await import('../../src/storage/operations');
+    ])(
+      'sends at most %s parts at once, over 3 parts',
+      async (concurrency, peakExpected) => {
+        const { CompleteMultipartUploadCommand, CreateMultipartUploadCommand, UploadPartCommand } =
+          await import('@aws-sdk/client-s3');
+        const { uploadFile } = await import('../../src/storage/operations');
 
-      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-upload-'));
-      const sampleFile = path.join(tempDir, 'large.bin');
-      fs.writeFileSync(sampleFile, Buffer.alloc(15 * 1024 * 1024, 'a'));
-      let inFlight = 0;
-      let peak = 0;
-      s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
-      s3Mock.on(UploadPartCommand).callsFake(async () => {
-        inFlight += 1;
-        peak = Math.max(peak, inFlight);
-        await new Promise((resolve) => setTimeout(resolve, 20));
-        inFlight -= 1;
-        return { ETag: '"part"' };
-      });
-      s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
-
-      try {
-        await uploadFile(client, 'test-bucket', 'large-key', sampleFile, {
-          partSize: 5 * 1024 * 1024,
-          concurrency,
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-upload-'));
+        const sampleFile = path.join(tempDir, 'large.bin');
+        fs.writeFileSync(sampleFile, Buffer.alloc(15 * 1024 * 1024, 'a'));
+        let inFlight = 0;
+        let peak = 0;
+        let releasePeakReached: () => void = () => undefined;
+        const peakReached = new Promise<void>((resolve) => {
+          releasePeakReached = resolve;
         });
-        expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(3);
-        expect(peak).toBe(peakExpected);
-      } finally {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      }
-    });
+        s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
+        s3Mock.on(UploadPartCommand).callsFake(async () => {
+          inFlight += 1;
+          peak = Math.max(peak, inFlight);
+          if (peak >= peakExpected) {
+            releasePeakReached();
+          }
+          // The safety valve only matters when the cap is never reached, which is the failure this
+          // test is meant to report: it ends the wait so the assertion below runs instead of hanging.
+          await Promise.race([peakReached, new Promise((resolve) => setTimeout(resolve, 10_000))]);
+          inFlight -= 1;
+          return { ETag: '"part"' };
+        });
+        s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
+
+        try {
+          await uploadFile(client, 'test-bucket', 'large-key', sampleFile, {
+            partSize: 5 * 1024 * 1024,
+            concurrency,
+          });
+          expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(3);
+          expect(peak).toBe(peakExpected);
+        } finally {
+          fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+      },
+      30_000
+    );
 
     it('passes metadata and ifNoneMatch through to a single-part PutObject', async () => {
       const { uploadFile } = await import('../../src/storage/operations');
