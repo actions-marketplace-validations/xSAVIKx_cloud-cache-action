@@ -597,6 +597,12 @@ integrity check.
 - **Tag-triggered runs:** if a run started by pushing a tag is the only place that saves a given cache, no pull request or branch build will ever restore it — restores never search `refs/tags/*`. Save on the default branch instead (a `push` there, or `workflow_dispatch`), or see [Tag-triggered runs and refs](https://xsavikx.github.io/cloud-cache-action/guide/migration.html#tag-triggered-runs-and-refs) for using `scoped-to-ref: false`.
 - **Maintenance:** Dependabot now keeps npm and GitHub Actions dependencies up to date, and publishing a GitHub release runs `.github/workflows/release.yml` automatically — see [Releasing](#releasing).
 
+## Upgrading to v1.5
+
+**There are no breaking changes in v1.5, and no default changes.** It adds
+[RustFS](#self-hosted-rustfs) as a provider preset. Every other workflow behaves exactly as it did
+in v1.4.
+
 ## Upgrading to v1.4
 
 **There are no breaking changes in v1.4.** Caches saved by earlier versions restore normally.

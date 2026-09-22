@@ -8,6 +8,11 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-09-22
+
+No breaking changes, and nothing changes for an existing workflow: this release only adds a
+provider.
+
 ### Added
 
 - **RustFS provider preset.** `provider: rustfs` selects path-style addressing and the `us-east-1`
@@ -270,7 +275,8 @@ Initial pre-release.
 - zstd compression with a gzip fallback, chunked multipart uploads and retries.
 - `restore` and `save` sub-actions.
 
-[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.1.0...v1.2.0
