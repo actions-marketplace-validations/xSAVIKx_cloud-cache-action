@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://xsavikx.github.io/cloud-cache-action/sitemap.xml

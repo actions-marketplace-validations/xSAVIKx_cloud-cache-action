@@ -1,0 +1,156 @@
+name: Transfer benchmark
+
+# Measures save and restore speed for several upload-concurrency, upload-chunk-size,
+# download-concurrency and download-chunk-size settings against the live providers, and writes
+# one table per provider to the job summary and to the benchmark-<provider> artifact. Manual only.
+on:
+  workflow_dispatch:
+    inputs:
+      size-mb:
+        description: 'Payload size in MiB (random data, so the archive is about as large)'
+        required: false
+        default: '512'
+      repeats:
+        description: 'Runs per configuration; the table shows the median'
+        required: false
+        default: '2'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  BENCH_SIZE_MB: ${{ inputs.size-mb }}
+  BENCH_REPEATS: ${{ inputs.repeats }}
+
+jobs:
+  r2:
+    name: Cloudflare R2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Check Cloudflare R2 credentials
+        id: check-secrets
+        run: |
+          if [ -z "${{ secrets.R2_ACCOUNT_ID }}" ] || [ -z "${{ secrets.R2_ACCESS_KEY_ID }}" ] || [ -z "${{ secrets.R2_SECRET_ACCESS_KEY }}" ] || [ -z "${{ secrets.R2_BUCKET }}" ]; then
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Cloudflare R2 secrets are not configured. Skipping the R2 benchmark."
+          else
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          fi
+      - run: npm ci
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+      - name: Benchmark
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        env:
+          BENCH_LABEL: Cloudflare R2
+          BENCH_PROVIDER: r2
+          BENCH_BUCKET: ${{ secrets.R2_BUCKET }}
+          BENCH_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          BENCH_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+          BENCH_SECRET_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          BENCH_OUT: ${{ runner.temp }}/benchmark
+        run: node tests/ci/benchmark.ts
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        with:
+          name: benchmark-r2
+          path: ${{ runner.temp }}/benchmark
+
+  aws:
+    name: Amazon S3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Check AWS credentials
+        id: check-secrets
+        run: |
+          BUCKET="${{ secrets.AWS_S3_BUCKET || secrets.AWS_BUCKET }}"
+          ROLE="${{ secrets.AWS_ROLE_TO_ASSUME }}"
+          ACCESS_KEY="${{ secrets.AWS_ACCESS_KEY_ID }}"
+          SECRET_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          if [ -z "$BUCKET" ]; then
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AWS S3 bucket secret is not configured. Skipping the Amazon S3 benchmark."
+          elif [ -n "$ROLE" ]; then
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+            echo "auth_mode=oidc" >> "$GITHUB_OUTPUT"
+          elif [ -n "$ACCESS_KEY" ] && [ -n "$SECRET_KEY" ]; then
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+            echo "auth_mode=static" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AWS credentials are not configured. Skipping the Amazon S3 benchmark."
+          fi
+      - name: Configure AWS Credentials via OIDC
+        if: steps.check-secrets.outputs.has_secrets == 'true' && steps.check-secrets.outputs.auth_mode == 'oidc'
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      - run: npm ci
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+      - name: Benchmark
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        env:
+          BENCH_LABEL: Amazon S3
+          BENCH_PROVIDER: aws
+          BENCH_BUCKET: ${{ secrets.AWS_S3_BUCKET || secrets.AWS_BUCKET }}
+          BENCH_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          BENCH_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+          BENCH_SECRET_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+          BENCH_OUT: ${{ runner.temp }}/benchmark
+        run: node tests/ci/benchmark.ts
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        with:
+          name: benchmark-aws
+          path: ${{ runner.temp }}/benchmark
+
+  gcs:
+    name: Google Cloud Storage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Check Google Cloud Storage credentials
+        id: check-secrets
+        run: |
+          ACCESS_ID="${{ secrets.GCS_HMAC_ACCESS_ID || secrets.GCS_ACCESS_KEY_ID }}"
+          SECRET_KEY="${{ secrets.GCS_HMAC_SECRET || secrets.GCS_SECRET_ACCESS_KEY }}"
+          BUCKET="${{ secrets.GCS_BUCKET }}"
+          if [ -z "$ACCESS_ID" ] || [ -z "$SECRET_KEY" ] || [ -z "$BUCKET" ]; then
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Google Cloud Storage secrets are not configured. Skipping the GCS benchmark."
+          else
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          fi
+      - run: npm ci
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+      - name: Benchmark
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        env:
+          BENCH_LABEL: Google Cloud Storage
+          BENCH_PROVIDER: gcs
+          BENCH_BUCKET: ${{ secrets.GCS_BUCKET }}
+          BENCH_ENDPOINT: https://storage.googleapis.com
+          BENCH_ACCESS_KEY: ${{ secrets.GCS_HMAC_ACCESS_ID || secrets.GCS_ACCESS_KEY_ID }}
+          BENCH_SECRET_KEY: ${{ secrets.GCS_HMAC_SECRET || secrets.GCS_SECRET_ACCESS_KEY }}
+          BENCH_OUT: ${{ runner.temp }}/benchmark
+        run: node tests/ci/benchmark.ts
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        with:
+          name: benchmark-gcs
+          path: ${{ runner.temp }}/benchmark

@@ -73326,7 +73326,7 @@ const _summary = new Summary();
  * @deprecated use `core.summary`
  */
 const markdownSummary = (/* unused pure expression or super */ null && (_summary));
-const summary = (/* unused pure expression or super */ null && (_summary));
+const summary = _summary;
 //# sourceMappingURL=summary.js.map
 ;// CONCATENATED MODULE: ./node_modules/@actions/core/lib/path-utils.js
 
@@ -74772,7 +74772,7 @@ function core_error(message, properties = {}) {
  * @param message warning issue message. Errors will be converted to string via toString()
  * @param properties optional properties to add to the annotation.
  */
-function warning(message, properties = {}) {
+function core_warning(message, properties = {}) {
     command_issueCommand('warning', utils_toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
 /**
@@ -74798,13 +74798,13 @@ function info(message) {
  * @param name The name of the output group
  */
 function startGroup(name) {
-    issue('group', name);
+    command_issue('group', name);
 }
 /**
  * End an output group.
  */
 function endGroup() {
-    issue('endgroup');
+    command_issue('endgroup');
 }
 /**
  * Wrap an asynchronous function call in a group.
@@ -74875,744 +74875,6 @@ function getIDToken(aud) {
  */
 
 //# sourceMappingURL=core.js.map
-;// CONCATENATED MODULE: ./src/constants.ts
-var Inputs;
-(function (Inputs) {
-    Inputs["Key"] = "key";
-    Inputs["Path"] = "path";
-    Inputs["RestoreKeys"] = "restore-keys";
-    Inputs["UploadChunkSize"] = "upload-chunk-size";
-    Inputs["EnableCrossOsArchive"] = "enableCrossOsArchive";
-    Inputs["FailOnCacheMiss"] = "fail-on-cache-miss";
-    Inputs["LookupOnly"] = "lookup-only";
-    Inputs["ReadOnly"] = "read-only";
-    Inputs["SaveAlways"] = "save-always";
-    Inputs["Bucket"] = "bucket";
-    Inputs["Endpoint"] = "endpoint";
-    Inputs["Region"] = "region";
-    Inputs["Provider"] = "provider";
-    Inputs["AccessKey"] = "access-key";
-    Inputs["AccessKeyCamel"] = "accessKey";
-    Inputs["SecretKey"] = "secret-key";
-    Inputs["SecretKeyCamel"] = "secretKey";
-    Inputs["SessionToken"] = "session-token";
-    Inputs["SessionTokenCamel"] = "sessionToken";
-    Inputs["ForcePathStyle"] = "force-path-style";
-    Inputs["Prefix"] = "prefix";
-    Inputs["S3KeyPattern"] = "s3-key-pattern";
-    Inputs["ScopedToRepository"] = "scoped-to-repository";
-    Inputs["Retry"] = "retry";
-    Inputs["RetryCount"] = "retry-count";
-    Inputs["UseFallback"] = "use-fallback";
-    // Dual-cache inputs
-    Inputs["DualCache"] = "dual-cache";
-    Inputs["RestorePriority"] = "restore-priority";
-    Inputs["DualCacheStrategy"] = "dual-cache-strategy";
-    Inputs["DualCacheStrict"] = "dual-cache-strict";
-})(Inputs || (Inputs = {}));
-var Outputs;
-(function (Outputs) {
-    Outputs["CacheHit"] = "cache-hit";
-    Outputs["CachePrimaryKey"] = "cache-primary-key";
-    Outputs["CacheMatchedKey"] = "cache-matched-key";
-    Outputs["CacheSize"] = "cache-size";
-    Outputs["CacheStorageProvider"] = "cache-storage-provider";
-    Outputs["CacheS3Key"] = "cache-s3-key";
-    Outputs["CacheETag"] = "cache-etag";
-    // Dual-cache outputs
-    Outputs["CacheHitSource"] = "cache-hit-source";
-    Outputs["CacheSavedSources"] = "cache-saved-sources";
-})(Outputs || (Outputs = {}));
-var constants_State;
-(function (State) {
-    State["CachePrimaryKey"] = "CACHE_PRIMARY_KEY";
-    State["CacheMatchedKey"] = "CACHE_MATCHED_KEY";
-    State["CacheStorageProvider"] = "CACHE_STORAGE_PROVIDER";
-    State["CacheS3Key"] = "CACHE_S3_KEY";
-    State["CacheBucket"] = "CACHE_BUCKET";
-    State["CacheEndpoint"] = "CACHE_ENDPOINT";
-    State["CacheRegion"] = "CACHE_REGION";
-    State["CacheAccessKey"] = "CACHE_ACCESS_KEY";
-    State["CacheSecretKey"] = "CACHE_SECRET_KEY";
-    State["CacheSessionToken"] = "CACHE_SESSION_TOKEN";
-    State["CacheForcePathStyle"] = "CACHE_FORCE_PATH_STYLE";
-    State["CachePrefix"] = "CACHE_PREFIX";
-    State["CacheS3KeyPattern"] = "CACHE_S3_KEY_PATTERN";
-    State["CacheScopedToRepository"] = "CACHE_SCOPED_TO_REPOSITORY";
-    State["CacheRetry"] = "CACHE_RETRY";
-    State["CacheRetryCount"] = "CACHE_RETRY_COUNT";
-    State["CacheReadOnly"] = "CACHE_READ_ONLY";
-    // Dual-cache state
-    State["CacheDualCache"] = "CACHE_DUAL_CACHE";
-    State["CacheRestorePriority"] = "CACHE_RESTORE_PRIORITY";
-    State["CacheDualCacheStrategy"] = "CACHE_DUAL_CACHE_STRATEGY";
-    State["CacheDualCacheStrict"] = "CACHE_DUAL_CACHE_STRICT";
-    State["CacheS3ExactHit"] = "CACHE_S3_EXACT_HIT";
-    State["CacheGithubExactHit"] = "CACHE_GITHUB_EXACT_HIT";
-    State["CacheHitSource"] = "CACHE_HIT_SOURCE";
-})(constants_State || (constants_State = {}));
-var Events;
-(function (Events) {
-    Events["Key"] = "GITHUB_EVENT_NAME";
-})(Events || (Events = {}));
-const Defaults = {
-    DefaultRegion: 'us-east-1',
-    DefaultS3KeyPattern: '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}',
-    DefaultArchiveFilenameZstd: 'cache.tar.zst',
-    DefaultArchiveFilenameGzip: 'cache.tar.gz',
-    DefaultRetryCount: 3,
-    DefaultRestorePriority: 's3-first',
-    DefaultDualCacheStrategy: 'backfill',
-};
-
-;// CONCATENATED MODULE: ./src/state.ts
-
-
-class state_StateProvider {
-    getState(key) {
-        return core.getState(key);
-    }
-    setState(key, value) {
-        core.saveState(key, value);
-    }
-    getCacheState() {
-        return this.getState(State.CacheMatchedKey);
-    }
-}
-class NullStateProvider {
-    state = new Map();
-    getState(key) {
-        return this.state.get(key) || '';
-    }
-    setState(key, value) {
-        this.state.set(key, value);
-    }
-    getCacheState() {
-        return this.getState(constants_State.CacheMatchedKey);
-    }
-}
-
-;// CONCATENATED MODULE: ./src/utils/inputUtils.ts
-
-
-function getInputAsArray(name, options) {
-    return getInput(name, options)
-        .split('\n')
-        .map((s) => s.trim())
-        .filter((x) => x !== '');
-}
-function getInputAsBool(name, defaultValue = false, options) {
-    const value = getInput(name, options);
-    if (!value) {
-        return defaultValue;
-    }
-    return value.toLowerCase() === 'true';
-}
-function getInputAsInt(name, defaultValue, options) {
-    const value = getInput(name, options);
-    if (!value) {
-        return defaultValue;
-    }
-    const parsed = parseInt(value, 10);
-    if (isNaN(parsed) || parsed < 0) {
-        return defaultValue;
-    }
-    return parsed;
-}
-function getInputWithEnv(inputName, envVarNames = [], camelCaseInputName) {
-    // Check primary input
-    let value = getInput(inputName);
-    if (value) {
-        return value;
-    }
-    // Check camelCase alias if provided
-    if (camelCaseInputName) {
-        value = getInput(camelCaseInputName);
-        if (value) {
-            return value;
-        }
-    }
-    // Check environment variables
-    for (const envVar of envVarNames) {
-        const envVal = process.env[envVar];
-        if (envVal !== undefined && envVal !== '') {
-            return envVal;
-        }
-    }
-    return '';
-}
-function isExactKeyMatch(primaryKey, matchedKey) {
-    if (!matchedKey) {
-        return false;
-    }
-    return primaryKey.trim().toLowerCase() === matchedKey.trim().toLowerCase();
-}
-function isValidEvent() {
-    const event = process.env[Events.Key];
-    // GitHub Actions events that are not tied to a ref (e.g. issues, discussion) might not be appropriate for caching
-    // actions/cache warns if event is not ref-based, but allows execution
-    return Boolean(event);
-}
-function formatSize(bytes) {
-    if (bytes === undefined || bytes === null || isNaN(bytes)) {
-        return '0 B';
-    }
-    if (bytes === 0)
-        return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    const unitIndex = Math.min(i, units.length - 1);
-    const size = (bytes / Math.pow(1024, unitIndex)).toFixed(2);
-    return `${size} ${units[unitIndex]}`;
-}
-
-;// CONCATENATED MODULE: ./src/utils/pathUtils.ts
-
-/**
- * Normalizes all path separators to POSIX forward slashes and collapses multiple slashes.
- */
-function normalizeS3Key(keyPath) {
-    // Replace backslashes with forward slashes
-    let normalized = keyPath.replace(/\\+/g, '/');
-    // Collapse consecutive forward slashes
-    normalized = normalized.replace(/\/+/g, '/');
-    // Strip leading slash if present
-    if (normalized.startsWith('/')) {
-        normalized = normalized.slice(1);
-    }
-    return normalized;
-}
-/**
- * Resolves the full S3 object key using the template pattern or default conventions.
- */
-/**
- * Resolves placeholders from special variables and process.env.
- */
-function resolveTemplateVariables(template, specialVars, env = process.env) {
-    // First, resolve braced syntax: ${VAR_NAME} or ${env.VAR_NAME}
-    let result = template.replace(/\$\{([A-Za-z0-9_.-]+)\}/g, (_, varName) => {
-        if (varName in specialVars) {
-            return specialVars[varName];
-        }
-        if (varName.startsWith('env.')) {
-            const envKey = varName.slice(4);
-            return env[envKey] ?? '';
-        }
-        if (varName in env) {
-            return env[varName] ?? '';
-        }
-        return '';
-    });
-    // Second, resolve unbraced syntax: $VAR_NAME
-    result = result.replace(/\$([A-Za-z0-9_]+)/g, (_, varName) => {
-        if (varName in specialVars) {
-            return specialVars[varName];
-        }
-        if (varName in env) {
-            return env[varName] ?? '';
-        }
-        return '';
-    });
-    return result;
-}
-/**
- * Resolves the full S3 object key using the template pattern or default conventions.
- */
-function buildS3ObjectKey(params, env = process.env) {
-    const repository = params.repository || env.GITHUB_REPOSITORY || '';
-    const prefix = params.prefix ? normalizePrefix(params.prefix) : '';
-    const key = params.key.trim();
-    const archiveFilename = params.archiveFilename;
-    // If pattern is explicitly provided or using default pattern
-    let pattern = params.pattern || '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}';
-    // If repository scoping is explicitly turned off and user didn't provide custom pattern,
-    // remove ${GITHUB_REPOSITORY}/
-    if (params.scopedToRepository === false &&
-        (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
-        pattern = pattern.replace('${GITHUB_REPOSITORY}/', '').replace('${GITHUB_REPOSITORY}', '');
-    }
-    const specialVars = {
-        GITHUB_REPOSITORY: repository,
-        prefix,
-        key,
-        archive_filename: archiveFilename,
-    };
-    const resolved = resolveTemplateVariables(pattern, specialVars, env);
-    return normalizeS3Key(resolved);
-}
-/**
- * Calculates the S3 prefix used for searching/listing objects for a given restoreKey.
- */
-function buildS3SearchPrefix(restoreKey, params, env = process.env) {
-    const repository = params.repository || env.GITHUB_REPOSITORY || '';
-    const prefix = params.prefix ? normalizePrefix(params.prefix) : '';
-    const trimmedRestoreKey = restoreKey.trim();
-    let pattern = params.pattern || '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}';
-    if (params.scopedToRepository === false &&
-        (!params.pattern || params.pattern.includes('${GITHUB_REPOSITORY}'))) {
-        pattern = pattern.replace('${GITHUB_REPOSITORY}/', '').replace('${GITHUB_REPOSITORY}', '');
-    }
-    // Find where ${key} or $key starts in the pattern
-    const keyMarkerIndex = pattern.indexOf('${key}') !== -1 ? pattern.indexOf('${key}') : pattern.indexOf('$key');
-    if (keyMarkerIndex !== -1) {
-        const beforeKey = pattern.slice(0, keyMarkerIndex);
-        const specialVars = {
-            GITHUB_REPOSITORY: repository,
-            prefix,
-        };
-        const resolvedBefore = resolveTemplateVariables(beforeKey, specialVars, env);
-        return normalizeS3Key(`${resolvedBefore}${trimmedRestoreKey}`);
-    }
-    // Fallback if no key placeholder
-    return normalizeS3Key(`${repository}/${prefix}${trimmedRestoreKey}`);
-}
-/**
- * Extracts the cache key name from a full S3 object key based on pattern and search prefix.
- */
-function extractKeyFromS3Object(objectKey, _searchPrefix, archiveFilename) {
-    const normalizedObject = normalizeS3Key(objectKey);
-    // Remove archive filename at the end
-    let candidate = normalizedObject;
-    if (candidate.endsWith(`/${archiveFilename}`)) {
-        candidate = candidate.slice(0, -(archiveFilename.length + 1));
-    }
-    else if (candidate.endsWith(archiveFilename)) {
-        candidate = candidate.slice(0, -archiveFilename.length);
-    }
-    // The base name of candidate is our key
-    const parts = candidate.split('/');
-    return parts[parts.length - 1] || candidate;
-}
-/**
- * Ensures prefix has trailing slash if non-empty, and strips leading slash.
- */
-function normalizePrefix(prefix) {
-    let p = prefix.replace(/\\+/g, '/').trim();
-    if (p.startsWith('/')) {
-        p = p.slice(1);
-    }
-    if (p && !p.endsWith('/')) {
-        p += '/';
-    }
-    return p;
-}
-/**
- * Resolves local file paths for archiving.
- */
-function resolveArchivePaths(patterns) {
-    const cwd = process.cwd();
-    return patterns.map((p) => {
-        if (path.isAbsolute(p)) {
-            return path.relative(cwd, p);
-        }
-        return p;
-    });
-}
-
-// EXTERNAL MODULE: ./node_modules/@aws-sdk/client-s3/dist-cjs/index.js
-var dist_cjs = __nccwpck_require__(3711);
-;// CONCATENATED MODULE: ./src/storage/providers.ts
-function detectProvider(endpointInput, explicitProvider) {
-    if (explicitProvider) {
-        const normalized = explicitProvider.toLowerCase().trim();
-        switch (normalized) {
-            case 'aws':
-            case 's3':
-                return 'aws';
-            case 'r2':
-            case 'cloudflare':
-                return 'r2';
-            case 'gcs':
-            case 'google':
-                return 'gcs';
-            case 'b2':
-            case 'backblaze':
-                return 'b2';
-            case 'fastly':
-                return 'fastly';
-            case 'garage':
-                return 'garage';
-            case 'seaweedfs':
-            case 'seaweed':
-                return 'seaweedfs';
-            case 'minio':
-                return 'minio';
-            default:
-                return 'generic-s3';
-        }
-    }
-    if (!endpointInput) {
-        return 'aws';
-    }
-    const ep = endpointInput.toLowerCase();
-    if (ep.includes('r2.cloudflarestorage.com')) {
-        return 'r2';
-    }
-    if (ep.includes('storage.googleapis.com')) {
-        return 'gcs';
-    }
-    if (ep.includes('backblazeb2.com')) {
-        return 'b2';
-    }
-    if (ep.includes('fastlystorage.com')) {
-        return 'fastly';
-    }
-    if (ep.includes('amazonaws.com')) {
-        return 'aws';
-    }
-    if (ep.includes(':3900')) {
-        return 'garage';
-    }
-    if (ep.includes(':8333')) {
-        return 'seaweedfs';
-    }
-    if (ep.includes(':9000')) {
-        return 'minio';
-    }
-    return 'generic-s3';
-}
-function resolveProviderDefaults(endpointInput, regionInput, forcePathStyleInput, explicitProvider) {
-    const provider = detectProvider(endpointInput, explicitProvider);
-    let endpoint = endpointInput?.trim();
-    if (endpoint && !endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
-        endpoint = `https://${endpoint}`;
-    }
-    let region = regionInput?.trim();
-    let forcePathStyle = forcePathStyleInput;
-    switch (provider) {
-        case 'aws':
-            region = region || process.env.AWS_REGION || 'us-east-1';
-            if (forcePathStyle === undefined)
-                forcePathStyle = false;
-            break;
-        case 'r2':
-            region = region || 'auto';
-            if (forcePathStyle === undefined)
-                forcePathStyle = false;
-            break;
-        case 'gcs':
-            endpoint = endpoint || 'https://storage.googleapis.com';
-            region = region || 'auto';
-            if (forcePathStyle === undefined)
-                forcePathStyle = true;
-            break;
-        case 'b2':
-            if (!region && endpoint) {
-                // e.g. https://s3.us-west-004.backblazeb2.com
-                const match = endpoint.match(/s3\.([a-z0-9-]+)\.backblazeb2\.com/i);
-                if (match && match[1]) {
-                    region = match[1];
-                }
-            }
-            region = region || 'us-east-1';
-            if (forcePathStyle === undefined)
-                forcePathStyle = false;
-            break;
-        case 'fastly':
-            region = region || 'us-east-1';
-            if (forcePathStyle === undefined)
-                forcePathStyle = true;
-            break;
-        case 'garage':
-            region = region || 'garage';
-            if (forcePathStyle === undefined)
-                forcePathStyle = true;
-            break;
-        case 'seaweedfs':
-            region = region || 'auto';
-            if (forcePathStyle === undefined)
-                forcePathStyle = true;
-            break;
-        case 'minio':
-        case 'generic-s3':
-        default:
-            region = region || 'us-east-1';
-            if (forcePathStyle === undefined)
-                forcePathStyle = true;
-            break;
-    }
-    return {
-        provider,
-        endpoint,
-        region,
-        forcePathStyle: Boolean(forcePathStyle),
-    };
-}
-
-;// CONCATENATED MODULE: ./src/storage/client.ts
-
-
-
-
-
-function createStorageContext() {
-    const bucket = getInputWithEnv(Inputs.Bucket, ['AWS_S3_BUCKET', 'S3_BUCKET']);
-    if (!bucket) {
-        throw new Error('Bucket name is required. Please set "bucket" input or AWS_S3_BUCKET environment variable.');
-    }
-    const endpointInput = getInputWithEnv(Inputs.Endpoint, [
-        'AWS_ENDPOINT_URL',
-        'AWS_ENDPOINT_URL_S3',
-    ]);
-    const regionInput = getInputWithEnv(Inputs.Region, ['AWS_REGION', 'AWS_DEFAULT_REGION']);
-    const providerInput = getInput(Inputs.Provider);
-    const forcePathStyleRaw = getInput(Inputs.ForcePathStyle);
-    const forcePathStyleInput = forcePathStyleRaw !== '' ? getInputAsBool(Inputs.ForcePathStyle) : undefined;
-    const providerConfig = resolveProviderDefaults(endpointInput, regionInput, forcePathStyleInput, providerInput);
-    const accessKey = getInputWithEnv(Inputs.AccessKey, ['AWS_ACCESS_KEY_ID'], Inputs.AccessKeyCamel);
-    const secretKey = getInputWithEnv(Inputs.SecretKey, ['AWS_SECRET_ACCESS_KEY'], Inputs.SecretKeyCamel);
-    const sessionToken = getInputWithEnv(Inputs.SessionToken, ['AWS_SESSION_TOKEN'], Inputs.SessionTokenCamel);
-    const clientConfig = {
-        region: providerConfig.region,
-        forcePathStyle: providerConfig.forcePathStyle,
-    };
-    if (providerConfig.endpoint) {
-        clientConfig.endpoint = providerConfig.endpoint;
-    }
-    if (accessKey && secretKey) {
-        clientConfig.credentials = {
-            accessKeyId: accessKey,
-            secretAccessKey: secretKey,
-            sessionToken: sessionToken || undefined,
-        };
-    }
-    core_debug(`Configuring S3 client for provider: ${providerConfig.provider} (endpoint: ${providerConfig.endpoint || 'AWS default'}, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle})`);
-    const client = new dist_cjs.S3Client(clientConfig);
-    return {
-        client,
-        providerConfig,
-        bucket,
-    };
-}
-
-// EXTERNAL MODULE: ./node_modules/@aws-sdk/lib-storage/dist-cjs/index.js
-var lib_storage_dist_cjs = __nccwpck_require__(2358);
-;// CONCATENATED MODULE: external "stream/promises"
-const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("stream/promises");
-;// CONCATENATED MODULE: ./src/storage/operations.ts
-
-
-
-
-
-
-async function checkObjectExists(client, bucket, key) {
-    try {
-        const cmd = new dist_cjs.HeadObjectCommand({
-            Bucket: bucket,
-            Key: key,
-        });
-        const response = await client.send(cmd);
-        return {
-            key,
-            size: response.ContentLength || 0,
-            lastModified: response.LastModified,
-            etag: response.ETag,
-        };
-    }
-    catch (err) {
-        const error = err;
-        if (error.name === 'NotFound' ||
-            error.name === 'NoSuchKey' ||
-            error.$metadata?.httpStatusCode === 404) {
-            return null;
-        }
-        throw err;
-    }
-}
-async function listObjectsWithPrefix(client, bucket, prefix, maxKeys = 100) {
-    const cmd = new dist_cjs.ListObjectsV2Command({
-        Bucket: bucket,
-        Prefix: prefix,
-        MaxKeys: maxKeys,
-    });
-    const response = await client.send(cmd);
-    if (!response.Contents || response.Contents.length === 0) {
-        return [];
-    }
-    return response.Contents.filter((obj) => Boolean(obj.Key)).map((obj) => ({
-        key: obj.Key,
-        size: obj.Size || 0,
-        lastModified: obj.LastModified,
-        etag: obj.ETag,
-    }));
-}
-async function downloadFile(client, bucket, key, destinationPath) {
-    // Ensure target folder exists
-    const dir = external_path_.dirname(destinationPath);
-    if (!external_fs_namespaceObject.existsSync(dir)) {
-        external_fs_namespaceObject.mkdirSync(dir, { recursive: true });
-    }
-    const cmd = new dist_cjs.GetObjectCommand({
-        Bucket: bucket,
-        Key: key,
-    });
-    const response = await client.send(cmd);
-    if (!response.Body) {
-        throw new Error(`Empty response body received from S3 for key: ${key}`);
-    }
-    const fileStream = external_fs_namespaceObject.createWriteStream(destinationPath);
-    await (0,promises_namespaceObject.pipeline)(response.Body, fileStream);
-}
-async function uploadFile(client, bucket, key, sourcePath, uploadChunkSize) {
-    const stats = fs.statSync(sourcePath);
-    const fileStream = fs.createReadStream(sourcePath);
-    const partSize = uploadChunkSize && uploadChunkSize > 5 * 1024 * 1024 ? uploadChunkSize : 10 * 1024 * 1024; // 10MB default part size
-    const parallelUpload = new Upload({
-        client,
-        params: {
-            Bucket: bucket,
-            Key: key,
-            Body: fileStream,
-        },
-        partSize,
-        queueSize: 4,
-        leavePartsOnError: false,
-    });
-    parallelUpload.on('httpUploadProgress', (progress) => {
-        if (progress.total && progress.loaded) {
-            const pct = Math.round((progress.loaded / progress.total) * 100);
-            core.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
-        }
-    });
-    const result = await parallelUpload.done();
-    return {
-        size: stats.size,
-        etag: result.ETag,
-    };
-}
-
-;// CONCATENATED MODULE: ./src/storage/retry.ts
-
-async function withRetry(operation, options) {
-    const retries = Math.max(0, options.retries);
-    const minTimeout = options.minTimeoutMs ?? 1000;
-    const factor = options.factor ?? 2;
-    const opName = options.operationName || 'S3 operation';
-    let lastError;
-    for (let attempt = 1; attempt <= retries + 1; attempt++) {
-        try {
-            return await operation();
-        }
-        catch (err) {
-            lastError = err;
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            if (attempt > retries) {
-                break;
-            }
-            // Calculate exponential backoff with jitter
-            const delay = Math.round(minTimeout * Math.pow(factor, attempt - 1) + Math.random() * 500);
-            info(`Failed to ${opName}. Attempt ${attempt}/${retries + 1} failed: ${errorMessage}. Retrying in ${delay}ms...`);
-            await new Promise((resolve) => setTimeout(resolve, delay));
-        }
-    }
-    throw lastError;
-}
-
-;// CONCATENATED MODULE: ./src/archive/compression.ts
-
-
-let cachedConfig = null;
-async function getCompressionConfig() {
-    if (cachedConfig) {
-        return cachedConfig;
-    }
-    try {
-        const zstdPath = await which('zstd', false);
-        if (zstdPath) {
-            core_debug(`zstd binary found at: ${zstdPath}`);
-            cachedConfig = {
-                method: 'zstd',
-                archiveFilename: 'cache.tar.zst',
-            };
-            return cachedConfig;
-        }
-    }
-    catch (err) {
-        core_debug(`zstd detection error: ${err}`);
-    }
-    core_debug('zstd binary not found; falling back to gzip');
-    cachedConfig = {
-        method: 'gzip',
-        archiveFilename: 'cache.tar.gz',
-    };
-    return cachedConfig;
-}
-function resetCompressionConfigCache() {
-    cachedConfig = null;
-}
-
-;// CONCATENATED MODULE: ./src/archive/tar.ts
-
-
-
-
-
-
-async function createArchive(archivePath, paths, compression, enableCrossOsArchive = false) {
-    const tarPath = await io.which('tar', true);
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cache-archive-'));
-    const manifestFile = path.join(tempDir, 'manifest.txt');
-    // Normalize all input paths
-    const normalizedPaths = paths.map((p) => {
-        let norm = p.trim().replace(/\\+/g, '/');
-        if (enableCrossOsArchive && /^[a-zA-Z]:\//.test(norm)) {
-            // Strip Windows drive letter for cross-os archive compatibility
-            norm = norm.replace(/^[a-zA-Z]:\//, '/');
-        }
-        return norm;
-    });
-    fs.writeFileSync(manifestFile, normalizedPaths.join('\n'));
-    // Ensure target folder exists
-    const targetDir = path.dirname(archivePath);
-    if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-    }
-    const args = [];
-    // Compression flag
-    if (compression.method === 'zstd') {
-        args.push('--use-compress-program', 'zstd -T0 -3');
-    }
-    else {
-        args.push('-z');
-    }
-    args.push('-cf', archivePath, '-P', '-T', manifestFile);
-    core.debug(`Creating tar archive using command: ${tarPath} ${args.join(' ')}`);
-    try {
-        await exec.exec(`"${tarPath}"`, args);
-    }
-    finally {
-        try {
-            fs.rmSync(tempDir, { recursive: true, force: true });
-        }
-        catch {
-            // Ignore cleanup error
-        }
-    }
-}
-async function extractArchive(archivePath, compression, workingDirectory = process.cwd()) {
-    const tarPath = await which('tar', true);
-    const args = [];
-    if (compression.method === 'zstd') {
-        args.push('--use-compress-program', 'zstd -d');
-    }
-    else {
-        args.push('-z');
-    }
-    args.push('-xf', archivePath, '-P', '-C', workingDirectory);
-    core_debug(`Extracting tar archive using command: ${tarPath} ${args.join(' ')}`);
-    await exec_exec(`"${tarPath}"`, args);
-}
-function getArchiveSize(archivePath) {
-    try {
-        const stats = fs.statSync(archivePath);
-        return stats.size;
-    }
-    catch {
-        return 0;
-    }
-}
-
 ;// CONCATENATED MODULE: ./node_modules/@actions/glob/lib/internal-glob-options-helper.js
 
 /**
@@ -76569,6 +75831,3144 @@ function glob_hashFiles(patterns_1) {
     });
 }
 //# sourceMappingURL=glob.js.map
+// EXTERNAL MODULE: external "node:os"
+var external_node_os_ = __nccwpck_require__(8161);
+// EXTERNAL MODULE: external "node:path"
+var external_node_path_ = __nccwpck_require__(6760);
+;// CONCATENATED MODULE: ./src/archive/paths.ts
+
+
+
+
+function getWorkspace(env = process.env) {
+    return env.GITHUB_WORKSPACE || process.cwd();
+}
+/**
+ * Mirrors `os.homedir()`'s own documented resolution (`$HOME`/`%USERPROFILE%` first, native
+ * lookup otherwise) but reads the environment variable directly rather than delegating to the
+ * native binding. The native binding reads the process's real environment, which under Jest's
+ * `node` test environment is a snapshot disconnected from the `process.env` object tests mutate;
+ * reading the variable in plain JS keeps it overridable in tests while matching real behaviour.
+ */
+function defaultHomedir(platform) {
+    const fromEnv = platform === 'win32' ? process.env.USERPROFILE : process.env.HOME;
+    return fromEnv || os.homedir();
+}
+/** Escapes glob metacharacters in a literal path so it can prefix a pattern. */
+function globEscape(value, platform = process.platform) {
+    const escaped = platform === 'win32' ? value : value.replace(/\\/g, '\\\\');
+    return escaped.replace(/\[/g, '[[]').replace(/\?/g, '[?]').replace(/\*/g, '[*]');
+}
+/**
+ * Makes one `path` line absolute and free of `.`/`..` segments, which @actions/glob rejects.
+ * `~` expands to the home directory; relative patterns are anchored at the workspace.
+ */
+function preparePattern(raw, workspace, platform = process.platform, homedir = defaultHomedir(platform)) {
+    const p = platform === 'win32' ? path.win32 : path.posix;
+    let pattern = raw.trim();
+    const negate = pattern.startsWith('!');
+    if (negate) {
+        pattern = pattern.slice(1).trim();
+    }
+    if (pattern === '~' || pattern.startsWith('~/') || pattern.startsWith('~\\')) {
+        pattern = p.join(globEscape(homedir, platform), pattern.slice(1));
+    }
+    else if (p.isAbsolute(pattern)) {
+        pattern = p.normalize(pattern);
+    }
+    else {
+        pattern = p.join(globEscape(workspace, platform), pattern);
+    }
+    return negate ? `!${pattern}` : pattern;
+}
+/** True when an ancestor of `entry` is itself an entry, so tar already archives it. */
+function isCovered(entry, entries) {
+    const insideWorkspace = entry !== '..' && !entry.startsWith('../') && !path.isAbsolute(entry);
+    if (entry !== '.' && insideWorkspace && entries.has('.')) {
+        return true;
+    }
+    const segments = entry.split('/');
+    for (let length = 1; length < segments.length; length++) {
+        if (entries.has(segments.slice(0, length).join('/'))) {
+            return true;
+        }
+    }
+    return false;
+}
+/** Expands `path` patterns like actions/cache: globs, `~`, and ordered `!` exclusions. */
+async function paths_resolveCachePaths(patterns, workspace = getWorkspace()) {
+    const prepared = patterns
+        .map((line) => line.trim())
+        .filter((line) => line !== '')
+        .map((line) => preparePattern(line, workspace));
+    if (prepared.length === 0) {
+        return { entries: [], skipped: [] };
+    }
+    const globber = await glob.create(prepared.join('\n'), {
+        implicitDescendants: false,
+        followSymbolicLinks: false,
+    });
+    const found = new Set();
+    const skipped = [];
+    for await (const match of globber.globGenerator()) {
+        const relative = path.relative(workspace, match).split(path.sep).join('/');
+        const entry = relative === '' ? '.' : relative;
+        if (/[\r\n]/.test(entry)) {
+            skipped.push(entry);
+            core.warning(`Skipping ${JSON.stringify(entry)}: file names containing line breaks cannot be cached.`);
+            continue;
+        }
+        found.add(entry);
+    }
+    const entries = [...found].filter((entry) => !isCovered(entry, found)).sort();
+    return { entries, skipped };
+}
+
+;// CONCATENATED MODULE: ./src/constants.ts
+var Inputs;
+(function (Inputs) {
+    Inputs["Key"] = "key";
+    Inputs["Path"] = "path";
+    Inputs["RestoreKeys"] = "restore-keys";
+    Inputs["UploadChunkSize"] = "upload-chunk-size";
+    Inputs["UploadConcurrency"] = "upload-concurrency";
+    Inputs["EnableCrossOsArchive"] = "enableCrossOsArchive";
+    Inputs["FailOnCacheMiss"] = "fail-on-cache-miss";
+    Inputs["LookupOnly"] = "lookup-only";
+    Inputs["ReadOnly"] = "read-only";
+    Inputs["Bucket"] = "bucket";
+    Inputs["Endpoint"] = "endpoint";
+    Inputs["Region"] = "region";
+    Inputs["Provider"] = "provider";
+    Inputs["AccessKey"] = "access-key";
+    Inputs["AccessKeyCamel"] = "accessKey";
+    Inputs["SecretKey"] = "secret-key";
+    Inputs["SecretKeyCamel"] = "secretKey";
+    Inputs["SessionToken"] = "session-token";
+    Inputs["SessionTokenCamel"] = "sessionToken";
+    Inputs["ForcePathStyle"] = "force-path-style";
+    Inputs["Prefix"] = "prefix";
+    Inputs["S3KeyPattern"] = "s3-key-pattern";
+    Inputs["ScopedToRepository"] = "scoped-to-repository";
+    Inputs["ScopedToRef"] = "scoped-to-ref";
+    Inputs["Retry"] = "retry";
+    Inputs["RetryCount"] = "retry-count";
+    Inputs["UseFallback"] = "use-fallback";
+    Inputs["Streaming"] = "streaming";
+    Inputs["DownloadConcurrency"] = "download-concurrency";
+    Inputs["DownloadChunkSize"] = "download-chunk-size";
+    Inputs["Metadata"] = "metadata";
+    Inputs["Tags"] = "tags";
+    // Prune-only inputs
+    Inputs["OlderThanDays"] = "older-than-days";
+    Inputs["Ref"] = "ref";
+    Inputs["DryRun"] = "dry-run";
+    // Dual-cache inputs
+    Inputs["DualCache"] = "dual-cache";
+    Inputs["RestorePriority"] = "restore-priority";
+    Inputs["DualCacheStrategy"] = "dual-cache-strategy";
+    Inputs["DualCacheStrict"] = "dual-cache-strict";
+    // Job summary input
+    Inputs["JobSummary"] = "job-summary";
+    // Explain input
+    Inputs["Explain"] = "explain";
+    // Inspect-only input
+    Inputs["MaxCandidates"] = "max-candidates";
+    // Metrics input
+    Inputs["MetricsFile"] = "metrics-file";
+})(Inputs || (Inputs = {}));
+var Outputs;
+(function (Outputs) {
+    Outputs["CacheHit"] = "cache-hit";
+    Outputs["CachePrimaryKey"] = "cache-primary-key";
+    Outputs["CacheMatchedKey"] = "cache-matched-key";
+    Outputs["CacheSize"] = "cache-size";
+    Outputs["CacheStorageProvider"] = "cache-storage-provider";
+    Outputs["CacheS3Key"] = "cache-s3-key";
+    Outputs["CacheETag"] = "cache-etag";
+    Outputs["CacheMetadata"] = "cache-metadata";
+    // Dual-cache outputs
+    Outputs["CacheHitSource"] = "cache-hit-source";
+    Outputs["CacheSavedSources"] = "cache-saved-sources";
+    // Metrics outputs
+    Outputs["CacheRestoreDurationMs"] = "cache-restore-duration-ms";
+    Outputs["CacheSaveDurationMs"] = "cache-save-duration-ms";
+    Outputs["CacheTransferDurationMs"] = "cache-transfer-duration-ms";
+    Outputs["CacheBytes"] = "cache-bytes";
+    // Prune-only outputs
+    Outputs["PrunedCount"] = "pruned-count";
+    Outputs["PrunedBytes"] = "pruned-bytes";
+    Outputs["KeptCount"] = "kept-count";
+    // Inspect-only outputs
+    Outputs["WouldHit"] = "would-hit";
+    Outputs["WouldMatchKey"] = "would-match-key";
+    Outputs["WouldMatchObject"] = "would-match-object";
+    Outputs["CandidateCount"] = "candidate-count";
+    Outputs["Report"] = "report";
+})(Outputs || (Outputs = {}));
+var constants_State;
+(function (State) {
+    State["CachePrimaryKey"] = "CACHE_PRIMARY_KEY";
+    State["CacheMatchedKey"] = "CACHE_MATCHED_KEY";
+    State["CacheStorageProvider"] = "CACHE_STORAGE_PROVIDER";
+    State["CacheS3Key"] = "CACHE_S3_KEY";
+    State["CachePrefix"] = "CACHE_PREFIX";
+    State["CacheS3KeyPattern"] = "CACHE_S3_KEY_PATTERN";
+    State["CacheScopedToRepository"] = "CACHE_SCOPED_TO_REPOSITORY";
+    State["CacheScopedToRef"] = "CACHE_SCOPED_TO_REF";
+    State["CacheRetry"] = "CACHE_RETRY";
+    State["CacheRetryCount"] = "CACHE_RETRY_COUNT";
+    State["CacheReadOnly"] = "CACHE_READ_ONLY";
+    State["CacheCompression"] = "CACHE_COMPRESSION";
+    State["CacheStreaming"] = "CACHE_STREAMING";
+    State["CacheMetadata"] = "CACHE_METADATA";
+    State["CacheTags"] = "CACHE_TAGS";
+    // Dual-cache state
+    State["CacheDualCache"] = "CACHE_DUAL_CACHE";
+    State["CacheRestorePriority"] = "CACHE_RESTORE_PRIORITY";
+    State["CacheDualCacheStrategy"] = "CACHE_DUAL_CACHE_STRATEGY";
+    State["CacheDualCacheStrict"] = "CACHE_DUAL_CACHE_STRICT";
+    State["CacheS3ExactHit"] = "CACHE_S3_EXACT_HIT";
+    State["CacheGithubExactHit"] = "CACHE_GITHUB_EXACT_HIT";
+    State["CacheHitSource"] = "CACHE_HIT_SOURCE";
+    State["CacheJobSummary"] = "CACHE_JOB_SUMMARY";
+    State["CacheMetricsFile"] = "CACHE_METRICS_FILE";
+})(constants_State || (constants_State = {}));
+var Events;
+(function (Events) {
+    Events["Key"] = "GITHUB_EVENT_NAME";
+})(Events || (Events = {}));
+const constants_Defaults = {
+    DefaultRegion: 'us-east-1',
+    DefaultS3KeyPattern: '${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}',
+    DefaultArchiveFilenameZstd: 'cache.tar.zst',
+    DefaultArchiveFilenameGzip: 'cache.tar.gz',
+    DefaultRetryCount: 3,
+    // Transfer defaults follow actions/cache (8 concurrent downloads, 8 concurrent 64 MiB upload
+    // parts, fan-out capped at 32 and part size at 128 MiB), except the download block: actions/cache
+    // uses 4 MiB, but 8 MiB measured 1.2x to 2.6x faster on R2, S3 and GCS (docs/guide/performance.md).
+    DefaultDownloadConcurrency: 8,
+    MaxDownloadConcurrency: 32,
+    DefaultDownloadChunkSize: 8 * 1024 * 1024,
+    MinDownloadChunkSize: 1024 * 1024,
+    MaxDownloadChunkSize: 128 * 1024 * 1024,
+    DefaultUploadConcurrency: 8,
+    MaxUploadConcurrency: 32,
+    DefaultUploadChunkSize: 64 * 1024 * 1024,
+    /** S3, R2, B2 and GCS all reject multipart parts smaller than 5 MiB (except the last). */
+    MinUploadChunkSize: 5 * 1024 * 1024,
+    MaxUploadChunkSize: 128 * 1024 * 1024,
+    DefaultRestorePriority: 's3-first',
+    DefaultDualCacheStrategy: 'backfill',
+    /** Mixed into every cache version; bump it when the archive format changes incompatibly. */
+    VersionSalt: 'cloud-cache-1',
+};
+
+;// CONCATENATED MODULE: ./src/state.ts
+
+
+class state_StateProvider {
+    getState(key) {
+        return core.getState(key);
+    }
+    setState(key, value) {
+        core.saveState(key, value);
+    }
+    getCacheState() {
+        return this.getState(State.CacheMatchedKey);
+    }
+}
+class NullStateProvider {
+    state = new Map();
+    getState(key) {
+        return this.state.get(key) || '';
+    }
+    setState(key, value) {
+        this.state.set(key, value);
+    }
+    getCacheState() {
+        return this.getState(constants_State.CacheMatchedKey);
+    }
+}
+
+;// CONCATENATED MODULE: ./src/utils/inputUtils.ts
+
+
+function getInputAsArray(name, options) {
+    return getInput(name, options)
+        .split('\n')
+        .map((s) => s.trim())
+        .filter((x) => x !== '');
+}
+const TRUE_VALUES = ['true', 'True', 'TRUE'];
+const FALSE_VALUES = ['false', 'False', 'FALSE'];
+function getInputAsBool(name, defaultValue = false, options) {
+    const value = getInput(name, options).trim();
+    if (!value) {
+        return defaultValue;
+    }
+    if (TRUE_VALUES.includes(value)) {
+        return true;
+    }
+    if (FALSE_VALUES.includes(value)) {
+        return false;
+    }
+    core_warning(`Input "${name}" must be one of true, True, TRUE, false, False, FALSE; got "${value}". Using "${defaultValue}".`);
+    return defaultValue;
+}
+function getInputAsEnum(name, allowed, defaultValue) {
+    const value = getInput(name).trim();
+    if (!value) {
+        return defaultValue;
+    }
+    if (allowed.includes(value)) {
+        return value;
+    }
+    core_warning(`Input "${name}" must be one of ${allowed.join(', ')}; got "${value}". Using "${defaultValue}".`);
+    return defaultValue;
+}
+function getInputAsInt(name, defaultValue, options) {
+    const value = getInput(name, options);
+    if (!value) {
+        return defaultValue;
+    }
+    const parsed = parseInt(value, 10);
+    if (isNaN(parsed) || parsed < 0) {
+        return defaultValue;
+    }
+    return parsed;
+}
+function getInputWithEnv(inputName, envVarNames = [], camelCaseInputName) {
+    // Check primary input
+    let value = getInput(inputName);
+    if (value) {
+        return value;
+    }
+    // Check camelCase alias if provided
+    if (camelCaseInputName) {
+        value = getInput(camelCaseInputName);
+        if (value) {
+            return value;
+        }
+    }
+    // Check environment variables
+    for (const envVar of envVarNames) {
+        const envVal = process.env[envVar];
+        if (envVal !== undefined && envVal !== '') {
+            return envVal;
+        }
+    }
+    return '';
+}
+function inputUtils_isExactKeyMatch(primaryKey, matchedKey) {
+    if (!matchedKey) {
+        return false;
+    }
+    return primaryKey.trim().toLowerCase() === matchedKey.trim().toLowerCase();
+}
+function isValidEvent() {
+    const event = process.env[Events.Key];
+    // GitHub Actions events that are not tied to a ref (e.g. issues, discussion) might not be appropriate for caching
+    // actions/cache warns if event is not ref-based, but allows execution
+    return Boolean(event);
+}
+function inputUtils_formatSize(bytes) {
+    if (bytes === undefined || bytes === null || isNaN(bytes)) {
+        return '0 B';
+    }
+    if (bytes === 0)
+        return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const unitIndex = Math.min(i, units.length - 1);
+    const size = (bytes / Math.pow(1024, unitIndex)).toFixed(2);
+    return `${size} ${units[unitIndex]}`;
+}
+/**
+ * Reads an input that must be a positive integer, failing the step on anything else: a typo
+ * silently falling back to a default would hide a wrong-looking result rather than report it.
+ */
+function parsePositiveInt(raw, name) {
+    const trimmed = raw.trim();
+    if (!/^[0-9]+$/.test(trimmed) || Number(trimmed) <= 0) {
+        throw new Error(`Input "${name}" must be a positive integer; got "${raw}".`);
+    }
+    return Number(trimmed);
+}
+
+;// CONCATENATED MODULE: ./src/core/objectAttributes.ts
+
+/** User metadata keys starting with this are set by the action and never by the user. */
+const USER_METADATA_RESERVED_PREFIX = 'cloud-cache-';
+/** Object metadata key holding the archive's sha256, verified before extracting on restore. */
+const objectAttributes_SHA256_METADATA_KEY = 'cloud-cache-sha256';
+/** S3's limit on user metadata: the sum of every key and value length, in bytes. */
+const METADATA_LIMIT_BYTES = 2048;
+/** Length of a hex sha256 digest, reserved out of the metadata budget. */
+const SHA256_ENTRY_BYTES = objectAttributes_SHA256_METADATA_KEY.length + 64;
+const MAX_TAGS = 10;
+const METADATA_KEY_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
+const PRINTABLE_ASCII = /^[\x20-\x7E]*$/;
+const TAG_CHARS = /^[A-Za-z0-9 +\-=._:/@]*$/;
+function lines(raw) {
+    return raw
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== '');
+}
+function splitPair(line, inputName) {
+    const at = line.indexOf('=');
+    if (at === -1) {
+        throw new Error(`Invalid "${inputName}" line "${line}": expected key=value.`);
+    }
+    return [line.slice(0, at).trim(), line.slice(at + 1).trim()];
+}
+function metadataBytes(metadata) {
+    return Object.entries(metadata).reduce((sum, [key, value]) => sum + key.length + value.length, 0);
+}
+/**
+ * Parses the `metadata` input: one `key=value` per line, keys lower-cased as S3 does, values
+ * printable ASCII. Fails (so the step fails before any S3 call) on a reserved key or when the
+ * total, plus the sha256 entry the save adds, would exceed S3's limit.
+ */
+function parseMetadata(raw, inputName = 'metadata') {
+    const metadata = {};
+    for (const line of lines(raw)) {
+        const [rawKey, value] = splitPair(line, inputName);
+        const key = rawKey.toLowerCase();
+        if (!METADATA_KEY_PATTERN.test(key)) {
+            throw new Error(`Invalid "${inputName}" key "${rawKey}": use letters, digits, ".", "_" or "-", starting with a letter or digit.`);
+        }
+        if (key.startsWith(USER_METADATA_RESERVED_PREFIX)) {
+            throw new Error(`"${inputName}" key "${key}" is reserved (${USER_METADATA_RESERVED_PREFIX}* keys are set by the action).`);
+        }
+        if (!PRINTABLE_ASCII.test(value)) {
+            throw new Error(`Invalid "${inputName}" value for "${key}": only printable ASCII is allowed.`);
+        }
+        if (key in metadata) {
+            core_warning(`"${inputName}" sets "${key}" more than once; the last value wins.`);
+        }
+        metadata[key] = value;
+    }
+    const total = metadataBytes(metadata) + SHA256_ENTRY_BYTES;
+    if (total > METADATA_LIMIT_BYTES) {
+        throw new Error(`${inputName} is too large: ${total} bytes with the ${objectAttributes_SHA256_METADATA_KEY} entry; the S3 limit is ${METADATA_LIMIT_BYTES}.`);
+    }
+    return metadata;
+}
+/** Parses the `tags` input: up to 10 `key=value` lines with S3's tag character set. */
+function parseTags(raw, inputName = 'tags') {
+    const tags = [];
+    const seen = new Set();
+    for (const line of lines(raw)) {
+        const [key, value] = splitPair(line, inputName);
+        if (key === '' || !TAG_CHARS.test(key)) {
+            throw new Error(`Invalid "${inputName}" key "${key}": use letters, digits, spaces or + - = . _ : / @.`);
+        }
+        if (key.length > 128) {
+            throw new Error(`Invalid "${inputName}" key "${key}": at most 128 characters.`);
+        }
+        if (!TAG_CHARS.test(value)) {
+            throw new Error(`Invalid "${inputName}" value for "${key}": use letters, digits, spaces or + - = . _ : / @.`);
+        }
+        if (value.length > 256) {
+            throw new Error(`Invalid "${inputName}" value for "${key}": at most 256 characters.`);
+        }
+        if (seen.has(key)) {
+            throw new Error(`Duplicate "${inputName}" key "${key}".`);
+        }
+        seen.add(key);
+        tags.push({ Key: key, Value: value });
+    }
+    if (tags.length > MAX_TAGS) {
+        throw new Error(`"${inputName}" allows at most ${MAX_TAGS} tags; got ${tags.length}.`);
+    }
+    return tags;
+}
+/** The `Tagging` request header value (a URL-encoded query string), or undefined when empty. */
+function objectAttributes_encodeTagging(tags) {
+    if (tags.length === 0) {
+        return undefined;
+    }
+    return tags
+        .map((tag) => `${encodeURIComponent(tag.Key)}=${encodeURIComponent(tag.Value)}`)
+        .join('&');
+}
+/** User metadata as reported to workflows: everything except the action's own keys. */
+function stripReservedMetadata(metadata) {
+    const result = {};
+    for (const [key, value] of Object.entries(metadata ?? {})) {
+        if (!key.startsWith(USER_METADATA_RESERVED_PREFIX)) {
+            result[key] = value;
+        }
+    }
+    return result;
+}
+
+;// CONCATENATED MODULE: ./src/core/config.ts
+
+
+
+
+const RESTORE_PRIORITIES = ['s3-first', 'github-first'];
+const DUAL_CACHE_STRATEGIES = ['backfill', 'skip-on-hit'];
+function readDualCacheStrategy() {
+    if (getInput(Inputs.DualCacheStrategy).trim() === 'independent') {
+        core_warning('dual-cache-strategy "independent" was removed in v1.1; using "backfill", which now checks each tier before uploading.');
+        return 'backfill';
+    }
+    return getInputAsEnum(Inputs.DualCacheStrategy, DUAL_CACHE_STRATEGIES, 'backfill');
+}
+/**
+ * Reads an integer input within [min, max]; anything else warns and uses the default. The
+ * warning names `effective`, the value the default stands for, when the default is undefined.
+ */
+function readBoundedInt(name, defaultValue, min, max, effective = defaultValue) {
+    const raw = getInput(name).trim();
+    if (raw === '') {
+        return defaultValue;
+    }
+    const value = /^[0-9]+$/.test(raw) ? Number(raw) : Number.NaN;
+    if (Number.isNaN(value) || value < min || value > max) {
+        core_warning(`Input "${name}" must be an integer between ${min} and ${max}; got "${raw}". Using ${effective}.`);
+        return defaultValue;
+    }
+    return value;
+}
+/**
+ * Reads the action inputs. When `state` is given (the post step), values the restore step
+ * persisted win, so both steps compute the same object keys and warnings are not repeated.
+ */
+function readCacheConfig(state) {
+    const persisted = (key) => state?.getState(key) ?? '';
+    const bool = (key, read) => {
+        const value = persisted(key);
+        return value === '' ? read() : value === 'true';
+    };
+    const text = (key, read) => persisted(key) || read();
+    const json = (key, read) => {
+        const value = persisted(key);
+        return value === '' ? read() : JSON.parse(value);
+    };
+    const retryCountState = persisted(constants_State.CacheRetryCount);
+    return {
+        primaryKey: text(constants_State.CachePrimaryKey, () => getInput(Inputs.Key).trim()),
+        paths: getInputAsArray(Inputs.Path),
+        restoreKeys: getInputAsArray(Inputs.RestoreKeys),
+        lookupOnly: getInputAsBool(Inputs.LookupOnly),
+        failOnCacheMiss: getInputAsBool(Inputs.FailOnCacheMiss),
+        readOnly: bool(constants_State.CacheReadOnly, () => getInputAsBool(Inputs.ReadOnly)),
+        enableCrossOsArchive: getInputAsBool(Inputs.EnableCrossOsArchive),
+        uploadChunkSize: readBoundedInt(Inputs.UploadChunkSize, undefined, constants_Defaults.MinUploadChunkSize, constants_Defaults.MaxUploadChunkSize, constants_Defaults.DefaultUploadChunkSize),
+        uploadConcurrency: readBoundedInt(Inputs.UploadConcurrency, constants_Defaults.DefaultUploadConcurrency, 1, constants_Defaults.MaxUploadConcurrency),
+        s3KeyPattern: text(constants_State.CacheS3KeyPattern, () => getInput(Inputs.S3KeyPattern) || constants_Defaults.DefaultS3KeyPattern),
+        prefix: text(constants_State.CachePrefix, () => getInput(Inputs.Prefix)),
+        scopedToRepository: bool(constants_State.CacheScopedToRepository, () => getInputAsBool(Inputs.ScopedToRepository, true)),
+        scopedToRef: bool(constants_State.CacheScopedToRef, () => getInputAsBool(Inputs.ScopedToRef, true)),
+        retryEnabled: bool(constants_State.CacheRetry, () => getInputAsBool(Inputs.Retry, true)),
+        retryCount: retryCountState !== ''
+            ? Number(retryCountState)
+            : (getInputAsInt(Inputs.RetryCount) ?? constants_Defaults.DefaultRetryCount),
+        useFallback: getInputAsBool(Inputs.UseFallback),
+        dualCache: bool(constants_State.CacheDualCache, () => getInputAsBool(Inputs.DualCache)),
+        restorePriority: text(constants_State.CacheRestorePriority, () => getInputAsEnum(Inputs.RestorePriority, RESTORE_PRIORITIES, 's3-first')),
+        dualCacheStrategy: text(constants_State.CacheDualCacheStrategy, readDualCacheStrategy),
+        dualCacheStrict: bool(constants_State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
+        streaming: bool(constants_State.CacheStreaming, () => getInputAsBool(Inputs.Streaming)),
+        downloadConcurrency: readBoundedInt(Inputs.DownloadConcurrency, constants_Defaults.DefaultDownloadConcurrency, 1, constants_Defaults.MaxDownloadConcurrency),
+        downloadChunkSize: readBoundedInt(Inputs.DownloadChunkSize, constants_Defaults.DefaultDownloadChunkSize, constants_Defaults.MinDownloadChunkSize, constants_Defaults.MaxDownloadChunkSize),
+        jobSummary: bool(constants_State.CacheJobSummary, () => getInputAsBool(Inputs.JobSummary, true)),
+        metadata: json(constants_State.CacheMetadata, () => parseMetadata(getInput(Inputs.Metadata))),
+        tags: json(constants_State.CacheTags, () => parseTags(getInput(Inputs.Tags))),
+        explain: getInputAsBool(Inputs.Explain),
+        metricsFile: text(constants_State.CacheMetricsFile, () => getInput(Inputs.MetricsFile).trim()),
+    };
+}
+/** Saves what the post step must agree on with the restore step. */
+function persistCacheConfig(state, config) {
+    state.setState(constants_State.CachePrimaryKey, config.primaryKey);
+    state.setState(constants_State.CacheReadOnly, String(config.readOnly));
+    state.setState(constants_State.CacheS3KeyPattern, config.s3KeyPattern);
+    state.setState(constants_State.CachePrefix, config.prefix);
+    state.setState(constants_State.CacheScopedToRepository, String(config.scopedToRepository));
+    state.setState(constants_State.CacheScopedToRef, String(config.scopedToRef));
+    state.setState(constants_State.CacheRetry, String(config.retryEnabled));
+    state.setState(constants_State.CacheRetryCount, String(config.retryCount));
+    state.setState(constants_State.CacheDualCache, String(config.dualCache));
+    state.setState(constants_State.CacheRestorePriority, config.restorePriority);
+    state.setState(constants_State.CacheDualCacheStrategy, config.dualCacheStrategy);
+    state.setState(constants_State.CacheDualCacheStrict, String(config.dualCacheStrict));
+    state.setState(constants_State.CacheStreaming, String(config.streaming));
+    state.setState(constants_State.CacheJobSummary, String(config.jobSummary));
+    state.setState(constants_State.CacheMetadata, JSON.stringify(config.metadata));
+    state.setState(constants_State.CacheTags, JSON.stringify(config.tags));
+    state.setState(constants_State.CacheMetricsFile, config.metricsFile);
+}
+
+// EXTERNAL MODULE: external "node:fs"
+var external_node_fs_ = __nccwpck_require__(3024);
+;// CONCATENATED MODULE: external "node:stream/promises"
+const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:stream/promises");
+;// CONCATENATED MODULE: ./src/archive/compression.ts
+
+
+let cachedConfig = null;
+async function getCompressionConfig() {
+    if (cachedConfig) {
+        return cachedConfig;
+    }
+    try {
+        const zstdPath = await which('zstd', false);
+        if (zstdPath) {
+            core_debug(`zstd binary found at: ${zstdPath}`);
+            cachedConfig = {
+                method: 'zstd',
+                archiveFilename: 'cache.tar.zst',
+            };
+            return cachedConfig;
+        }
+    }
+    catch (err) {
+        core_debug(`zstd detection error: ${err}`);
+    }
+    core_debug('zstd binary not found; falling back to gzip');
+    cachedConfig = {
+        method: 'gzip',
+        archiveFilename: 'cache.tar.gz',
+    };
+    return cachedConfig;
+}
+function resetCompressionConfigCache() {
+    cachedConfig = null;
+}
+
+// EXTERNAL MODULE: external "node:crypto"
+var external_node_crypto_ = __nccwpck_require__(7598);
+// EXTERNAL MODULE: external "node:stream"
+var external_node_stream_ = __nccwpck_require__(7075);
+;// CONCATENATED MODULE: ./src/archive/checksum.ts
+
+
+
+/** Hashes a file on disk with sha256, streaming it chunk by chunk. */
+async function checksum_sha256File(filePath) {
+    const hash = external_node_crypto_.createHash('sha256');
+    for await (const chunk of external_node_fs_.createReadStream(filePath)) {
+        hash.update(chunk);
+    }
+    return hash.digest('hex');
+}
+/** A sha256 tap for streaming pipelines (used by Task 8): hashes data as it flows through. */
+function checksum_createSha256Tap() {
+    const hash = external_node_crypto_.createHash('sha256');
+    const stream = new external_node_stream_.Transform({
+        transform(chunk, _encoding, callback) {
+            hash.update(chunk);
+            callback(null, chunk);
+        },
+    });
+    return {
+        stream,
+        digest: () => hash.digest('hex'),
+    };
+}
+
+;// CONCATENATED MODULE: ./src/archive/tar.ts
+
+
+
+
+
+const ZSTD_COMPRESS = 'zstd -T0 --long=30';
+const ZSTD_DECOMPRESS = 'zstd -d --long=30';
+function systemLookup() {
+    return {
+        platform: process.platform,
+        env: process.env,
+        which: (tool) => which(tool, false),
+        exists: (file) => external_node_fs_.existsSync(file),
+    };
+}
+/** Picks tar the way actions/cache does: GNU tar where available, BSD tar otherwise. */
+async function tar_findTar(lookup = systemLookup()) {
+    if (lookup.platform === 'win32') {
+        const programFiles = lookup.env.ProgramFiles || 'C:\\Program Files';
+        const gnuTar = external_node_path_.win32.join(programFiles, 'Git', 'usr', 'bin', 'tar.exe');
+        if (lookup.exists(gnuTar)) {
+            return { path: gnuTar, flavor: 'gnu' };
+        }
+        const systemRoot = lookup.env.SystemRoot || 'C:\\Windows';
+        const systemTar = external_node_path_.win32.join(systemRoot, 'System32', 'tar.exe');
+        if (lookup.exists(systemTar)) {
+            return { path: systemTar, flavor: 'bsd' };
+        }
+        throw new Error(`tar was not found at ${gnuTar} or ${systemTar}`);
+    }
+    if (lookup.platform === 'darwin') {
+        const gtar = await lookup.which('gtar');
+        if (gtar) {
+            return { path: gtar, flavor: 'gnu' };
+        }
+    }
+    const tar = await lookup.which('tar');
+    if (!tar) {
+        throw new Error('tar was not found on PATH');
+    }
+    return { path: tar, flavor: lookup.platform === 'darwin' ? 'bsd' : 'gnu' };
+}
+const slashes = (value) => value.replace(/\\/g, '/');
+/**
+ * BSD tar on Windows cannot pipe through zstd reliably, so zstd runs as its own command. This
+ * also means that combination cannot stream (Task 8): callers that want to stream check this
+ * first and fall back to a temporary archive file when it is true.
+ */
+function tar_usesSeparateZstd(plan) {
+    return plan.tar.flavor === 'bsd' && plan.platform === 'win32' && plan.compression === 'zstd';
+}
+function platformFlags(plan) {
+    if (plan.tar.flavor !== 'gnu') {
+        return [];
+    }
+    if (plan.platform === 'win32') {
+        return ['--force-local'];
+    }
+    if (plan.platform === 'darwin') {
+        return ['--delay-directory-restore'];
+    }
+    return [];
+}
+function compressionFlags(method, program) {
+    return method === 'zstd' ? ['--use-compress-program', program] : ['-z'];
+}
+/** One entry per line; entries starting with '-' get './' so no tar treats them as options. */
+function tar_formatManifest(entries) {
+    return `${entries.map((entry) => (entry.startsWith('-') ? `./${entry}` : entry)).join('\n')}\n`;
+}
+function tar_buildCreateCommands(plan) {
+    const separateZstd = tar_usesSeparateZstd(plan);
+    const tarFile = separateZstd ? path.join(plan.tempDir, 'cache.tar') : plan.archivePath;
+    const args = [];
+    if (plan.tar.flavor === 'gnu') {
+        args.push('--posix');
+    }
+    args.push('-cf', slashes(tarFile), '-P', '-C', slashes(plan.workspace));
+    if (plan.tar.flavor === 'gnu') {
+        args.push('--verbatim-files-from');
+    }
+    args.push('-T', slashes(plan.manifestPath), ...platformFlags(plan));
+    if (!separateZstd) {
+        args.push(...compressionFlags(plan.compression, ZSTD_COMPRESS));
+        return [{ tool: plan.tar.path, args }];
+    }
+    return [
+        { tool: plan.tar.path, args },
+        {
+            tool: 'zstd',
+            args: ['-T0', '--long=30', '--force', '-o', slashes(plan.archivePath), slashes(tarFile)],
+        },
+    ];
+}
+function buildExtractCommands(plan) {
+    if (tar_usesSeparateZstd(plan)) {
+        const tarFile = external_node_path_.join(plan.tempDir, 'cache.tar');
+        return [
+            {
+                tool: 'zstd',
+                args: ['-d', '--long=30', '--force', '-o', slashes(tarFile), slashes(plan.archivePath)],
+            },
+            {
+                tool: plan.tar.path,
+                args: ['-xf', slashes(tarFile), '-P', '-C', slashes(plan.workspace)],
+            },
+        ];
+    }
+    return [
+        {
+            tool: plan.tar.path,
+            args: [
+                '-xf',
+                slashes(plan.archivePath),
+                '-P',
+                '-C',
+                slashes(plan.workspace),
+                ...platformFlags(plan),
+                ...compressionFlags(plan.compression, ZSTD_DECOMPRESS),
+            ],
+        },
+    ];
+}
+/**
+ * Options for every tar and zstd command. Like actions/cache, sets MSYS so Git's MSYS tar on
+ * Windows extracts symlinks as native links instead of copies; other platforms ignore it.
+ */
+function archiveExecOptions(env = process.env) {
+    const inherited = {};
+    for (const [name, value] of Object.entries(env)) {
+        if (value !== undefined) {
+            inherited[name] = value;
+        }
+    }
+    return { env: { ...inherited, MSYS: 'winsymlinks:nativestrict' } };
+}
+async function run(commands) {
+    const options = archiveExecOptions();
+    for (const command of commands) {
+        // exec parses its first argument as a command line, so quote paths that contain spaces.
+        await exec_exec(`"${command.tool}"`, command.args, options);
+    }
+}
+async function tar_createArchive(archivePath, entries, compression, workspace) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-tar-'));
+    try {
+        const manifestPath = path.join(tempDir, 'manifest.txt');
+        fs.writeFileSync(manifestPath, tar_formatManifest(entries));
+        fs.mkdirSync(path.dirname(archivePath), { recursive: true });
+        const tar = await tar_findTar();
+        await run(tar_buildCreateCommands({
+            tar,
+            platform: process.platform,
+            compression: compression.method,
+            archivePath,
+            workspace,
+            tempDir,
+            manifestPath,
+        }));
+    }
+    finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+async function extractArchive(archivePath, compression, workspace) {
+    const tempDir = external_node_fs_.mkdtempSync(external_node_path_.join(external_node_os_.tmpdir(), 'cloud-cache-tar-'));
+    try {
+        external_node_fs_.mkdirSync(workspace, { recursive: true });
+        const tar = await tar_findTar();
+        await run(buildExtractCommands({
+            tar,
+            platform: process.platform,
+            compression: compression.method,
+            archivePath,
+            workspace,
+            tempDir,
+        }));
+    }
+    finally {
+        external_node_fs_.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+function tar_getArchiveSize(archivePath) {
+    try {
+        return fs.statSync(archivePath).size;
+    }
+    catch {
+        return 0;
+    }
+}
+
+// EXTERNAL MODULE: external "node:child_process"
+var external_node_child_process_ = __nccwpck_require__(1421);
+;// CONCATENATED MODULE: ./src/archive/stream.ts
+
+
+
+/**
+ * Spawns one tar/zstd command for streaming (Task 8): no shell, so paths and arguments never
+ * need quoting, unlike the `exec.exec` command line `run()` uses for the file-based path.
+ */
+function stream_spawnArchiveCommand(command, stdio) {
+    return (0,external_node_child_process_.spawn)(command.tool, command.args, {
+        env: archiveExecOptions().env,
+        windowsHide: true,
+        stdio,
+    });
+}
+/**
+ * Resolves with the exit code once the process AND its stdio streams have fully closed (the
+ * 'close' event, not 'exit'), so by the time this resolves, everything the process wrote to
+ * stdout/stderr has already drained and is safe to read. Rejects when it could not be spawned at
+ * all (e.g. the tool is missing) or was terminated by a signal.
+ */
+function stream_waitForExit(child) {
+    return new Promise((resolve, reject) => {
+        child.once('error', reject);
+        child.once('close', (code, signal) => {
+            if (code !== null) {
+                resolve(code);
+                return;
+            }
+            reject(new Error(`${child.spawnfile ?? 'the archive command'} was terminated by signal ${signal}`));
+        });
+    });
+}
+/** Kills the process only if it has not already exited or been signalled, so this never throws. */
+function stream_killIfRunning(child) {
+    if (child.exitCode === null && child.signalCode === null) {
+        child.kill();
+    }
+}
+/**
+ * Kills the process if it is still running, then waits (bounded) for `settle` — typically the
+ * same promise `waitForExit` returned for this child, or a caller's own wrapper that depends on
+ * it (e.g. "tar closed and the pipe finished") — so a caller's cleanup (removing a temp
+ * directory, reading the final stderr tail) does not race stdio that is still draining or a
+ * process that still has open files. Pass the exact promise `waitForExit` returned rather than a
+ * fresh call: a fresh call would attach a listener for a one-shot event that may already have
+ * fired, and would then hang until the timeout. Kills first, so a process that never settles on
+ * its own (and anything only waiting on it) cannot hang this past `timeoutMs` either. Never
+ * rejects: giving up on an orderly wait after `timeoutMs` is not a caller-visible failure.
+ */
+async function stream_waitForExitAfterKill(child, settle, timeoutMs = 5000) {
+    stream_killIfRunning(child);
+    let timer;
+    const timeout = new Promise((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+    });
+    try {
+        await Promise.race([
+            settle.then(() => undefined, () => undefined),
+            timeout,
+        ]);
+    }
+    finally {
+        clearTimeout(timer);
+    }
+}
+/** Caps unterminated output so one very long (or binary) line cannot grow this without bound. */
+const MAX_PARTIAL_LENGTH = 8 * 1024;
+/** Collects up to `maxLines` of the most recent text a stream has produced, for error messages. */
+function stream_captureStderrTail(stream, maxLines = 20) {
+    const tail = [];
+    let partial = '';
+    const push = (line) => {
+        tail.push(line);
+        if (tail.length > maxLines) {
+            tail.shift();
+        }
+    };
+    // setEncoding decodes multi-byte UTF-8 characters correctly across chunk boundaries, which
+    // chunk.toString('utf8') per chunk cannot.
+    stream?.setEncoding('utf8');
+    stream?.on('data', (chunk) => {
+        partial += chunk;
+        const lines = partial.split(/\r?\n/);
+        partial = lines.pop() ?? '';
+        for (const line of lines) {
+            push(line);
+        }
+        if (partial.length > MAX_PARTIAL_LENGTH) {
+            partial = partial.slice(-MAX_PARTIAL_LENGTH);
+        }
+    });
+    return {
+        lines: () => (partial ? [...tail, partial].slice(-maxLines) : tail.slice(-maxLines)),
+    };
+}
+/** Counts bytes flowing through a streaming pipeline, standing in for a known archive size. */
+function stream_createByteCounter() {
+    let total = 0;
+    const stream = new Transform({
+        transform(chunk, _encoding, callback) {
+            total += chunk.length;
+            callback(null, chunk);
+        },
+    });
+    return { stream, count: () => total };
+}
+
+// EXTERNAL MODULE: ./node_modules/@aws-sdk/client-s3/dist-cjs/index.js
+var dist_cjs = __nccwpck_require__(3711);
+;// CONCATENATED MODULE: ./src/storage/providers.ts
+const KNOWN_PROVIDERS = [
+    'aws',
+    's3',
+    'r2',
+    'cloudflare',
+    'gcs',
+    'google',
+    'b2',
+    'backblaze',
+    'fastly',
+    'garage',
+    'seaweedfs',
+    'seaweed',
+    'minio',
+    'rustfs',
+];
+function isKnownProvider(name) {
+    return KNOWN_PROVIDERS.includes(name.toLowerCase().trim());
+}
+function detectProvider(endpointInput, explicitProvider) {
+    if (explicitProvider) {
+        const normalized = explicitProvider.toLowerCase().trim();
+        switch (normalized) {
+            case 'aws':
+            case 's3':
+                return 'aws';
+            case 'r2':
+            case 'cloudflare':
+                return 'r2';
+            case 'gcs':
+            case 'google':
+                return 'gcs';
+            case 'b2':
+            case 'backblaze':
+                return 'b2';
+            case 'fastly':
+                return 'fastly';
+            case 'garage':
+                return 'garage';
+            case 'seaweedfs':
+            case 'seaweed':
+                return 'seaweedfs';
+            case 'minio':
+                return 'minio';
+            case 'rustfs':
+                return 'rustfs';
+            default:
+                return 'generic-s3';
+        }
+    }
+    if (!endpointInput) {
+        return 'aws';
+    }
+    const ep = endpointInput.toLowerCase();
+    if (ep.includes('r2.cloudflarestorage.com')) {
+        return 'r2';
+    }
+    if (ep.includes('storage.googleapis.com')) {
+        return 'gcs';
+    }
+    if (ep.includes('backblazeb2.com')) {
+        return 'b2';
+    }
+    if (ep.includes('fastlystorage.com')) {
+        return 'fastly';
+    }
+    if (ep.includes('amazonaws.com')) {
+        return 'aws';
+    }
+    if (ep.includes(':3900')) {
+        return 'garage';
+    }
+    if (ep.includes(':8333')) {
+        return 'seaweedfs';
+    }
+    // RustFS serves S3 on the same default port as MinIO, so the port alone cannot tell them
+    // apart; both take the same defaults here. Set `provider: rustfs` to name it in the log.
+    if (ep.includes(':9000')) {
+        return 'minio';
+    }
+    return 'generic-s3';
+}
+function resolveProviderDefaults(endpointInput, regionInput, forcePathStyleInput, explicitProvider) {
+    const provider = detectProvider(endpointInput, explicitProvider);
+    let endpoint = endpointInput?.trim();
+    if (endpoint && !endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+        endpoint = `https://${endpoint}`;
+    }
+    let region = regionInput?.trim();
+    let forcePathStyle = forcePathStyleInput;
+    switch (provider) {
+        case 'aws':
+            region = region || process.env.AWS_REGION || 'us-east-1';
+            if (forcePathStyle === undefined)
+                forcePathStyle = false;
+            break;
+        case 'r2':
+            region = region || 'auto';
+            if (forcePathStyle === undefined)
+                forcePathStyle = false;
+            break;
+        case 'gcs':
+            endpoint = endpoint || 'https://storage.googleapis.com';
+            region = region || 'auto';
+            if (forcePathStyle === undefined)
+                forcePathStyle = true;
+            break;
+        case 'b2':
+            if (!region && endpoint) {
+                // e.g. https://s3.us-west-004.backblazeb2.com
+                const match = endpoint.match(/s3\.([a-z0-9-]+)\.backblazeb2\.com/i);
+                if (match && match[1]) {
+                    region = match[1];
+                }
+            }
+            region = region || 'us-east-1';
+            if (forcePathStyle === undefined)
+                forcePathStyle = false;
+            break;
+        case 'fastly':
+            region = region || 'us-east-1';
+            if (forcePathStyle === undefined)
+                forcePathStyle = true;
+            break;
+        case 'garage':
+            region = region || 'garage';
+            if (forcePathStyle === undefined)
+                forcePathStyle = true;
+            break;
+        case 'seaweedfs':
+            region = region || 'auto';
+            if (forcePathStyle === undefined)
+                forcePathStyle = true;
+            break;
+        case 'minio':
+        case 'rustfs':
+        case 'generic-s3':
+        default:
+            region = region || 'us-east-1';
+            if (forcePathStyle === undefined)
+                forcePathStyle = true;
+            break;
+    }
+    return {
+        provider,
+        endpoint,
+        region,
+        forcePathStyle: Boolean(forcePathStyle),
+    };
+}
+
+;// CONCATENATED MODULE: ./src/storage/client.ts
+
+
+
+
+
+function createStorageContext(options) {
+    const bucket = getInputWithEnv(Inputs.Bucket, ['AWS_S3_BUCKET', 'S3_BUCKET']);
+    if (!bucket) {
+        throw new Error('Bucket name is required. Please set "bucket" input or AWS_S3_BUCKET environment variable.');
+    }
+    const endpointInput = getInputWithEnv(Inputs.Endpoint, [
+        'AWS_ENDPOINT_URL',
+        'AWS_ENDPOINT_URL_S3',
+    ]);
+    const regionInput = getInputWithEnv(Inputs.Region, ['AWS_REGION', 'AWS_DEFAULT_REGION']);
+    const providerInput = getInput(Inputs.Provider);
+    if (providerInput && !isKnownProvider(providerInput)) {
+        core_warning(`Unknown provider "${providerInput}"; using generic S3-compatible defaults.`);
+    }
+    const forcePathStyleRaw = getInput(Inputs.ForcePathStyle);
+    const forcePathStyleInput = forcePathStyleRaw !== '' ? getInputAsBool(Inputs.ForcePathStyle) : undefined;
+    const providerConfig = resolveProviderDefaults(endpointInput, regionInput, forcePathStyleInput, providerInput);
+    const accessKey = getInputWithEnv(Inputs.AccessKey, ['AWS_ACCESS_KEY_ID'], Inputs.AccessKeyCamel);
+    const secretKey = getInputWithEnv(Inputs.SecretKey, ['AWS_SECRET_ACCESS_KEY'], Inputs.SecretKeyCamel);
+    const sessionToken = getInputWithEnv(Inputs.SessionToken, ['AWS_SESSION_TOKEN'], Inputs.SessionTokenCamel);
+    const clientConfig = {
+        region: providerConfig.region,
+        forcePathStyle: providerConfig.forcePathStyle,
+        maxAttempts: Math.max(1, options.maxAttempts),
+        retryMode: 'standard',
+    };
+    if (providerConfig.endpoint) {
+        clientConfig.endpoint = providerConfig.endpoint;
+    }
+    if (providerConfig.provider !== 'aws') {
+        // Several S3-compatible services reject the CRC checksums the SDK sends by default.
+        clientConfig.requestChecksumCalculation = 'WHEN_REQUIRED';
+        clientConfig.responseChecksumValidation = 'WHEN_REQUIRED';
+    }
+    if (accessKey && secretKey) {
+        clientConfig.credentials = {
+            accessKeyId: accessKey,
+            secretAccessKey: secretKey,
+            sessionToken: sessionToken || undefined,
+        };
+    }
+    else if (accessKey || secretKey) {
+        core_warning('Only one of access-key and secret-key is set; ignoring it and using the default AWS credential chain.');
+    }
+    core_debug(`Configuring S3 client for provider: ${providerConfig.provider} (endpoint: ${providerConfig.endpoint || 'AWS default'}, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle}, maxAttempts: ${clientConfig.maxAttempts})`);
+    return {
+        client: new dist_cjs.S3Client(clientConfig),
+        providerConfig,
+        bucket,
+    };
+}
+
+// EXTERNAL MODULE: ./node_modules/@aws-sdk/lib-storage/dist-cjs/index.js
+var lib_storage_dist_cjs = __nccwpck_require__(2358);
+;// CONCATENATED MODULE: external "stream/promises"
+const external_stream_promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("stream/promises");
+;// CONCATENATED MODULE: ./src/storage/operations.ts
+
+
+
+
+
+
+
+async function operations_checkObjectExists(client, bucket, key) {
+    try {
+        const cmd = new dist_cjs.HeadObjectCommand({
+            Bucket: bucket,
+            Key: key,
+        });
+        const response = await client.send(cmd);
+        return {
+            key,
+            size: response.ContentLength || 0,
+            lastModified: response.LastModified,
+            etag: response.ETag,
+        };
+    }
+    catch (err) {
+        const error = err;
+        if (error.name === 'NotFound' ||
+            error.name === 'NoSuchKey' ||
+            error.$metadata?.httpStatusCode === 404) {
+            return null;
+        }
+        throw err;
+    }
+}
+/** Lists every object under `prefix`, following continuation tokens, in the order S3 lists them. */
+async function listObjects(client, bucket, prefix, pageSize = 1000) {
+    const objects = [];
+    let continuationToken;
+    do {
+        const page = await client.send(new dist_cjs.ListObjectsV2Command({
+            Bucket: bucket,
+            Prefix: prefix,
+            MaxKeys: pageSize,
+            ContinuationToken: continuationToken,
+        }));
+        for (const object of page.Contents ?? []) {
+            if (object.Key) {
+                objects.push({
+                    key: object.Key,
+                    size: object.Size ?? 0,
+                    lastModified: object.LastModified,
+                    etag: object.ETag,
+                });
+            }
+        }
+        continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (continuationToken);
+    return objects;
+}
+/**
+ * The most recently modified object under `prefix` that `accept` allows. When timestamps tie,
+ * the first object listed wins.
+ */
+async function findNewestObject(client, bucket, prefix, accept, pageSize = 1000) {
+    let newest;
+    for (const object of await listObjects(client, bucket, prefix, pageSize)) {
+        if (!accept(object.key)) {
+            continue;
+        }
+        if (!newest || (object.lastModified?.getTime() ?? 0) > (newest.lastModified?.getTime() ?? 0)) {
+            newest = object;
+        }
+    }
+    return newest;
+}
+function resolvePartSize(transfer) {
+    const partSize = transfer?.partSize;
+    return partSize && partSize >= Defaults.MinUploadChunkSize
+        ? partSize
+        : Defaults.DefaultUploadChunkSize;
+}
+function resolveQueueSize(transfer) {
+    return Math.max(1, transfer?.concurrency ?? Defaults.DefaultUploadConcurrency);
+}
+/**
+ * Awaits `upload.done()`. When it rejects after a multipart upload was created, sends
+ * AbortMultipartUpload for it before rethrowing the original error, unchanged.
+ *
+ * lib-storage aborts the multipart upload itself only when a part fails, the upload is aborted,
+ * or the part count is wrong; not when CompleteMultipartUpload itself fails (a 412 from a lost
+ * conditional-write race, or a 501 from a server that rejects `If-None-Match`). Without this,
+ * every such failure leaves its uploaded parts behind, stored and billed until a lifecycle rule
+ * removes them. When lib-storage has already aborted the upload, this second abort fails with
+ * NoSuchUpload, which is expected and only logged at debug level.
+ */
+async function completeOrAbort(client, bucket, key, upload) {
+    try {
+        return await upload.done();
+    }
+    catch (err) {
+        const uploadId = upload.uploadId;
+        if (uploadId) {
+            try {
+                await client.send(new AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId }));
+                core.debug(`Aborted multipart upload ${uploadId} for s3://${bucket}/${key}.`);
+            }
+            catch (abortErr) {
+                const error = abortErr;
+                const message = `Could not abort multipart upload ${uploadId} for s3://${bucket}/${key}: ${error.message ?? String(abortErr)}`;
+                if (error.name === 'NoSuchUpload' || error.$metadata?.httpStatusCode === 404) {
+                    core.debug(`${message} (it was already aborted).`);
+                }
+                else {
+                    core.warning(`${message}. Its parts stay stored until a bucket lifecycle rule (AbortIncompleteMultipartUpload) removes them.`);
+                }
+            }
+        }
+        throw err;
+    }
+}
+async function downloadFile(client, bucket, key, destinationPath) {
+    // Ensure target folder exists
+    const dir = external_path_.dirname(destinationPath);
+    if (!external_fs_namespaceObject.existsSync(dir)) {
+        external_fs_namespaceObject.mkdirSync(dir, { recursive: true });
+    }
+    const cmd = new dist_cjs.GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+    });
+    const response = await client.send(cmd);
+    if (!response.Body) {
+        throw new Error(`Empty response body received from S3 for key: ${key}`);
+    }
+    const fileStream = external_fs_namespaceObject.createWriteStream(destinationPath);
+    await (0,external_stream_promises_namespaceObject.pipeline)(response.Body, fileStream);
+    return { metadata: response.Metadata };
+}
+/**
+ * Like `downloadFile`, but for streaming (Task 8): returns the response body stream itself
+ * instead of writing it to a file, so the caller can pipe it straight into a tar extract.
+ */
+async function getObjectStream(client, bucket, key) {
+    const response = await client.send(new dist_cjs.GetObjectCommand({ Bucket: bucket, Key: key }));
+    if (!response.Body) {
+        throw new Error(`Empty response body received from S3 for key: ${key}`);
+    }
+    return { body: response.Body, metadata: response.Metadata };
+}
+async function operations_uploadFile(client, bucket, key, sourcePath, transfer, options) {
+    const stats = fs.statSync(sourcePath);
+    const fileStream = fs.createReadStream(sourcePath);
+    const partSize = resolvePartSize(transfer);
+    const parallelUpload = new Upload({
+        client,
+        params: {
+            Bucket: bucket,
+            Key: key,
+            Body: fileStream,
+            Metadata: options?.metadata,
+            IfNoneMatch: options?.ifNoneMatch,
+            Tagging: options?.tagging,
+        },
+        partSize,
+        queueSize: resolveQueueSize(transfer),
+        leavePartsOnError: false,
+    });
+    parallelUpload.on('httpUploadProgress', (progress) => {
+        if (progress.total && progress.loaded) {
+            const pct = Math.round((progress.loaded / progress.total) * 100);
+            core.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
+        }
+    });
+    const result = await completeOrAbort(client, bucket, key, parallelUpload);
+    return {
+        size: stats.size,
+        etag: result.ETag,
+    };
+}
+/**
+ * Like `uploadFile`, but for streaming (Task 8): takes a readable stream body (tar's stdout,
+ * via a byte counter) instead of a file path, and returns the upload instead of awaiting it, so
+ * the caller can race it against the archiving process and abort it on failure. Its `done()`
+ * aborts a multipart upload that fails, the same way `uploadFile` does.
+ * Metadata is attached afterwards by `replaceObjectMetadata`: a streamed archive's sha256 cannot
+ * be known before it finishes.
+ */
+function operations_createStreamUpload(client, bucket, key, body, transfer, options) {
+    const upload = new Upload({
+        client,
+        params: {
+            Bucket: bucket,
+            Key: key,
+            Body: body,
+            IfNoneMatch: options?.ifNoneMatch,
+            Tagging: options?.tagging,
+        },
+        partSize: resolvePartSize(transfer),
+        queueSize: resolveQueueSize(transfer),
+        leavePartsOnError: false,
+    });
+    upload.on('httpUploadProgress', (progress) => {
+        if (progress.total && progress.loaded) {
+            const pct = Math.round((progress.loaded / progress.total) * 100);
+            core.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
+        }
+    });
+    return {
+        done: () => completeOrAbort(client, bucket, key, upload),
+        abort: () => upload.abort(),
+    };
+}
+/**
+ * Encodes a CopySource header value: the bucket and each key segment percent-encoded, joined by
+ * `/`. Per segment, so `#`, `?`, `&` and `%` in a key are escaped (encodeURI leaves them intact)
+ * while the separators stay real separators.
+ */
+function encodeCopySource(bucket, key) {
+    return [bucket, ...key.split('/')].map(encodeURIComponent).join('/');
+}
+/**
+ * Replaces an object's user metadata in place (S3 has no metadata-only update): a CopyObject
+ * onto itself with MetadataDirective REPLACE. Tags are kept. Used after a streamed save, whose
+ * sha256 is only known once the upload has finished. `ifMatch` (the ETag the save just wrote)
+ * makes the copy fail with 412 rather than stamp this metadata onto another writer's body.
+ * Only for objects up to 5 GiB: a larger one needs a multipart copy.
+ */
+async function operations_replaceObjectMetadata(client, bucket, key, metadata, ifMatch) {
+    const result = await client.send(new CopyObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        CopySource: encodeCopySource(bucket, key),
+        CopySourceIfMatch: ifMatch,
+        MetadataDirective: 'REPLACE',
+        TaggingDirective: 'COPY',
+        Metadata: metadata,
+    }));
+    return { etag: result.CopyObjectResult?.ETag };
+}
+
+;// CONCATENATED MODULE: ./src/storage/retry.ts
+
+const RETRYABLE_ERROR_NAMES = new Set([
+    'SlowDown',
+    'Throttling',
+    'ThrottlingException',
+    'RequestTimeout',
+    'RequestTimeoutException',
+    'TimeoutError',
+]);
+const RETRYABLE_NETWORK_CODES = new Set([
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'EPIPE',
+    'ECONNREFUSED',
+    'EAI_AGAIN',
+    'ERR_STREAM_PREMATURE_CLOSE',
+]);
+/** True for failures worth another attempt: 5xx, 429, throttling and dropped connections. */
+function isRetryableError(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    const status = error.$metadata?.httpStatusCode;
+    if (status !== undefined && (status >= 500 || status === 429)) {
+        return true;
+    }
+    if (error.$retryable) {
+        return true;
+    }
+    if (error.name !== undefined && RETRYABLE_ERROR_NAMES.has(error.name)) {
+        return true;
+    }
+    if (error.code !== undefined && RETRYABLE_NETWORK_CODES.has(error.code)) {
+        return true;
+    }
+    return /socket hang up|premature close/i.test(error.message ?? '');
+}
+/**
+ * True only for network and stream failures the SDK has not retried itself. Errors that passed
+ * through the SDK carry `$metadata` (an HTTP status or an attempt count) and already used every
+ * attempt the client allows, so retrying the whole stream again would multiply the requests.
+ */
+function retry_isRetryableStreamError(err) {
+    if (!isRetryableError(err)) {
+        return false;
+    }
+    const metadata = err
+        .$metadata;
+    return metadata?.httpStatusCode === undefined && metadata?.attempts === undefined;
+}
+async function retry_withRetry(operation, options) {
+    const retries = Math.max(0, options.retries);
+    const minTimeout = options.minTimeoutMs ?? 1000;
+    const factor = options.factor ?? 2;
+    const maxJitter = options.maxJitterMs ?? 500;
+    const shouldRetry = options.shouldRetry ?? isRetryableError;
+    const opName = options.operationName || 'S3 operation';
+    for (let attempt = 1;; attempt++) {
+        try {
+            return await operation();
+        }
+        catch (err) {
+            if (attempt > retries || !shouldRetry(err)) {
+                throw err;
+            }
+            const delay = Math.round(minTimeout * factor ** (attempt - 1) + Math.random() * maxJitter);
+            const message = err instanceof Error ? err.message : String(err);
+            info(`${opName}: attempt ${attempt}/${retries + 1} failed: ${message}. Retrying in ${delay}ms...`);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+    }
+}
+
+;// CONCATENATED MODULE: ./src/storage/parallelDownload.ts
+/**
+ * Ranged, parallel object downloads. A restore of a large archive is bound by the throughput of
+ * one HTTP connection when it uses a single GetObject; splitting the object into `Range` parts
+ * fetched concurrently uses the whole link a runner has. Each part is retried on its own, so a
+ * dropped connection costs one part, not the whole download.
+ */
+
+
+
+
+
+/**
+ * Thrown when the server answers a `Range` request with the whole object (HTTP 200) instead of
+ * the requested part (HTTP 206). Callers fall back to a single GetObject.
+ */
+class RangeNotSupportedError extends Error {
+    constructor(bucket, key) {
+        super(`s3://${bucket}/${key} does not support ranged GET requests`);
+        this.name = 'RangeNotSupportedError';
+    }
+}
+/**
+ * A part body that ended before its declared length. Reported with the same code Node uses for a
+ * stream that closed early, so the per-part retry treats it as the dropped connection it is.
+ */
+class ShortPartError extends Error {
+    code = 'ERR_STREAM_PREMATURE_CLOSE';
+    constructor(part, received) {
+        super(`Part ${part.index + 1} (bytes ${part.start}-${part.end}) ended after ${received} of ${part.end - part.start + 1} bytes`);
+        this.name = 'ShortPartError';
+    }
+}
+/** Splits `size` bytes into consecutive ranges of at most `partSize` bytes. */
+function planParts(size, partSize) {
+    if (!Number.isInteger(size) || size < 0) {
+        throw new Error(`Cannot plan parts for an object size of ${size}`);
+    }
+    if (!Number.isInteger(partSize) || partSize <= 0) {
+        throw new Error(`Part size must be a positive integer; got ${partSize}`);
+    }
+    const parts = [];
+    for (let start = 0; start < size; start += partSize) {
+        parts.push({ index: parts.length, start, end: Math.min(start + partSize, size) - 1 });
+    }
+    return parts;
+}
+/** True when an object of `size` bytes is worth more than one request. */
+function shouldDownloadInParts(size, partSize) {
+    return size > partSize;
+}
+/** Fetches one part and checks that the server honoured the range. */
+async function getObjectRange(client, bucket, key, part, signal) {
+    const response = await client.send(new dist_cjs.GetObjectCommand({ Bucket: bucket, Key: key, Range: `bytes=${part.start}-${part.end}` }), { abortSignal: signal });
+    const body = response.Body;
+    if (!body) {
+        throw new Error(`Empty response body received from S3 for key: ${key}`);
+    }
+    if (response.$metadata?.httpStatusCode === 200) {
+        body.destroy();
+        throw new RangeNotSupportedError(bucket, key);
+    }
+    const expected = part.end - part.start + 1;
+    if (response.ContentLength !== undefined && response.ContentLength !== expected) {
+        body.destroy();
+        throw new Error(`s3://${bucket}/${key} returned ${response.ContentLength} bytes for range ${part.start}-${part.end}; expected ${expected}`);
+    }
+    return { body, metadata: response.Metadata };
+}
+/**
+ * Feeds one part's body to `sink` chunk by chunk and confirms the byte count. The sink receives
+ * the offset of every chunk within the object, so a file writer can place it without buffering.
+ */
+async function consumePart(part, body, sink) {
+    const expected = part.end - part.start + 1;
+    let received = 0;
+    try {
+        for await (const chunk of body) {
+            const buffer = chunk;
+            if (received + buffer.length > expected) {
+                throw new Error(`Part ${part.index + 1} (bytes ${part.start}-${part.end}) delivered more than ${expected} bytes`);
+            }
+            await sink(buffer, part.start + received);
+            received += buffer.length;
+        }
+    }
+    finally {
+        body.destroy();
+    }
+    if (received !== expected) {
+        throw new ShortPartError(part, received);
+    }
+}
+/**
+ * Shared machinery: fetches parts with per-part retries and one abort signal for the whole
+ * download. The first part is requested up front, so an unsupported `Range` (or any other
+ * immediate failure) surfaces before the caller opens a file or spawns tar.
+ */
+class PartSource {
+    client;
+    bucket;
+    key;
+    options;
+    controller = new AbortController();
+    parts;
+    first;
+    constructor(client, bucket, key, options) {
+        this.client = client;
+        this.bucket = bucket;
+        this.key = key;
+        this.options = options;
+        this.parts = planParts(options.size, options.partSize);
+        if (this.parts.length === 0) {
+            throw new Error(`Nothing to download: s3://${bucket}/${key} is empty`);
+        }
+    }
+    /** Requests the first part and returns its metadata; the body is consumed later, in order. */
+    async open() {
+        this.first = this.fetch(this.parts[0]);
+        try {
+            return (await this.first).metadata;
+        }
+        catch (err) {
+            this.first = undefined;
+            throw err;
+        }
+    }
+    /** Downloads one part through `sink`, retrying the fetch and the consumption together. */
+    download(part, sink) {
+        return retry_withRetry(async () => {
+            let response;
+            if (part.index === 0 && this.first) {
+                response = await this.first;
+                this.first = undefined;
+            }
+            else {
+                response = await this.fetch(part);
+            }
+            await consumePart(part, response.body, sink);
+        }, {
+            retries: this.options.retries,
+            operationName: `Download of ${this.key} part ${part.index + 1}/${this.parts.length}`,
+            shouldRetry: (err) => !this.controller.signal.aborted && retry_isRetryableStreamError(err),
+        });
+    }
+    /** Stops every request still in flight; later fetches fail with an AbortError. */
+    abort() {
+        this.controller.abort();
+        this.first?.then((response) => response.body.destroy()).catch(() => undefined);
+    }
+    fetch(part) {
+        return getObjectRange(this.client, this.bucket, this.key, part, this.controller.signal);
+    }
+}
+/**
+ * Runs `fn` over `items` with at most `concurrency` calls in flight. The first failure calls
+ * `onFailure` at once (so the caller can abort the other calls), and is rethrown once every
+ * worker has stopped.
+ */
+async function forEachConcurrently(items, concurrency, fn, onFailure) {
+    let next = 0;
+    let failure;
+    let failed = false;
+    const worker = async () => {
+        while (next < items.length && !failed) {
+            const item = items[next++];
+            try {
+                await fn(item);
+            }
+            catch (err) {
+                if (!failed) {
+                    failed = true;
+                    failure = err;
+                    onFailure();
+                }
+            }
+        }
+    };
+    const workerCount = Math.max(1, Math.min(concurrency, items.length));
+    await Promise.all(Array.from({ length: workerCount }, worker));
+    if (failed) {
+        throw failure;
+    }
+}
+/**
+ * Downloads an object into `destinationPath` as concurrent ranged parts. Each part's chunks are
+ * written at their offset as they arrive, so the memory used is the SDK's socket buffers, not the
+ * parts. Throws `RangeNotSupportedError` before the file exists when the server ignores `Range`.
+ */
+async function downloadFileInParts(client, bucket, key, destinationPath, options) {
+    const source = new PartSource(client, bucket, key, options);
+    const metadata = await source.open();
+    external_node_fs_.mkdirSync(external_node_path_.dirname(destinationPath), { recursive: true });
+    const handle = await external_node_fs_.promises.open(destinationPath, 'w');
+    try {
+        await handle.truncate(options.size);
+        await forEachConcurrently(source.parts, options.concurrency, (part) => source.download(part, async (chunk, offset) => {
+            await handle.write(chunk, 0, chunk.length, offset);
+        }), () => source.abort());
+    }
+    finally {
+        await handle.close();
+    }
+    return { metadata, parts: source.parts.length };
+}
+/**
+ * Opens an object as one ordered stream assembled from concurrent ranged parts. Up to
+ * `concurrency` parts are fetched ahead of the reader and each is buffered whole until its turn,
+ * so memory is bounded by `concurrency * partSize`. Resolves once the first part has been
+ * requested, so an unsupported `Range` is reported before the caller starts a consumer.
+ */
+async function openObjectPartsStream(client, bucket, key, options) {
+    const source = new PartSource(client, bucket, key, options);
+    const metadata = await source.open();
+    const window = Math.max(1, options.concurrency);
+    const bufferPart = (part) => {
+        const chunks = [];
+        return source
+            .download(part, (chunk) => {
+            chunks.push(chunk);
+        })
+            .then(() => Buffer.concat(chunks));
+    };
+    async function* ordered() {
+        const pending = [];
+        let next = 0;
+        // Failures of prefetched parts must not become unhandled rejections while an earlier part
+        // is still streaming; the error resurfaces when that part's turn comes.
+        const start = () => {
+            const promise = bufferPart(source.parts[next++]);
+            promise.catch(() => undefined);
+            pending.push(promise);
+        };
+        try {
+            while (pending.length < window && next < source.parts.length) {
+                start();
+            }
+            while (pending.length > 0) {
+                const buffer = await pending.shift();
+                // A consumer that destroyed the stream while this part was in flight has already
+                // aborted the source; do not start another part for it.
+                if (next < source.parts.length && !source.controller.signal.aborted) {
+                    start();
+                }
+                yield buffer;
+            }
+        }
+        finally {
+            // Reached on completion, on an error and when the consumer destroys the stream early.
+            source.abort();
+        }
+    }
+    // Not Readable.from(): its destroy waits for the generator, which cannot be returned while it
+    // awaits a part, and the requests must stop as soon as the consumer destroys the stream.
+    const iterator = ordered();
+    let reading = false;
+    const body = new external_node_stream_.Readable({
+        read() {
+            if (reading) {
+                return;
+            }
+            reading = true;
+            iterator.next().then(({ value, done }) => {
+                reading = false;
+                if (this.destroyed) {
+                    return;
+                }
+                this.push(done ? null : value);
+            }, (err) => this.destroy(err));
+        },
+        destroy(err, callback) {
+            source.abort();
+            iterator.return(undefined).catch(() => undefined);
+            callback(err);
+        },
+    });
+    return { body, metadata, parts: source.parts.length };
+}
+
+;// CONCATENATED MODULE: ./src/core/keyTemplate.ts
+/**
+ * Turns `s3-key-pattern` into object keys, listing prefixes and key extraction.
+ *
+ * The pattern is split around its single `${key}`. The text before it (the base) and after it
+ * (the suffix) is resolved without the key, so a key is inserted verbatim and can be read back
+ * by slicing the base and suffix off an object key, even when the key contains `/` or `$`.
+ */
+const SPECIAL_VARIABLES = new Set([
+    'GITHUB_REPOSITORY',
+    'prefix',
+    'ref',
+    'key',
+    'version',
+    'archive_filename',
+]);
+const KEY_PLACEHOLDER = '${key}';
+const RESOLVED_PLACEHOLDERS = /\$\{(GITHUB_REPOSITORY|prefix|ref|version|archive_filename)\}/g;
+/** Wraps a wildcard's name in scope text; it never occurs in a pattern or an object key. */
+const MARK = '\u0000';
+/** Every encoded full Git ref (refs/...) starts with this, and a repository name cannot. */
+const ENCODED_REF_START = 'refs%2F';
+const ARCHIVE_FILENAME_PATTERN = '(?:cache\\.tar\\.zst|cache\\.tar\\.gz)';
+function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+/** Encodes a Git ref as one path segment: refs/heads/main becomes refs%2Fheads%2Fmain. */
+function encodeRef(ref) {
+    return encodeURIComponent(ref);
+}
+/** Forward slashes, no leading slash, and a trailing slash when non-empty. */
+function normalizePrefix(prefix) {
+    const trimmed = prefix.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+    return trimmed && !trimmed.endsWith('/') ? `${trimmed}/` : trimmed;
+}
+/**
+ * Expands `${env.NAME}`, `${NAME}` and `$NAME` in a single pass, so an expanded value is never
+ * expanded again. Unset braced names become empty; unset bare names stay literal. Special
+ * variables such as `${key}` are left for compileKeyTemplate. A bare special variable (`$ref`
+ * rather than `${ref}`) is never expanded from the environment either; its name is recorded in
+ * `bareSpecialUses` so the caller can warn about it.
+ */
+function expandEnvironment(text, env, bareSpecialUses) {
+    return text.replace(/\$\{([A-Za-z0-9_.-]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, braced, bare) => {
+        if (braced !== undefined) {
+            if (SPECIAL_VARIABLES.has(braced)) {
+                return match;
+            }
+            const name = braced.startsWith('env.') ? braced.slice(4) : braced;
+            return env[name] ?? '';
+        }
+        if (SPECIAL_VARIABLES.has(bare)) {
+            bareSpecialUses?.add(bare);
+            return match;
+        }
+        return env[bare] ?? match;
+    });
+}
+/**
+ * Removes `${name}`. When it is a whole path segment (a `/` or the start of the pattern before it,
+ * and a `/` or the end after it), one adjacent `/` goes with it: the one that follows it when
+ * present, otherwise the one that precedes it, so no leading, doubled or trailing slash is left
+ * behind. Inside a segment, such as `${ref}-${key}`, only the placeholder text is removed.
+ */
+function removePlaceholder(pattern, name) {
+    const placeholder = `\${${name}}`;
+    let result = pattern;
+    let from = 0;
+    for (let at = result.indexOf(placeholder, from); at !== -1; at = result.indexOf(placeholder, from)) {
+        const after = at + placeholder.length;
+        const wholeSegment = (at === 0 || result[at - 1] === '/') && (after === result.length || result[after] === '/');
+        if (wholeSegment && result[after] === '/') {
+            result = result.slice(0, at) + result.slice(after + 1);
+            from = at;
+        }
+        else if (wholeSegment && at > 0) {
+            result = result.slice(0, at - 1) + result.slice(after);
+            from = at - 1;
+        }
+        else {
+            result = result.slice(0, at) + result.slice(after);
+            from = at;
+        }
+    }
+    return result;
+}
+/** Splits resolved pattern text into literal text and the placeholders it still holds. */
+function tokenize(text) {
+    return text
+        .split(RESOLVED_PLACEHOLDERS)
+        .map((part, index) => index % 2 === 0
+        ? { kind: 'text', text: part }
+        : { kind: part });
+}
+function tidy(text) {
+    return text.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
+}
+function compileKeyTemplate(options) {
+    const keyCount = options.pattern.split(KEY_PLACEHOLDER).length - 1;
+    if (keyCount !== 1) {
+        throw new Error(`s3-key-pattern must contain \${key} exactly once (found ${keyCount}): "${options.pattern}"`);
+    }
+    const refScopedPattern = options.scopedToRepository
+        ? options.pattern
+        : removePlaceholder(options.pattern, 'GITHUB_REPOSITORY');
+    const pattern = options.scopedToRef
+        ? refScopedPattern
+        : removePlaceholder(refScopedPattern, 'ref');
+    const warnings = [];
+    if (options.scopedToRef && !pattern.includes('${ref}')) {
+        warnings.push('s3-key-pattern has no ${ref}, so caches are shared by every branch and pull request.');
+    }
+    if (!pattern.includes('${version}')) {
+        warnings.push('s3-key-pattern has no ${version}, so a cache saved with different paths or compression can be restored as a hit.');
+    }
+    const bareSpecialUses = new Set();
+    const expandAndSplit = (text, uses) => expandEnvironment(text, options.env ?? process.env, uses).split(KEY_PLACEHOLDER);
+    const [before, after] = expandAndSplit(pattern, bareSpecialUses);
+    for (const name of bareSpecialUses) {
+        warnings.push(`s3-key-pattern uses $${name}; write \${${name}} to use the ${name} placeholder.`);
+    }
+    const prefix = normalizePrefix(options.prefix);
+    const resolve = (text, value) => text.replace(RESOLVED_PLACEHOLDERS, (_match, name) => {
+        switch (name) {
+            case 'GITHUB_REPOSITORY':
+                return options.repository;
+            case 'prefix':
+                return prefix;
+            default:
+                return value(name);
+        }
+    });
+    const fill = (text, ref) => resolve(text, (name) => {
+        switch (name) {
+            case 'ref':
+                return encodeRef(ref);
+            case 'version':
+                return options.version;
+            default:
+                return options.archiveFilename;
+        }
+    });
+    const baseOf = (ref) => tidy(fill(before, ref)).replace(/^\//, '');
+    const suffixOf = (ref) => tidy(fill(after, ref));
+    // Human-readable form: only the parts that are fixed for the whole job are substituted.
+    const resolvedPattern = tidy(`${before}${KEY_PLACEHOLDER}${after}`.replace(RESOLVED_PLACEHOLDERS, (match, name) => {
+        switch (name) {
+            case 'GITHUB_REPOSITORY':
+                return options.repository;
+            case 'prefix':
+                return prefix;
+            default:
+                return match;
+        }
+    })).replace(/^\//, '');
+    // Scope text resolves like baseOf and suffixOf, but leaves the version, the archive filename
+    // and (for every ref) the ref as marked wildcards. None of them is ever empty in a saved object
+    // key, so tidy treats a mark exactly as it treats the value it stands for.
+    const scopeFill = (text, ref) => resolve(text, (name) => name === 'ref' && ref !== undefined ? encodeRef(ref) : `${MARK}${name}${MARK}`);
+    const scopeBaseOf = (ref) => tidy(scopeFill(before, ref)).replace(/^\//, '');
+    /**
+     * The unanchored regex source for the objects `base`/`suffix` text can produce for `ref`, with
+     * `groupSuffix` appended to capture group names so two sources can share one RegExp.
+     */
+    const scopeSource = (base, suffix, ref, groupSuffix) => {
+        const captured = new Set();
+        const toPattern = (text) => text
+            .split(MARK)
+            .map((part, index) => {
+            if (index % 2 === 0) {
+                return escapeRegExp(part);
+            }
+            if (part === 'archive_filename') {
+                return ARCHIVE_FILENAME_PATTERN;
+            }
+            const group = `${part}${groupSuffix}`;
+            if (captured.has(part)) {
+                return `\\k<${group}>`;
+            }
+            captured.add(part);
+            return part === 'ref'
+                ? `(?<${group}>${escapeRegExp(ENCODED_REF_START)}[^/]+)`
+                : `(?<${group}>[^/]+)`;
+        })
+            .join('');
+        const head = tidy(scopeFill(base, ref)).replace(/^\//, '');
+        return `${toPattern(head)}.+${toPattern(tidy(scopeFill(suffix, ref)))}`;
+    };
+    const tokens = [...tokenize(before), { kind: 'key' }, ...tokenize(after)];
+    const endsSegment = (token) => {
+        switch (token.kind) {
+            case 'text':
+                return /[/\\]/.test(token.text);
+            case 'prefix':
+                return prefix !== '';
+            case 'GITHUB_REPOSITORY':
+                return options.repository.includes('/');
+            default:
+                return false;
+        }
+    };
+    const varies = (token) => token.kind === 'key' || token.kind === 'version' || token.kind === 'ref';
+    /**
+     * True when the placeholder at `index` shares no path segment with a part of the object key
+     * that differs between objects (`${key}`, `${version}` or `${ref}`). Everything else has a
+     * fixed number of slashes, so the placeholder then sits at a fixed segment position that
+     * another repository's or ref's objects cannot shift. One exception keeps
+     * `${GITHUB_REPOSITORY}-${ref}` usable: an encoded full ref starts with `refs%2F` and a
+     * repository name cannot contain `%`, so a ref after the repository still ends it unambiguously
+     * when no `%` comes in between.
+     */
+    const isSegmentIsolated = (index) => {
+        for (let i = index - 1; i >= 0 && !endsSegment(tokens[i]); i--) {
+            if (varies(tokens[i])) {
+                return false;
+            }
+        }
+        let percentSeen = tokens[index].kind !== 'GITHUB_REPOSITORY' || options.repository.includes('%');
+        for (let i = index + 1; i < tokens.length && !endsSegment(tokens[i]); i++) {
+            const token = tokens[i];
+            if (token.kind === 'ref' && !percentSeen) {
+                return true;
+            }
+            if (varies(token)) {
+                return false;
+            }
+            if (token.kind === 'text' && token.text.includes('%')) {
+                percentSeen = true;
+            }
+        }
+        return true;
+    };
+    const indexesOf = (kind) => tokens.flatMap((token, index) => (token.kind === kind ? [index] : []));
+    /** One anchored matcher per ref, built like scopeMatcher's, reused across candidates. */
+    const versionMatchers = new Map();
+    const versionMatcher = (ref) => {
+        let matcher = versionMatchers.get(ref);
+        if (!matcher) {
+            matcher = new RegExp(`^${scopeSource(before, after, ref, '')}$`, 's');
+            versionMatchers.set(ref, matcher);
+        }
+        return matcher;
+    };
+    return {
+        warnings,
+        pattern: options.pattern,
+        resolvedPattern,
+        version: options.version,
+        objectKey: (ref, key) => `${baseOf(ref)}${key}${suffixOf(ref)}`,
+        searchPrefix: (ref, keyPrefix) => `${baseOf(ref)}${keyPrefix}`,
+        scopePrefix: (ref) => scopeBaseOf(ref).split(MARK)[0],
+        scopeMatcher: (ref) => {
+            let source = scopeSource(before, after, ref, '');
+            if (!options.scopedToRef && refScopedPattern.includes('${ref}')) {
+                // Keys saved with scoped-to-ref true can also fit the pattern without its ref (the ref
+                // segment reads as the start of the key); leave those to a ref-scoped prune.
+                const [scopedBefore, scopedAfter] = expandAndSplit(refScopedPattern);
+                source = `(?!${scopeSource(scopedBefore, scopedAfter, undefined, 'Scoped')}$)${source}`;
+            }
+            return new RegExp(`^${source}$`, 's');
+        },
+        scopeProblem: (ref) => {
+            if (indexesOf('archive_filename').length === 0) {
+                return 'no-archive-filename';
+            }
+            const repositories = indexesOf('GITHUB_REPOSITORY');
+            if (options.repository !== '' &&
+                repositories.length > 0 &&
+                !repositories.some((index) => isSegmentIsolated(index))) {
+                return 'repository-shares-segment';
+            }
+            if (ref === undefined) {
+                return undefined;
+            }
+            const refs = indexesOf('ref');
+            if (refs.length === 0) {
+                return 'no-ref';
+            }
+            return refs.some((index) => isSegmentIsolated(index)) ? undefined : 'ref-shares-segment';
+        },
+        extractKey: (ref, objectKey) => {
+            const head = baseOf(ref);
+            const tail = suffixOf(ref);
+            if (!objectKey.startsWith(head) ||
+                !objectKey.endsWith(tail) ||
+                objectKey.length <= head.length + tail.length) {
+                return undefined;
+            }
+            return objectKey.slice(head.length, objectKey.length - tail.length);
+        },
+        extractVersion: (ref, objectKey) => versionMatcher(ref).exec(objectKey)?.groups?.version,
+    };
+}
+
+;// CONCATENATED MODULE: ./src/core/outcomes.ts
+function outcomes_toError(err) {
+    return err instanceof Error ? err : new Error(String(err));
+}
+
+;// CONCATENATED MODULE: ./src/core/refs.ts
+
+function readDefaultBranch(eventPath, readFile) {
+    if (!eventPath) {
+        return undefined;
+    }
+    try {
+        const payload = JSON.parse(readFile(eventPath));
+        const branch = payload.repository?.default_branch;
+        return typeof branch === 'string' && branch ? branch : undefined;
+    }
+    catch {
+        return undefined;
+    }
+}
+/** Mirrors actions/cache: a run may restore from its own ref, its PR base, and the default branch. */
+function resolveRefCandidates(env = process.env, readFile = (file) => (0,external_node_fs_.readFileSync)(file, 'utf8')) {
+    const current = env.GITHUB_REF?.trim() || undefined;
+    if (!current) {
+        return { current: undefined, restore: [] };
+    }
+    const candidates = [current];
+    const baseRef = env.GITHUB_BASE_REF?.trim();
+    if (baseRef) {
+        candidates.push(`refs/heads/${baseRef}`);
+    }
+    const defaultBranch = readDefaultBranch(env.GITHUB_EVENT_PATH, readFile);
+    if (defaultBranch) {
+        candidates.push(`refs/heads/${defaultBranch}`);
+    }
+    return { current, restore: [...new Set(candidates)] };
+}
+
+;// CONCATENATED MODULE: ./src/core/version.ts
+
+
+const VERSION_LENGTH = 16;
+/**
+ * Identifies what a cache archive contains, as actions/cache does: the raw `path` patterns
+ * (not the files they match, so `~/.npm` is stable across machines), the compression
+ * method, and whether a Windows cache may be shared with other operating systems.
+ */
+function computeCacheVersion(paths, compression, enableCrossOsArchive, platform = process.platform) {
+    const components = paths.map((p) => p.trim());
+    components.push(compression);
+    if (platform === 'win32' && !enableCrossOsArchive) {
+        components.push('windows-only');
+    }
+    components.push(constants_Defaults.VersionSalt);
+    return (0,external_node_crypto_.createHash)('sha256').update(components.join('|')).digest('hex').slice(0, VERSION_LENGTH);
+}
+
+;// CONCATENATED MODULE: ./src/core/s3Tier.ts
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/** Logged when streaming is requested but the plan needs the BSD-tar-plus-zstd two-step on Windows. */
+const STREAMING_FALLBACK_MESSAGE = 'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.';
+/** True when a failed conditional upload means another job already won the write. */
+function isPreconditionFailed(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    return error.$metadata?.httpStatusCode === 412 || error.name === 'PreconditionFailed';
+}
+/**
+ * True when a conditional upload hit a 409 ConditionalRequestConflict: a concurrent write or
+ * delete of the same key (a parallel prune, for example) landed while it was in progress. Worth
+ * one more attempt with the same condition.
+ */
+function isConditionalConflict(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    return error.$metadata?.httpStatusCode === 409 || error.name === 'ConditionalRequestConflict';
+}
+const CONDITION_REJECTED_NAMES = new Set(['NotImplemented', 'NotSupported', 'InvalidArgument']);
+/** True when the server rejected the `If-None-Match` header itself, rather than the condition. */
+function isConditionUnsupported(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    if (error.$metadata?.httpStatusCode === 501) {
+        return true;
+    }
+    return (error.name !== undefined &&
+        CONDITION_REJECTED_NAMES.has(error.name) &&
+        /if-none-match/i.test(error.message ?? ''));
+}
+/** How the rejected tagging request reads in the warning: its error name, else its message. */
+function taggingRejection(err) {
+    if (typeof err !== 'object' || err === null) {
+        return String(err);
+    }
+    const error = err;
+    const name = error.name !== undefined && error.name !== 'Error' ? error.name : '';
+    return name || error.message || 'unknown error';
+}
+/**
+ * Records that this context's server cannot store object tags, so later uploads omit them, and
+ * warns about it once per run, naming what the server answered. Only called once a tag-free
+ * upload has actually succeeded.
+ */
+function noteObjectTaggingUnsupported(tier, bucket, err) {
+    if (!tier.storage.objectTaggingUnsupported) {
+        core.warning(`s3://${bucket} could not store object tags (${taggingRejection(err)}); saved without them.`);
+    }
+    tier.storage.objectTaggingUnsupported = true;
+}
+/** True when the server rejected the request because it does not implement object tagging. */
+function isTaggingUnsupported(err) {
+    if (typeof err !== 'object' || err === null) {
+        return false;
+    }
+    const error = err;
+    const message = (error.message ?? '').toLowerCase();
+    return (error.name === 'NotImplemented' ||
+        error.$metadata?.httpStatusCode === 501 ||
+        message.includes('tagging') ||
+        message.includes('x-amz-tagging'));
+}
+const COMPRESSION_CONFIGS = {
+    zstd: { method: 'zstd', archiveFilename: constants_Defaults.DefaultArchiveFilenameZstd },
+    gzip: { method: 'gzip', archiveFilename: constants_Defaults.DefaultArchiveFilenameGzip },
+};
+async function resolveCompression(persisted) {
+    if (persisted === 'zstd' || persisted === 'gzip') {
+        core_debug(`Using the ${persisted} compression the restore step used.`);
+        return COMPRESSION_CONFIGS[persisted];
+    }
+    return getCompressionConfig();
+}
+async function buildS3Tier(config, env = process.env, options = {}) {
+    const storage = createStorageContext({
+        maxAttempts: config.retryEnabled ? config.retryCount + 1 : 1,
+    });
+    const compression = await resolveCompression(options.compression);
+    const refs = resolveRefCandidates(env);
+    const scopedToRef = config.scopedToRef && refs.current !== undefined;
+    if (config.scopedToRef && !scopedToRef) {
+        core_debug('GITHUB_REF is not set, so caches are not scoped to a ref.');
+    }
+    const template = compileKeyTemplate({
+        pattern: config.s3KeyPattern,
+        repository: env.GITHUB_REPOSITORY ?? '',
+        prefix: config.prefix,
+        scopedToRepository: config.scopedToRepository,
+        scopedToRef,
+        version: computeCacheVersion(config.paths, compression.method, config.enableCrossOsArchive),
+        archiveFilename: compression.archiveFilename,
+        env,
+    });
+    for (const warning of template.warnings) {
+        core_warning(warning);
+    }
+    // A pattern without ${ref} gives every ref the same object keys; search them only once.
+    const usesRef = scopedToRef && template.objectKey('a', '') !== template.objectKey('b', '');
+    return {
+        storage,
+        template,
+        restoreRefs: usesRef ? refs.restore : [''],
+        saveRef: usesRef ? refs.current : '',
+        compression,
+        workspace: getWorkspace(env),
+        streamRetries: config.retryEnabled ? config.retryCount : 0,
+        streaming: config.streaming,
+        download: { concurrency: config.downloadConcurrency, partSize: config.downloadChunkSize },
+        upload: {
+            concurrency: config.uploadConcurrency,
+            partSize: config.uploadChunkSize ?? constants_Defaults.DefaultUploadChunkSize,
+        },
+        metadata: config.metadata,
+        tags: config.tags,
+    };
+}
+/**
+ * Every object under the listing prefix for `ref` and `keyPrefix`, accepted or not, in the order
+ * the server lists them. `findS3Match` takes the newest accepted one; the explain report shows
+ * them all, with the version each carries, to say why they were rejected.
+ */
+async function listCandidates(tier, ref, keyPrefix) {
+    const { client, bucket } = tier.storage;
+    const prefix = tier.template.searchPrefix(ref, keyPrefix);
+    core_debug(`Listing s3://${bucket}/${prefix}`);
+    const objects = await listObjects(client, bucket, prefix);
+    return objects.map((object) => {
+        const key = tier.template.extractKey(ref, object.key);
+        return {
+            objectKey: object.key,
+            key,
+            version: tier.template.extractVersion(ref, object.key),
+            size: object.size,
+            lastModified: object.lastModified,
+            accepted: key !== undefined,
+        };
+    });
+}
+/**
+ * For each ref in order: the exact key, then the primary key as a prefix, then each restore
+ * key as a prefix, taking the newest object for a prefix. Only objects the template accepts
+ * (same version and archive format) count. The first hit wins.
+ */
+async function findS3Match(tier, primaryKey, restoreKeys) {
+    const { client, bucket } = tier.storage;
+    for (const ref of tier.restoreRefs) {
+        const exactKey = tier.template.objectKey(ref, primaryKey);
+        core_debug(`Checking s3://${bucket}/${exactKey}`);
+        const exact = await operations_checkObjectExists(client, bucket, exactKey);
+        if (exact) {
+            return {
+                matchedKey: primaryKey,
+                exact: true,
+                objectKey: exactKey,
+                size: exact.size,
+                etag: exact.etag,
+                ref,
+            };
+        }
+        for (const keyPrefix of [primaryKey, ...restoreKeys]) {
+            const searchPrefix = tier.template.searchPrefix(ref, keyPrefix);
+            core_debug(`Listing s3://${bucket}/${searchPrefix}`);
+            const newest = await findNewestObject(client, bucket, searchPrefix, (objectKey) => tier.template.extractKey(ref, objectKey) !== undefined);
+            if (newest) {
+                const matchedKey = tier.template.extractKey(ref, newest.key);
+                return {
+                    matchedKey,
+                    exact: inputUtils_isExactKeyMatch(primaryKey, matchedKey),
+                    objectKey: newest.key,
+                    size: newest.size,
+                    etag: newest.etag,
+                    ref,
+                };
+            }
+        }
+    }
+    return undefined;
+}
+async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
+    let match;
+    try {
+        match = await findS3Match(tier, primaryKey, restoreKeys);
+    }
+    catch (err) {
+        return { kind: 'error', error: outcomes_toError(err) };
+    }
+    if (!match) {
+        return { kind: 'miss' };
+    }
+    const found = match;
+    const hit = {
+        kind: 'hit',
+        matchedKey: found.matchedKey,
+        exact: found.exact,
+        s3: { objectKey: found.objectKey, size: found.size, etag: found.etag },
+    };
+    if (lookupOnly) {
+        return hit;
+    }
+    const recordDownload = (parts, transferStart) => {
+        hit.transferMs = Date.now() - transferStart;
+        hit.downloadParts = parts;
+    };
+    const where = found.ref ? ` on ${found.ref}` : '';
+    info(`S3 cache ${found.exact ? 'hit' : 'partial hit'} for key "${found.matchedKey}"${where} (${inputUtils_formatSize(found.size)})`);
+    if (tier.streaming) {
+        try {
+            const tar = await tar_findTar();
+            if (!tar_usesSeparateZstd({
+                tar,
+                platform: process.platform,
+                compression: tier.compression.method,
+            })) {
+                return await restoreFromS3Streaming(tier, found, tar, hit);
+            }
+            info(STREAMING_FALLBACK_MESSAGE);
+        }
+        catch (err) {
+            return { kind: 'error', error: outcomes_toError(err) };
+        }
+    }
+    const tempDir = external_node_fs_.mkdtempSync(external_node_path_.join(external_node_os_.tmpdir(), 'cloud-cache-restore-'));
+    try {
+        const archivePath = external_node_path_.join(tempDir, tier.compression.archiveFilename);
+        const { bucket } = tier.storage;
+        const transferStart = Date.now();
+        const { metadata, parts } = await downloadArchive(tier, found, archivePath);
+        recordDownload(parts, transferStart);
+        const expectedSha256 = metadata?.[objectAttributes_SHA256_METADATA_KEY];
+        if (expectedSha256) {
+            const actualSha256 = await checksum_sha256File(archivePath);
+            if (actualSha256 !== expectedSha256) {
+                return {
+                    kind: 'error',
+                    error: new Error(`Integrity check failed for s3://${bucket}/${found.objectKey}: expected sha256 ${expectedSha256}, got ${actualSha256}`),
+                };
+            }
+        }
+        else {
+            core_debug(`s3://${bucket}/${found.objectKey} has no ${objectAttributes_SHA256_METADATA_KEY} metadata; skipping integrity check.`);
+        }
+        await extractArchive(archivePath, tier.compression, tier.workspace);
+        if (hit.kind === 'hit' && hit.s3) {
+            hit.s3.metadata = stripReservedMetadata(metadata);
+        }
+        return hit;
+    }
+    catch (err) {
+        return { kind: 'error', error: outcomes_toError(err) };
+    }
+    finally {
+        external_node_fs_.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+async function saveToS3(tier, primaryKey, patterns) {
+    const { client, bucket } = tier.storage;
+    const objectKey = tier.template.objectKey(tier.saveRef, primaryKey);
+    try {
+        const existing = await checkObjectExists(client, bucket, objectKey);
+        if (existing) {
+            core.info(`Cache already exists at s3://${bucket}/${objectKey}; not uploading it again.`);
+            return { kind: 'exists', s3: { objectKey, size: existing.size, etag: existing.etag } };
+        }
+        const { entries } = await resolveCachePaths(patterns, tier.workspace);
+        if (entries.length === 0) {
+            core.warning('Path Validation Error: Path(s) specified in the action for caching do(es) not exist, hence no cache is being saved.');
+            return { kind: 'skipped', reason: 'no paths matched' };
+        }
+        if (tier.streaming) {
+            const tar = await findTar();
+            if (!usesSeparateZstd({ tar, platform: process.platform, compression: tier.compression.method })) {
+                return await saveToS3Streaming(tier, objectKey, entries, tar, primaryKey);
+            }
+            core.info(STREAMING_FALLBACK_MESSAGE);
+        }
+        return await saveToS3FileMode(tier, objectKey, entries, primaryKey);
+    }
+    catch (err) {
+        return { kind: 'error', error: toError(err) };
+    }
+}
+/**
+ * File-based save: archives to a temporary file, uploads it, and handles the Task 4 conditional
+ * write outcomes (412 -> exists; a 409 conflict is retried once with the same condition; a
+ * condition the server rejects outright is retried once without it). Used both as the default
+ * (non-streaming) save path, and as the fallback a streaming save takes when its server rejects
+ * `If-None-Match` outright or its conditional write conflicts (see `saveToS3Streaming`) — reused
+ * rather than duplicated, so both paths agree on precondition handling. `retryConflict: false`
+ * is passed by that 409 fallback, which already is the one retry, and `omitTags: true` by the
+ * fallback a streamed tagged upload takes, which must not send tags again without latching the
+ * tier-wide flag first.
+ */
+async function saveToS3FileMode(tier, objectKey, entries, primaryKey, retryConflict = true, omitTags = false) {
+    const { client, bucket } = tier.storage;
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+    try {
+        const archivePath = path.join(tempDir, tier.compression.archiveFilename);
+        await createArchive(archivePath, entries, tier.compression, tier.workspace);
+        const archiveSize = getArchiveSize(archivePath);
+        core.info(`Uploading ${formatSize(archiveSize)} to s3://${bucket}/${objectKey}...`);
+        const checksum = await sha256File(archivePath);
+        const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: checksum };
+        const attemptUpload = (ifNoneMatch, tagging) => withRetry(() => uploadFile(client, bucket, objectKey, archivePath, tier.upload, {
+            metadata,
+            ifNoneMatch,
+            tagging,
+        }), {
+            retries: tier.streamRetries,
+            operationName: `Upload of ${objectKey}`,
+            shouldRetry: isRetryableStreamError,
+        });
+        const transferStart = Date.now();
+        const transferMs = () => Date.now() - transferStart;
+        const sendCondition = !tier.storage.conditionalWriteUnsupported;
+        const attemptConditionalUpload = async (tagging) => {
+            try {
+                return await attemptUpload('*', tagging);
+            }
+            catch (err) {
+                if (!retryConflict || !isConditionalConflict(err)) {
+                    throw err;
+                }
+                core.info(`A concurrent write to s3://${bucket}/${objectKey} conflicted with this upload; retrying it once.`);
+                return await attemptUpload('*', tagging);
+            }
+        };
+        const uploadWith = (tagging) => sendCondition ? attemptConditionalUpload(tagging) : attemptUpload(undefined, tagging);
+        // Omitted upfront once this context's server has told us it cannot store tags, and when the
+        // caller (a streaming save whose tagged upload was rejected) asks for a tag-free retry.
+        const tagging = tier.storage.objectTaggingUnsupported || omitTags ? undefined : encodeTagging(tier.tags);
+        try {
+            let uploaded;
+            try {
+                uploaded = await uploadWith(tagging);
+            }
+            catch (err) {
+                // Checked before the condition outcomes below, and only for a request that carried a
+                // `Tagging` header: a provider without tagging support answers the same 501 NotImplemented
+                // an unsupported `If-None-Match` does.
+                if (tagging === undefined || !isTaggingUnsupported(err)) {
+                    throw err;
+                }
+                // Only a retry that actually succeeds without tags proves the tags were the problem. When
+                // it fails too, the flag stays unset and the error goes to the 412/501/409 handling below,
+                // whose unconditional retry sends the tags again — the 501 was about `If-None-Match`.
+                uploaded = await uploadWith(undefined);
+                noteObjectTaggingUnsupported(tier, bucket, err);
+            }
+            core.info(`Cache saved to S3 with key: ${primaryKey}`);
+            return {
+                kind: 'saved',
+                s3: { objectKey, size: uploaded.size, etag: uploaded.etag },
+                transferMs: transferMs(),
+            };
+        }
+        catch (err) {
+            if (sendCondition && isPreconditionFailed(err)) {
+                core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
+                return {
+                    kind: 'exists',
+                    s3: { objectKey, size: archiveSize, etag: undefined },
+                    transferMs: transferMs(),
+                };
+            }
+            if (sendCondition && isConditionUnsupported(err)) {
+                core.debug(`s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`);
+                tier.storage.conditionalWriteUnsupported = true;
+                const uploaded = await attemptUpload(undefined, tier.storage.objectTaggingUnsupported ? undefined : tagging);
+                core.info(`Cache saved to S3 with key: ${primaryKey}`);
+                return {
+                    kind: 'saved',
+                    s3: { objectKey, size: uploaded.size, etag: uploaded.etag },
+                    transferMs: transferMs(),
+                };
+            }
+            throw err;
+        }
+    }
+    catch (err) {
+        return { kind: 'error', error: toError(err) };
+    }
+    finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+/** A single CopyObject can only copy up to 5 GiB; a larger object would need a multipart copy. */
+const MAX_COPY_SIZE = (/* unused pure expression or super */ null && (5 * 1024 * 1024 * 1024));
+/**
+ * Attaches a streamed save's sha256 and user metadata once the upload has finished, the only
+ * point at which the digest is known: a CopyObject onto the object itself. Best-effort — the
+ * cache is already saved, so a provider that cannot do this copy (or an archive too large for
+ * one) costs the metadata and warns once, never the save. Returns the ETag to report: the copy
+ * rewrites the object, so its ETag supersedes the upload's; on any failure the upload's stands.
+ */
+async function attachStreamedMetadata(tier, objectKey, metadata, size, uploadedEtag) {
+    const { client, bucket } = tier.storage;
+    if (size > MAX_COPY_SIZE) {
+        core.warning(`Saved s3://${bucket}/${objectKey} but could not attach metadata: archives over 5 GiB cannot be copied in one request.`);
+        return uploadedEtag;
+    }
+    try {
+        // `CopySourceIfMatch`, when the upload reported an ETag: a concurrent writer that replaced
+        // the object between the upload and this copy must not get this save's metadata stamped onto
+        // its body. The 412 that then comes back is handled like any other copy failure.
+        const copied = await withRetry(() => replaceObjectMetadata(client, bucket, objectKey, metadata, uploadedEtag), {
+            retries: tier.streamRetries,
+            operationName: `Metadata for ${objectKey}`,
+            shouldRetry: isRetryableStreamError,
+        });
+        return copied.etag ?? uploadedEtag;
+    }
+    catch (err) {
+        core.warning(`Saved s3://${bucket}/${objectKey} but could not attach metadata: ${toError(err).message}`);
+        return uploadedEtag;
+    }
+}
+/** Wraps a failure with tar's recent stderr output, for a clearer error message. */
+function withStderrTail(err, tail) {
+    const base = outcomes_toError(err);
+    if (tail.length === 0) {
+        return base;
+    }
+    return new Error(`${base.message}\n${tail.join('\n')}`, { cause: base });
+}
+/**
+ * Streaming save (Task 8): spawns tar writing the archive to stdout and pipes it, through a
+ * sha256 tap and a byte counter (there is no file to hash or stat for the size), into an S3
+ * multipart upload. The sha256 and the user metadata are attached afterwards, best-effort, by a
+ * CopyObject onto the saved object. Tar and
+ * the upload run concurrently, but the upload body is only ever told the archive is complete
+ * (`counter.stream.end()`) once tar has actually closed with exit code 0; any other outcome —
+ * a non-zero exit, a signal, or the pipe itself breaking — destroys the body with an error
+ * first, so lib-storage can never send the final PutObject/CompleteMultipartUpload for a
+ * truncated archive. `If-None-Match` would otherwise keep such a bad object forever.
+ */
+async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey) {
+    const { client, bucket } = tier.storage;
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
+    let child;
+    let tarClose;
+    // Set once the inner catch below has killed tar and waited for it, so the outer catch (which
+    // its rethrow also reaches) does not wait a second time.
+    let tarReaped = false;
+    try {
+        const manifestPath = path.join(tempDir, 'manifest.txt');
+        fs.writeFileSync(manifestPath, formatManifest(entries));
+        const [command] = buildCreateCommands({
+            tar,
+            platform: process.platform,
+            compression: tier.compression.method,
+            archivePath: '-',
+            workspace: tier.workspace,
+            tempDir,
+            manifestPath,
+        });
+        child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
+        const stderrTail = captureStderrTail(child.stderr);
+        tarClose = waitForExit(child);
+        const counter = createByteCounter();
+        // Hashes the archive as it streams past, so the sha256 a restore verifies is known once the
+        // upload finishes (there is no file to hash afterwards).
+        const tap = createSha256Tap();
+        // A stream this code may `destroy(err)` itself (below) needs a permanent error listener:
+        // pipeline's own listener is only attached while it is in flight, and is gone by the time
+        // finalizeBody calls destroy() after pipeline has already settled.
+        counter.stream.on('error', () => undefined);
+        // `end: false`: tar's stdout reaching EOF must never by itself end the upload body — only a
+        // confirmed clean exit (below) may do that.
+        // The tap goes first so `end: false` — which `pipeline` applies to the last stream only —
+        // still governs the upload body alone: the tap is ended by tar's stdout reaching EOF (which
+        // is what finalizes its digest), while `counter.stream` stays under the explicit end below.
+        const pipePromise = pipeline(child.stdout, tap.stream, counter.stream, {
+            end: false,
+        });
+        // Captured once and reused (not re-invoked) so every branch below can await the same
+        // settlement, whichever of upload.done()/finalizeBody() the outer Promise.all resolved on.
+        const finalized = (async () => {
+            let code;
+            try {
+                [, code] = await Promise.all([pipePromise, tarClose]);
+            }
+            catch (err) {
+                counter.stream.destroy(toError(err));
+                throw err;
+            }
+            if (code !== 0) {
+                const failure = new Error(`tar exited with code ${code}`);
+                counter.stream.destroy(failure);
+                throw failure;
+            }
+            counter.stream.end();
+        })();
+        // Keeps `finalized` "handled" from Node's perspective even if nothing below ever awaits it
+        // (a synchronous throw between here and the inner try, e.g. from createStreamUpload, would
+        // otherwise leave its eventual rejection unhandled, which is fatal on Node 24). The `finalized`
+        // binding itself is untouched, so the real await below still observes its outcome.
+        finalized.catch(() => undefined);
+        const sendCondition = !tier.storage.conditionalWriteUnsupported;
+        const transferStart = Date.now();
+        core.info(`Streaming upload to s3://${bucket}/${objectKey}...`);
+        const tagging = tier.storage.objectTaggingUnsupported ? undefined : encodeTagging(tier.tags);
+        const upload = createStreamUpload(client, bucket, objectKey, counter.stream, tier.upload, {
+            ifNoneMatch: sendCondition ? '*' : undefined,
+            tagging,
+        });
+        // Captured once so the failure path below can wait for it to settle.
+        const uploadDone = upload.done();
+        try {
+            const [uploaded] = await Promise.all([uploadDone, finalized]);
+            core.info(`Cache saved to S3 with key: ${primaryKey}`);
+            const size = counter.count();
+            const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: tap.digest() };
+            const transferMs = Date.now() - transferStart;
+            const etag = await attachStreamedMetadata(tier, objectKey, metadata, size, uploaded.ETag);
+            return { kind: 'saved', s3: { objectKey, size, etag }, transferMs };
+        }
+        catch (err) {
+            // Fail the body first. When the upload stopped reading it, tar's stdout is paused with data
+            // still buffered, so it never closes and tar's close never fires; destroying the body makes
+            // pipeline destroy that stdout too. (When tar failed first, finalized already did this.)
+            counter.stream.destroy(toError(err));
+            // Kill tar before any network wait below, so a hung tar never outlives a slow abort request.
+            killIfRunning(child);
+            // When tar failed first, the upload may still be running: stop it, then wait for done()
+            // to settle, which is where a multipart upload it created gets aborted (see
+            // createStreamUpload). abort() makes done() reject promptly, so this wait is short; when
+            // done() already rejected, it has already sent the abort and this does nothing.
+            await upload.abort().catch(() => undefined);
+            await uploadDone.catch(() => undefined);
+            // Kill tar again (a no-op when it has exited), then wait, bounded, for it to close,
+            // so no failure mode can block this step indefinitely. Wait on tar's own close, not on
+            // finalized: once the pipe has failed, finalized rejects while tar may still be alive,
+            // and the temp directory must not be removed under a live tar. Only after this do we read
+            // the byte count or the final stderr tail below.
+            await waitForExitAfterKill(child, tarClose);
+            tarReaped = true;
+            // Before the condition outcomes below, and only for a request that carried a `Tagging`
+            // header: a provider without tagging support answers the same 501 an unsupported
+            // `If-None-Match` does. A streamed body cannot be replayed, so the retry without tags is a
+            // file-mode save, which omits them once the flag below is set.
+            if (tagging !== undefined && isTaggingUnsupported(err)) {
+                const outcome = await saveToS3FileMode(tier, objectKey, entries, primaryKey, true, true);
+                // Only a save that actually succeeded without tags proves the tags were the problem; the
+                // same 501 also means an unsupported `If-None-Match`, which that save handles itself.
+                if (outcome.kind === 'saved') {
+                    noteObjectTaggingUnsupported(tier, bucket, err);
+                }
+                return outcome;
+            }
+            if (sendCondition && isPreconditionFailed(err)) {
+                core.info(`Another job saved s3://${bucket}/${objectKey} first; keeping its cache.`);
+                return {
+                    kind: 'exists',
+                    s3: { objectKey, size: counter.count(), etag: undefined },
+                    transferMs: Date.now() - transferStart,
+                };
+            }
+            if (sendCondition && isConditionUnsupported(err)) {
+                core.debug(`s3://${bucket} rejected the If-None-Match condition; retrying the upload of ${objectKey} without it.`);
+                tier.storage.conditionalWriteUnsupported = true;
+                return await saveToS3FileMode(tier, objectKey, entries, primaryKey);
+            }
+            if (sendCondition && isConditionalConflict(err)) {
+                // A streamed body cannot be replayed, so the one retry is a file-mode save, which keeps
+                // the condition.
+                core.info(`A concurrent write to s3://${bucket}/${objectKey} conflicted with this upload; retrying it once from a temporary archive file.`);
+                return await saveToS3FileMode(tier, objectKey, entries, primaryKey, false);
+            }
+            throw withStderrTail(err, stderrTail.lines());
+        }
+    }
+    catch (err) {
+        // Reached by the inner catch's rethrow, which has already killed tar and waited for it, and
+        // by a failure before the inner try took charge of tar (createStreamUpload throwing, for
+        // example). Only the latter still has tar to stop: destroy its stdout, which nothing may be
+        // reading, so its close can fire, then kill it and wait, bounded, before removing tempDir.
+        if (child && !tarReaped) {
+            child.stdout?.destroy();
+            if (tarClose) {
+                await waitForExitAfterKill(child, tarClose);
+            }
+            else {
+                killIfRunning(child);
+            }
+        }
+        return { kind: 'error', error: toError(err) };
+    }
+    finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+/** Part settings for one object, or undefined when it should be fetched in a single request. */
+function partPlan(tier, found) {
+    const { concurrency, partSize } = tier.download;
+    if (concurrency <= 1 || !shouldDownloadInParts(found.size, partSize)) {
+        return undefined;
+    }
+    const parts = Math.ceil(found.size / partSize);
+    info(`Downloading ${inputUtils_formatSize(found.size)} in ${parts} parts of ${inputUtils_formatSize(partSize)}, ${Math.min(concurrency, parts)} at a time`);
+    return { size: found.size, partSize, concurrency, retries: tier.streamRetries };
+}
+/** Logged once when a provider answers a ranged GET with the whole object. */
+function logRangeFallback(tier, found) {
+    info(`s3://${tier.storage.bucket}/${found.objectKey} does not support ranged GET requests; downloading it in one request.`);
+}
+/**
+ * Downloads the archive to `archivePath`: in concurrent ranged parts when the object is large
+ * enough and the settings allow, otherwise in one request retried as a whole. A provider that
+ * ignores `Range` gets the single request, which is what it would have served anyway.
+ */
+async function downloadArchive(tier, found, archivePath) {
+    const { client, bucket } = tier.storage;
+    const plan = partPlan(tier, found);
+    if (plan) {
+        try {
+            return await downloadFileInParts(client, bucket, found.objectKey, archivePath, plan);
+        }
+        catch (err) {
+            if (!(err instanceof RangeNotSupportedError)) {
+                throw err;
+            }
+            logRangeFallback(tier, found);
+        }
+    }
+    const { metadata } = await retry_withRetry(() => downloadFile(client, bucket, found.objectKey, archivePath), {
+        retries: tier.streamRetries,
+        operationName: `Download of ${found.objectKey}`,
+        shouldRetry: retry_isRetryableStreamError,
+    });
+    return { metadata, parts: 1 };
+}
+/** The streaming counterpart of `downloadArchive`: the archive bytes as one ordered stream. */
+async function openArchiveStream(tier, found) {
+    const { client, bucket } = tier.storage;
+    const plan = partPlan(tier, found);
+    if (plan) {
+        try {
+            return await openObjectPartsStream(client, bucket, found.objectKey, plan);
+        }
+        catch (err) {
+            if (!(err instanceof RangeNotSupportedError)) {
+                throw err;
+            }
+            logRangeFallback(tier, found);
+        }
+    }
+    const stream = await getObjectStream(client, bucket, found.objectKey);
+    return { body: stream.body, metadata: stream.metadata, parts: 1 };
+}
+/**
+ * Streaming restore (Task 8): pipes the GetObject body through the sha256 tap into a spawned
+ * tar extract reading from stdin, so nothing touches disk except the extracted files themselves.
+ */
+async function restoreFromS3Streaming(tier, found, tar, hit) {
+    const { bucket } = tier.storage;
+    let body;
+    let child;
+    let tarClose;
+    // Set once the inner catch below has killed tar and waited for it, so the outer catch (which
+    // its rethrow also reaches) does not wait a second time.
+    let tarReaped = false;
+    const transferStart = Date.now();
+    try {
+        const stream = await openArchiveStream(tier, found);
+        body = stream.body;
+        const { metadata } = stream;
+        external_node_fs_.mkdirSync(tier.workspace, { recursive: true });
+        const [command] = buildExtractCommands({
+            tar,
+            platform: process.platform,
+            compression: tier.compression.method,
+            archivePath: '-',
+            workspace: tier.workspace,
+            tempDir: external_node_os_.tmpdir(),
+        });
+        child = stream_spawnArchiveCommand(command, ['pipe', 'ignore', 'pipe']);
+        const stderrTail = stream_captureStderrTail(child.stderr);
+        tarClose = stream_waitForExit(child);
+        // Keeps `tarClose` "handled" from Node's perspective if a synchronous throw below (from
+        // createSha256Tap or the pipeline() call itself) reaches the outer catch before the
+        // Promise.all below ever attaches its own handler to it.
+        tarClose.catch(() => undefined);
+        const tap = checksum_createSha256Tap();
+        const pipePromise = (0,promises_namespaceObject.pipeline)(body, tap.stream, child.stdin);
+        try {
+            const [, code] = await Promise.all([pipePromise, tarClose]);
+            if (code !== 0) {
+                throw new Error(`tar exited with code ${code}`);
+            }
+            if (hit.kind === 'hit') {
+                hit.transferMs = Date.now() - transferStart;
+                hit.downloadParts = stream.parts;
+            }
+        }
+        catch (err) {
+            // tar's stdout is ignored and its stderr is always being read, so a killed tar closes
+            // promptly (unlike the save side, nothing here can hold its close back): wait for that
+            // before reading the final stderr tail.
+            await stream_waitForExitAfterKill(child, tarClose);
+            tarReaped = true;
+            throw withStderrTail(err, stderrTail.lines());
+        }
+        const expectedSha256 = metadata?.[objectAttributes_SHA256_METADATA_KEY];
+        if (expectedSha256) {
+            const actualSha256 = tap.digest();
+            if (actualSha256 !== expectedSha256) {
+                return {
+                    kind: 'error',
+                    error: new Error(`Integrity check failed for s3://${bucket}/${found.objectKey}: expected sha256 ${expectedSha256}, got ${actualSha256}; files may already have been extracted`),
+                };
+            }
+        }
+        else {
+            core_debug(`s3://${bucket}/${found.objectKey} has no ${objectAttributes_SHA256_METADATA_KEY} metadata; skipping integrity check.`);
+        }
+        if (hit.kind === 'hit' && hit.s3) {
+            hit.s3.metadata = stripReservedMetadata(metadata);
+        }
+        return hit;
+    }
+    catch (err) {
+        // Reached by the inner catch's rethrow (a failed download, pipe or tar, with tar already
+        // killed and waited for there), and by any failure before the inner try took charge: the
+        // GetObject request failing, or a throw before or right after spawning tar, before the
+        // pipeline started. In the latter case stop tar here: release its stdin, kill it and wait,
+        // bounded, for it to close. Either way release the GetObject body, so its connection is
+        // never left dangling. The workspace may already hold partly extracted files.
+        if (child && !tarReaped) {
+            child.stdin?.destroy();
+            if (tarClose) {
+                await stream_waitForExitAfterKill(child, tarClose);
+            }
+            else {
+                stream_killIfRunning(child);
+            }
+        }
+        body?.destroy();
+        return { kind: 'error', error: outcomes_toError(err) };
+    }
+}
+
+;// CONCATENATED MODULE: ./src/core/summary.ts
+
+
+
+function formatDuration(durationMs) {
+    return `${(durationMs / 1000).toFixed(2)} s`;
+}
+function formatOptionalSize(size) {
+    return size === undefined ? '—' : inputUtils_formatSize(size);
+}
+/**
+ * core.summary writes the text it is given into the HTML as is, so a key containing `<` or `&`
+ * would break the markup. Every table cell and every `<pre>` line built from user data — here
+ * and in the explain report's summary section — goes through this.
+ */
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+/** Only write when the job-summary input is on and GitHub gave us a summary file to write to. */
+function canWrite(jobSummary) {
+    return jobSummary && Boolean(process.env.GITHUB_STEP_SUMMARY);
+}
+/** A write failure (missing/unwritable summary file) is logged at debug level and never thrown. */
+async function flush() {
+    try {
+        await summary.write();
+    }
+    catch (err) {
+        core_debug(`Failed to write the job summary: ${outcomes_toError(err).message}`);
+        summary.emptyBuffer();
+    }
+}
+async function writeRestoreSummary(data) {
+    if (!canWrite(data.jobSummary)) {
+        return;
+    }
+    summary.addHeading('Cloud cache restore').addTable([
+        [
+            { data: 'Primary key', header: true },
+            { data: 'Matched key', header: true },
+            { data: 'Cache hit', header: true },
+            { data: 'Source', header: true },
+            { data: 'Size', header: true },
+            { data: 'Duration', header: true },
+        ],
+        [
+            escapeHtml(data.primaryKey),
+            data.matchedKey === undefined ? '—' : escapeHtml(data.matchedKey),
+            String(data.cacheHit),
+            escapeHtml(data.source),
+            formatOptionalSize(data.size),
+            formatDuration(data.durationMs),
+        ],
+    ]);
+    if (data.metadata && Object.keys(data.metadata).length > 0) {
+        summary.addDetails('Object metadata', `<ul>${Object.entries(data.metadata)
+            .map(([k, v]) => `<li><code>${escapeHtml(k)}</code>: ${escapeHtml(v)}</li>`)
+            .join('')}</ul>`);
+    }
+    await flush();
+}
+async function writeSaveSummary(data) {
+    if (!canWrite(data.jobSummary)) {
+        return;
+    }
+    core.summary.addHeading('Cloud cache save').addTable([
+        [
+            { data: 'Key', header: true },
+            { data: 'Saved to', header: true },
+            { data: 'Size', header: true },
+            { data: 'Duration', header: true },
+        ],
+        [
+            escapeHtml(data.key),
+            data.savedTo.length > 0 ? escapeHtml(data.savedTo.join(', ')) : 'none',
+            formatOptionalSize(data.size),
+            formatDuration(data.durationMs),
+        ],
+    ]);
+    await flush();
+}
+
+;// CONCATENATED MODULE: ./src/core/explain.ts
+/**
+ * Builds the "why did my cache miss?" report: every object the restore lookup would list, the
+ * version each carries and the sentence that explains the outcome. It lists, and never downloads
+ * or writes anything, so it is safe to run before (or instead of) a restore.
+ */
+
+
+
+
+const DEFAULT_MAX_CANDIDATES = 20;
+function toCandidateView(candidate) {
+    return {
+        objectKey: candidate.objectKey,
+        version: candidate.version ?? '',
+        sizeBytes: candidate.size,
+        lastModified: candidate.lastModified?.toISOString() ?? '',
+        versionMatches: candidate.accepted,
+    };
+}
+function byNewest(a, b) {
+    return (b.lastModified?.getTime() ?? 0) - (a.lastModified?.getTime() ?? 0);
+}
+function resolveTiers(config) {
+    if (config.dualCache) {
+        return config.restorePriority === 'github-first' ? ['github', 's3'] : ['s3', 'github'];
+    }
+    return config.useFallback ? ['s3', 'github'] : ['s3'];
+}
+/** How a ref reads in a sentence; the empty ref means the pattern has no `${ref}`. */
+function refLabel(ref) {
+    return ref || 'the unscoped prefix';
+}
+function count(searched) {
+    return searched.candidates.length + searched.truncated;
+}
+/**
+ * One sentence per key prefix that failed: the refs where nothing was listed at all are named
+ * together, and every ref that listed objects of another version gets its own sentence, since
+ * it needs the count and the version inputs.
+ */
+function buildReasons(report, config, compression, hitSearch) {
+    const reasons = [];
+    // A restore key repeating the primary key searches the same (ref, prefix) twice; the lookup
+    // really does list it twice, but one sentence per (key prefix, ref) is enough to explain it.
+    for (const keyPrefix of new Set([config.primaryKey, ...config.restoreKeys])) {
+        const searches = new Map();
+        for (const searched of report.searches) {
+            if (searched.key === keyPrefix && searched !== hitSearch) {
+                const ref = refLabel(searched.ref ?? '');
+                if (!searches.has(ref)) {
+                    searches.set(ref, searched);
+                }
+            }
+        }
+        const empty = [...searches].filter(([, searched]) => count(searched) === 0);
+        if (empty.length > 0) {
+            reasons.push(`No objects match key prefix "${keyPrefix}" on ${empty.map(([ref]) => ref).join(', ')}.`);
+        }
+        for (const searched of [...searches.values()].filter((one) => count(one) > 0)) {
+            const total = count(searched);
+            reasons.push(`${total} object${total === 1 ? ' matches' : 's match'} key prefix "${keyPrefix}" on ` +
+                `${refLabel(searched.ref ?? '')} but none has version ${report.version} ` +
+                `(this job hashes paths ${config.paths.join(', ')} with ${compression}; they were ` +
+                `saved with different paths, compression or cross-OS setting).`);
+        }
+    }
+    if (report.wouldHit) {
+        reasons.push(`Would restore ${report.wouldHit.objectKey} (key "${report.wouldHit.matchedKey}", ` +
+            `${report.wouldHit.ref ?? 'unscoped'}).`);
+    }
+    return reasons;
+}
+/**
+ * Lists every candidate the restore lookup would consider, in the same order, and stops at the
+ * first search that would hit — exactly where the restore would stop. No exact-key HEAD check is
+ * needed: the listing under the primary key's prefix already contains the exact object.
+ */
+async function buildExplainReport(tier, config, options = {}) {
+    const maxCandidates = options.maxCandidates ?? DEFAULT_MAX_CANDIDATES;
+    const report = {
+        provider: tier.storage.providerConfig.provider,
+        bucket: tier.storage.bucket,
+        pattern: tier.template.pattern,
+        resolvedPattern: tier.template.resolvedPattern,
+        version: tier.template.version,
+        versionInputs: {
+            paths: [...config.paths],
+            compression: tier.compression.method,
+            crossOs: config.enableCrossOsArchive,
+        },
+        refs: tier.restoreRefs.filter((ref) => ref !== ''),
+        primaryKey: config.primaryKey,
+        restoreKeys: [...config.restoreKeys],
+        tiers: resolveTiers(config),
+        searches: [],
+        reasons: [],
+    };
+    let hitSearch;
+    for (const ref of tier.restoreRefs) {
+        for (const keyPrefix of [config.primaryKey, ...config.restoreKeys]) {
+            const all = await listCandidates(tier, ref, keyPrefix);
+            const shown = all.slice(0, maxCandidates);
+            const searched = {
+                ref: ref || null,
+                key: keyPrefix,
+                prefix: tier.template.searchPrefix(ref, keyPrefix),
+                candidates: shown.map(toCandidateView),
+                truncated: all.length - shown.length,
+            };
+            report.searches.push(searched);
+            const accepted = all.filter((candidate) => candidate.accepted).sort(byNewest);
+            // findS3Match HEADs the exact key before it lists, so the exact object wins over a newer
+            // sibling under the same prefix. The listing already contains it; no HEAD is needed here.
+            const exactHit = keyPrefix === config.primaryKey
+                ? accepted.find((candidate) => candidate.objectKey === tier.template.objectKey(ref, config.primaryKey))
+                : undefined;
+            const hit = exactHit ?? accepted[0];
+            if (hit) {
+                const matchedKey = hit.key;
+                report.wouldHit = {
+                    objectKey: hit.objectKey,
+                    matchedKey,
+                    exact: inputUtils_isExactKeyMatch(config.primaryKey, matchedKey),
+                    ref: ref || null,
+                };
+                hitSearch = searched;
+                break;
+            }
+        }
+        if (hitSearch) {
+            break;
+        }
+    }
+    report.reasons = buildReasons(report, config, tier.compression.method, hitSearch);
+    return report;
+}
+/** The report as log lines, in the order a reader wants them. */
+function renderExplain(report) {
+    const lines = [
+        `Cache lookup for key "${report.primaryKey}"`,
+        `Bucket: s3://${report.bucket} (${report.provider})`,
+        `Pattern: ${report.pattern} → ${report.resolvedPattern}`,
+        `Version: ${report.version} (paths: ${report.versionInputs.paths.join(', ')}; ` +
+            `compression: ${report.versionInputs.compression}; cross-OS: ${report.versionInputs.crossOs})`,
+        report.refs.length > 0 ? `Refs searched: ${report.refs.join(' → ')}` : 'Not scoped to a ref',
+        `Tiers: ${report.tiers.join(' → ')}`,
+    ];
+    if (report.restoreKeys.length > 0) {
+        lines.push(`Restore keys: ${report.restoreKeys.join(', ')}`);
+    }
+    for (const searched of report.searches) {
+        const total = count(searched);
+        lines.push(`[${searched.ref ?? 'unscoped'}] prefix "${searched.prefix}": ` +
+            `${total} candidate${total === 1 ? '' : 's'}`);
+        for (const candidate of searched.candidates) {
+            lines.push(`  ${candidate.versionMatches ? '✓' : '✗'} ${candidate.objectKey} ` +
+                `(version ${candidate.version || 'unknown'}, ${inputUtils_formatSize(candidate.sizeBytes)}, ` +
+                `${candidate.lastModified || 'unknown'})`);
+        }
+        if (searched.truncated > 0) {
+            lines.push(`  … and ${searched.truncated} more not shown`);
+        }
+    }
+    for (const reason of report.reasons) {
+        lines.push(`Result: ${reason}`);
+    }
+    return lines;
+}
+/** Adds the rendered report to the job summary, when the job-summary input allows it. */
+async function writeExplainSummary(report, jobSummary) {
+    if (!canWrite(jobSummary)) {
+        return;
+    }
+    summary
+        .addHeading('Cache lookup explained')
+        .addRaw(`<pre>${renderExplain(report).map(escapeHtml).join('\n')}</pre>`, true);
+    await flush();
+}
+
 // EXTERNAL MODULE: ./node_modules/@actions/cache/node_modules/semver/index.js
 var semver = __nccwpck_require__(2710);
 ;// CONCATENATED MODULE: ./node_modules/@actions/cache/lib/internal/constants.js
@@ -76832,8 +79232,6 @@ class AbortError extends Error {
     }
 }
 //# sourceMappingURL=AbortError.js.map
-// EXTERNAL MODULE: external "node:os"
-var external_node_os_ = __nccwpck_require__(8161);
 // EXTERNAL MODULE: external "node:util"
 var external_node_util_ = __nccwpck_require__(7975);
 // EXTERNAL MODULE: external "node:process"
@@ -77931,8 +80329,6 @@ var external_node_http_ = __nccwpck_require__(7067);
 var external_node_https_ = __nccwpck_require__(4708);
 // EXTERNAL MODULE: external "node:zlib"
 var external_node_zlib_ = __nccwpck_require__(8522);
-// EXTERNAL MODULE: external "node:stream"
-var external_node_stream_ = __nccwpck_require__(7075);
 ;// CONCATENATED MODULE: ./node_modules/@typespec/ts-http-runtime/dist/esm/log.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
@@ -80744,8 +83140,6 @@ function policies_formDataPolicy_formDataPolicy() {
     return formDataPolicy_formDataPolicy();
 }
 //# sourceMappingURL=formDataPolicy.js.map
-// EXTERNAL MODULE: external "node:crypto"
-var external_node_crypto_ = __nccwpck_require__(7598);
 ;// CONCATENATED MODULE: ./node_modules/@typespec/ts-http-runtime/dist/esm/util/sha256.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
@@ -119709,8 +122103,6 @@ class Batch {
     }
 }
 //# sourceMappingURL=Batch.js.map
-// EXTERNAL MODULE: external "node:fs"
-var external_node_fs_ = __nccwpck_require__(3024);
 ;// CONCATENATED MODULE: ./node_modules/@azure/storage-blob/dist/esm/utils/utils.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
@@ -127749,7 +130141,7 @@ class CacheServiceClient {
                         if (retryAfterHeader) {
                             const parsedSeconds = parseInt(retryAfterHeader, 10);
                             if (!isNaN(parsedSeconds) && parsedSeconds > 0) {
-                                warning(`You've hit a rate limit, your rate limit will reset in ${parsedSeconds} seconds`);
+                                core_warning(`You've hit a rate limit, your rate limit will reset in ${parsedSeconds} seconds`);
                             }
                         }
                         throw new RateLimitError(`Rate limited: ${errorMessage}`);
@@ -128297,7 +130689,7 @@ function restoreCacheV1(paths_1, primaryKey_1, restoreKeys_1, options_1) {
                     core_error(`Failed to restore: ${error.message}`);
                 }
                 else {
-                    warning(`Failed to restore: ${error.message}`);
+                    core_warning(`Failed to restore: ${error.message}`);
                 }
             }
         }
@@ -128405,7 +130797,7 @@ function restoreCacheV2(paths_1, primaryKey_1, restoreKeys_1, options_1) {
                     core_error(`Failed to restore: ${error.message}`);
                 }
                 else {
-                    warning(`Failed to restore: ${error.message}`);
+                    core_warning(`Failed to restore: ${error.message}`);
                 }
             }
         }
@@ -128672,27 +131064,77 @@ function saveCacheV2(paths_1, key_1, options_1) {
     });
 }
 //# sourceMappingURL=cache.js.map
-;// CONCATENATED MODULE: ./src/utils/fallback.ts
+;// CONCATENATED MODULE: ./src/core/githubTier.ts
 
 
-async function fallbackRestore(paths, primaryKey, restoreKeys, options, enableCrossOsArchive) {
-    info('Attempting fallback restore using official GitHub Actions Cache service...');
+
+async function restoreFromGitHub(paths, primaryKey, restoreKeys, lookupOnly, enableCrossOsArchive) {
     try {
-        const matchedKey = await restoreCache(paths, primaryKey, restoreKeys, options, enableCrossOsArchive);
-        return matchedKey;
+        const matchedKey = await restoreCache([...paths], primaryKey, [...restoreKeys], { lookupOnly }, enableCrossOsArchive);
+        if (!matchedKey) {
+            return { kind: 'miss' };
+        }
+        return { kind: 'hit', matchedKey, exact: inputUtils_isExactKeyMatch(primaryKey, matchedKey) };
     }
     catch (err) {
-        warning(`GitHub Actions Cache fallback restore failed: ${err instanceof Error ? err.message : String(err)}`);
-        return undefined;
+        return { kind: 'error', error: outcomes_toError(err) };
     }
 }
-async function fallbackSave(paths, key, options, enableCrossOsArchive) {
-    core.info('Attempting fallback save using official GitHub Actions Cache service...');
+/**
+ * Whether GitHub Actions Cache already holds exactly `key`. A lookup also returns prefix
+ * matches, which do not count. Service failures throw so callers can apply strict mode.
+ */
+async function existsInGitHub(paths, key, enableCrossOsArchive) {
+    const matchedKey = await cache.restoreCache([...paths], key, [], { lookupOnly: true }, enableCrossOsArchive);
+    return isExactKeyMatch(key, matchedKey);
+}
+async function saveToGitHub(paths, key, uploadChunkSize, enableCrossOsArchive) {
     try {
-        return await cache.saveCache(paths, key, options, enableCrossOsArchive);
+        const cacheId = await cache.saveCache([...paths], key, { uploadChunkSize }, enableCrossOsArchive);
+        // -1 means @actions/cache did not save and already logged why: another job is creating
+        // the entry, the cache mode forbids writes, or it swallowed a service error itself.
+        if (cacheId === -1) {
+            return {
+                kind: 'skipped',
+                reason: 'GitHub Actions Cache did not save this key (see the messages above)',
+            };
+        }
+        return { kind: 'saved' };
     }
     catch (err) {
-        core.warning(`GitHub Actions Cache fallback save failed: ${err instanceof Error ? err.message : String(err)}`);
+        if (err instanceof Error &&
+            err.name === 'ValidationError' &&
+            err.message.startsWith('Path Validation Error')) {
+            return { kind: 'skipped', reason: 'no paths matched' };
+        }
+        return { kind: 'error', error: toError(err) };
+    }
+}
+
+;// CONCATENATED MODULE: ./src/core/metrics.ts
+/**
+ * Structured per-step metrics. Every step emits one `cloud-cache-metrics <json>` debug line, and
+ * appends the same JSON as one line to the `metrics-file` when one is configured. Writing that
+ * file is best-effort by design: a machine-readable timing record must never fail a cache step.
+ */
+
+
+
+
+/** Debug-logs the metrics and, when `metricsFile` is set, appends them as one JSON line. */
+function emitMetrics(metrics, metricsFile, workspace) {
+    const line = JSON.stringify(metrics);
+    core_debug(`cloud-cache-metrics ${line}`);
+    if (metricsFile === '') {
+        return;
+    }
+    const resolved = external_node_path_.resolve(workspace, metricsFile);
+    try {
+        external_node_fs_.mkdirSync(external_node_path_.dirname(resolved), { recursive: true });
+        external_node_fs_.appendFileSync(resolved, `${line}\n`);
+    }
+    catch (err) {
+        core_warning(`Could not write metrics to ${resolved}: ${outcomes_toError(err).message}`);
     }
 }
 
@@ -128709,338 +131151,227 @@ async function fallbackSave(paths, key, options, enableCrossOsArchive) {
 
 
 
-
-
-async function restoreFromS3(storageContext, primaryKey, restoreKeys, s3KeyPattern, prefix, scopedToRepository, retryEnabled, retryCount, lookupOnly, compression) {
-    const { client, bucket } = storageContext;
-    const exactObjectKey = buildS3ObjectKey({
-        key: primaryKey,
-        prefix,
-        archiveFilename: compression.archiveFilename,
-        pattern: s3KeyPattern,
-        scopedToRepository,
-    });
-    core_debug(`Checking exact S3 key match: ${exactObjectKey} in bucket: ${bucket}`);
-    let exactObject = null;
+/** S3 alone, unless use-fallback or dual-cache adds GitHub Actions Cache. */
+function restoreOrder(config) {
+    if (config.dualCache) {
+        return config.restorePriority === 'github-first' ? ['github', 's3'] : ['s3', 'github'];
+    }
+    return config.useFallback ? ['s3', 'github'] : ['s3'];
+}
+/** S3 setup errors fail the step only when no other tier may serve the restore. */
+async function setUpS3(config, state) {
     try {
-        exactObject = await withRetry(() => checkObjectExists(client, bucket, exactObjectKey), {
-            retries: retryEnabled ? retryCount : 0,
-            operationName: `checkObjectExists (${exactObjectKey})`,
-        });
+        const tier = await buildS3Tier(config);
+        setOutput(Outputs.CacheStorageProvider, tier.storage.providerConfig.provider);
+        state.setState(constants_State.CacheStorageProvider, tier.storage.providerConfig.provider);
+        // The post step reuses this method, so zstd appearing mid-job cannot change the keys.
+        state.setState(constants_State.CacheCompression, tier.compression.method);
+        return tier;
     }
     catch (err) {
-        warning(`Error checking S3 cache object: ${err instanceof Error ? err.message : String(err)}`);
-    }
-    if (exactObject) {
-        info(`Exact S3 cache hit on key: ${primaryKey} (${formatSize(exactObject.size)})`);
-        if (!lookupOnly) {
-            const tempDir = external_fs_namespaceObject.mkdtempSync(external_path_.join(external_os_.tmpdir(), 'cloud-cache-'));
-            const localArchive = external_path_.join(tempDir, compression.archiveFilename);
-            try {
-                info(`Downloading cache archive from s3://${bucket}/${exactObjectKey}...`);
-                await withRetry(() => downloadFile(client, bucket, exactObjectKey, localArchive), {
-                    retries: retryEnabled ? retryCount : 0,
-                    operationName: `downloadFile (${exactObjectKey})`,
-                });
-                info(`Extracting cache archive to working directory...`);
-                await extractArchive(localArchive, compression);
-                info(`Cache restored successfully from S3 key: ${primaryKey}`);
-            }
-            finally {
-                try {
-                    external_fs_namespaceObject.rmSync(tempDir, { recursive: true, force: true });
-                }
-                catch {
-                    // Ignore cleanup error
-                }
-            }
+        const otherTierMayServe = config.dualCache ? !config.dualCacheStrict : config.useFallback;
+        if (!otherTierMayServe) {
+            throw err;
         }
-        return {
-            matchedKey: primaryKey,
-            isExactHit: true,
-            s3ObjectKey: exactObjectKey,
-            size: exactObject.size,
-            etag: exactObject.etag,
-        };
+        core_warning(`S3 client initialization failed: ${outcomes_toError(err).message}`);
+        return undefined;
     }
-    // Exact match not found; search restore-keys in S3
-    core_debug(`Exact S3 match not found. Searching restore keys: ${restoreKeys.join(', ')}`);
-    for (const restoreKey of restoreKeys) {
-        const searchPrefix = buildS3SearchPrefix(restoreKey, {
-            prefix,
-            pattern: s3KeyPattern,
-            scopedToRepository,
-        });
-        try {
-            const objects = await withRetry(() => listObjectsWithPrefix(client, bucket, searchPrefix), {
-                retries: retryEnabled ? retryCount : 0,
-                operationName: `listObjectsWithPrefix (${searchPrefix})`,
-            });
-            const validObjects = objects.filter((o) => o.key.endsWith(`/${compression.archiveFilename}`) ||
-                o.key.endsWith(compression.archiveFilename));
-            if (validObjects.length > 0) {
-                validObjects.sort((a, b) => (b.lastModified?.getTime() ?? 0) - (a.lastModified?.getTime() ?? 0));
-                const matchedObj = validObjects[0];
-                const matchedKey = extractKeyFromS3Object(matchedObj.key, searchPrefix, compression.archiveFilename);
-                const isExact = isExactKeyMatch(primaryKey, matchedKey);
-                info(`S3 cache prefix hit: resolved key "${matchedKey}" using prefix "${restoreKey}" (${formatSize(matchedObj.size)})`);
-                if (!lookupOnly) {
-                    const tempDir = external_fs_namespaceObject.mkdtempSync(external_path_.join(external_os_.tmpdir(), 'cloud-cache-'));
-                    const localArchive = external_path_.join(tempDir, compression.archiveFilename);
-                    try {
-                        info(`Downloading cache archive from s3://${bucket}/${matchedObj.key}...`);
-                        await withRetry(() => downloadFile(client, bucket, matchedObj.key, localArchive), {
-                            retries: retryEnabled ? retryCount : 0,
-                            operationName: `downloadFile (${matchedObj.key})`,
-                        });
-                        info(`Extracting cache archive to working directory...`);
-                        await extractArchive(localArchive, compression);
-                        info(`Cache restored successfully from S3 key: ${matchedKey}`);
-                    }
-                    finally {
-                        try {
-                            external_fs_namespaceObject.rmSync(tempDir, { recursive: true, force: true });
-                        }
-                        catch {
-                            // Ignore cleanup error
-                        }
-                    }
-                }
-                return {
-                    matchedKey,
-                    isExactHit: isExact,
-                    s3ObjectKey: matchedObj.key,
-                    size: matchedObj.size,
-                    etag: matchedObj.etag,
-                };
-            }
-        }
-        catch (err) {
-            warning(`Error querying S3 prefix "${searchPrefix}": ${err instanceof Error ? err.message : String(err)}`);
+}
+async function attempt(source, config, s3) {
+    if (source === 'github') {
+        info('Querying GitHub Actions Cache...');
+        return restoreFromGitHub(config.paths, config.primaryKey, config.restoreKeys, config.lookupOnly, config.enableCrossOsArchive);
+    }
+    if (!s3) {
+        return { kind: 'miss' };
+    }
+    return restoreFromS3(s3, config.primaryKey, config.restoreKeys, config.lookupOnly);
+}
+function reportHit(state, config, source, hit) {
+    state.setState(constants_State.CacheMatchedKey, hit.matchedKey);
+    state.setState(constants_State.CacheHitSource, source);
+    if (hit.exact) {
+        state.setState(source === 's3' ? constants_State.CacheS3ExactHit : constants_State.CacheGithubExactHit, 'true');
+    }
+    if (hit.s3) {
+        state.setState(constants_State.CacheS3Key, hit.s3.objectKey);
+        setOutput(Outputs.CacheS3Key, hit.s3.objectKey);
+        setOutput(Outputs.CacheSize, String(hit.s3.size));
+        if (hit.s3.etag) {
+            setOutput(Outputs.CacheETag, hit.s3.etag);
         }
     }
-    return null;
+    setOutput(Outputs.CacheMetadata, JSON.stringify(hit.s3?.metadata ?? {}));
+    setOutput(Outputs.CacheHit, String(hit.exact));
+    setOutput(Outputs.CacheMatchedKey, hit.matchedKey);
+    setOutput(Outputs.CacheHitSource, source);
+    info(config.lookupOnly
+        ? `Cache found in ${source} and can be restored from key: ${hit.matchedKey}`
+        : `Cache restored from ${source} with key: ${hit.matchedKey}`);
+    return hit.matchedKey;
 }
 async function restoreImpl(stateProvider, earlyExit) {
+    const start = Date.now();
+    let config;
+    let provider;
+    // One line per step: a miss that then fails on fail-on-cache-miss must not report twice.
+    let reported = false;
+    const report = (metrics) => {
+        if (reported) {
+            return;
+        }
+        reported = true;
+        emitMetrics({ ...metrics, timestamp: new Date().toISOString(), durationMs: Date.now() - start }, config?.metricsFile ?? '', getWorkspace());
+    };
     try {
         if (!isValidEvent()) {
-            warning(`Event Validation Warning: The event type ${process.env.GITHUB_EVENT_NAME} may not be tied to a branch or tag ref.`);
+            core_warning(`Event Validation Warning: The event type ${process.env.GITHUB_EVENT_NAME} may not be tied to a branch or tag ref.`);
         }
-        const primaryKey = getInput(Inputs.Key, { required: true });
-        stateProvider.setState(constants_State.CachePrimaryKey, primaryKey);
-        setOutput(Outputs.CachePrimaryKey, primaryKey);
-        const cachePaths = getInputAsArray(Inputs.Path, { required: true });
-        const restoreKeys = getInputAsArray(Inputs.RestoreKeys);
-        const failOnCacheMiss = getInputAsBool(Inputs.FailOnCacheMiss);
-        const lookupOnly = getInputAsBool(Inputs.LookupOnly);
-        const readOnly = getInputAsBool(Inputs.ReadOnly);
-        const enableCrossOsArchive = getInputAsBool(Inputs.EnableCrossOsArchive);
-        stateProvider.setState(constants_State.CacheReadOnly, String(readOnly));
-        const s3KeyPattern = getInput(Inputs.S3KeyPattern) || Defaults.DefaultS3KeyPattern;
-        const prefix = getInput(Inputs.Prefix) || '';
-        const scopedToRepository = getInputAsBool(Inputs.ScopedToRepository, true);
-        const retryEnabled = getInputAsBool(Inputs.Retry, true);
-        const retryCount = getInputAsInt(Inputs.RetryCount, Defaults.DefaultRetryCount) || 3;
-        const useFallback = getInputAsBool(Inputs.UseFallback, false);
-        // Dual-cache configuration
-        const dualCache = getInputAsBool(Inputs.DualCache, false);
-        const restorePriority = getInput(Inputs.RestorePriority) || Defaults.DefaultRestorePriority;
-        const dualCacheStrategy = getInput(Inputs.DualCacheStrategy) || Defaults.DefaultDualCacheStrategy;
-        const dualCacheStrict = getInputAsBool(Inputs.DualCacheStrict, false);
-        // Persist configuration for post-save step
-        stateProvider.setState(constants_State.CacheS3KeyPattern, s3KeyPattern);
-        stateProvider.setState(constants_State.CachePrefix, prefix);
-        stateProvider.setState(constants_State.CacheScopedToRepository, String(scopedToRepository));
-        stateProvider.setState(constants_State.CacheRetry, String(retryEnabled));
-        stateProvider.setState(constants_State.CacheRetryCount, String(retryCount));
-        stateProvider.setState(constants_State.CacheDualCache, String(dualCache));
-        stateProvider.setState(constants_State.CacheRestorePriority, restorePriority);
-        stateProvider.setState(constants_State.CacheDualCacheStrategy, dualCacheStrategy);
-        stateProvider.setState(constants_State.CacheDualCacheStrict, String(dualCacheStrict));
+        config = readCacheConfig();
+        if (!config.primaryKey) {
+            throw new Error('Input required and not supplied: key');
+        }
+        if (config.paths.length === 0) {
+            throw new Error('Input required and not supplied: path');
+        }
+        persistCacheConfig(stateProvider, config);
+        setOutput(Outputs.CachePrimaryKey, config.primaryKey);
         setOutput(Outputs.CacheHit, 'false');
         setOutput(Outputs.CacheHitSource, 'none');
-        let storageContext = null;
-        try {
-            storageContext = createStorageContext();
-            setOutput(Outputs.CacheStorageProvider, storageContext.providerConfig.provider);
-            stateProvider.setState(constants_State.CacheStorageProvider, storageContext.providerConfig.provider);
-        }
-        catch (err) {
-            if (useFallback || dualCache) {
-                warning(`S3 client initialization failed: ${err instanceof Error ? err.message : String(err)}`);
-            }
-            else {
-                throw err;
-            }
-        }
-        const compression = await getCompressionConfig();
-        const tryS3 = async () => {
-            if (!storageContext)
-                return null;
-            return await restoreFromS3(storageContext, primaryKey, restoreKeys, s3KeyPattern, prefix, scopedToRepository, retryEnabled, retryCount, lookupOnly, compression);
-        };
-        const tryGitHub = async () => {
-            info('Querying GitHub Actions native cache service...');
-            return await fallbackRestore(cachePaths, primaryKey, restoreKeys, { lookupOnly }, enableCrossOsArchive);
-        };
-        let resolvedMatchedKey;
-        let hitSource = 'none';
-        if (dualCache) {
-            info(`Dual-caching enabled (priority: ${restorePriority}, strategy: ${dualCacheStrategy})`);
-            if (restorePriority === 'github-first') {
-                // 1. Try GitHub Cache first
+        setOutput(Outputs.CacheMetadata, '{}');
+        // Set up front and overwritten on success, so every path — including an error handled as a
+        // warning — leaves the timing and size outputs defined.
+        setOutput(Outputs.CacheRestoreDurationMs, '0');
+        setOutput(Outputs.CacheTransferDurationMs, '0');
+        setOutput(Outputs.CacheBytes, '0');
+        const s3 = await setUpS3(config, stateProvider);
+        provider = s3?.storage.providerConfig.provider;
+        if (config.explain && s3) {
+            try {
+                const report = await buildExplainReport(s3, config);
+                startGroup('Cache lookup explained');
                 try {
-                    const ghKey = await tryGitHub();
-                    if (ghKey) {
-                        resolvedMatchedKey = ghKey;
-                        hitSource = 'github';
-                        if (isExactKeyMatch(primaryKey, ghKey)) {
-                            stateProvider.setState(constants_State.CacheGithubExactHit, 'true');
-                        }
-                    }
+                    for (const line of renderExplain(report))
+                        info(line);
                 }
-                catch (err) {
-                    if (dualCacheStrict)
-                        throw err;
-                    warning(`GitHub cache query error: ${err instanceof Error ? err.message : String(err)}`);
+                finally {
+                    endGroup();
                 }
-                // 2. Fallback to S3 if GitHub cache missed
-                if (!resolvedMatchedKey && storageContext) {
-                    info('GitHub cache missed; querying S3 storage...');
-                    try {
-                        const s3Result = await tryS3();
-                        if (s3Result) {
-                            resolvedMatchedKey = s3Result.matchedKey;
-                            hitSource = 's3';
-                            if (s3Result.isExactHit) {
-                                stateProvider.setState(constants_State.CacheS3ExactHit, 'true');
-                            }
-                            stateProvider.setState(constants_State.CacheS3Key, s3Result.s3ObjectKey);
-                            setOutput(Outputs.CacheS3Key, s3Result.s3ObjectKey);
-                            setOutput(Outputs.CacheSize, s3Result.size.toString());
-                            if (s3Result.etag)
-                                setOutput(Outputs.CacheETag, s3Result.etag);
-                        }
-                    }
-                    catch (err) {
-                        if (dualCacheStrict)
-                            throw err;
-                        warning(`S3 cache query error: ${err instanceof Error ? err.message : String(err)}`);
-                    }
-                }
+                await writeExplainSummary(report, config.jobSummary);
             }
-            else {
-                // s3-first (default)
-                // 1. Try S3 first
-                if (storageContext) {
-                    try {
-                        const s3Result = await tryS3();
-                        if (s3Result) {
-                            resolvedMatchedKey = s3Result.matchedKey;
-                            hitSource = 's3';
-                            if (s3Result.isExactHit) {
-                                stateProvider.setState(constants_State.CacheS3ExactHit, 'true');
-                            }
-                            stateProvider.setState(constants_State.CacheS3Key, s3Result.s3ObjectKey);
-                            setOutput(Outputs.CacheS3Key, s3Result.s3ObjectKey);
-                            setOutput(Outputs.CacheSize, s3Result.size.toString());
-                            if (s3Result.etag)
-                                setOutput(Outputs.CacheETag, s3Result.etag);
-                        }
-                    }
-                    catch (err) {
-                        if (dualCacheStrict)
-                            throw err;
-                        warning(`S3 cache query error: ${err instanceof Error ? err.message : String(err)}`);
-                    }
+            catch (err) {
+                core_warning(`Could not explain the cache lookup: ${outcomes_toError(err).message}`);
+            }
+        }
+        if (config.dualCache) {
+            info(`Dual-cache enabled (priority: ${config.restorePriority}, strategy: ${config.dualCacheStrategy})`);
+        }
+        for (const source of restoreOrder(config)) {
+            const outcome = await attempt(source, config, s3);
+            switch (outcome.kind) {
+                case 'hit': {
+                    const matchedKey = reportHit(stateProvider, config, source, outcome);
+                    const bytes = outcome.s3?.size ?? 0;
+                    setOutput(Outputs.CacheRestoreDurationMs, String(Date.now() - start));
+                    setOutput(Outputs.CacheTransferDurationMs, String(outcome.transferMs ?? 0));
+                    setOutput(Outputs.CacheBytes, String(bytes));
+                    report({
+                        step: 'restore',
+                        provider,
+                        key: config.primaryKey,
+                        matchedKey,
+                        objectKey: outcome.s3?.objectKey,
+                        source,
+                        bytes,
+                        transferDurationMs: outcome.transferMs ?? 0,
+                        streaming: config.streaming,
+                        downloadParts: outcome.downloadParts ?? 0,
+                        outcome: 'hit',
+                    });
+                    await writeRestoreSummary({
+                        jobSummary: config.jobSummary,
+                        primaryKey: config.primaryKey,
+                        matchedKey,
+                        cacheHit: outcome.exact,
+                        source,
+                        size: outcome.s3?.size,
+                        durationMs: Date.now() - start,
+                        metadata: outcome.s3?.metadata,
+                    });
+                    return matchedKey;
                 }
-                // 2. Fallback to GitHub Cache if S3 missed
-                if (!resolvedMatchedKey) {
-                    info('S3 storage missed; querying GitHub cache...');
-                    try {
-                        const ghKey = await tryGitHub();
-                        if (ghKey) {
-                            resolvedMatchedKey = ghKey;
-                            hitSource = 'github';
-                            if (isExactKeyMatch(primaryKey, ghKey)) {
-                                stateProvider.setState(constants_State.CacheGithubExactHit, 'true');
-                            }
-                        }
+                case 'miss':
+                    break;
+                case 'error':
+                    if (config.dualCache && config.dualCacheStrict) {
+                        throw new Error(`Restoring from ${source} failed: ${outcome.error.message}`, {
+                            cause: outcome.error,
+                        });
                     }
-                    catch (err) {
-                        if (dualCacheStrict)
-                            throw err;
-                        warning(`GitHub cache query error: ${err instanceof Error ? err.message : String(err)}`);
-                    }
+                    core_warning(`Restoring from ${source} failed, so it counts as a cache miss: ${outcome.error.message}`);
+                    break;
+                default: {
+                    const unreachable = outcome;
+                    throw new Error(`Unhandled restore outcome: ${JSON.stringify(unreachable)}`);
                 }
             }
         }
-        else {
-            // Pure S3 Mode (standard)
-            if (storageContext) {
-                const s3Result = await tryS3();
-                if (s3Result) {
-                    resolvedMatchedKey = s3Result.matchedKey;
-                    hitSource = 's3';
-                    if (s3Result.isExactHit) {
-                        stateProvider.setState(constants_State.CacheS3ExactHit, 'true');
-                    }
-                    stateProvider.setState(constants_State.CacheS3Key, s3Result.s3ObjectKey);
-                    setOutput(Outputs.CacheS3Key, s3Result.s3ObjectKey);
-                    setOutput(Outputs.CacheSize, s3Result.size.toString());
-                    if (s3Result.etag)
-                        setOutput(Outputs.CacheETag, s3Result.etag);
-                }
-            }
-            // Standalone use-fallback option
-            if (!resolvedMatchedKey && useFallback) {
-                info('S3 cache missed; checking use-fallback GitHub cache...');
-                const ghKey = await tryGitHub();
-                if (ghKey) {
-                    resolvedMatchedKey = ghKey;
-                    hitSource = 'github';
-                }
-            }
+        stateProvider.setState(constants_State.CacheHitSource, 'none');
+        setOutput(Outputs.CacheRestoreDurationMs, String(Date.now() - start));
+        report({
+            step: 'restore',
+            provider,
+            key: config.primaryKey,
+            source: 'none',
+            bytes: 0,
+            transferDurationMs: 0,
+            streaming: config.streaming,
+            downloadParts: 0,
+            outcome: 'miss',
+        });
+        await writeRestoreSummary({
+            jobSummary: config.jobSummary,
+            primaryKey: config.primaryKey,
+            matchedKey: undefined,
+            cacheHit: false,
+            source: 'none',
+            size: undefined,
+            durationMs: Date.now() - start,
+        });
+        if (config.failOnCacheMiss) {
+            throw new Error(`Failed to restore cache entry. Exiting as fail-on-cache-miss is set. Input key: ${config.primaryKey}`);
         }
-        stateProvider.setState(constants_State.CacheHitSource, hitSource);
-        setOutput(Outputs.CacheHitSource, hitSource);
-        if (resolvedMatchedKey) {
-            stateProvider.setState(constants_State.CacheMatchedKey, resolvedMatchedKey);
-            const isExact = isExactKeyMatch(primaryKey, resolvedMatchedKey);
-            setOutput(Outputs.CacheHit, isExact.toString());
-            setOutput(Outputs.CacheMatchedKey, resolvedMatchedKey);
-            if (lookupOnly) {
-                info(`Cache found from source "${hitSource}" and can be restored from key: ${resolvedMatchedKey}`);
-            }
-            else {
-                info(`Cache restored successfully from source "${hitSource}" with key: ${resolvedMatchedKey}`);
-            }
-            return resolvedMatchedKey;
-        }
-        if (failOnCacheMiss) {
-            throw new Error(`Failed to restore cache entry. Exiting as fail-on-cache-miss is set. Input key: ${primaryKey}`);
-        }
-        info(`Cache not found for input keys: ${[primaryKey, ...restoreKeys].join(', ')}`);
+        info(`Cache not found for input keys: ${[config.primaryKey, ...config.restoreKeys].join(', ')}`);
         return undefined;
     }
     catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setFailed(message);
+        setFailed(outcomes_toError(err).message);
+        report({
+            step: 'restore',
+            provider,
+            key: config?.primaryKey,
+            bytes: 0,
+            outcome: 'error',
+            extra: { error: outcomes_toError(err).message },
+        });
         if (earlyExit) {
             process.exit(1);
         }
+        return undefined;
     }
 }
 async function runRestore(earlyExit = true) {
     await restoreImpl(new StateProvider(), earlyExit);
     if (earlyExit) {
-        process.exit(0);
+        // An explicit exit code overrides process.exitCode, so keep the one core.setFailed set.
+        process.exit(process.exitCode ?? 0);
     }
 }
 async function runRestoreOnly(earlyExit = true) {
     await restoreImpl(new NullStateProvider(), earlyExit);
     if (earlyExit) {
-        process.exit(0);
+        // An explicit exit code overrides process.exitCode, so keep the one core.setFailed set.
+        process.exit(process.exitCode ?? 0);
     }
 }
 

@@ -37,7 +37,7 @@ Please migrate all GitHub Actions caching steps in this repository to `xSAVIKx/c
        - Inputs: `bucket`, `endpoint: https://storage.googleapis.com`, `access-key: ${{ secrets.GCS_HMAC_ACCESS_ID }}`, `secret-key: ${{ secrets.GCS_HMAC_SECRET }}`
      - **Backblaze B2**:
        - Inputs: `bucket`, `endpoint: https://s3.<region>.backblazeb2.com`, `access-key: ${{ secrets.B2_KEY_ID }}`, `secret-key: ${{ secrets.B2_APPLICATION_KEY }}`
-     - **Self-Hosted (MinIO / Garage / SeaweedFS)**:
+     - **Self-Hosted (MinIO / Garage / SeaweedFS / RustFS)**:
        - Inputs: `bucket`, `endpoint`, `access-key`, `secret-key` (and `force-path-style: true` for MinIO).
    - If I have not specified a provider yet, prompt me or default to **Cloudflare R2** or **AWS S3**.
 
@@ -45,7 +45,7 @@ Please migrate all GitHub Actions caching steps in this repository to `xSAVIKx/c
    - Replace `actions/cache@v...` with `xSAVIKx/cloud-cache-action@v1`.
    - Replace `actions/cache/restore@v...` with `xSAVIKx/cloud-cache-action/restore@v1`.
    - Replace `actions/cache/save@v...` with `xSAVIKx/cloud-cache-action/save@v1`.
-   - Preserve all existing cache keys and options: `path`, `key`, `restore-keys`, `lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `save-always`, `read-only`.
+   - Preserve all existing cache keys and options: `path`, `key`, `restore-keys`, `lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `read-only`.
    - Add the required provider inputs (`bucket`, `endpoint`, `access-key`, `secret-key`) referencing GitHub Secrets (`${{ secrets.<SECRET_NAME> }}`).
 
 4. **Verify & Summarize**:
@@ -71,6 +71,7 @@ Share this quick reference with your team or agent when setting up repository se
 | **Garage S3** | `GARAGE_ACCESS_KEY`<br>`GARAGE_SECRET_KEY` | `http://garage.internal:3900` |
 | **SeaweedFS S3** | `SEAWEED_ACCESS_KEY`<br>`SEAWEED_SECRET_KEY` | `http://seaweedfs.internal:8333` |
 | **MinIO S3** | `MINIO_ACCESS_KEY`<br>`MINIO_SECRET_KEY` | `http://minio.internal:9000`<br>*(Requires `force-path-style: true`)* |
+| **RustFS** | `RUSTFS_ACCESS_KEY`<br>`RUSTFS_SECRET_KEY` | `http://rustfs.internal:9000`<br>*(Set `provider: rustfs`)* |
 
 ---
 
@@ -109,7 +110,7 @@ Because `cloud-cache-action` maintains 1:1 input and output parity, you simply c
       ${{ runner.os }}-node-
 ```
 
-All existing features (`lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `save-always`, `read-only`) continue to work identically.
+All existing features (`lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `read-only`) continue to work identically. `save-always` is not supported: use `cloud-cache-action/save` with `if: always()` instead.
 
 ---
 
@@ -127,3 +128,28 @@ If you are using legacy `tespkg/actions-cache`, migrating to `cloud-cache-action
 - All legacy inputs (`bucket`, `endpoint`, `region`, `insecure`, `accessKey`, `secretKey`, `sessionToken`) remain supported for backward compatibility.
 - Kebab-case aliases are also supported (`access-key`, `secret-key`, `session-token`, `force-path-style`).
 - **Fallback Behavior**: `use-fallback` is `false` by default in `cloud-cache-action` rather than `true`. If you want automatic GitHub Actions Cache fallback on S3 errors or cache miss, set `use-fallback: true`.
+
+## Branch Isolation and Trust Model
+
+Like actions/cache, restores only use caches from the current ref, the pull request's base branch and the default branch. A feature branch can reuse `main`'s cache, but `main` never restores a cache that a feature branch saved. Set `scoped-to-ref: false` to share caches across every ref.
+
+Unlike GitHub's cache service, the bucket itself does not enforce this: **anyone who holds the bucket's write credentials can write any cache object**, including ones `main` will restore. Archives are extracted with absolute paths allowed, as actions/cache does. So:
+
+- Do not expose cache credentials to workflows that run untrusted code, such as `pull_request_target` jobs that check out fork code.
+- Prefer short-lived credentials (OIDC) scoped to the cache bucket or prefix.
+- Use a separate bucket or `prefix` for caches that must not be shared between repositories or trust levels.
+
+### Tag-triggered runs and refs
+
+The Git ref segment in the object key comes from whatever triggered the run. A run started by
+pushing a tag saves its cache under `refs/tags/<tag>`, which is a ref no pull request or branch
+build will ever restore from, since restores only search the current ref, the pull request base
+branch and the default branch — never arbitrary tags. If a release workflow triggered by a tag push
+is your only place that populates a cache other jobs expect to reuse, that cache will never be
+found.
+
+Prefer saving on the default branch instead — a `push` to `main` or a manual `workflow_dispatch`
+run there — so the cache is saved under a ref other jobs actually search. If you do need caches
+shared across tags, branches and pull requests, set `scoped-to-ref: false` together with the trust
+model warning above: every ref then reads and writes the same object, so anyone who can push a
+branch or tag can also overwrite what `main` restores.

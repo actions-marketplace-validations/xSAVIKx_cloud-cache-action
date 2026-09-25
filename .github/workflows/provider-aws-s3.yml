@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
   schedule:
     - cron: '0 4 * * *'
@@ -17,6 +18,7 @@ jobs:
   test-aws-s3:
     name: Amazon S3 Live Integration
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -34,16 +36,16 @@ jobs:
           SECRET_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
 
           if [ -z "$BUCKET" ]; then
-            echo "has_secrets=false" >> $GITHUB_OUTPUT
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
             echo "::notice::AWS S3 bucket secret (AWS_S3_BUCKET or AWS_BUCKET) is not configured. Skipping live AWS S3 integration test."
           elif [ -n "$ROLE" ]; then
-            echo "has_secrets=true" >> $GITHUB_OUTPUT
-            echo "auth_mode=oidc" >> $GITHUB_OUTPUT
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+            echo "auth_mode=oidc" >> "$GITHUB_OUTPUT"
           elif [ -n "$ACCESS_KEY" ] && [ -n "$SECRET_KEY" ]; then
-            echo "has_secrets=true" >> $GITHUB_OUTPUT
-            echo "auth_mode=static" >> $GITHUB_OUTPUT
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+            echo "auth_mode=static" >> "$GITHUB_OUTPUT"
           else
-            echo "has_secrets=false" >> $GITHUB_OUTPUT
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
             echo "::notice::AWS credentials (AWS_ACCESS_KEY_ID & AWS_SECRET_ACCESS_KEY, or AWS_ROLE_TO_ASSUME) are not configured. Skipping live AWS S3 integration test."
           fi
 
@@ -57,16 +59,16 @@ jobs:
       - name: Generate synthetic test payload
         if: steps.check-secrets.outputs.has_secrets == 'true'
         run: |
-          mkdir -p /tmp/aws-cache-test
-          echo "AWS S3 test artifact $(date +%s%N) for run ${{ github.run_id }}" > /tmp/aws-cache-test/sample.txt
-          sha256sum /tmp/aws-cache-test/sample.txt > /tmp/aws-expected-sha.txt
+          mkdir -p ~/aws-cache-test
+          echo "AWS S3 test artifact $(date +%s%N) for run ${{ github.run_id }}" > ~/aws-cache-test/sample.txt
+          sha256sum ~/aws-cache-test/sample.txt > /tmp/aws-expected-sha.txt
           cat /tmp/aws-expected-sha.txt
 
       - name: Save cache to Amazon S3 (save-only)
         if: steps.check-secrets.outputs.has_secrets == 'true'
         uses: ./save
         with:
-          path: /tmp/aws-cache-test
+          path: ~/aws-cache-test
           key: aws-s3-live-test-${{ github.run_id }}-${{ github.run_attempt }}
           bucket: ${{ secrets.AWS_S3_BUCKET || secrets.AWS_BUCKET }}
           region: ${{ secrets.AWS_REGION || 'us-east-1' }}
@@ -75,14 +77,14 @@ jobs:
 
       - name: Purge local test payload
         if: steps.check-secrets.outputs.has_secrets == 'true'
-        run: rm -rf /tmp/aws-cache-test
+        run: rm -rf ~/aws-cache-test
 
       - name: Restore cache from Amazon S3 (restore-only)
         if: steps.check-secrets.outputs.has_secrets == 'true'
         id: restore-aws
         uses: ./restore
         with:
-          path: /tmp/aws-cache-test
+          path: ~/aws-cache-test
           key: aws-s3-live-test-${{ github.run_id }}-${{ github.run_attempt }}
           bucket: ${{ secrets.AWS_S3_BUCKET || secrets.AWS_BUCKET }}
           region: ${{ secrets.AWS_REGION || 'us-east-1' }}
@@ -99,12 +101,12 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f /tmp/aws-cache-test/sample.txt ]; then
-            echo "::error::Restored file /tmp/aws-cache-test/sample.txt not found!"
+          if [ ! -f ~/aws-cache-test/sample.txt ]; then
+            echo "::error::Restored file ~/aws-cache-test/sample.txt not found!"
             exit 1
           fi
 
-          ACTUAL_SHA=$(sha256sum /tmp/aws-cache-test/sample.txt | awk '{print $1}')
+          ACTUAL_SHA=$(sha256sum ~/aws-cache-test/sample.txt | awk '{print $1}')
           EXPECTED_SHA=$(awk '{print $1}' /tmp/aws-expected-sha.txt)
           if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
             echo "::error::Checksum mismatch! Expected $EXPECTED_SHA, got $ACTUAL_SHA"
@@ -112,3 +114,23 @@ jobs:
           fi
 
           echo "Live Amazon S3 cache save & restore test succeeded! Checksum: $ACTUAL_SHA"
+
+      - name: Look up by restore-keys
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        id: restore-keys-aws
+        uses: ./restore
+        with:
+          path: ~/aws-cache-test
+          key: aws-s3-live-test-${{ github.run_id }}-${{ github.run_attempt }}-missing
+          restore-keys: aws-s3-live-test-${{ github.run_id }}-
+          lookup-only: true
+          bucket: ${{ secrets.AWS_S3_BUCKET || secrets.AWS_BUCKET }}
+          region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          access-key: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+
+      - name: Verify the restore-keys match
+        if: steps.check-secrets.outputs.has_secrets == 'true'
+        run: |
+          test "${{ steps.restore-keys-aws.outputs.cache-hit }}" = "false"
+          test "${{ steps.restore-keys-aws.outputs.cache-matched-key }}" = "aws-s3-live-test-${{ github.run_id }}-${{ github.run_attempt }}"

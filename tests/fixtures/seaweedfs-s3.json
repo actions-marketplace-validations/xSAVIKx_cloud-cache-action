@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "cloud-cache-ci",
+      "credentials": [{ "accessKey": "cloudcacheci", "secretKey": "cloudcachecisecret" }],
+      "actions": ["Admin", "Read", "List", "Tagging", "Write"]
+    }
+  ]
+}

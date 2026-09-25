@@ -1,4 +1,8 @@
-import { detectProvider, resolveProviderDefaults } from '../../src/storage/providers';
+import {
+  detectProvider,
+  isKnownProvider,
+  resolveProviderDefaults,
+} from '../../src/storage/providers';
 
 describe('Storage Providers', () => {
   describe('detectProvider', () => {
@@ -95,6 +99,7 @@ describe('Storage Providers', () => {
       expect(detectProvider(undefined, 's3')).toBe('aws');
       expect(detectProvider(undefined, 'fastly')).toBe('fastly');
       expect(detectProvider(undefined, 'minio')).toBe('minio');
+      expect(detectProvider(undefined, 'rustfs')).toBe('rustfs');
       expect(detectProvider(undefined, 'unknown-provider')).toBe('generic-s3');
       expect(detectProvider('https://unrecognized-s3.example.com')).toBe('generic-s3');
     });
@@ -114,6 +119,42 @@ describe('Storage Providers', () => {
       expect(minio.provider).toBe('minio');
       expect(minio.forcePathStyle).toBe(true);
       expect(minio.region).toBe('us-east-1');
+
+      // RustFS serves S3 on MinIO's default port, so only an explicit provider names it.
+      const rustfs = resolveProviderDefaults(
+        'http://localhost:9000',
+        undefined,
+        undefined,
+        'rustfs'
+      );
+      expect(rustfs.provider).toBe('rustfs');
+      expect(rustfs.forcePathStyle).toBe(true);
+      expect(rustfs.region).toBe('us-east-1');
+    });
+  });
+
+  describe('isKnownProvider', () => {
+    it.each([
+      'aws',
+      'S3',
+      ' r2 ',
+      'cloudflare',
+      'gcs',
+      'google',
+      'b2',
+      'backblaze',
+      'fastly',
+      'garage',
+      'seaweedfs',
+      'seaweed',
+      'minio',
+      'rustfs',
+    ])('knows %s', (name) => {
+      expect(isKnownProvider(name)).toBe(true);
+    });
+
+    it.each(['cloudflare-r2', 'ceph', ''])('does not know "%s"', (name) => {
+      expect(isKnownProvider(name)).toBe(false);
     });
   });
 });

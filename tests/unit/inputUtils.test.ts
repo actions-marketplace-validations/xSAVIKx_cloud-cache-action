@@ -1,14 +1,17 @@
 import { jest } from '@jest/globals';
 
 const mockGetInput = jest.fn<(name: string, options?: unknown) => string>();
+const mockWarning = jest.fn<(message: string) => void>();
 
 jest.unstable_mockModule('@actions/core', () => ({
   getInput: mockGetInput,
+  warning: mockWarning,
 }));
 
 const {
   getInputAsArray,
   getInputAsBool,
+  getInputAsEnum,
   getInputAsInt,
   getInputWithEnv,
   isExactKeyMatch,
@@ -43,21 +46,49 @@ describe('Input Utilities', () => {
   });
 
   describe('getInputAsBool', () => {
-    it('returns true when string is "true" case-insensitively', () => {
-      mockGetInput.mockReturnValueOnce('True');
-      expect(getInputAsBool('lookup-only')).toBe(true);
+    it.each(['true', 'True', 'TRUE'])('reads %s as true', (value) => {
+      mockGetInput.mockReturnValue(value);
+      expect(getInputAsBool('flag')).toBe(true);
     });
 
-    it('returns false when string is "false"', () => {
-      mockGetInput.mockReturnValueOnce('false');
-      expect(getInputAsBool('lookup-only')).toBe(false);
+    it.each(['false', 'False', 'FALSE'])('reads %s as false', (value) => {
+      mockGetInput.mockReturnValue(value);
+      expect(getInputAsBool('flag', true)).toBe(false);
     });
 
-    it('returns default value when input is empty', () => {
-      mockGetInput.mockReturnValueOnce('');
-      expect(getInputAsBool('lookup-only', true)).toBe(true);
-      mockGetInput.mockReturnValueOnce('');
-      expect(getInputAsBool('lookup-only', false)).toBe(false);
+    it('returns the default for an empty input without warning', () => {
+      mockGetInput.mockReturnValue('');
+      expect(getInputAsBool('flag', true)).toBe(true);
+      expect(mockWarning).not.toHaveBeenCalled();
+    });
+
+    it.each(['yes', '1', 'tRuE'])('warns about %s and returns the default', (value) => {
+      mockGetInput.mockReturnValue(value);
+      expect(getInputAsBool('flag', true)).toBe(true);
+      expect(mockWarning).toHaveBeenCalledWith(expect.stringContaining('Input "flag"'));
+    });
+  });
+
+  describe('getInputAsEnum', () => {
+    const colours = ['red', 'green'] as const;
+
+    it('returns an allowed value', () => {
+      mockGetInput.mockReturnValue('green');
+      expect(getInputAsEnum('colour', colours, 'red')).toBe('green');
+    });
+
+    it('returns the default for an empty input without warning', () => {
+      mockGetInput.mockReturnValue('');
+      expect(getInputAsEnum('colour', colours, 'red')).toBe('red');
+      expect(mockWarning).not.toHaveBeenCalled();
+    });
+
+    it('warns about a value that is not allowed', () => {
+      mockGetInput.mockReturnValue('GREEN');
+      expect(getInputAsEnum('colour', colours, 'red')).toBe('red');
+      expect(mockWarning).toHaveBeenCalledWith(
+        'Input "colour" must be one of red, green; got "GREEN". Using "red".'
+      );
     });
   });
 

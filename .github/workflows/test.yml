@@ -6,66 +6,29 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+env:
+  REQUIRE_S3: '1'
+
 jobs:
-  test:
-    name: Unit, Contract & Integration Tests
+  checks:
+    name: Format, lint, types, dist and docs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-
-      - name: Start local test container (MinIO)
-        run: |
-          docker compose -f docker-compose.test.yml up -d minio
-          for i in {1..30}; do
-            if curl -s http://127.0.0.1:9000/minio/health/live > /dev/null 2>&1; then
-              echo "MinIO is ready."
-              break
-            fi
-            sleep 1
-          done
-          docker exec cloud-cache-minio mkdir -p /data/test-bucket
-        continue-on-error: true
-
-      - name: Ensure npm cache directory exists
-        run: mkdir -p ~/.npm
-
-      - name: Restore npm cache (local S3 + GitHub dual-cache)
-        uses: ./
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
-          bucket: test-bucket
-          endpoint: http://127.0.0.1:9000
-          access-key: minioadmin
-          secret-key: minioadmin
-          force-path-style: true
-          dual-cache: true
-          restore-priority: s3-first
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Code style and lint check
-        run: |
-          npm run format:check
-          npm run lint
-
-      - name: Type check
-        run: npx tsc --noEmit
-
-      - name: Run Jest test suite
-        run: npm test
-
-      - name: Build action bundles
-        run: npm run build
-
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - name: Lint workflows with actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+      - run: npm run typecheck
+      - run: npm run build
       - name: Verify dist is clean and tracked
         run: |
           if [ -n "$(git status --porcelain dist)" ]; then
@@ -73,87 +36,526 @@ jobs:
             git status --porcelain dist
             exit 1
           fi
+      - run: npm run docs:build
 
-      - name: Build documentation
-        run: npm run docs:build
+  unit:
+    name: Jest (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Start SeaweedFS
+        run: node tests/ci/startSeaweedfs.ts
+      - name: Run Jest (unit, contract and integration)
+        run: npm test
 
-  dogfood-verify:
-    name: Dedicated Dogfood Verification
-    needs: test
+  provider-compat:
+    name: S3 compatibility (${{ matrix.server }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - server: seaweedfs
+            endpoint: http://127.0.0.1:8333
+            region: us-east-1
+            access-key: cloudcacheci
+            secret-key: cloudcachecisecret
+          - server: garage
+            endpoint: http://127.0.0.1:3900
+            region: garage
+            access-key: GK0123456789abcdef01234567
+            secret-key: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          - server: minio
+            endpoint: http://127.0.0.1:9000
+            region: us-east-1
+            access-key: cloudcacheci
+            secret-key: cloudcachecisecret
+          # RustFS serves S3 on 9000 like MinIO, so docker-compose.test.yml publishes it on 9010.
+          - server: rustfs
+            endpoint: http://127.0.0.1:9010
+            region: us-east-1
+            access-key: cloudcacheci
+            secret-key: cloudcachecisecret
+    env:
+      TEST_S3_ENDPOINT: ${{ matrix.endpoint }}
+      TEST_S3_REGION: ${{ matrix.region }}
+      TEST_S3_ACCESS_KEY: ${{ matrix.access-key }}
+      TEST_S3_SECRET_KEY: ${{ matrix.secret-key }}
+      TEST_S3_PROVIDER: ${{ matrix.server }}
+      KEY: compat-${{ matrix.server }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Start ${{ matrix.server }}
+        run: docker compose -f docker-compose.test.yml up -d ${{ matrix.server }}
+      - name: Bootstrap Garage
+        if: matrix.server == 'garage'
+        run: bash tests/ci/start-garage.sh
+      - name: Wait for S3 and create the bucket
+        run: |
+          for _ in $(seq 1 60); do
+            if node tests/support/s3Server.ts; then exit 0; fi
+            sleep 2
+          done
+          docker compose -f docker-compose.test.yml logs ${{ matrix.server }}
+          exit 1
+      - name: Integration tests
+        run: npm run test:integration
+      - name: Build the fixture tree
+        id: fixture
+        run: node tests/support/fixtureTree.ts build "$RUNNER_TEMP/fixture.json" --large-bytes 33554432
+      - name: Save (save-only)
+        uses: ./save
+        with:
+          key: ${{ env.KEY }}
+          path: ${{ steps.fixture.outputs.paths }}
+          bucket: cloud-cache-test
+          endpoint: ${{ matrix.endpoint }}
+          region: ${{ matrix.region }}
+          provider: ${{ matrix.server }}
+          access-key: ${{ matrix.access-key }}
+          secret-key: ${{ matrix.secret-key }}
+      - name: Remove the fixture tree
+        run: node tests/support/fixtureTree.ts clear
+      - name: Restore (restore-only)
+        id: restore
+        uses: ./restore
+        with:
+          key: ${{ env.KEY }}
+          path: ${{ steps.fixture.outputs.paths }}
+          fail-on-cache-miss: true
+          bucket: cloud-cache-test
+          endpoint: ${{ matrix.endpoint }}
+          region: ${{ matrix.region }}
+          provider: ${{ matrix.server }}
+          access-key: ${{ matrix.access-key }}
+          secret-key: ${{ matrix.secret-key }}
+      - name: Verify the restored tree
+        run: |
+          test "${{ steps.restore.outputs.cache-hit }}" = "true"
+          node tests/support/fixtureTree.ts verify "$RUNNER_TEMP/fixture.json"
+
+  roundtrip:
+    name: Round trip (${{ matrix.os }}, streaming ${{ matrix.streaming }})
+    needs: unit
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        streaming: ['false', 'true']
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      AWS_ENDPOINT_URL: http://127.0.0.1:8333
+      AWS_S3_BUCKET: cloud-cache-test
+      AWS_ACCESS_KEY_ID: cloudcacheci
+      AWS_SECRET_ACCESS_KEY: cloudcachecisecret
+      KEY: rt-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node tests/ci/startSeaweedfs.ts
+      - name: Build the fixture tree
+        id: fixture
+        run: node tests/support/fixtureTree.ts build "$RUNNER_TEMP/fixture.json" --large-bytes 33554432
+      - name: Save (save-only)
+        uses: ./save
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}-v1
+          path: ${{ steps.fixture.outputs.paths }}
+          streaming: ${{ matrix.streaming }}
+          metrics-file: metrics.jsonl
+      - name: Remove the fixture tree
+        run: node tests/support/fixtureTree.ts clear
+      - name: Restore the exact key
+        id: exact
+        uses: ./restore
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}-v1
+          path: ${{ steps.fixture.outputs.paths }}
+          fail-on-cache-miss: true
+          streaming: ${{ matrix.streaming }}
+          metrics-file: metrics.jsonl
+      - name: Verify the restored tree
+        run: |
+          test "${{ steps.exact.outputs.cache-hit }}" = "true"
+          node tests/support/fixtureTree.ts verify "$RUNNER_TEMP/fixture.json"
+      - name: Verify the metrics file has one line per step
+        run: |
+          cat metrics.jsonl
+          test "$(wc -l < metrics.jsonl)" -eq 2
+      - name: Look up by primary-key prefix
+        id: prefix
+        uses: ./restore
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}-v
+          path: ${{ steps.fixture.outputs.paths }}
+          lookup-only: true
+      - name: Look up by restore-keys
+        id: restore-keys
+        uses: ./restore
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}-other
+          restore-keys: ${{ env.KEY }}-v
+          path: ${{ steps.fixture.outputs.paths }}
+          lookup-only: true
+      - name: Look up with a different path list
+        id: mismatch
+        uses: ./restore
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}-v1
+          path: |
+            ${{ steps.fixture.outputs.paths }}
+            not-in-the-original-list
+          lookup-only: true
+      - name: Verify the lookups
+        run: |
+          test "${{ steps.prefix.outputs.cache-hit }}" = "false"
+          test "${{ steps.prefix.outputs.cache-matched-key }}" = "$KEY-v1"
+          test "${{ steps.restore-keys.outputs.cache-hit }}" = "false"
+          test "${{ steps.restore-keys.outputs.cache-matched-key }}" = "$KEY-v1"
+          test "${{ steps.mismatch.outputs.cache-hit }}" = "false"
+          test -z "${{ steps.mismatch.outputs.cache-matched-key }}"
+
+  main-action:
+    name: Main action post step (${{ matrix.os }})
+    needs: unit
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      AWS_ENDPOINT_URL: http://127.0.0.1:8333
+      AWS_S3_BUCKET: cloud-cache-test
+      AWS_ACCESS_KEY_ID: cloudcacheci
+      AWS_SECRET_ACCESS_KEY: cloudcachecisecret
+      KEY: main-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node tests/ci/startSeaweedfs.ts
+      - name: Create a payload
+        run: mkdir -p payload && echo "${{ github.run_id }}" > payload/run.txt
+      - name: After every post step, check that the cache was saved
+        uses: ./.github/actions/assert-object
+        with:
+          key: ${{ env.KEY }}
+      - name: Cache the payload (restore now, save in the post step)
+        id: cache
+        uses: ./
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}
+          path: payload
+      - name: Expect a miss on the first attempt
+        run: test "${{ steps.cache.outputs.cache-hit }}" = "false"
+
+  prune:
+    name: Prune sub-action
+    needs: unit
+    runs-on: ubuntu-latest
+    env:
+      AWS_ENDPOINT_URL: http://127.0.0.1:8333
+      AWS_S3_BUCKET: cloud-cache-test
+      AWS_ACCESS_KEY_ID: cloudcacheci
+      AWS_SECRET_ACCESS_KEY: cloudcachecisecret
+      KEY: prune-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node tests/ci/startSeaweedfs.ts
+      - name: Create two payloads
+        run: |
+          mkdir -p payload-a payload-b
+          echo "a-${{ github.run_id }}" > payload-a/data.txt
+          echo "b-${{ github.run_id }}" > payload-b/data.txt
+      - name: Save the first key
+        uses: ./save
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}-a
+          path: payload-a
+      - name: Save the second key
+        uses: ./save
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}-b
+          path: payload-b
+      - name: Dry-run prune of caches older than 1 day
+        id: prune
+        uses: ./prune
+        with:
+          bucket: cloud-cache-test
+          older-than-days: 1
+          dry-run: true
+      - name: Expect nothing pruned, since the objects are brand new
+        run: test "${{ steps.prune.outputs.pruned-count }}" = "0"
+      - name: Confirm both objects still exist
+        run: |
+          count=$(node tests/ci/s3Objects.ts count "$GITHUB_REPOSITORY/" "/$KEY-")
+          test "$count" -eq 2
+
+  inspect:
+    name: Inspect sub-action
+    needs: unit
+    runs-on: ubuntu-latest
+    env:
+      AWS_ENDPOINT_URL: http://127.0.0.1:8333
+      AWS_S3_BUCKET: cloud-cache-test
+      AWS_ACCESS_KEY_ID: cloudcacheci
+      AWS_SECRET_ACCESS_KEY: cloudcachecisecret
+      KEY: inspect-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node tests/ci/startSeaweedfs.ts
+      - name: Create two payloads
+        run: |
+          mkdir -p payload other-dir
+          echo "payload-${{ github.run_id }}" > payload/data.txt
+          echo "other-${{ github.run_id }}" > other-dir/data.txt
+      - name: Save the cache
+        uses: ./save
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}
+          path: payload
+      - name: Inspect the same lookup
+        id: inspect
+        uses: ./inspect
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}
+          path: payload
+      - name: Expect the lookup to hit the object that was just saved
+        run: |
+          test "${{ steps.inspect.outputs.would-hit }}" = "true"
+          test "${{ steps.inspect.outputs.would-match-key }}" = "$KEY"
+          test -n "${{ steps.inspect.outputs.would-match-object }}"
+      - name: Smoke-test the inspect bundle itself
+        env:
+          INPUT_BUCKET: cloud-cache-test
+          INPUT_KEY: ${{ env.KEY }}
+          INPUT_PATH: payload
+          GITHUB_OUTPUT: ${{ runner.temp }}/inspect-bundle-output.txt
+        run: |
+          : > "$GITHUB_OUTPUT"
+          node dist/inspect/index.js
+          cat "$GITHUB_OUTPUT"
+          # core.setOutput writes "<name><<<delimiter>\n<value>\n<delimiter>".
+          test "$(awk '/^would-hit<</ { getline; print; exit }' "$GITHUB_OUTPUT")" = "true"
+      - name: Inspect the same key with different paths
+        id: inspect-miss
+        uses: ./inspect
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}
+          path: other-dir
+      - name: Expect a miss, since the paths hash to another version
+        run: |
+          test "${{ steps.inspect-miss.outputs.would-hit }}" = "false"
+          test -z "${{ steps.inspect-miss.outputs.would-match-object }}"
+
+  dual-cache:
+    name: Dual-cache with the live GitHub Actions Cache
+    needs: unit
+    runs-on: ubuntu-latest
+    env:
+      AWS_ENDPOINT_URL: http://127.0.0.1:8333
+      AWS_S3_BUCKET: cloud-cache-test
+      AWS_ACCESS_KEY_ID: cloudcacheci
+      AWS_SECRET_ACCESS_KEY: cloudcachecisecret
+      KEY: dual-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node tests/ci/startSeaweedfs.ts
+      - name: Create a payload
+        run: mkdir -p payload && echo "${{ github.run_id }}" > payload/run.txt
+      - name: After the dual-cache post step, check that S3 received the object
+        uses: ./.github/actions/assert-object
+        with:
+          key: ${{ env.KEY }}
+      - name: Cache the payload in both tiers (restore now, post step saves to S3 and GitHub)
+        id: cache
+        uses: ./
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}
+          path: payload
+          dual-cache: true
+      - name: Expect a miss in both tiers on the first attempt
+        run: test "${{ steps.cache.outputs.cache-hit }}" = "false"
+
+  strict-failure:
+    name: Strict dual-cache save failure
+    needs: unit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-
-      - name: Start local test container (MinIO)
-        run: |
-          docker compose -f docker-compose.test.yml up -d minio
-          for i in {1..30}; do
-            if curl -s http://127.0.0.1:9000/minio/health/live > /dev/null 2>&1; then
-              echo "MinIO is ready."
-              break
-            fi
-            sleep 1
-          done
-          docker exec cloud-cache-minio mkdir -p /data/test-bucket
-
-      - name: Generate synthetic test payload
-        run: |
-          mkdir -p /tmp/dogfood-cache-payload
-          echo "Dogfood artifact $(date +%s%N) for run ${{ github.run_id }}" > /tmp/dogfood-cache-payload/artifact.txt
-          sha256sum /tmp/dogfood-cache-payload/artifact.txt > /tmp/dogfood-expected-sha.txt
-          cat /tmp/dogfood-expected-sha.txt
-
-      - name: Save cache via ./ (save-only)
+          cache: npm
+      - run: npm ci
+      - run: node tests/ci/startSeaweedfs.ts
+      - name: Create a payload
+        run: mkdir -p payload && echo "${{ github.run_id }}" > payload/run.txt
+      - name: Save with a wrong secret in strict dual-cache mode (must fail)
+        id: strict-save
+        continue-on-error: true
         uses: ./save
         with:
-          path: /tmp/dogfood-cache-payload
-          key: dogfood-e2e-${{ github.run_id }}-${{ github.run_attempt }}
-          bucket: test-bucket
-          endpoint: http://127.0.0.1:9000
-          access-key: minioadmin
-          secret-key: minioadmin
-          force-path-style: true
+          key: strict-${{ github.run_id }}-${{ github.run_attempt }}
+          path: payload
+          bucket: cloud-cache-test
+          endpoint: http://127.0.0.1:8333
+          access-key: cloudcacheci
+          secret-key: wrong-secret
+          dual-cache: true
+          dual-cache-strict: true
+      - name: Expect the strict save step to have failed
+        run: test "${{ steps.strict-save.outcome }}" = "failure"
 
-      - name: Purge local test payload
-        run: rm -rf /tmp/dogfood-cache-payload
+  cross-os-seed:
+    name: Cross-OS seed (Linux)
+    needs: unit
+    runs-on: ubuntu-latest
+    env:
+      AWS_ENDPOINT_URL: http://127.0.0.1:8333
+      AWS_S3_BUCKET: cloud-cache-test
+      AWS_ACCESS_KEY_ID: cloudcacheci
+      AWS_SECRET_ACCESS_KEY: cloudcachecisecret
+      KEY: xos-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node tests/ci/startSeaweedfs.ts
+      - name: Build the portable fixture tree
+        id: fixture
+        run: node tests/support/fixtureTree.ts build "$RUNNER_TEMP/seed/fixture.json" --portable --large-bytes 8388608
+      - name: Save with enableCrossOsArchive
+        uses: ./save
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}
+          path: ${{ steps.fixture.outputs.paths }}
+          enableCrossOsArchive: true
+      - name: Export the saved objects
+        run: node tests/ci/s3Objects.ts export "$RUNNER_TEMP/seed/objects" "$GITHUB_REPOSITORY/" "/$KEY/"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cross-os-seed
+          path: ${{ runner.temp }}/seed
+          if-no-files-found: error
 
-      - name: Restore cache via ./ (restore-only)
-        id: restore-step
+  cross-os-restore:
+    name: Cross-OS restore (${{ matrix.os }})
+    needs: cross-os-seed
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            hit-without-cross-os: 'true'
+          - os: windows-latest
+            hit-without-cross-os: 'false'
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      AWS_ENDPOINT_URL: http://127.0.0.1:8333
+      AWS_S3_BUCKET: cloud-cache-test
+      AWS_ACCESS_KEY_ID: cloudcacheci
+      AWS_SECRET_ACCESS_KEY: cloudcachecisecret
+      KEY: xos-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Require zstd, which the Linux seed used
+        run: zstd --version
+      - run: node tests/ci/startSeaweedfs.ts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cross-os-seed
+          path: ${{ runner.temp }}/seed
+      - name: Import the seeded objects
+        run: node tests/ci/s3Objects.ts import "$RUNNER_TEMP/seed/objects"
+      - name: Read the seeded paths
+        id: seed
+        run: node tests/support/fixtureTree.ts paths "$RUNNER_TEMP/seed/fixture.json"
+      - name: Look up without enableCrossOsArchive
+        id: plain
         uses: ./restore
         with:
-          path: /tmp/dogfood-cache-payload
-          key: dogfood-e2e-${{ github.run_id }}-${{ github.run_attempt }}
-          bucket: test-bucket
-          endpoint: http://127.0.0.1:9000
-          access-key: minioadmin
-          secret-key: minioadmin
-          force-path-style: true
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}
+          path: ${{ steps.seed.outputs.paths }}
+          lookup-only: true
+      - name: Restore with enableCrossOsArchive
+        id: cross
+        uses: ./restore
+        with:
+          bucket: cloud-cache-test
+          key: ${{ env.KEY }}
+          path: ${{ steps.seed.outputs.paths }}
+          enableCrossOsArchive: true
           fail-on-cache-miss: true
-
-      - name: Verify dogfood cache restoration & checksum
+      - name: Verify
         run: |
-          echo "Asserting cache hit..."
-          if [ "${{ steps.restore-step.outputs.cache-hit }}" != "true" ]; then
-            echo "::error::Expected cache-hit to be 'true', got '${{ steps.restore-step.outputs.cache-hit }}'"
-            exit 1
-          fi
-
-          echo "Verifying file integrity..."
-          if [ ! -f /tmp/dogfood-cache-payload/artifact.txt ]; then
-            echo "::error::Restored file /tmp/dogfood-cache-payload/artifact.txt not found!"
-            exit 1
-          fi
-
-          ACTUAL_SHA=$(sha256sum /tmp/dogfood-cache-payload/artifact.txt | awk '{print $1}')
-          EXPECTED_SHA=$(awk '{print $1}' /tmp/dogfood-expected-sha.txt)
-          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
-            echo "::error::Checksum mismatch! Expected $EXPECTED_SHA, got $ACTUAL_SHA"
-            exit 1
-          fi
-
-          echo "Dogfood verification passed! Checksum: $ACTUAL_SHA"
+          test "${{ steps.plain.outputs.cache-hit }}" = "${{ matrix.hit-without-cross-os }}"
+          test "${{ steps.cross.outputs.cache-hit }}" = "true"
+          node tests/support/fixtureTree.ts verify "$RUNNER_TEMP/seed/fixture.json"

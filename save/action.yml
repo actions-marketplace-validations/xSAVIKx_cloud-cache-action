@@ -10,8 +10,12 @@ inputs:
     description: 'An explicit key for saving the cache'
     required: true
   upload-chunk-size:
-    description: 'The chunk size used to split up large files during upload, in bytes'
+    description: 'The chunk size used to split up large files during upload, in bytes (5 MiB to 128 MiB; default 64 MiB, as in actions/cache)'
     required: false
+  upload-concurrency:
+    description: 'How many multipart upload parts are sent at once (1-32)'
+    required: false
+    default: '8'
   enableCrossOsArchive:
     description: 'An optional boolean when enabled, allows windows runners to save caches that can be restored on other platforms'
     default: 'false'
@@ -28,7 +32,7 @@ inputs:
     description: 'AWS or S3 provider region'
     required: false
   provider:
-    description: 'Storage provider preset: aws, r2, gcs, b2, fastly, garage, seaweedfs, minio'
+    description: 'Storage provider preset: aws, r2, gcs, b2, fastly, garage, seaweedfs, minio, rustfs'
     required: false
   access-key:
     description: 'S3 Access Key ID'
@@ -56,11 +60,15 @@ inputs:
     required: false
     default: ''
   s3-key-pattern:
-    description: 'Template pattern for S3 object key. Default: ${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}'
+    description: 'Template for the S3 object key. Default: ${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}'
     required: false
-    default: '${GITHUB_REPOSITORY}/${prefix}${key}/${archive_filename}'
+    default: '${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}'
   scoped-to-repository:
     description: 'Whether to prefix bucket cache paths with GITHUB_REPOSITORY (default: true)'
+    required: false
+    default: 'true'
+  scoped-to-ref:
+    description: 'Save caches under the current Git ref and restore from the current ref, then the pull request base branch, then the default branch (like actions/cache). Set to false to share caches across all refs.'
     required: false
     default: 'true'
   retry:
@@ -75,6 +83,16 @@ inputs:
     description: 'Fall back to official GitHub Actions Cache service if S3 save fails'
     required: false
     default: 'false'
+  streaming:
+    description: 'Stream archives directly between tar and S3 without a temporary archive file (experimental; default false). Uses less disk and can be faster for large caches, but uploads cannot be retried as a whole and objects carry no integrity checksum.'
+    required: false
+    default: 'false'
+  metadata:
+    description: 'User metadata to store on every saved cache object, one key=value per line (stored as x-amz-meta-*; surrounding whitespace is trimmed; keys starting with cloud-cache- are reserved; 2 KB total)'
+    required: false
+  tags:
+    description: 'Object tags to set on every saved cache object, one key=value per line (up to 10; ignored with a warning on providers without object tagging)'
+    required: false
 
   # Dual-cache inputs
   dual-cache:
@@ -82,13 +100,25 @@ inputs:
     required: false
     default: 'false'
   dual-cache-strategy:
-    description: 'Sync strategy for saving in dual-cache mode: backfill, independent, or skip-on-hit'
+    description: 'Sync strategy for saving in dual-cache mode: backfill or skip-on-hit'
     required: false
     default: 'backfill'
   dual-cache-strict:
     description: 'Fail step if either tier encounters an error during dual-cache save'
     required: false
     default: 'false'
+
+  # Job summary input
+  job-summary:
+    description: 'Write a job summary table with the cache key, saved-to tiers, size, and duration'
+    required: false
+    default: 'true'
+
+  # Metrics input
+  metrics-file:
+    description: 'Append one JSON line of timings and sizes for this step to this file (relative to the workspace)'
+    required: false
+    default: ''
 
 outputs:
   cache-size:
@@ -101,11 +131,17 @@ outputs:
     description: 'The ETag checksum of the cache archive in S3'
   cache-saved-sources:
     description: 'Comma-separated list of cache tiers successfully saved to: s3, github, or s3,github'
+  cache-save-duration-ms:
+    description: 'Wall-clock milliseconds the save step took; 0 when it did not complete'
+  cache-transfer-duration-ms:
+    description: 'Milliseconds spent on the S3 download or upload alone; 0 when nothing was transferred'
+  cache-bytes:
+    description: 'The size in bytes of the cache archive restored or saved; 0 when none was'
 
 runs:
   using: 'node24'
   main: '../dist/save-only/index.js'
 
 branding:
-  icon: 'cloud-upload'
+  icon: 'upload-cloud'
   color: 'blue'

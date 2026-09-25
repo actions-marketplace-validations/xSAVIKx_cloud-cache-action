@@ -1,4 +1,7 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { defineConfig } from 'vitepress';
+import { SITE_URL } from './site.mjs';
 
 export default defineConfig({
   title: 'Cloud Cache Action',
@@ -6,11 +9,28 @@ export default defineConfig({
     'Fast, flexible GitHub Action caching to any S3-compatible storage with 1:1 actions/cache parity',
   base: '/cloud-cache-action/',
   sitemap: {
-    hostname: 'https://xsavikx.github.io/cloud-cache-action/',
+    hostname: SITE_URL,
   },
   lastUpdated: true,
   transformHtml(code) {
     return code.replace('class="VPContent is-home"', 'role="main" class="VPContent is-home"');
+  },
+  /**
+   * llms.txt, llms-full.txt and robots.txt carry absolute URLs, so they are
+   * generated from templates rather than copied. They used to live in public/,
+   * which VitePress copies verbatim — meaning they would have survived a change
+   * to SITE_ORIGIN untouched and kept advertising the old host while every
+   * other emitted file moved. Copied assets are exactly where that hides.
+   */
+  buildEnd(siteConfig) {
+    const templates = path.join(import.meta.dirname, 'templates');
+    for (const file of ['llms.txt', 'llms-full.txt', 'robots.txt']) {
+      const body = readFileSync(path.join(templates, file), 'utf8').replaceAll(
+        '{{SITE_URL}}',
+        SITE_URL
+      );
+      writeFileSync(path.join(siteConfig.outDir, file), body);
+    }
   },
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/cloud-cache-action/favicon.svg' }],
@@ -48,7 +68,7 @@ export default defineConfig({
       'meta',
       { name: 'google-site-verification', content: 'sMLPKoYMB5EoPQiOfUJ51P7xLG55OXBKV9PTEvp2HPw' },
     ],
-    ['link', { rel: 'describedby', href: 'https://xsavikx.github.io/cloud-cache-action/llms.txt' }],
+    ['link', { rel: 'describedby', href: `${SITE_URL}llms.txt` }],
   ],
   themeConfig: {
     logo: { src: '/logo.svg', alt: 'Cloud Cache Action' },
@@ -57,7 +77,11 @@ export default defineConfig({
       { text: 'Dual Caching', link: '/guide/dual-caching' },
       { text: 'Providers', link: '/providers/aws-s3' },
       { text: 'Key Patterns', link: '/guide/s3-key-patterns' },
+      { text: 'Pruning', link: '/guide/pruning' },
+      { text: 'Inspecting', link: '/guide/inspecting' },
+      { text: 'Performance', link: '/guide/performance' },
       { text: 'Migration', link: '/guide/migration' },
+      { text: 'Changelog', link: '/changelog' },
     ],
     sidebar: [
       {
@@ -66,6 +90,9 @@ export default defineConfig({
           { text: 'Introduction', link: '/guide/getting-started' },
           { text: 'Dual Caching (S3 + GitHub)', link: '/guide/dual-caching' },
           { text: 'S3 Key Templating', link: '/guide/s3-key-patterns' },
+          { text: 'Pruning Caches', link: '/guide/pruning' },
+          { text: 'Inspecting Lookups', link: '/guide/inspecting' },
+          { text: 'Transfer Performance', link: '/guide/performance' },
           { text: 'Migrating from actions/cache', link: '/guide/migration' },
         ],
       },
@@ -80,7 +107,12 @@ export default defineConfig({
           { text: 'Garage S3', link: '/providers/garage' },
           { text: 'SeaweedFS S3', link: '/providers/seaweedfs' },
           { text: 'MinIO S3', link: '/providers/minio' },
+          { text: 'RustFS', link: '/providers/rustfs' },
         ],
+      },
+      {
+        text: 'Project',
+        items: [{ text: 'Changelog', link: '/changelog' }],
       },
     ],
     socialLinks: [{ icon: 'github', link: 'https://github.com/xSAVIKx/cloud-cache-action' }],

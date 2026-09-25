@@ -1,0 +1,2045 @@
+# Cloud Cache Action - Complete Documentation (llms-full.txt)
+Author: Yurii Serhiichuk (https://serhiichuk.dev)
+Repository: https://github.com/xSAVIKx/cloud-cache-action
+Documentation: {{SITE_URL}}
+License: MIT
+
+================================================================================
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/getting-started.md -->
+<!-- ============================================================================ -->
+
+# Getting Started
+
+**Cloud Cache Action** allows you to store and retrieve GitHub Actions cache bundles using any S3-compatible cloud or self-hosted object storage service.
+
+It is designed as a drop-in replacement for `actions/cache@v4-v6`, keeping your CI/CD workflows lightning fast while bypassing GitHub's 10GB default cache quotas and egress fees.
+
+## Quickstart
+
+Add the following step to your GitHub Actions workflow:
+
+```yaml
+- name: Cache dependencies to S3
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-ci-cache-bucket
+    endpoint: https://<account_id>.r2.cloudflarestorage.com # Or AWS, GCS, B2, MinIO, etc.
+    access-key: ${{ secrets.S3_ACCESS_KEY }}
+    secret-key: ${{ secrets.S3_SECRET_KEY }}
+    path: |
+      ~/.npm
+      node_modules
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+```
+
+## Paths and Exclusions
+
+`path` accepts files, directories, globs, `~` and `!` exclusions, one per line.
+
+- **Exclusions only remove what the include patterns matched**, as in `actions/cache`. `path: logs` with `!logs/debug.txt` still caches the whole `logs` directory, because the directory itself is the match. To leave one file out, match the files instead:
+
+  ```yaml
+  path: |
+    logs/*
+    !logs/debug.txt
+  ```
+
+- **Symbolic links are not followed while matching.** A pattern that wildcards through a symlinked directory, such as `linked-dir/*` where `linked-dir` is a symlink, matches nothing. A symlink that a pattern matches is archived as a link, not as the files it points to.
+
+### Symlinks
+
+Symlinks are archived as links, never followed and re-created as copies. On Windows, `windows-latest` runners use Git's bundled GNU `tar`, which this action runs with `MSYS=winsymlinks:nativestrict` (the same setting `actions/cache` uses) so that restored links come back as native NTFS symlinks rather than plain-text stand-ins. GitHub-hosted Windows runners allow creating these without extra privileges.
+
+## How It Works
+
+1. **Restore Phase (Pre/Main)**:
+   - Connects to your S3 bucket using modern `@aws-sdk/client-s3`.
+   - Checks if an exact match exists for the `key` parameter.
+   - If not found, evaluates `restore-keys` in order and downloads the most recently updated matching archive.
+   - Verifies the archive's sha256 checksum, when the object carries one, before extracting it; a mismatch is logged as a warning and counts as a cache miss (with `dual-cache: true` and `dual-cache-strict: true`, it fails the step).
+   - With `streaming: true`, extracts the archive as it downloads instead, verifying the checksum at the end: a network or `tar` failure mid-stream, or a checksum mismatch, becomes a cache miss with the workspace possibly partly extracted, and there is no whole-download retry as there is in the default file mode.
+   - Decompresses the archive using `zstd` (or `gzip` fallback) directly into your workspace.
+   - Sets outputs (`cache-hit`, `cache-primary-key`, `cache-matched-key`, `cache-size`, `cache-storage-provider`, `cache-s3-key`, `cache-etag`, `cache-metadata`, `cache-hit-source`) plus the timings described in [Metrics and Timings](#metrics-and-timings).
+   - Writes a job summary table with the key, hit status, source, size and duration, unless `job-summary: false`.
+
+2. **Save Phase (Post)**:
+   - If `read-only: true` or if an exact key match occurred during restore, saving is automatically skipped.
+   - Checks whether another job already saved the same object first; if so, keeps that job's cache instead of overwriting it. The upload itself is a conditional create, so two saves racing for the same key cannot overwrite each other on providers that enforce `If-None-Match` (verified on AWS S3, MinIO and SeaweedFS); providers that ignore it (verified: Garage; reportedly Google Cloud Storage's S3 interoperability) keep last-writer-wins.
+   - Otherwise, archives the specified `path` directories using multi-threaded `zstd` compression.
+   - Streams the compressed archive to your S3 bucket using multipart uploads via `@aws-sdk/lib-storage`, tagged with a sha256 checksum for later integrity verification.
+   - Stores any `metadata` as `x-amz-meta-*` user metadata on the saved object and any `tags` as object tags, and the metadata comes back on the next restore as the `cache-metadata` output. Providers without object tagging log one warning and save without tags (verified: SeaweedFS and MinIO store tags; Garage accepts the upload but implements no tagging API, so its tags cannot be read back).
+   - Emits diagnostics and completes cleanly without breaking the build on non-fatal network interruptions.
+   - Writes a job summary table with the key, saved-to tiers, size and duration, unless `job-summary: false`.
+
+Cache archives are never deleted automatically; see [Pruning Caches](./pruning.md) for a
+scheduled cleanup sub-action.
+
+## Inspecting a Lookup
+
+When a restore misses and you expected a hit, set `explain: true` to log the whole lookup — the resolved key pattern, the `${version}` hash and what it is computed from, every ref searched and every candidate object with the version it carries — right before the restore runs. The `inspect` sub-action prints the same report as a step of its own, restoring nothing and exposing the result as outputs (`would-hit`, `would-match-key`, `would-match-object`, `candidate-count`, `report`):
+
+```yaml
+- name: Inspect the cache lookup
+  id: lookup
+  uses: xSAVIKx/cloud-cache-action/inspect@v1
+  with:
+    bucket: my-ci-cache-bucket
+    path: ~/.npm
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+```
+
+See [Inspecting Lookups](./inspecting.md) for the full report, how to read the "none has version" reason, and the `fail-on-cache-miss` guard pattern for matrix jobs.
+
+## Metrics and Timings
+
+Restore and save set four timing and size outputs on every path, so they are always defined: `cache-restore-duration-ms` and `cache-save-duration-ms` (wall-clock milliseconds of the step, `0` when it did not complete), `cache-transfer-duration-ms` (the S3 download or upload alone) and `cache-bytes` (the archive that was restored or saved, `0` when none was).
+
+On the unified action the save runs as a post step, and it sets `cache-save-duration-ms`, `cache-transfer-duration-ms` and `cache-bytes` for itself — including zeroing them when there is nothing to save. After the post step those three therefore describe the save, while `cache-size` and `cache-restore-duration-ms` still hold the restore's values. Read a restore's byte count in a step that runs before the post step, or use the standalone `restore` and `save` actions, where each step owns its outputs.
+
+Every step — restore, save, `prune` and `inspect` — also writes one `cloud-cache-metrics <json>` debug line. Set `metrics-file` to append that same JSON as one line to a file, resolved relative to `GITHUB_WORKSPACE`:
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-ci-cache-bucket
+    path: ~/.npm
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    metrics-file: cache-metrics.jsonl
+```
+
+```json
+{"step":"restore","timestamp":"2026-09-17T06:02:41.912Z","provider":"r2","key":"Linux-node-9f2c1a","matchedKey":"Linux-node-9f2c1a","objectKey":"octo/app/refs%2Fheads%2Fmain/Linux-node-9f2c1a/4d0f1b2c9a7e35f1/cache.tar.zst","source":"s3","bytes":199687424,"durationMs":8123,"transferDurationMs":5310,"streaming":false,"outcome":"hit"}
+```
+
+- `step` is `restore`, `save`, `prune` or `inspect`, and `outcome` is one of `hit`, `miss`, `saved`, `exists`, `skipped`, `error`, `pruned`, `would-hit` or `would-miss`.
+- `transferDurationMs` measures the S3 transfer alone in the default file mode. With `streaming: true` the archive is extracted (or compressed) as it moves, so the same field covers download-plus-extract; the `streaming` field on the line tells the two apart.
+- `prune` and `inspect` write their line once the step has finished its work, so a step that fails earlier writes none. `prune` reports its tallies in `extra` (`prunedCount`, `prunedBytes`, `keptCount`, `dryRun`) and `inspect` reports `candidateCount`.
+- Writing the file is best-effort by design: a machine-readable timing record must never fail a cache step, so a write error only logs `Could not write metrics to <path>: <reason>`.
+
+## Standalone Restore and Save Actions
+
+Just like `actions/cache/restore` and `actions/cache/save`, you can invoke restore and save as independent steps:
+
+### Restore Only
+
+```yaml
+- name: Restore cache
+  id: restore-step
+  uses: xSAVIKx/cloud-cache-action/restore@v1
+  with:
+    bucket: my-ci-cache-bucket
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: build/
+```
+
+### Save Only
+
+```yaml
+- name: Save cache
+  uses: xSAVIKx/cloud-cache-action/save@v1
+  with:
+    bucket: my-ci-cache-bucket
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: build/
+```
+
+### Action Metadata Definitions
+
+You can inspect the full action specification files directly in the repository:
+
+- **Unified Action**: [`action.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/action.yml)
+- **Dedicated Restore Action**: [`restore/action.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/restore/action.yml)
+- **Dedicated Save Action**: [`save/action.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/save/action.yml)
+- **Inspect Action**: [`inspect/action.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/inspect/action.yml)
+
+::: details `action.yml` (Click to view unified action definition)
+<<< ../../action.yml{yaml}
+:::
+
+::: details `restore/action.yml` (Click to view restore action definition)
+<<< ../../restore/action.yml{yaml}
+:::
+
+::: details `save/action.yml` (Click to view save action definition)
+<<< ../../save/action.yml{yaml}
+:::
+
+::: details `inspect/action.yml` (Click to view inspect action definition)
+<<< ../../inspect/action.yml{yaml}
+:::
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/dual-caching.md -->
+<!-- ============================================================================ -->
+
+# Dual Caching (S3 + GitHub Actions Cache)
+
+**Dual Caching** allows your GitHub Actions workflows to save and restore cache bundles across **both** remote S3-compatible storage and GitHub's native Actions Cache service simultaneously.
+
+---
+
+## Why Dual Caching?
+
+In modern CI/CD setups, organizations often run a hybrid infrastructure:
+
+- Standard linting, light tests, and PR checks run on **GitHub-hosted runners** (`ubuntu-latest`).
+- Heavy compilation, Docker builds, GPU workloads, and integration tests run on **self-hosted runners** (Kubernetes, AWS EC2, or on-premise bare-metal).
+
+This creates a common challenge:
+
+1. **Runner Isolation**: Self-hosted or remote runners may have high latency, bandwidth limits, or restricted access to GitHub's internal cache service, but have direct, high-speed access to an S3-compatible bucket (or local Garage / SeaweedFS / MinIO / Cloudflare R2).
+2. **Quota Limits**: GitHub enforces a strict **10 GB per repository** cache limit. Once exceeded, older caches are evicted, causing unexpected slowdowns.
+3. **Redundancy & Availability**: If GitHub's cache service experiences transient 503 errors or an outage, having S3 as an active peer ensures your builds never suffer cold starts.
+
+With Dual Caching enabled, the **exact same cache keys** are populated in both systems, and jobs can seamlessly read from whichever source is optimal.
+
+---
+
+## Architecture & Flow
+
+### Restore Flow
+
+```mermaid
+flowchart TD
+    Start[Restore Step Starts] --> CheckDual{dual-cache: true?}
+    CheckDual -- No --> S3Only[Standard S3 Restore]
+    CheckDual -- Yes --> Priority{restore-priority}
+
+    Priority -- s3-first --> S3Try[1. Query S3 Storage]
+    S3Try -- S3 Hit --> RestoreS3[Restore from S3\ncache-hit-source: s3]
+    S3Try -- S3 Miss/Fail --> GHTry[2. Fallback to GitHub Cache]
+    GHTry -- GH Hit --> RestoreGH[Restore from GitHub Cache\ncache-hit-source: github]
+    GHTry -- GH Miss --> Miss[Cache Miss across both tiers\ncache-hit-source: none]
+
+    Priority -- github-first --> GHTryFirst[1. Query GitHub Cache]
+    GHTryFirst -- GH Hit --> RestoreGHFirst[Restore from GitHub Cache\ncache-hit-source: github]
+    GHTryFirst -- GH Miss/Fail --> S3TrySecond[2. Fallback to S3 Storage]
+    S3TrySecond -- S3 Hit --> RestoreS3Second[Restore from S3\ncache-hit-source: s3]
+    S3TrySecond -- S3 Miss --> Miss
+```
+
+### Save Flow (Post-step)
+
+When `dual-cache: true` is enabled, the post-run step evaluates both tiers according to `dual-cache-strategy`:
+
+| Strategy                   | Behavior                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`backfill`** _(default)_ | Before uploading to a tier that did not serve the exact key, checks whether that tier already has it (an S3 `HEAD` request or a GitHub lookup) and uploads only if it is missing. |
+| **`skip-on-hit`**          | If an exact hit occurred on _either_ tier during restore, saving is skipped on both.                                                                                              |
+
+`independent` was removed in v1.1; it now behaves as `backfill` and logs a warning.
+
+---
+
+## Real-World Use Cases & Examples
+
+### Use Case 1: Lightweight Runners for Dependencies $\to$ Remote Cloud VM for Heavy Builds
+
+A common architectural pattern is separating concerns across runner tiers to minimize cloud compute costs:
+
+1. **Lightweight GitHub-hosted runner (`ubuntu-latest`)**: Runs quick tasks like `npm ci` to assemble `node_modules` or download package dependencies.
+2. **Heavyweight Remote Cloud runner (`[self-hosted, aws-heavy]`)**: An EC2 or GCP machine with high CPU/GPU/RAM dedicated to compiling native artifacts, building Docker images, or executing end-to-end integration tests.
+
+With **Dual Caching**:
+
+- The GitHub-hosted runner uses `dual-cache: true` with `restore-priority: github-first` and `dual-cache-strategy: backfill`. It benefits from GitHub's internal runner cache, but **automatically synchronizes the populated `node_modules` directly into your AWS S3 or GCP bucket**.
+- The remote cloud machine then restores `node_modules` directly from S3 at line-rate internal VPC speeds (`restore-priority: s3-first`) without network bottlenecking or GitHub cache quota contention.
+
+```yaml
+name: Full Pipeline (Lightweight Prep to Heavy Cloud Build)
+
+on: [push, pull_request]
+
+jobs:
+  # Job 1: Lightweight GitHub-hosted runner resolves dependencies
+  prepare-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Cache node_modules (Dual Mode: GitHub + S3 Sync)
+        id: cache-deps
+        uses: xSAVIKx/cloud-cache-action@v1
+        with:
+          bucket: my-company-ci-cache
+          endpoint: https://s3.us-east-1.amazonaws.com # or GCS / Cloudflare R2
+          access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          dual-cache: true
+          restore-priority: github-first # Quickest on GitHub-hosted runner
+          dual-cache-strategy: backfill  # Ensures S3 gets populated even if GitHub Cache hit
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          path: node_modules
+
+      - name: Install dependencies on miss
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: npm ci
+
+  # Job 2: Heavyweight remote AWS/GCP runner builds Docker / Native binaries
+  build-product:
+    needs: prepare-dependencies
+    runs-on: [self-hosted, aws-c6i-metal] # Heavy remote VM located inside AWS VPC
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Instantly pulls node_modules directly from local AWS S3 bucket over internal VPC
+      - name: Restore node_modules from S3
+        uses: xSAVIKx/cloud-cache-action@v1
+        with:
+          bucket: my-company-ci-cache
+          endpoint: https://s3.us-east-1.amazonaws.com
+          access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          dual-cache: true
+          restore-priority: s3-first    # Direct VPC speed, no GitHub egress lag
+          read-only: true               # Dependencies were already saved by Job 1
+          key: Linux-node-modules-${{ hashFiles('**/package-lock.json') }}
+          path: node_modules
+
+      # Docker layer cache can also be persisted to S3
+      - name: Cache Docker Buildx layers
+        uses: xSAVIKx/cloud-cache-action@v1
+        with:
+          bucket: my-company-ci-cache
+          access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          key: docker-layers-${{ github.sha }}
+          restore-keys: |
+            docker-layers-
+          path: /tmp/.buildx-cache
+
+      - name: Build Native / Docker Product
+        run: |
+          docker buildx build \
+            --cache-from=type=local,src=/tmp/.buildx-cache \
+            --cache-to=type=local,dest=/tmp/.buildx-cache-new,mode=max \
+            -t my-app:latest .
+```
+
+---
+
+### Use Case 2: Quota Spillover & High-Availability Redundancy
+
+Avoid cold builds when GitHub's 10GB per-repo cache limit evicts keys, or during GitHub service disruptions:
+
+```yaml
+- name: Cache with S3 backup
+  id: cache-step
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-overflow-s3-bucket
+    access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    dual-cache: true
+    restore-priority: github-first # Use GitHub cache while available
+    dual-cache-strategy: backfill # Keep S3 continuously primed as cold-cache safety net
+    key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+    restore-keys: |
+      ${{ runner.os }}-gradle-
+    path: ~/.gradle/caches
+
+- name: Inspect Cache Hit Source
+  run: |
+    echo "Cache Hit: ${{ steps.cache-step.outputs.cache-hit }}"
+    echo "Serviced by: ${{ steps.cache-step.outputs.cache-hit-source }}" # 'github', 's3', or 'none'
+```
+
+---
+
+### Use Case 3: Zero-Downtime Migration from GitHub Cache to Cloud Storage
+
+If your team is migrating from `actions/cache` to Cloudflare R2 or AWS S3:
+
+1. Enable `dual-cache: true` with `restore-priority: github-first`.
+2. Existing builds will continue restoring instantly from GitHub Actions Cache.
+3. In the background, `backfill` saves every cache bundle to your S3 bucket.
+4. Once your S3 bucket is warmed up, switch `restore-priority: s3-first` or turn off dual-cache.
+
+---
+
+## Dual-Cache Configuration Reference
+
+### Inputs
+
+| Input                 |  Type   |  Default   | Description                                                                                                                 |
+| --------------------- | :-----: | :--------: | --------------------------------------------------------------------------------------------------------------------------- |
+| `dual-cache`          | boolean |  `false`   | Enables simultaneous caching across S3-compatible storage and GitHub Actions Cache.                                         |
+| `restore-priority`    | string  | `s3-first` | Order to check caches during restore: `s3-first` or `github-first`.                                                         |
+| `dual-cache-strategy` | string  | `backfill` | Save synchronization mode: `backfill` or `skip-on-hit`.                                                                     |
+| `dual-cache-strict`   | boolean |  `false`   | When `false` (default), a tier error is a warning and the other tier continues. When `true`, an error from either tier fails the step, during restore and during save. |
+
+::: warning What `dual-cache-strict` can see
+Strict mode catches every S3 error. For the GitHub Actions Cache tier it only sees the failures `@actions/cache` reports: the library logs and swallows most cache service errors itself. When it does not save a key, because another job is creating the same entry, the cache mode forbids writes, or the service failed, the step logs the library's message, does not list `github` in `cache-saved-sources`, and does not fail. When none of `path` matches anything on disk, both tiers report the save as skipped instead of an error, so strict mode no longer fails the step for that case.
+:::
+
+### Outputs
+
+| Output                |                  Values                   | Description                                                                      |
+| --------------------- | :---------------------------------------: | -------------------------------------------------------------------------------- |
+| `cache-hit-source`    |        `s3` \| `github` \| `none`         | Identifies which storage tier provided the restored cache bundle.                |
+| `cache-saved-sources` | `s3,github` \| `s3` \| `github` \| `none` | Comma-separated list of storage tiers that successfully stored the cache bundle. |
+
+---
+
+## Live CI Dogfooding & Verification
+
+The dual-cache backfill and skip-on-hit strategies are exercised continuously within the repository's test workflow: [`.github/workflows/test.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/.github/workflows/test.yml).
+
+::: details `.github/workflows/test.yml` (Click to view full CI test workflow)
+<<< ../../.github/workflows/test.yml{yaml}
+:::
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/s3-key-patterns.md -->
+<!-- ============================================================================ -->
+
+# S3 Key Templating & Overrides
+
+Cloud Cache Action gives you complete control over where cache archives are stored in your bucket.
+
+## Default Key Pattern
+
+```text
+${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}
+```
+
+For repository `my-org/my-project`, branch `main` and key `linux-node-18-a1b2c3`, the object is:
+
+```text
+my-org/my-project/refs%2Fheads%2Fmain/linux-node-18-a1b2c3/27747e0d22df7792/cache.tar.zst
+```
+
+## Available Template Placeholders
+
+### Special Placeholders
+
+| Variable               | Description                                                                                 | Example                           |
+| ---------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `${GITHUB_REPOSITORY}` | Repository in `owner/repo` format; removed when `scoped-to-repository: false`               | `xSAVIKx/cloud-cache-action`      |
+| `${prefix}`            | The `prefix` input with a trailing slash, or empty                                          | `frontend/`                       |
+| `${ref}`               | The Git ref, encoded as one path segment; removed when `scoped-to-ref: false`               | `refs%2Fheads%2Fmain`             |
+| `${key}`               | The cache key. Must appear exactly once. Inserted as written, so keys may contain `/`       | `linux-node-a1b2c3`               |
+| `${version}`           | 16-character hash of `path`, the compression method and (on Windows) `enableCrossOsArchive` | `27747e0d22df7792`                |
+| `${archive_filename}`  | Archive name                                                                                 | `cache.tar.zst` or `cache.tar.gz` |
+
+Write special placeholders in braces. A pattern without `${ref}` or `${version}` works, but the action warns:
+
+- Without `${ref}`, every branch shares caches.
+- Without `${version}`, a cache saved with different paths or compression can be restored as a hit.
+- A bare form of a special placeholder, such as `$ref` instead of `${ref}`, is never expanded — it
+  is left in the object key literally, and the action warns `s3-key-pattern uses $ref; write
+  ${ref} to use the ref placeholder.` (one warning per placeholder used this way).
+
+### Environment Variables
+
+Reference any environment variable with `${VAR_NAME}`, `$VAR_NAME` or `${env.VAR_NAME}`:
+
+- An unset `${VAR_NAME}` becomes empty.
+- An unset `$VAR_NAME` stays as written.
+- Values are inserted once and never expanded again.
+- The post step of the main action expands the pattern again when it saves. If a step changes a variable the pattern uses through `GITHUB_ENV`, the save writes to a different object than the restore looked up. Keep such variables fixed for the whole job. The compression method does not have this problem: the post step reuses the one the restore step used, even if `zstd` was installed in between.
+
+| Variable             | Description                           | Example Value               |
+| --------------------- | -------------------------------------- | ----------------------------- |
+| `${RUNNER_OS}`       | Runner operating system               | `Linux`, `Windows`, `macOS` |
+| `${GITHUB_JOB}`      | Current job ID in the workflow        | `build-frontend`            |
+| `${GITHUB_RUN_ID}`   | Unique ID of the workflow run         | `1234567890`                |
+| `${CUSTOM_WORKLOAD}` | Any user-defined environment variable | `api-service`               |
+
+## How Restore Finds a Cache
+
+For each ref in order (the current ref, the pull request base branch, then the default branch), restore tries:
+
+1. The exact `key`.
+2. The newest object whose key starts with `key`.
+3. For each `restore-keys` entry in order, the newest object whose key starts with it.
+
+Only objects with the same `${version}` and archive format count, and the first match wins.
+
+## Common Configuration Patterns
+
+### 1. Custom Prefix Within Repository
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: ci-caches
+    prefix: web-app
+    key: ${{ runner.os }}-node-${{ hashFiles('yarn.lock') }}
+    path: node_modules
+```
+
+Object key: `my-org/my-repo/web-app/refs%2Fheads%2Fmain/Linux-node-12345/<version>/cache.tar.zst`
+
+### 2. Global Shared Cache (No Repository or Ref Scoping)
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: shared-org-cache
+    scoped-to-repository: false
+    scoped-to-ref: false
+    key: global-rust-toolchain-v1
+    path: ~/.cargo
+```
+
+Object key: `global-rust-toolchain-v1/<version>/cache.tar.zst`
+
+### 3. Fully Custom S3 Key Pattern
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-bucket
+    s3-key-pattern: 'builds/${GITHUB_REPOSITORY}/${ref}/${prefix}${key}/${version}.tar.zst'
+    prefix: release-v1/
+    key: app-bundle
+    path: dist/
+```
+
+Object key: `builds/my-org/my-repo/refs%2Fheads%2Fmain/release-v1/app-bundle/<version>.tar.zst`
+
+### 4. Per-Workload Isolated Cache
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  env:
+    WORKLOAD_TYPE: backend-api
+  with:
+    bucket: my-bucket
+    s3-key-pattern: '${GITHUB_REPOSITORY}/${RUNNER_OS}/${WORKLOAD_TYPE}/${ref}/${key}/${version}/${archive_filename}'
+    key: ${{ runner.os }}-deps-${{ hashFiles('go.sum') }}
+    path: ~/go/pkg/mod
+```
+
+Object key: `my-org/my-repo/Linux/backend-api/refs%2Fheads%2Fmain/Linux-deps-abc123/<version>/cache.tar.zst`
+
+> [!NOTE]
+> Object keys always use forward slashes (`/`), whether the runner is Linux, macOS or Windows.
+
+## Custom Patterns and Pruning
+
+If you use [`cloud-cache-action/prune`](./pruning.md) with a custom `s3-key-pattern`, prune only
+deletes objects whose whole key matches the pattern. Keep `${GITHUB_REPOSITORY}` and `${ref}` in
+path segments of their own, separated from `${key}` and `${version}` by `/`: when they share a
+segment, keys from other repositories or refs could match, and the prune action refuses to run
+whenever it cannot tell them apart.
+Starting the pattern with `${ref}` also leaves no fixed listing prefix for pruning every ref, so
+set its `ref` input in that case.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/pruning.md -->
+<!-- ============================================================================ -->
+
+# Pruning Caches
+
+Object storage has no built-in cache eviction like GitHub's 10 GB-per-repository limit: whatever
+you save to S3 stays there until something deletes it. `cloud-cache-action/prune` is a standalone
+sub-action that deletes cache archives older than a given age from any S3-compatible bucket, so you
+can run it on a schedule instead of relying only on a bucket lifecycle rule.
+
+## Usage
+
+Run it in its own scheduled workflow. **Start with `dry-run: true`** so you can read the logged
+output before anything is actually deleted, then flip it to `false` once it looks right:
+
+```yaml
+name: Prune old caches
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # Every Sunday at 03:00 UTC
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: xSAVIKx/cloud-cache-action/prune@v1
+        with:
+          bucket: my-ci-cache-bucket
+          endpoint: https://<account_id>.r2.cloudflarestorage.com # Or AWS, GCS, B2, MinIO, etc.
+          access-key: ${{ secrets.S3_ACCESS_KEY }}
+          secret-key: ${{ secrets.S3_SECRET_KEY }}
+          older-than-days: 30
+          dry-run: true # Flip to false once the logged output looks right.
+```
+
+Each candidate is logged at info level with its size and age (capped at 200 lines, followed by a
+totals line), so a dry run tells you exactly what a real run would delete.
+
+## Inputs
+
+The prune action shares its storage inputs with the main action, plus four inputs of its own:
+
+| Input                             | Required |          Default          | Description                                                                 |
+| ---------------------------------- | :------: | :------------------------: | ---------------------------------------------------------------------------- |
+| `bucket`                           | **Yes**  |             —              | Name of the S3 bucket                                                        |
+| `older-than-days`                  | **Yes**  |             —              | Delete cache archives whose last-modified time is older than this many days |
+| `ref`                               |    No    |     _(every ref)_          | Prune only caches under this full Git ref (`refs/heads/main`); empty means every ref |
+| `dry-run`                           |    No    |          `false`           | List cache archives that would be pruned without deleting anything          |
+| `endpoint`                         |    No    |          Auto/AWS          | Custom S3-compatible endpoint URL                                           |
+| `region`                           |    No    |      Auto/`us-east-1`      | AWS or S3 provider region                                                    |
+| `provider`                         |    No    |            Auto            | Preset: `aws`, `r2`, `gcs`, `b2`, `fastly`, `garage`, `seaweedfs`, `minio`  |
+| `access-key` / `accessKey`         |    No    |    `AWS_ACCESS_KEY_ID`     | S3 Access Key ID                                                             |
+| `secret-key` / `secretKey`         |    No    |  `AWS_SECRET_ACCESS_KEY`   | S3 Secret Access Key                                                         |
+| `session-token` / `sessionToken`   |    No    |    `AWS_SESSION_TOKEN`     | S3 Session Token                                                             |
+| `force-path-style`                 |    No    |            Auto            | Force path-style S3 URLs                                                    |
+| `prefix`                           |    No    |            `""`            | Subfolder prefix path inside the bucket                                     |
+| `s3-key-pattern`                   |    No    | same default as the main action | Template for the S3 object key (see [S3 Key Templating](./s3-key-patterns.md)) |
+| `scoped-to-repository`             |    No    |           `true`           | Whether to prefix bucket cache paths with `GITHUB_REPOSITORY`               |
+| `scoped-to-ref`                    |    No    |           `true`           | Whether cache keys include the Git ref; set `false` to prune caches saved with `scoped-to-ref: false` |
+| `retry`                            |    No    |           `true`           | Enable exponential backoff retries on S3 operations                        |
+| `retry-count`                      |    No    |            `3`              | Maximum number of S3 retries                                                |
+| `metrics-file`                     |    No    |            `""`             | Append one JSON line of timings and sizes for this step to this file, relative to the workspace |
+
+An invalid `older-than-days` (not a positive integer) or an unrecognized `dry-run` value (anything
+other than `true`, `True`, `TRUE`, `false`, `False` or `FALSE`) fails the step immediately, rather
+than silently falling back to a default — a typo like `dry-run: Flase` must never turn into a real
+deletion.
+
+## Outputs
+
+| Output          | Description                                                                    |
+| ---------------- | ------------------------------------------------------------------------------- |
+| `pruned-count`   | The number of cache archives pruned (or that would be pruned in a dry run)      |
+| `pruned-bytes`   | The total size in bytes of the pruned cache archives                           |
+| `kept-count`     | The number of cache archives that matched the scope but were not old enough    |
+
+The outputs are set once the prune finishes. A step that fails earlier — an invalid input, an
+unsafe scope, an S3 error — sets none of them, so guard on `steps.<id>.outcome` before reading
+them in a later step.
+
+## Metrics
+
+Set `metrics-file` to append one JSON line describing this prune to a file, in addition to the
+`cloud-cache-metrics <json>` debug line every step writes. The line carries `"step":"prune"`, an
+outcome of `pruned`, the pruned byte total, the step's `durationMs`, and the tallies in `extra`:
+
+```json
+{"step":"prune","timestamp":"2026-09-17T03:00:11.204Z","provider":"r2","bytes":4194304000,"durationMs":9412,"outcome":"pruned","extra":{"prunedCount":37,"prunedBytes":4194304000,"keptCount":12,"dryRun":false}}
+```
+
+The line is written once the prune has finished, so a step that fails earlier writes none. Writing
+the file is best-effort: a write error only logs `Could not write metrics to <path>: <reason>` and
+never fails the step. See [Metrics and Timings](./getting-started.md#metrics-and-timings) for the
+fields the other steps emit.
+
+## What gets pruned
+
+Prune lists objects under the fixed start of your `s3-key-pattern` and only treats an object as a
+candidate when its **whole key** matches the pattern: this repository, the configured prefix, the
+given ref (or any full ref such as `refs%2Fheads%2Fmain` when `ref` is empty), any cache key, any
+version, and either archive filename the action produces (`cache.tar.zst` or `cache.tar.gz`).
+Objects that are not cache archives, and objects that belong to another repository or another ref
+but happen to share the listing prefix, are never touched.
+
+Caches saved with `scoped-to-ref: false` have no ref in their key. Prune them with a separate step
+that also sets `scoped-to-ref: false` and leaves `ref` empty: the pattern is then resolved without
+`${ref}`, exactly as the main action resolves it, and keys that carry a ref segment where the ref
+would be are left for a ref-scoped prune. One exception: an unscoped prune with an empty `prefix`
+also matches ref-scoped caches of the same repository that were saved with a non-empty `prefix`
+(their prefix segment reads as part of the key), subject to `older-than-days`. If you mix prefixes,
+give every prune step the `prefix` its caches were saved with.
+
+Among candidates, only those whose `LastModified` is older than `older-than-days` are deleted.
+Deletion happens one `DeleteObject` call per key (up to 8 in flight at a time), rather than a
+single batch delete: Google Cloud Storage's S3 interoperability layer does not support
+multi-object delete, and this keeps behavior identical across providers.
+
+## Scope: repository, prefix and ref
+
+By default (`scoped-to-repository: true`), pruning is scoped to the current repository, matching
+how caches are saved. Set `prefix` to further narrow it, exactly as with the main action.
+
+Leaving `ref` empty prunes caches under **every** ref in scope, not just the current branch — this
+is usually what you want for a scheduled cleanup job. Set `ref` to prune a single ref instead. It
+must be the full ref, such as `refs/heads/main` or `refs/pull/12/merge`: caches are saved under
+the full ref, so `main` matches nothing. The step warns when `ref` does not start with `refs/`.
+
+The action refuses to run when the result would be unsafe:
+
+- **No fixed listing prefix.** If the `s3-key-pattern` leaves nothing fixed before the first part
+  that varies (for example `scoped-to-repository: false` with no `prefix`, or a pattern that starts
+  with `${ref}` while `ref` is empty), prune would have to scan the whole bucket. The step fails
+  and asks you to set `prefix`, keep `scoped-to-repository` enabled, or set `ref`.
+- **A repository that cannot be told apart.** If every `${GITHUB_REPOSITORY}` in the pattern shares
+  a path segment with `${key}`, `${version}` or a `${ref}` before it (for example
+  `${key}-${GITHUB_REPOSITORY}/`), another repository's object keys could match yours, so the step
+  fails. Separate `${GITHUB_REPOSITORY}` from them with `/`. `${GITHUB_REPOSITORY}-${ref}` is
+  fine: an encoded ref always starts with `refs%2F`, which no repository name contains.
+- **No `${archive_filename}`.** Without it in the pattern, prune cannot tell cache archives from
+  other objects, so the step fails.
+- **A ref without a ref scope.** Setting `ref` while `scoped-to-ref` is `false` fails the step,
+  because those cache keys contain no ref.
+- **A ref that cannot be told apart.** With `ref` set, the step fails when the pattern has no
+  `${ref}`, or when every `${ref}` shares a path segment with `${key}`, `${version}` or another
+  `${ref}`. Leave `ref` empty to prune every ref instead.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/inspecting.md -->
+<!-- ============================================================================ -->
+
+# Inspecting Lookups
+
+When a cache misses and you expected a hit, the question is always the same: _which objects did
+the restore actually look at, and why was none of them used?_ Cloud Cache Action answers it two
+ways, both of which print the same report:
+
+- **`explain: true`** on the restore (or on the main action) logs the report right before the
+  restore runs, in the same step.
+- **The `inspect` sub-action** runs the lookup on its own, downloads nothing, writes nothing, and
+  exposes the answer as step outputs.
+
+Both only **list** objects. Neither downloads an archive, and neither writes to the bucket, so
+running them is safe on any branch and in any job.
+
+## `explain` vs `inspect`
+
+| | `explain: true` | `inspect` sub-action |
+| --- | --- | --- |
+| Where it runs | Inside the restore step, before restoring | As its own step |
+| Restores the cache | Yes, the report is only extra logging | No, never |
+| Result | Log group + job summary section | Log group + job summary section + outputs |
+| Failure mode | Never fails the step; a broken report only logs a warning | Fails the step on a bad input or an S3 error, and on a miss when `fail-on-cache-miss: true` |
+| Use it for | Debugging a real workflow in place | Asserting on the lookup, dashboards, matrix guards |
+
+Rule of thumb: reach for `explain` when you want to know why the cache you are already restoring
+missed, and for `inspect` when the lookup result itself is the thing you want to act on.
+
+### `explain` on a restore
+
+`explain` is available on the main action and on the `restore` sub-action. It defaults to `false`.
+
+```yaml
+- name: Restore cache
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-ci-cache-bucket
+    access-key: ${{ secrets.S3_ACCESS_KEY }}
+    secret-key: ${{ secrets.S3_SECRET_KEY }}
+    path: ~/.npm
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+    explain: true
+```
+
+The report is written to a `Cache lookup explained` log group before the restore starts, and, when
+`job-summary` is on (the default), to a `Cache lookup explained` job summary section. Building it
+is best-effort: if it throws, the step logs
+`Could not explain the cache lookup: <reason>` and restores as usual.
+
+`explain: true` pairs well with `lookup-only: true` when you only want the answer and not the
+archive. Note that a `lookup-only` restore stops before the download, so the `cache-metadata`
+output stays `{}` even on a hit: read the metadata from a full restore, or the object itself, when
+you need it.
+
+### The `inspect` sub-action
+
+```yaml
+- name: Inspect the cache lookup
+  id: lookup
+  uses: xSAVIKx/cloud-cache-action/inspect@v1
+  with:
+    bucket: my-ci-cache-bucket
+    access-key: ${{ secrets.S3_ACCESS_KEY }}
+    secret-key: ${{ secrets.S3_SECRET_KEY }}
+    path: ~/.npm
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+
+- name: Report
+  run: |
+    echo "would hit: ${{ steps.lookup.outputs.would-hit }}"
+    echo "object:    ${{ steps.lookup.outputs.would-match-object }}"
+```
+
+`inspect` takes the restore inputs that decide the lookup — `path`, `key`, `restore-keys`,
+`enableCrossOsArchive`, `fail-on-cache-miss`, every storage input, `prefix`, `s3-key-pattern`,
+`scoped-to-repository`, `scoped-to-ref`, `retry`, `retry-count`, `job-summary` — plus
+`use-fallback`, `dual-cache` and `restore-priority`, which decide the report's `Tiers:` line, plus
+two of its own:
+
+| Input | Required | Default | Description |
+| --- | :---: | :---: | --- |
+| `max-candidates` | No | `20` | How many candidate objects the report shows per search; every object under the prefix is still listed, as a restore does, and the rest are counted as "… and N more not shown" |
+| `metrics-file` | No | `""` | Append one JSON line of timings and sizes for this step to this file (see [Metrics](#metrics)) |
+
+It deliberately has no `lookup-only` input: it never downloads anything in the first place. And
+while `use-fallback`, `dual-cache` and `restore-priority` are reported in the `Tiers:` line, only
+the S3 tier is listed and explained — it is the tier whose key layout is worth explaining.
+
+## A sample report
+
+```text
+Cache lookup for key "Linux-node-9f2c1a"
+Bucket: s3://my-ci-cache-bucket (r2)
+Pattern: ${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename} → octo/app/${ref}/${key}/${version}/${archive_filename}
+Version: 4d0f1b2c9a7e35f1 (paths: ~/.npm; compression: zstd; cross-OS: false)
+Refs searched: refs/heads/feat → refs/heads/main
+Tiers: s3
+Restore keys: Linux-node-
+[refs/heads/feat] prefix "octo/app/refs%2Fheads%2Ffeat/Linux-node-9f2c1a": 0 candidates
+[refs/heads/feat] prefix "octo/app/refs%2Fheads%2Ffeat/Linux-node-": 2 candidates
+  ✗ octo/app/refs%2Fheads%2Ffeat/Linux-node-11ab/8c31d0e5b2447aa0/cache.tar.zst (version 8c31d0e5b2447aa0, 184.22 MB, 2026-09-16T08:11:02.000Z)
+  ✗ octo/app/refs%2Fheads%2Ffeat/Linux-node-22cd/8c31d0e5b2447aa0/cache.tar.zst (version 8c31d0e5b2447aa0, 181.07 MB, 2026-09-15T21:40:55.000Z)
+[refs/heads/main] prefix "octo/app/refs%2Fheads%2Fmain/Linux-node-9f2c1a": 0 candidates
+[refs/heads/main] prefix "octo/app/refs%2Fheads%2Fmain/Linux-node-": 1 candidate
+  ✓ octo/app/refs%2Fheads%2Fmain/Linux-node-77ef/4d0f1b2c9a7e35f1/cache.tar.zst (version 4d0f1b2c9a7e35f1, 190.55 MB, 2026-09-17T06:02:19.000Z)
+Result: No objects match key prefix "Linux-node-9f2c1a" on refs/heads/feat, refs/heads/main.
+Result: 2 objects match key prefix "Linux-node-" on refs/heads/feat but none has version 4d0f1b2c9a7e35f1 (this job hashes paths ~/.npm with zstd; they were saved with different paths, compression or cross-OS setting).
+Result: Would restore octo/app/refs%2Fheads%2Fmain/Linux-node-77ef/4d0f1b2c9a7e35f1/cache.tar.zst (key "Linux-node-77ef", refs/heads/main).
+```
+
+Reading it top to bottom:
+
+- **Bucket** is the bucket the lookup ran against and the resolved storage provider.
+- **Pattern** shows the raw `s3-key-pattern` and the same pattern with the repository and `prefix`
+  already substituted; `${ref}`, `${key}`, `${version}` and `${archive_filename}` stay symbolic
+  because they vary per search.
+- **Version** is the `${version}` hash **this** job computes, followed by the three things it
+  hashes.
+- **Refs searched** is the restore order: the current ref, then the pull request base branch, then
+  the default branch. With `scoped-to-ref: false` the line reads `Not scoped to a ref` and the
+  searches are labelled `[unscoped]`.
+- **Tiers** is the tier order a restore would use — `s3`, or `s3 → github` / `github → s3` when
+  `use-fallback` or `dual-cache` adds the GitHub tier. Only the S3 tier is listed and explained.
+- **Each `[ref] prefix "…"` line** is one listing the restore would perform: the primary key first,
+  then each restore key, for each ref, stopping at the first search that would hit.
+- **`✓` / `✗`** on a candidate says whether the object's `${version}` matches this job's.
+- **`Result:`** lines are the plain-language summary, in report order.
+
+### "… but none has version …"
+
+This is the most common miss, and it never means the key was wrong — the key prefix matched, the
+objects are right there. It means those objects were saved by a job whose **`${version}` hash
+differs**, and the hash covers exactly three things:
+
+1. **`path`** — the list of paths, as written. Adding, removing or reordering a path changes the
+   hash, so a job caching `~/.npm` never restores an archive saved for `~/.npm` plus `node_modules`.
+2. **The compression method** — `zstd` or `gzip`. A runner without `zstd` saves a `gzip` archive
+   and will not restore a `zstd` one, and vice versa.
+3. **`enableCrossOsArchive`** (on Windows) — a cross-OS archive and a Windows-native one hash
+   differently on purpose.
+
+Compare the `Version:` line's inputs with how the other job is configured; the difference is
+always one of those three.
+
+### A caveat on freshness
+
+The report lists objects; it never issues a `HEAD` for the exact key. On a provider whose listings
+are eventually consistent, an object saved moments ago may not be listed yet, so a report taken
+right after a save can say "would miss" where a real restore — which does `HEAD` the exact key
+first — would hit. Give the listing a moment, or inspect in a later job.
+
+## Outputs
+
+| Output | Description |
+| --- | --- |
+| `would-hit` | `'true'` when a restore with these inputs would find a cache, `'false'` otherwise |
+| `would-match-key` | The cache key a restore would match; empty when none |
+| `would-match-object` | The S3 object key a restore would download; empty when none |
+| `candidate-count` | How many objects were listed across every search |
+| `report` | The full report as JSON |
+| `cache-storage-provider` | The resolved S3-compatible storage provider |
+
+The outputs are set once the lookup finishes. A step that fails earlier — a missing `key` or
+`path`, an invalid `max-candidates`, an S3 error — sets none of them, so guard on
+`steps.<id>.outcome` before reading them in a later step (`prune` behaves the same way). A
+`fail-on-cache-miss` failure is the exception: the lookup did finish, so the outputs are set and
+`would-hit` is `'false'`.
+
+`report` is `ExplainReport` serialized as JSON: the pattern, the version and its inputs, the refs,
+the keys, the tiers, every search with its candidates, the `wouldHit` object when there is one, and
+the `reasons` sentences. GitHub truncates step outputs, so beyond 64 KB the action substitutes a
+small summary — `{"truncated":true,"wouldHit":<bool>,"candidateCount":<n>}` — instead. Check
+`truncated` before parsing the rest:
+
+```yaml
+- name: Count candidates
+  run: |
+    echo '${{ steps.lookup.outputs.report }}' | jq 'if .truncated then .candidateCount else (.searches | map(.candidates | length) | add) end'
+```
+
+## Guarding a matrix job
+
+`fail-on-cache-miss: true` makes `inspect` fail when nothing would be restored, which turns "is
+this cache warm?" into an ordinary job result. That is useful when an expensive matrix should not
+start until a warm-up job has populated the cache:
+
+```yaml
+jobs:
+  cache-ready:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: xSAVIKx/cloud-cache-action/inspect@v1
+        with:
+          bucket: my-ci-cache-bucket
+          access-key: ${{ secrets.S3_ACCESS_KEY }}
+          secret-key: ${{ secrets.S3_SECRET_KEY }}
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          fail-on-cache-miss: true
+
+  build:
+    needs: cache-ready
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # … every shard now restores a cache that is known to exist
+```
+
+To report instead of fail, leave `fail-on-cache-miss` at `false` and branch on `would-hit`:
+
+```yaml
+      - uses: xSAVIKx/cloud-cache-action/inspect@v1
+        id: lookup
+        with: { bucket: my-ci-cache-bucket, path: ~/.npm, key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }} }
+
+      - name: Warm the cache
+        if: steps.lookup.outputs.would-hit != 'true'
+        run: npm ci
+```
+
+Note that the version hash is computed on the runner that inspects, so a lookup that would hit on
+`ubuntu-latest` says nothing about `windows-latest`: give each OS in the matrix its own guard job,
+or its own `inspect` step.
+
+## Metrics
+
+Every step — restore, save, prune and `inspect` — writes one `cloud-cache-metrics <json>` debug
+line, and appends the same JSON as one line to `metrics-file` when that input is set. See
+[Metrics and timings](./getting-started.md#metrics-and-timings) for the line's shape; `inspect` reports
+`"step":"inspect"` with an outcome of `would-hit` or `would-miss` and a `candidateCount` in
+`extra`. As with `prune`, a step that fails before finishing the lookup writes no line at all.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/guide/migration.md -->
+<!-- ============================================================================ -->
+
+# Migration Guide
+
+Migrating from official `actions/cache` or legacy `tespkg/actions-cache` to `cloud-cache-action` takes less than 2 minutes.
+
+---
+
+## Automated Migration with AI Coding Agents
+
+If you use an AI coding assistant or agent (such as Claude Code, Cursor, Copilot, Antigravity, Devin, Codex, or Gemini), copy and paste the prompt below into your agent.
+
+The prompt instructs the agent to discover all cache steps in your repository, recommend or detect your cloud storage provider, perform 1:1 input preservation, and output a concise checklist of required GitHub Secrets.
+
+### Copy-Pastable Agent Prompt
+
+```markdown
+Please migrate all GitHub Actions caching steps in this repository to `xSAVIKx/cloud-cache-action@v1`.
+
+### Task Instructions:
+
+1. **Scan & Discover Workflows**:
+   - Inspect all workflow files in `.github/workflows/` (and any custom composite actions).
+   - Find all steps using:
+     - `actions/cache@*`
+     - `actions/cache/restore@*`
+     - `actions/cache/save@*`
+     - `tespkg/actions-cache@*`
+
+2. **Select Storage Provider & Secrets**:
+   - Check if this repository already uses cloud infrastructure secrets, or ask me which provider I prefer:
+     - **Cloudflare R2** (Recommended for zero egress fees):
+       - Inputs: `bucket`, `endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com`, `access-key: ${{ secrets.R2_ACCESS_KEY_ID }}`, `secret-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}`
+     - **AWS S3 with OIDC** (Recommended for AWS workloads, no static keys):
+       - Uses `aws-actions/configure-aws-credentials` with IAM role assumption, then `cloud-cache-action` with `bucket` and `key`.
+     - **AWS S3 (Static IAM)**:
+       - Inputs: `bucket`, `region`, `access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}`, `secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}`
+     - **Google Cloud Storage (GCS)**:
+       - Inputs: `bucket`, `endpoint: https://storage.googleapis.com`, `access-key: ${{ secrets.GCS_HMAC_ACCESS_ID }}`, `secret-key: ${{ secrets.GCS_HMAC_SECRET }}`
+     - **Backblaze B2**:
+       - Inputs: `bucket`, `endpoint: https://s3.<region>.backblazeb2.com`, `access-key: ${{ secrets.B2_KEY_ID }}`, `secret-key: ${{ secrets.B2_APPLICATION_KEY }}`
+     - **Self-Hosted (MinIO / Garage / SeaweedFS)**:
+       - Inputs: `bucket`, `endpoint`, `access-key`, `secret-key` (and `force-path-style: true` for MinIO).
+   - If I have not specified a provider yet, prompt me or default to **Cloudflare R2** or **AWS S3**.
+
+3. **Perform 1:1 Step Replacement**:
+   - Replace `actions/cache@v...` with `xSAVIKx/cloud-cache-action@v1`.
+   - Replace `actions/cache/restore@v...` with `xSAVIKx/cloud-cache-action/restore@v1`.
+   - Replace `actions/cache/save@v...` with `xSAVIKx/cloud-cache-action/save@v1`.
+   - Preserve all existing cache keys and options: `path`, `key`, `restore-keys`, `lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `read-only`.
+   - Add the required provider inputs (`bucket`, `endpoint`, `access-key`, `secret-key`) referencing GitHub Secrets (`${{ secrets.<SECRET_NAME> }}`).
+
+4. **Verify & Summarize**:
+   - Check that all modified YAML files have valid syntax and proper indentation.
+   - List the modified workflow files with a summary of changes.
+   - Provide a clear checklist of the exact secret names I need to configure in GitHub Repository Settings (`Settings > Secrets and variables > Actions`).
+```
+
+---
+
+## Required Secrets Cheat Sheet by Provider
+
+Share this quick reference with your team or agent when setting up repository secrets:
+
+| Provider | Required GitHub Secrets | Endpoint Format / Note |
+| :--- | :--- | :--- |
+| **Cloudflare R2** | `R2_ACCOUNT_ID`<br>`R2_ACCESS_KEY_ID`<br>`R2_SECRET_ACCESS_KEY` | `https://<account-id>.r2.cloudflarestorage.com`<br>*(Zero egress fees)* |
+| **AWS S3 (OIDC)** | *No static keys needed* | Configured via `aws-actions/configure-aws-credentials` and IAM Role |
+| **AWS S3 (Static)** | `AWS_ACCESS_KEY_ID`<br>`AWS_SECRET_ACCESS_KEY` | Specify `region` (e.g. `us-east-1`) |
+| **Google Cloud Storage** | `GCS_HMAC_ACCESS_ID`<br>`GCS_HMAC_SECRET` | `https://storage.googleapis.com`<br>*(Requires HMAC key for dedicated Service Account)* |
+| **Backblaze B2** | `B2_KEY_ID`<br>`B2_APPLICATION_KEY` | `https://s3.<region>.backblazeb2.com` |
+| **Fastly Storage** | `FASTLY_ACCESS_KEY`<br>`FASTLY_SECRET_KEY` | `https://object.<region>.fastlystorage.com` |
+| **Garage S3** | `GARAGE_ACCESS_KEY`<br>`GARAGE_SECRET_KEY` | `http://garage.internal:3900` |
+| **SeaweedFS S3** | `SEAWEED_ACCESS_KEY`<br>`SEAWEED_SECRET_KEY` | `http://seaweedfs.internal:8333` |
+| **MinIO S3** | `MINIO_ACCESS_KEY`<br>`MINIO_SECRET_KEY` | `http://minio.internal:9000`<br>*(Requires `force-path-style: true`)* |
+
+---
+
+## Manual Migration from `actions/cache` (v4, v5, v6)
+
+Because `cloud-cache-action` maintains 1:1 input and output parity, you simply change the `uses:` line and add your bucket configuration:
+
+### Before (`actions/cache`):
+
+```yaml
+- name: Cache dependencies
+  uses: actions/cache@v4
+  with:
+    path: node_modules
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+```
+
+### After (`cloud-cache-action`):
+
+```yaml
+- name: Cache dependencies
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    # 1. Add your S3 bucket & credentials
+    bucket: my-ci-cache-bucket
+    endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com # Optional for AWS S3
+    access-key: ${{ secrets.S3_ACCESS_KEY }}
+    secret-key: ${{ secrets.S3_SECRET_KEY }}
+
+    # 2. Keep all your existing inputs exactly as they are
+    path: node_modules
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+```
+
+All existing features (`lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `read-only`) continue to work identically. `save-always` is not supported: use `cloud-cache-action/save` with `if: always()` instead.
+
+---
+
+## Manual Migration from `tespkg/actions-cache`
+
+If you are using legacy `tespkg/actions-cache`, migrating to `cloud-cache-action` solves multiple architectural issues:
+
+1. **Active Runner Support**: Runs natively on Node 24 (`node24`) with zero runner deprecation warnings.
+2. **Official AWS SDK v3**: Avoids `minio-js` URL signing and header quirks with Cloudflare R2 and Fastly.
+3. **Cross-Platform Path Safety**: Normalizes Windows cache keys to POSIX forward slashes (`/`), avoiding broken backslash keys in object storage.
+4. **Modern Parity**: Includes `actions/cache@v6` features such as `lookup-only`, `fail-on-cache-miss`, and `read-only`.
+
+### Input Differences:
+
+- All legacy inputs (`bucket`, `endpoint`, `region`, `insecure`, `accessKey`, `secretKey`, `sessionToken`) remain supported for backward compatibility.
+- Kebab-case aliases are also supported (`access-key`, `secret-key`, `session-token`, `force-path-style`).
+- **Fallback Behavior**: `use-fallback` is `false` by default in `cloud-cache-action` rather than `true`. If you want automatic GitHub Actions Cache fallback on S3 errors or cache miss, set `use-fallback: true`.
+
+## Branch Isolation and Trust Model
+
+Like actions/cache, restores only use caches from the current ref, the pull request's base branch and the default branch. A feature branch can reuse `main`'s cache, but `main` never restores a cache that a feature branch saved. Set `scoped-to-ref: false` to share caches across every ref.
+
+Unlike GitHub's cache service, the bucket itself does not enforce this: **anyone who holds the bucket's write credentials can write any cache object**, including ones `main` will restore. Archives are extracted with absolute paths allowed, as actions/cache does. So:
+
+- Do not expose cache credentials to workflows that run untrusted code, such as `pull_request_target` jobs that check out fork code.
+- Prefer short-lived credentials (OIDC) scoped to the cache bucket or prefix.
+- Use a separate bucket or `prefix` for caches that must not be shared between repositories or trust levels.
+
+### Tag-triggered runs and refs
+
+The Git ref segment in the object key comes from whatever triggered the run. A run started by
+pushing a tag saves its cache under `refs/tags/<tag>`, which is a ref no pull request or branch
+build will ever restore from, since restores only search the current ref, the pull request base
+branch and the default branch — never arbitrary tags. If a release workflow triggered by a tag push
+is your only place that populates a cache other jobs expect to reuse, that cache will never be
+found.
+
+Prefer saving on the default branch instead — a `push` to `main` or a manual `workflow_dispatch`
+run there — so the cache is saved under a ref other jobs actually search. If you do need caches
+shared across tags, branches and pull requests, set `scoped-to-ref: false` together with the trust
+model warning above: every ref then reads and writes the same object, so anyone who can push a
+branch or tag can also overwrite what `main` restores.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/aws-s3.md -->
+<!-- ============================================================================ -->
+
+# AWS S3 Setup
+
+Cloud Cache Action supports AWS S3 out of the box using both GitHub Actions OIDC (OpenID Connect) with IAM Roles and static IAM credentials.
+
+---
+
+## Best Practices: Bucket Setup & Configuration
+
+Follow these recommendations when creating and configuring your AWS S3 cache bucket:
+
+### 1. Bucket Region & Colocation
+- **GitHub-hosted runners**: Default `ubuntu-latest` and `windows-latest` runners typically execute in AWS US regions (`us-east-1` or `us-east-2`). Creating your bucket in `us-east-1` minimizes cross-region latency and lowers data transfer fees.
+- **Self-hosted EC2 runners**: Always create the bucket in the same AWS region and VPC as your runners to achieve maximum throughput (line-rate VPC speeds) with zero data transfer costs.
+
+### 2. Security & Access Control
+- **Block All Public Access**: Ensure all 4 settings under **Block Public Access** are enabled. Cache bundles contain compiled binaries, source artifacts, and dependency manifests that must never be publicly readable.
+- **Object Ownership**: Enable **Bucket owner enforced** (disable ACLs) to guarantee consistent ownership of all uploaded archives.
+- **Default Encryption**: Use server-side encryption with Amazon S3 managed keys (**SSE-S3** / `AES256`) or AWS KMS (**SSE-KMS**). SSE-S3 is included at no additional cost.
+
+### 3. Lifecycle Rules & Cost Optimization
+Without lifecycle management, older cache revisions accumulate and increase storage costs. Configure two lifecycle rules under **Bucket Management** > **Lifecycle Rules**:
+
+1. **Expire Current Objects**:
+   - **Filter**: Apply to all objects in bucket (or prefix `${GITHUB_REPOSITORY}/`).
+   - **Action**: Expire current versions of objects after **30** or **60 days**.
+2. **Abort Incomplete Multipart Uploads**:
+   - **Action**: Delete expired object delete markers and incomplete multipart uploads after **7 days**. This prevents lingering chunks from failed or interrupted uploads from consuming storage.
+
+---
+
+## Credentials & Least-Privilege IAM Policies
+
+### Option A: GitHub Actions OIDC (Recommended)
+
+Using GitHub Actions OpenID Connect (OIDC) eliminates the need to store long-lived AWS Access Keys in repository secrets.
+
+#### 1. Configure the IAM Role Trust Policy
+Create an IAM Role with a trust policy allowing GitHub Actions to assume it:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:<OWNER>/<REPO>:*"
+        }
+      }
+    }
+  ]
+}
+```
+
+#### 2. Attach Least-Privilege S3 Permissions Policy
+Attach an IAM policy granting only the minimal actions required by `cloud-cache-action`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowBucketListing",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket"
+    },
+    {
+      "Sid": "AllowObjectOperations",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket/*"
+    }
+  ]
+}
+```
+
+> [!NOTE]
+> `cloud-cache-action` does not require `s3:DeleteObject`. Lifecycle cleanup is handled by bucket lifecycle rules.
+
+#### 3. Workflow Example (OIDC)
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for requesting the OIDC JWT
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsCacheRole
+          aws-region: us-east-1
+
+      - name: Cache dependencies
+        uses: xSAVIKx/cloud-cache-action@v1
+        with:
+          bucket: my-actions-cache-bucket
+          key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+          path: node_modules
+```
+
+---
+
+### Option B: Static IAM Credentials
+
+If you prefer static credentials, create a dedicated IAM user (never use your root AWS account) with the least-privilege policy shown above, generate an Access Key ID and Secret Access Key, and save them in your repository's GitHub Secrets.
+
+```yaml
+- name: Cache dependencies
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-actions-cache-bucket
+    region: us-east-1
+    access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    secret-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: node_modules
+```
+
+---
+
+## Live CI Verification Workflow
+
+This action is tested continuously against a real Amazon S3 bucket. You can inspect the live GitHub Actions workflow file in the repository: [`.github/workflows/provider-aws-s3.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/.github/workflows/provider-aws-s3.yml).
+
+::: details `.github/workflows/provider-aws-s3.yml` (Click to view full workflow)
+<<< ../../.github/workflows/provider-aws-s3.yml{yaml}
+:::
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/cloudflare-r2.md -->
+<!-- ============================================================================ -->
+
+# Cloudflare R2 Setup
+
+[Cloudflare R2](https://www.cloudflare.com/developer-platform/r2/) provides S3-compatible object storage with **zero egress fees**, making it one of the most cost-effective and highest-throughput caching backends for GitHub Actions workflows.
+
+---
+
+## Best Practices: Bucket Setup & Configuration
+
+Follow these guidelines when setting up your Cloudflare R2 cache bucket:
+
+### 1. Bucket Creation & Location Hint
+1. In the Cloudflare dashboard, navigate to **R2 Object Storage** > **Create bucket**.
+2. **Bucket Name**: Use a descriptive name such as `my-org-ci-cache`.
+3. **Location Hint**: Choose a region hint close to your GitHub Actions runners:
+   - `wnam` (Western North America) or `enam` (Eastern North America) for default GitHub-hosted runners.
+   - `weur` or `eeur` for European runners.
+   - `apac` for Asia-Pacific runners.
+   - Or leave as **Automatic** for dynamic edge placement.
+
+### 2. Security & Public Access
+- **Keep Public Access Disabled**: Do not enable the public R2 `r2.dev` test domain or attach a custom domain. Cache archives contain build artifacts and private dependencies and must remain completely private.
+- **Data Encryption**: All data stored in Cloudflare R2 is automatically encrypted at rest using strong AES-256 ciphers with zero manual configuration needed.
+
+### 3. Lifecycle Expiration Rules
+To prevent outdated cache archives from accumulating indefinitely:
+1. In your bucket page, click **Settings** > **Lifecycle Rules** > **Add rule**.
+2. Set a rule name (e.g., `expire-old-caches`).
+3. Set **Action** to **Delete objects**.
+4. Set **Age** to **30 days** (or 60 days for low-frequency branches).
+5. Add an **Abort incomplete multipart uploads** rule after **7 days**.
+
+---
+
+## Credentials & API Token Setup
+
+Never use account-wide administrative tokens for CI workflows. Create a scoped, bucket-specific API token:
+
+### 1. Create a Scoped R2 API Token
+1. In the Cloudflare dashboard, navigate to **R2** > **Manage R2 API Tokens** > **Create API token**.
+2. **Token Name**: `github-actions-cache`.
+3. **Permissions**: Select **Object Read & Write**.
+4. **Bucket Scope**: Select **Apply to specific buckets only**, and choose your cache bucket.
+5. (Optional) Set a **TTL / Expiration date** to satisfy organizational security rotation policies.
+6. Click **Create API Token**.
+
+### 2. Configure GitHub Secrets
+Cloudflare will display the credentials **once**. Copy and store them in your repository's **Settings** > **Secrets and variables** > **Actions**:
+
+| Secret Name | Source in Cloudflare |
+| :--- | :--- |
+| `R2_ACCOUNT_ID` | Found on the R2 overview page in the right sidebar |
+| `R2_ACCESS_KEY_ID` | Displayed on the token creation screen |
+| `R2_SECRET_ACCESS_KEY` | Displayed on the token creation screen |
+
+---
+
+## Workflow Configuration
+
+```yaml
+- name: Cache dependencies using Cloudflare R2
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-org-ci-cache
+    endpoint: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+    access-key: ${{ secrets.R2_ACCESS_KEY_ID }}
+    secret-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+    path: ~/.npm
+```
+
+> [!TIP]
+> **Automatic Provider Detection**: Cloud Cache Action automatically recognizes `*.r2.cloudflarestorage.com` endpoints and configures `region: auto` and `force-path-style: false` automatically.
+
+---
+
+## Live CI Verification Workflow
+
+This action is tested continuously against Cloudflare R2 with zero egress fees. You can inspect the live GitHub Actions workflow file in the repository: [`.github/workflows/provider-r2.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/.github/workflows/provider-r2.yml).
+
+::: details `.github/workflows/provider-r2.yml` (Click to view full workflow)
+<<< ../../.github/workflows/provider-r2.yml{yaml}
+:::
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/google-cloud-storage.md -->
+<!-- ============================================================================ -->
+
+# Google Cloud Storage (GCS) Setup
+
+Google Cloud Storage (GCS) provides full S3 interoperability via its XML API and HMAC service account keys, allowing you to use GCS as a high-speed caching tier for your GitHub Actions workflows.
+
+---
+
+## Best Practices: Bucket Setup & Configuration
+
+Follow these recommendations when creating your GCS cache bucket:
+
+### 1. Bucket Location & Storage Class
+- **Location Type**: Choose a **Region** bucket (e.g., `us-central1` or `europe-west1`) colocated with your runners. Avoid multi-region or dual-region buckets unless required for multi-continent runners, as regional buckets offer lower latency and avoid inter-region network charges.
+- **Storage Class**: Always select **Standard**. Never use *Nearline*, *Coldline*, or *Archive* storage classes for CI caches. These colder tiers charge data retrieval fees every time a cache is restored and enforce minimum storage retention periods (30 to 90 days), resulting in higher costs for frequently updated caches.
+
+### 2. Access Control & Security
+- **Public Access Prevention**: Enable **Enforce public access prevention** on the bucket to ensure archives are never exposed publicly.
+- **Access Control Model**: Select **Uniform** bucket-level access (Google's recommended best practice), which uses Cloud IAM policies exclusively rather than legacy object-level ACLs.
+- **Data Protection**: Keep Soft Delete enabled or configure a 7-day retention period if you want protection against accidental deletion.
+
+### 3. Object Lifecycle Management
+Configure an automated lifecycle policy in the Google Cloud Console (**Bucket** > **Lifecycle** > **Add a rule**):
+
+1. **Delete Expired Archives**:
+   - **Action**: Delete object.
+   - **Condition**: Age is **30 days** (or 60 days).
+2. **Abort Incomplete Multipart Uploads**:
+   - **Action**: Abort incomplete multipart uploads after **7 days**.
+
+---
+
+## Credentials & Interoperability Setup
+
+GCS supports S3 API requests using HMAC (Hash-based Message Authentication Code) credentials. 
+
+> [!IMPORTANT]
+> Always create HMAC keys for a **dedicated Service Account**, never for personal user Google accounts. User HMAC keys are tied to individual accounts and break when employees change roles or leave an organization.
+
+### 1. Create a Dedicated Service Account
+1. In the Google Cloud Console, navigate to **IAM & Admin** > **Service Accounts** > **Create Service Account**.
+2. **Name**: `github-actions-ci-cache`.
+3. Click **Create and Continue**.
+
+### 2. Grant Least-Privilege Bucket Permissions
+Do not grant project-wide Editor or Storage Admin roles. Grant access strictly on your cache bucket:
+1. Navigate to **Cloud Storage** > **Buckets** > Click your cache bucket.
+2. Under the **Permissions** tab, click **Grant Access**.
+3. **New principals**: Enter the email of your dedicated service account (`github-actions-ci-cache@<project-id>.iam.gserviceaccount.com`).
+4. **Role**: Select **Storage Object User** (`roles/storage.objectUser`), which allows reading, writing, and listing objects without bucket administrative privileges.
+
+### 3. Generate HMAC Key for the Service Account
+1. In the Google Cloud Console, navigate to **Cloud Storage** > **Settings** > **Interoperability**.
+2. Under **Interoperability keys for service accounts**, click **Create a key for a service account**.
+3. Select your `github-actions-ci-cache` service account.
+4. Copy the generated **Access ID** (acts as the access key) and **Secret** (acts as the secret key).
+
+### 4. Configure GitHub Secrets
+Store the credentials in your repository's **Settings** > **Secrets and variables** > **Actions**:
+
+| Secret Name | Description |
+| :--- | :--- |
+| `GCS_HMAC_ACCESS_ID` | The generated HMAC Access ID (starts with `GOOG...`) |
+| `GCS_HMAC_SECRET` | The generated HMAC Secret key |
+
+---
+
+## Workflow Configuration
+
+```yaml
+- name: Cache dependencies using Google Cloud Storage
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-gcs-cache-bucket
+    endpoint: https://storage.googleapis.com
+    access-key: ${{ secrets.GCS_HMAC_ACCESS_ID }}
+    secret-key: ${{ secrets.GCS_HMAC_SECRET }}
+    key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+    restore-keys: |
+      ${{ runner.os }}-gradle-
+    path: ~/.gradle/caches
+```
+
+> [!NOTE]
+> **Path-Style Addressing**: Google Cloud Storage XML API requires path-style addressing (`force-path-style: true`). Cloud Cache Action automatically detects `storage.googleapis.com` and sets path-style addressing and region defaults without extra configuration.
+
+---
+
+## Live CI Verification Workflow
+
+This action is tested continuously against Google Cloud Storage using HMAC keys and the XML API. You can inspect the live GitHub Actions workflow file in the repository: [`.github/workflows/provider-gcs.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/.github/workflows/provider-gcs.yml).
+
+::: details `.github/workflows/provider-gcs.yml` (Click to view full workflow)
+<<< ../../.github/workflows/provider-gcs.yml{yaml}
+:::
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/backblaze-b2.md -->
+<!-- ============================================================================ -->
+
+# Backblaze B2 Setup
+
+[Backblaze B2](https://www.backblaze.com/cloud-storage) offers highly affordable, S3-compatible cloud object storage with low storage costs and predictable pricing.
+
+---
+
+## Best Practices: Bucket Setup & Configuration
+
+Follow these recommendations when setting up your Backblaze B2 cache bucket:
+
+### 1. Bucket Creation & Access
+1. In the Backblaze B2 console, navigate to **Buckets** > **Create a Bucket**.
+2. **Bucket Unique Name**: Enter a globally unique name (e.g., `my-org-ci-cache`).
+3. **Files in Bucket are**: Select **Private** (never choose Public).
+4. **Default Encryption**: Enable **Enabled** (Server-Side Encryption / SSE-B2) to secure all cache bundles at rest.
+5. **Object Lock**: Select **Disabled**. Object Lock prevents deletion during retention windows and will cause cache lifecycle expiration to fail.
+
+### 2. Lifecycle Rules & Automatic Deletion
+By default, Backblaze B2 keeps all uploaded versions of files forever. To avoid runaway storage bills:
+1. In your bucket list, click **Lifecycle Settings**.
+2. Choose **Custom Lifecycle Settings**.
+3. Add a rule:
+   - **File Name Prefix**: Leave blank (applies to all archives in bucket).
+   - **Days until hiding**: `30` days (hides older cache files).
+   - **Days until deleting**: `1` day (permanently deletes hidden files).
+
+---
+
+## Credentials & Scoped Application Keys
+
+Never use your master Backblaze application key for CI workflows. Always generate a bucket-restricted application key:
+
+### 1. Create a Restricted Application Key
+1. In the Backblaze B2 console, navigate to **Account** > **Application Keys**.
+2. Click **Add a New Application Key**.
+3. **Name of Key**: `github-actions-cache`.
+4. **Allow access to Bucket(s)**: Select your dedicated CI cache bucket (do **not** select "All").
+5. **Type of Access**: Select **Read and Write**.
+6. Click **Create New Key**.
+
+### 2. Configure GitHub Secrets
+Backblaze will display your `applicationKey` **only once**:
+
+| Secret Name | Value in Backblaze |
+| :--- | :--- |
+| `B2_KEY_ID` | The `keyID` string (25-character alphanumeric ID) |
+| `B2_APPLICATION_KEY` | The `applicationKey` secret string (31-character token) |
+
+---
+
+## Workflow Configuration
+
+```yaml
+- name: Cache dependencies using Backblaze B2
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-b2-cache-bucket
+    endpoint: https://s3.us-west-004.backblazeb2.com # Replace with your bucket's S3 endpoint
+    access-key: ${{ secrets.B2_KEY_ID }}
+    secret-key: ${{ secrets.B2_APPLICATION_KEY }}
+    key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+    restore-keys: |
+      ${{ runner.os }}-maven-
+    path: ~/.m2/repository
+```
+
+> [!TIP]
+> **Automatic Region Detection**: Cloud Cache Action automatically parses the AWS-compatible region (e.g. `us-west-004` or `eu-central-003`) directly from your Backblaze endpoint URL, so you do not need to specify `region` manually.
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/fastly-storage.md -->
+<!-- ============================================================================ -->
+
+# Fastly Object Storage Setup
+
+[Fastly Object Storage](https://www.fastly.com/products/object-storage) provides high-performance, S3-compatible cloud storage colocated with Fastly's global edge network, delivering low latency and high bandwidth for CI/CD runners.
+
+---
+
+## Best Practices: Bucket Setup & Configuration
+
+Follow these recommendations when setting up your Fastly Object Storage bucket:
+
+### 1. Bucket Region & Placement
+- In the Fastly Control Panel, navigate to **Storage** > **Object Storage** > **Create bucket**.
+- **Region Selection**: Select the region closest to where your GitHub Actions runners run (e.g., US-East or EU-Central) to minimize transit hops and accelerate cache restores.
+- **Access Level**: Ensure the bucket is private. Public read permissions should remain disabled.
+
+### 2. Lifecycle Rules & Automatic Eviction
+CI cache bundles should have an expiration policy so stale dependencies are naturally evicted:
+- Set up an automated lifecycle rule in the bucket management console to expire and delete objects older than **30** or **60 days**.
+- Ensure incomplete multipart uploads are configured to abort after **7 days**.
+
+---
+
+## Credentials & Access Management
+
+### 1. Generate S3-Compatible Credentials
+1. In Fastly Object Storage, navigate to **Access Keys** / **API Credentials**.
+2. Create a new key pair scoped specifically to your CI cache bucket with **Read/Write** permissions.
+3. Note the generated **Access Key** and **Secret Key**.
+
+### 2. Configure GitHub Secrets
+Store the credentials in your repository's **Settings** > **Secrets and variables** > **Actions**:
+
+| Secret Name | Description |
+| :--- | :--- |
+| `FASTLY_ACCESS_KEY` | Fastly S3 Access Key ID |
+| `FASTLY_SECRET_KEY` | Fastly S3 Secret Access Key |
+
+---
+
+## Workflow Configuration
+
+```yaml
+- name: Cache dependencies using Fastly Object Storage
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-fastly-cache-bucket
+    endpoint: https://object.us-east-1.fastlystorage.com # Replace with your region
+    access-key: ${{ secrets.FASTLY_ACCESS_KEY }}
+    secret-key: ${{ secrets.FASTLY_SECRET_KEY }}
+    key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    restore-keys: |
+      ${{ runner.os }}-cargo-
+    path: |
+      ~/.cargo/bin/
+      ~/.cargo/registry/index/
+      ~/.cargo/registry/cache/
+      target/
+```
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/garage.md -->
+<!-- ============================================================================ -->
+
+# Garage S3 Setup
+
+[Garage](https://garagehq.deuxfleurs.fr/) is an open-source, lightweight distributed S3-compatible storage system designed to be self-hosted on commodity hardware, bare-metal servers, or home labs with minimal resource usage.
+
+---
+
+## Best Practices: Bucket & Cluster Setup
+
+Follow these recommendations when configuring Garage for CI/CD caching:
+
+### 1. Cluster Layout & Replication
+- **Single-Node CI Runner Cache**: Set `replication_factor = 1` in `garage.toml` if running on a single build server or local runner node to maximize available storage capacity.
+- **Multi-Node Cluster**: Use `replication_factor = 3` across multiple physical nodes or availability zones for high availability and zero-downtime runner caching.
+
+### 2. Disk Space Protection & Bucket Quotas
+Continuous integration workloads can quickly consume hundreds of gigabytes of storage if left unchecked. Garage provides built-in quota controls:
+```bash
+# Set a hard storage quota on the CI cache bucket (e.g. 50 GB)
+garage bucket set --max-size 50G ci-cache
+
+# Set a limit on the total number of cache objects (e.g. 10,000 objects)
+garage bucket set --max-objects 10000 ci-cache
+```
+
+### 3. Periodic Garbage Collection
+Run periodic garbage collection on your Garage cluster to prune stale blocks and reclaim disk space:
+```bash
+# Check block storage status and run GC
+garage gc
+```
+
+### 4. Network Security
+- The Garage S3 API port (`3900`) and Admin port (`3902`) should remain on internal networks, private VPCs, or encrypted VPN overlays (e.g. Tailscale / WireGuard).
+- If exposing Garage across networks, place it behind an SSL/TLS reverse proxy (e.g. Traefik, Caddy, Nginx).
+
+---
+
+## Credentials & Key Management
+
+Garage provides a clean CLI for managing credentials and granting least-privilege bucket access:
+
+### 1. Create a Dedicated API Key
+```bash
+# Create an access key named 'ci-runner-key'
+garage key create ci-runner-key
+```
+Garage will output the **Key ID** (`GK...`) and **Secret Key**.
+
+### 2. Create the Cache Bucket & Authorize Key
+```bash
+# Create the bucket
+garage bucket create ci-cache
+
+# Grant read and write permissions to the key
+garage bucket allow ci-cache --read --write --key ci-runner-key
+```
+
+### 3. Verify Key Permissions
+```bash
+# Inspect key details and bound buckets at any time
+garage key info ci-runner-key
+```
+
+### 4. Configure GitHub Secrets
+Save the credentials in your repository or organization secrets:
+
+| Secret Name | Source |
+| :--- | :--- |
+| `GARAGE_ACCESS_KEY` | Output of `garage key info ci-runner-key` (Key ID) |
+| `GARAGE_SECRET_KEY` | Output of `garage key info ci-runner-key` (Secret Key) |
+
+---
+
+## Workflow Configuration
+
+```yaml
+- name: Cache dependencies using self-hosted Garage
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: ci-cache
+    endpoint: http://garage.internal:3900 # Replace with your Garage S3 endpoint
+    provider: garage
+    access-key: ${{ secrets.GARAGE_ACCESS_KEY }}
+    secret-key: ${{ secrets.GARAGE_SECRET_KEY }}
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: build/
+```
+
+---
+
+## Running Garage Locally for Integration Testing
+
+You can spin up Garage locally using the repository's [`docker-compose.test.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/docker-compose.test.yml):
+
+```bash
+docker compose -f docker-compose.test.yml up -d garage
+```
+
+::: details `docker-compose.test.yml` (Click to view Compose definition)
+<<< ../../docker-compose.test.yml{yaml}
+:::
+
+The Garage service requires a configuration file mounted at `/etc/garage.toml`. You can use the repository's [`tests/fixtures/garage.toml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/tests/fixtures/garage.toml):
+
+::: details `tests/fixtures/garage.toml` (Click to view Garage configuration)
+<<< ../../tests/fixtures/garage.toml{toml}
+:::
+
+### Initializing Garage S3 Locally
+
+After starting the container, initialize the layout and credentials:
+
+```bash
+# 1. Assign layout to the local node
+NODE_ID=$(docker exec cloud-cache-garage /garage status | awk '/Node/ {print $2}')
+docker exec -ti cloud-cache-garage /garage layout assign -z dc1 -c 10G $NODE_ID
+docker exec -ti cloud-cache-garage /garage layout apply --version 1
+
+# 2. Create access key and bucket
+docker exec -ti cloud-cache-garage /garage key create ci-cache-key
+docker exec -ti cloud-cache-garage /garage bucket create ci-cache
+docker exec -ti cloud-cache-garage /garage bucket allow ci-cache --read --write --key ci-cache-key
+```
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/seaweedfs.md -->
+<!-- ============================================================================ -->
+
+# SeaweedFS S3 Setup
+
+[SeaweedFS](https://github.com/seaweedfs/seaweedfs) is an independent, high-performance distributed file system with native S3 API compatibility designed for handling billions of files with fast, constant-time lookups.
+
+---
+
+## Best Practices: Bucket & Cluster Setup
+
+Follow these recommendations when setting up SeaweedFS for CI/CD caching:
+
+### 1. Architecture & S3 Gateway
+- **Single-Server / Dev Runner**: Run `weed server -s3 -s3.port=8333` for an all-in-one Master, Volume, Filer, and S3 API server.
+- **Production Cluster**: Separate the Master, Filer, and Volume nodes. Run multiple stateless `weed s3` gateway instances behind a load balancer pointing to the shared Filer cluster.
+
+### 2. Native Time-To-Live (TTL) & Auto-Pruning
+SeaweedFS has built-in support for Time-To-Live (TTL) at the filer level, making it uniquely efficient for CI caches:
+- You can configure default directory TTL so cache files are automatically garbage-collected at the volume chunk level after 30 days without needing manual cleanup jobs.
+- Example filer configuration for automatic cache eviction:
+  ```bash
+  # Configure a 30-day TTL on the cache directory
+  weed filer.meta.tail -timeAgo=30d
+  ```
+
+### 3. Volume Compaction & Vacuuming
+As older caches expire and are deleted, SeaweedFS marks chunks as deleted. The master automatically vacuums volume servers when garbage exceeds the threshold (default 30%):
+```bash
+# Force volume vacuuming via the master admin API
+curl "http://localhost:9333/vol/vacuum?garbageThreshold=0.2"
+```
+
+---
+
+## Credentials & Authentication Setup (`s3.json`)
+
+In production environments, configure authentication using SeaweedFS's `s3.json` configuration file:
+
+### 1. Configure Identities in `s3.json`
+Place an `s3.json` configuration file in your SeaweedFS configuration folder (e.g. `/etc/seaweedfs/s3.json`):
+
+```json
+{
+  "identities": [
+    {
+      "name": "ci-runner",
+      "credentials": [
+        {
+          "accessKey": "seaweed-ci-access-key",
+          "secretKey": "seaweed-ci-super-secret-key"
+        }
+      ],
+      "actions": [
+        "Read",
+        "Write",
+        "List"
+      ]
+    }
+  ]
+}
+```
+
+### 2. Configure GitHub Secrets
+Save your credentials in repository **Settings** > **Secrets and variables** > **Actions**:
+
+| Secret Name | Description |
+| :--- | :--- |
+| `SEAWEED_ACCESS_KEY` | The `accessKey` configured in `s3.json` |
+| `SEAWEED_SECRET_KEY` | The `secretKey` configured in `s3.json` |
+
+---
+
+## Workflow Configuration
+
+```yaml
+- name: Cache dependencies using SeaweedFS
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: ci-cache
+    endpoint: http://seaweedfs.internal:8333 # S3 API endpoint
+    provider: seaweedfs
+    access-key: ${{ secrets.SEAWEED_ACCESS_KEY }}
+    secret-key: ${{ secrets.SEAWEED_SECRET_KEY }}
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    restore-keys: |
+      ${{ runner.os }}-build-
+    path: build/
+```
+
+---
+
+## Running SeaweedFS Locally for Testing
+
+You can spin up SeaweedFS locally with S3 enabled using the repository's [`docker-compose.test.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/docker-compose.test.yml):
+
+```bash
+docker compose -f docker-compose.test.yml up -d seaweedfs
+```
+
+::: details `docker-compose.test.yml` (Click to view Compose definition)
+<<< ../../docker-compose.test.yml{yaml}
+:::
+
+Once running:
+- **S3 API**: `http://localhost:8333`
+- **Master UI**: `http://localhost:9333`
+- Pre-configured with automatic bucket creation on first write.
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
+
+
+<!-- ============================================================================ -->
+<!-- FILE: docs/providers/minio.md -->
+<!-- ============================================================================ -->
+
+# MinIO S3 Setup
+
+[MinIO](https://min.io/) is a high-performance distributed object store with native S3 API compatibility, widely used for on-premise infrastructure, private enterprise clouds, and local CI testing.
+
+> [!NOTE]
+> **Maintenance & Compatibility Notice**:
+> While upstream open-source MinIO changed licensing (AGPLv3) and standalone community releases are no longer actively maintained with free public security patches, many development teams and enterprise clusters continue to rely on existing MinIO infrastructure or use ephemeral containers in CI. `cloud-cache-action` maintains 100% interoperability with all MinIO versions.
+
+---
+
+## Best Practices: Bucket & Cluster Setup
+
+Follow these recommendations when setting up MinIO for CI/CD caching:
+
+### 1. Bucket Privacy & Quotas
+- **Bucket Access Policy**: Ensure the bucket access policy is strictly private (`none`). Never set download or public access policies on cache buckets.
+- **Hard Storage Quotas**: CI builds can rapidly generate hundreds of gigabytes of dependency archives. Use the MinIO Client (`mc`) to set a hard storage quota on your cache bucket:
+  ```bash
+  # Set a 100 GB hard limit on the cache bucket
+  mc quota set --hard 100GB myminio/ci-cache
+  ```
+
+### 2. Information Lifecycle Management (ILM) Auto-Expiration
+MinIO includes native ILM lifecycle management. Configure automatic expiration so old caches are purged automatically:
+```bash
+# Automatically expire and delete cache archives older than 30 days
+mc ilm rule add --expire-days 30 myminio/ci-cache
+
+# Automatically abort incomplete multipart uploads after 7 days
+mc ilm rule add --expire-delete-marker --abort-incomplete-multipart-upload-days 7 myminio/ci-cache
+```
+
+### 3. Server-Side Encryption
+Enable transparent server-side encryption with MinIO-managed keys:
+```bash
+# Enable auto-encryption on the bucket
+mc encrypt set sse-s3 myminio/ci-cache
+```
+
+---
+
+## Credentials & Least-Privilege Service Accounts
+
+> [!WARNING]
+> Never use root credentials (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`) in your GitHub Actions workflows. Always create a dedicated Service Account restricted strictly to the CI cache bucket.
+
+### 1. Create a Restricted Policy (`ci-cache-policy.json`)
+Save the following minimal policy JSON:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::ci-cache"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": "arn:aws:s3:::ci-cache/*"
+    }
+  ]
+}
+```
+
+Add the policy to MinIO:
+```bash
+mc admin policy create myminio ci-cache-policy ci-cache-policy.json
+```
+
+### 2. Generate Service Account Credentials
+```bash
+# Create a service account restricted by the policy
+mc admin user svcacct add --policy ci-cache-policy myminio ci-runner
+```
+MinIO will print the **Access Key** and **Secret Key**.
+
+### 3. Configure GitHub Secrets
+Store the credentials in your repository's **Settings** > **Secrets and variables** > **Actions**:
+
+| Secret Name | Description |
+| :--- | :--- |
+| `MINIO_ACCESS_KEY` | MinIO Service Account Access Key |
+| `MINIO_SECRET_KEY` | MinIO Service Account Secret Key |
+
+---
+
+## Example 1: GitHub Actions CI with Ephemeral MinIO Container
+
+You can spin up an ephemeral MinIO instance directly inside your GitHub Actions runner job using Docker or Docker Compose for zero-cost, isolated CI caching:
+
+```yaml
+name: Build with Local MinIO Cache
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # 1. Start ephemeral MinIO container
+      - name: Start ephemeral MinIO
+        run: |
+          docker run -d --name ci-minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+          
+          # Wait for MinIO readiness
+          for i in {1..30}; do
+            if curl -s http://127.0.0.1:9000/minio/health/live > /dev/null 2>&1; then
+              echo "MinIO ready."
+              break
+            fi
+            sleep 1
+          done
+          
+          # Create cache bucket
+          docker exec ci-minio mkdir -p /data/ci-cache
+
+      # 2. Cache dependencies with Cloud Cache Action
+      - name: Cache dependencies using local MinIO
+        uses: xSAVIKx/cloud-cache-action@v1
+        with:
+          bucket: ci-cache
+          endpoint: http://127.0.0.1:9000
+          access-key: minioadmin
+          secret-key: minioadmin
+          force-path-style: true
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+          path: ~/.npm
+
+      - name: Install dependencies
+        run: npm ci
+```
+
+---
+
+## Example 2: Self-Hosted / On-Prem MinIO Cluster
+
+For organizations hosting a persistent MinIO server or cluster on private infrastructure (e.g., bare-metal or Kubernetes):
+
+```yaml
+- name: Cache dependencies using self-hosted MinIO
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: ci-cache
+    endpoint: https://minio.internal.mycompany.com:9000
+    access-key: ${{ secrets.MINIO_ACCESS_KEY }}
+    secret-key: ${{ secrets.MINIO_SECRET_KEY }}
+    force-path-style: true
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: build/
+```
+
+> [!TIP]
+> **Path-Style Addressing**: Always set `force-path-style: true` for MinIO unless you have configured wildcard DNS subdomains (virtual-host style) for your buckets.
+
+---
+
+## Running MinIO Locally for Integration Testing
+
+You can spin up MinIO locally using the repository's [`docker-compose.test.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/docker-compose.test.yml):
+
+```bash
+docker compose -f docker-compose.test.yml up -d minio
+```
+
+::: details `docker-compose.test.yml` (Click to view Compose definition)
+<<< ../../docker-compose.test.yml{yaml}
+:::
+
+Once running:
+- **S3 API**: `http://localhost:9000`
+- **Web Console**: `http://localhost:9001` (Default credentials: `minioadmin` / `minioadmin`)
+
+---
+
+## Live CI Dogfooding Workflow
+
+The repository dogfoods MinIO directly inside the continuous integration test suite: [`.github/workflows/test.yml`](https://github.com/xSAVIKx/cloud-cache-action/blob/main/.github/workflows/test.yml).
+
+::: details `.github/workflows/test.yml` (Click to view test workflow)
+<<< ../../.github/workflows/test.yml{yaml}
+:::
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.

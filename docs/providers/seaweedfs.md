@@ -103,3 +103,8 @@ Once running:
 - **S3 API**: `http://localhost:8333`
 - **Master UI**: `http://localhost:9333`
 - Pre-configured with automatic bucket creation on first write.
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.

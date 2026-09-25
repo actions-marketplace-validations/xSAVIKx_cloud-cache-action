@@ -121,3 +121,8 @@ docker exec -ti cloud-cache-garage /garage key create ci-cache-key
 docker exec -ti cloud-cache-garage /garage bucket create ci-cache
 docker exec -ti cloud-cache-garage /garage bucket allow ci-cache --read --write --key ci-cache-key
 ```
+
+## Notes
+
+- **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.

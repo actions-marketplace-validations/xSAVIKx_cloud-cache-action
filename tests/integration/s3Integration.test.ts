@@ -1,39 +1,25 @@
-import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3';
+import type { S3Client } from '@aws-sdk/client-s3';
+import { createTestS3Client, getTestS3Config, prepareTestBucket } from '../support/s3Server';
 import {
   checkObjectExists,
   uploadFile,
   downloadFile,
-  listObjectsWithPrefix,
+  findNewestObject,
 } from '../../src/storage/operations';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
 describe('S3 Storage Integration Tests (Garage / SeaweedFS / S3)', () => {
-  const endpoint = process.env.TEST_S3_ENDPOINT || 'http://127.0.0.1:8333';
-  const bucket = 'integration-cache-test';
+  const s3 = getTestS3Config();
+  const endpoint = s3.endpoint;
+  const bucket = s3.bucket;
   let client: S3Client;
   let isS3Available = false;
 
   beforeAll(async () => {
-    client = new S3Client({
-      endpoint,
-      region: 'us-east-1',
-      forcePathStyle: true,
-      credentials: {
-        accessKeyId: process.env.TEST_S3_ACCESS_KEY || 'any-access-key',
-        secretAccessKey: process.env.TEST_S3_SECRET_KEY || 'any-secret-key',
-      },
-    });
-
-    try {
-      // Check if local S3 service is responding
-      await client.send(new CreateBucketCommand({ Bucket: bucket }));
-      isS3Available = true;
-    } catch {
-      // If service is not up, skip live integration calls
-      isS3Available = false;
-    }
+    isS3Available = await prepareTestBucket(s3);
+    client = createTestS3Client(s3);
   });
 
   it('runs upload, head, list, and download against S3 server when available', async () => {
@@ -61,10 +47,15 @@ describe('S3 Storage Integration Tests (Garage / SeaweedFS / S3)', () => {
     expect(meta).not.toBeNull();
     expect(meta?.size).toBe(uploadRes.size);
 
-    // 3. List with prefix
-    const list = await listObjectsWithPrefix(client, bucket, 'test-repo/integration-test');
-    expect(list.length).toBeGreaterThan(0);
-    expect(list[0].key).toBe(testKey);
+    // 3. Find the newest matching object, one object per page to force pagination
+    const newest = await findNewestObject(
+      client,
+      bucket,
+      'test-repo/integration-test',
+      (key) => key.endsWith('.tar.gz'),
+      1
+    );
+    expect(newest?.key).toBe(testKey);
 
     // 4. Download
     await downloadFile(client, bucket, testKey, downloadedFile);

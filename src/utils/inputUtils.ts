@@ -9,16 +9,46 @@ export function getInputAsArray(name: string, options?: core.InputOptions): stri
     .filter((x) => x !== '');
 }
 
+const TRUE_VALUES = ['true', 'True', 'TRUE'];
+const FALSE_VALUES = ['false', 'False', 'FALSE'];
+
 export function getInputAsBool(
   name: string,
   defaultValue = false,
   options?: core.InputOptions
 ): boolean {
-  const value = core.getInput(name, options);
+  const value = core.getInput(name, options).trim();
   if (!value) {
     return defaultValue;
   }
-  return value.toLowerCase() === 'true';
+  if (TRUE_VALUES.includes(value)) {
+    return true;
+  }
+  if (FALSE_VALUES.includes(value)) {
+    return false;
+  }
+  core.warning(
+    `Input "${name}" must be one of true, True, TRUE, false, False, FALSE; got "${value}". Using "${defaultValue}".`
+  );
+  return defaultValue;
+}
+
+export function getInputAsEnum<T extends string>(
+  name: string,
+  allowed: readonly T[],
+  defaultValue: T
+): T {
+  const value = core.getInput(name).trim();
+  if (!value) {
+    return defaultValue;
+  }
+  if ((allowed as readonly string[]).includes(value)) {
+    return value as T;
+  }
+  core.warning(
+    `Input "${name}" must be one of ${allowed.join(', ')}; got "${value}". Using "${defaultValue}".`
+  );
+  return defaultValue;
 }
 
 export function getInputAsInt(
@@ -92,4 +122,16 @@ export function formatSize(bytes?: number): string {
   const unitIndex = Math.min(i, units.length - 1);
   const size = (bytes / Math.pow(1024, unitIndex)).toFixed(2);
   return `${size} ${units[unitIndex]}`;
+}
+
+/**
+ * Reads an input that must be a positive integer, failing the step on anything else: a typo
+ * silently falling back to a default would hide a wrong-looking result rather than report it.
+ */
+export function parsePositiveInt(raw: string, name: string): number {
+  const trimmed = raw.trim();
+  if (!/^[0-9]+$/.test(trimmed) || Number(trimmed) <= 0) {
+    throw new Error(`Input "${name}" must be a positive integer; got "${raw}".`);
+  }
+  return Number(trimmed);
 }
