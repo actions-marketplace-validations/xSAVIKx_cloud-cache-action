@@ -55,7 +55,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 - **Standalone Sub-Actions**: Includes `cloud-cache-action/restore`, `cloud-cache-action/save`, `cloud-cache-action/prune` and `cloud-cache-action/inspect` for decoupled cache stages, scheduled cleanup and lookup debugging.
 - **Archive Integrity**: Every save writes a sha256 checksum as object metadata; restore verifies it and treats a mismatch as a cache miss with a warning, so a corrupted or truncated object is never reported as a hit. See [Archive Integrity](#archive-integrity).
 - **Safe Concurrent Saves**: Uploads use a conditional create (`If-None-Match`), so on providers that enforce it, two jobs racing to save the same key never overwrite each other. See [Safe Concurrent Saves](#safe-concurrent-saves).
-- **Cache Pruning**: A dedicated `prune` sub-action deletes cache archives older than a given age from any S3-compatible bucket on a schedule. See [Cache Pruning](#cache-pruning).
+- **Cache Pruning**: A dedicated `prune` sub-action deletes cache archives from any S3-compatible bucket on a schedule, by age, by count per ref (`keep-latest`) or to fit a total size budget (`max-total-size`). See [Cache Pruning](#cache-pruning).
 - **Job Summary**: Writes a step summary table after restore and save with the key, hit/source, size and duration (on by default; `job-summary: false` turns it off).
 - **Object Metadata and Tags**: Store custom `x-amz-meta-*` metadata and object tags on every saved cache object with `metadata` and `tags`; the metadata comes back on restore as the `cache-metadata` output. See [Object Metadata and Tags](#object-metadata-and-tags).
 - **Explain a Lookup**: `explain: true` logs why a lookup hits or misses — the resolved pattern, the `${version}` hash, every ref searched and every candidate object — and the `inspect` sub-action reports the same thing as step outputs, without restoring anything. See [Inspecting a cache lookup](#inspecting-a-cache-lookup).
@@ -265,8 +265,10 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
 ## Cache Pruning
 
 Object storage does not evict old caches the way GitHub's cache service does. The standalone
-`cloud-cache-action/prune` sub-action deletes cache archives older than a given age from any
-S3-compatible bucket, so you can run it on a schedule. **Run it with `dry-run: true` first** to see
+`cloud-cache-action/prune` sub-action deletes cache archives from any S3-compatible bucket, so you
+can run it on a schedule. Set at least one rule: `older-than-days` (age), `keep-latest` (the newest
+N archives of each ref are never deleted) or `max-total-size` (a budget in bytes; the oldest
+archives go first until the total fits). **Run it with `dry-run: true` first** to see
 what it would delete before letting it delete anything:
 
 ```yaml

@@ -2,8 +2,9 @@
 
 Object storage has no built-in cache eviction like GitHub's 10 GB-per-repository limit: whatever
 you save to S3 stays there until something deletes it. `cloud-cache-action/prune` is a standalone
-sub-action that deletes cache archives older than a given age from any S3-compatible bucket, so you
-can run it on a schedule instead of relying only on a bucket lifecycle rule.
+sub-action that deletes cache archives from any S3-compatible bucket by age, by count per ref, or
+to fit a total size budget. You can run it on a schedule instead of relying only on a bucket
+lifecycle rule.
 
 ## Usage
 
@@ -36,12 +37,15 @@ totals line), so a dry run tells you exactly what a real run would delete.
 
 ## Inputs
 
-The prune action shares its storage inputs with the main action, plus four inputs of its own:
+The prune action shares its storage inputs with the main action, plus the inputs of its own below.
+Set at least one of `older-than-days`, `keep-latest` and `max-total-size`.
 
 | Input                             | Required |          Default          | Description                                                                 |
 | ---------------------------------- | :------: | :------------------------: | ---------------------------------------------------------------------------- |
 | `bucket`                           | **Yes**  |             —              | Name of the S3 bucket                                                        |
-| `older-than-days`                  | **Yes**  |             —              | Delete cache archives whose last-modified time is older than this many days |
+| `older-than-days`                  |    No    |             —              | Delete cache archives whose last-modified time is older than this many days |
+| `keep-latest`                      |    No    |             —              | Positive integer. In each ref, never delete the N most recently modified archives |
+| `max-total-size`                   |    No    |             —              | Total size budget in bytes (a plain integer). Delete the oldest archives until the total fits |
 | `ref`                               |    No    |     _(every ref)_          | Prune only caches under this full Git ref (`refs/heads/main`); empty means every ref |
 | `dry-run`                           |    No    |          `false`           | List cache archives that would be pruned without deleting anything          |
 | `endpoint`                         |    No    |          Auto/AWS          | Custom S3-compatible endpoint URL                                           |
@@ -59,7 +63,8 @@ The prune action shares its storage inputs with the main action, plus four input
 | `retry-count`                      |    No    |            `3`              | Maximum number of S3 retries                                                |
 | `metrics-file`                     |    No    |            `""`             | Append one JSON line of timings and sizes for this step to this file, relative to the workspace |
 
-An invalid `older-than-days` (not a positive integer) or an unrecognized `dry-run` value (anything
+An invalid `older-than-days`, `keep-latest` or `max-total-size` (not a positive integer), a step
+with none of the three set, or an unrecognized `dry-run` value (anything
 other than `true`, `True`, `TRUE`, `false`, `False` or `FALSE`) fails the step immediately, rather
 than silently falling back to a default — a typo like `dry-run: Flase` must never turn into a real
 deletion.
@@ -70,7 +75,7 @@ deletion.
 | ---------------- | ------------------------------------------------------------------------------- |
 | `pruned-count`   | The number of cache archives pruned (or that would be pruned in a dry run)      |
 | `pruned-bytes`   | The total size in bytes of the pruned cache archives                           |
-| `kept-count`     | The number of cache archives that matched the scope but were not old enough    |
+| `kept-count`     | The number of cache archives that matched the scope but no rule selected       |
 
 The outputs are set once the prune finishes. A step that fails earlier — an invalid input, an
 unsafe scope, an S3 error — sets none of them, so guard on `steps.<id>.outcome` before reading
@@ -108,7 +113,29 @@ also matches ref-scoped caches of the same repository that were saved with a non
 (their prefix segment reads as part of the key), subject to `older-than-days`. If you mix prefixes,
 give every prune step the `prefix` its caches were saved with.
 
-Among candidates, only those whose `LastModified` is older than `older-than-days` are deleted.
+Among candidates, the three rules below choose what to delete. Each rule is optional, and at
+least one must be set.
+
+- **`older-than-days`**: an archive whose `LastModified` is older than this many days is deleted.
+- **`keep-latest`**: in each ref, the N most recently modified archives are never deleted. With
+  `older-than-days` also set, an archive is deleted only when it is older than the age limit **and**
+  not among the newest N of its ref. With `keep-latest` alone, every other archive of the ref is
+  deleted.
+- **`max-total-size`**: after the other rules, the total size of the remaining archives in the
+  whole prune scope (every ref, not each ref) must be at or below this many bytes. Prune deletes
+  the oldest remaining archives until it is. The `keep-latest` archives are never deleted for the
+  budget. If they alone are over the budget, the step logs a warning and deletes nothing more.
+  The value is a plain integer in bytes: `10GB` or `5G` is not accepted.
+
+"Each ref" is the ref segment of your `s3-key-pattern`. When the pattern has no `${ref}` (or
+`scoped-to-ref` is `false`), prune treats the whole scope as one group, so `keep-latest: 5` keeps the
+5 newest archives of the scope. Two archives with the same modification time are ranked by key, so
+the result is the same on every run. An archive with no modification time is never deleted.
+
+Each log line names the rule that selected the archive (`age`, `count` for `keep-latest` alone, or
+`size budget`), and the totals line counts them by rule. The outputs and the metrics line count
+every archive deleted by any rule; `kept-count` is every archive in scope that no rule selected.
+
 Deletion happens one `DeleteObject` call per key (up to 8 in flight at a time), rather than a
 single batch delete: Google Cloud Storage's S3 interoperability layer does not support
 multi-object delete, and this keeps behavior identical across providers.

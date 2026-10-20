@@ -10,6 +10,13 @@ points at the latest `v1.x.y` release.
 
 ### Added
 
+- **`keep-latest` and `max-total-size` prune inputs.** `keep-latest` keeps the N most recently
+  modified archives of each ref, even when they are older than `older-than-days`. `max-total-size`
+  is a budget in bytes: after the other rules, prune deletes the oldest remaining archives in the
+  scope until the total fits. `older-than-days` is now optional, but the step fails when none of
+  the three inputs is set. Each log line names the rule that selected the archive. See the
+  [Pruning](./guide/pruning.md) guide.
+
 - **`compression-level` input.** Set the zstd (1–19) or gzip (1–9) level a save uses. Unset keeps
   today's exact command (zstd level 3, or gzip via `tar -z`), so an existing workflow sees no
   change. Only saving is affected; restore decodes whichever level a cache was saved with.
