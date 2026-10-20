@@ -4,6 +4,11 @@ import * as core from '@actions/core';
 export const USER_METADATA_RESERVED_PREFIX = 'cloud-cache-';
 /** Object metadata key holding the archive's sha256, verified before extracting on restore. */
 export const SHA256_METADATA_KEY = 'cloud-cache-sha256';
+/**
+ * Object metadata key holding a random id of the streamed save that wrote the object. The save
+ * compares it on a HeadObject to prove that it still owns the object it tagged.
+ */
+export const WRITER_METADATA_KEY = 'cloud-cache-writer';
 /** S3's limit on user metadata: the sum of every key and value length, in bytes. */
 export const METADATA_LIMIT_BYTES = 2048;
 /** Length of a hex sha256 digest, reserved out of the metadata budget. */

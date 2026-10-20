@@ -306,8 +306,9 @@ caches — set `ref` explicitly in that case. See the full [Pruning Caches guide
 
 Every save computes the sha256 checksum of the archive. A file-mode save stores the checksum as
 object metadata (`cloud-cache-sha256`), as before. A streamed save stores the checksum as an
-object tag instead. Three cases still use the metadata copy: user `metadata` is set, the provider
-has no tagging API (Garage), or the conditional create was not honored — see
+object tag instead. Four cases still use the metadata copy: user `metadata` is set, the provider
+has no tagging API (Garage), the conditional create was not honored, or the save could not confirm
+that it still owns the object after the tag — see
 [Object Metadata and Tags](#object-metadata-and-tags).
 
 On restore, the S3 tier looks for the checksum in metadata first. When metadata carries none, it
@@ -489,15 +490,36 @@ SeaweedFS, RustFS and Garage servers; the last row is not covered by the local i
 
 With [streaming](#streaming-archives-experimental), the sha256 checksum is only known once the
 stream has finished, so it is attached after the upload. Normally it is attached as an object tag
-(`PutObjectTagging`), sent together with any user `tags`. Three cases attach it with a copy of the
+(`PutObjectTagging`), sent together with any user `tags`. Four cases attach it with a copy of the
 object onto itself instead, the same mechanism v1.2 through v1.5 always used: user `metadata` is
-set, the provider has no tagging API (Garage today), or the conditional create was not honored. A
-tag write that fails for any other reason falls back to the copy as well. A provider that cannot
-do the copy either — or an archive over 5 GiB, since a copy cannot span more than 5 GiB — costs
-the checksum, not the cache: the save logs
+set, the provider has no tagging API (Garage today), the conditional create was not honored, or
+the ownership check after the tag could not confirm the object. A tag write that fails for any
+other reason falls back to the copy as well. When the upload reported no ETag, these last two
+cases keep no checksum instead (see below). A provider that cannot do the copy either — or an
+archive over 5 GiB, since a copy cannot span more than 5 GiB — costs the checksum, not the cache:
+the save logs
 `Saved s3://<bucket>/<key> but could not attach metadata: <reason>` and succeeds. A tag has no
 size limit, so a streamed archive over 5 GiB gets a checksum for the first time when the tag path
 applies. The copy was verified to work on MinIO, SeaweedFS, RustFS and Garage.
+
+The ownership check is one `HeadObject` after the tag. It proves that no other job replaced the
+object between the upload and the tag. When the upload and the HEAD both report an ETag, the save
+compares the ETags. Otherwise it compares the `cloud-cache-writer` metadata. The upload writes a
+random id for this save into that field when the tag path applies, so a streamed object that
+carries the checksum tag also carries `cloud-cache-writer=<id>` as user metadata. Like all
+`cloud-cache-` keys, it is not reported in `cache-metadata`. It does not count against the
+metadata limit, because the upload sends it only when no user `metadata` is set. When the check
+shows that another job wrote the object, the save removes its checksum tag, warns, and does not
+copy. The tag set has no partial update, so this can also remove the checksum tag of the other
+job: that cache then has no checksum, but never a false one. When the check cannot confirm the
+object (no object, a failed HEAD, or neither value returned), the save removes its checksum tag.
+It then uses the copy only when the upload reported an ETag, because only then can
+`CopySourceIfMatch` guard the copy. With no upload ETag, the save keeps no checksum and logs
+`Saved s3://<bucket>/<key> without a checksum: the upload reported no ETag, ...`. A failed tag
+write with no upload ETag has the same result. A missing checksum only skips the integrity check,
+but a false checksum would reject a good cache. MinIO, SeaweedFS, RustFS and
+Garage return the `cloud-cache-writer` field on `HeadObject` for single-part and multipart
+uploads.
 
 ---
 
@@ -516,7 +538,7 @@ unaffected), uses less disk, and can be faster for large caches — but with the
   to a temporary file first and retry the whole download before extracting anything.
 - **The integrity checksum is attached after the upload.** The digest is only known once the
   stream has finished, so a streamed save attaches `cloud-cache-sha256` afterwards, normally as an
-  object tag rather than metadata (a copy of the object onto itself in three narrower cases; see
+  object tag rather than metadata (a copy of the object onto itself in four narrower cases; see
   [Object Metadata and Tags](#object-metadata-and-tags)). This drops about 8 seconds from a
   512 MiB save on Amazon S3, where the copy used to dominate the step. Attaching it is
   best-effort: on a provider that rejects both attempts the save still succeeds, logs
