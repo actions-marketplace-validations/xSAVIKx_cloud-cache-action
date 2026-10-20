@@ -85,6 +85,28 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
       ${{ runner.os }}-node-
 ```
 
+### Cache presets
+
+Set `preset` instead of `path`, `key` and `restore-keys`. The preset gives the download cache of the package manager for the runner OS, the key `<runner.os>-<preset>-<hash of the lockfiles>` and the restore key `<runner.os>-<preset>-`:
+
+```yaml
+- name: Cache npm downloads to S3
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-ci-cache-bucket
+    access-key: ${{ secrets.S3_ACCESS_KEY }}
+    secret-key: ${{ secrets.S3_SECRET_KEY }}
+    preset: npm # npm, yarn, pnpm, bun, pip, poetry, uv, gradle, maven, cargo or go
+```
+
+- An explicit `path`, `key` or `restore-keys` input replaces the preset value for that one input. With an explicit `key`, the action adds no preset restore keys.
+- The paths are the static defaults that each tool documents. The action does not run the package manager to find them. If you move the cache directory, set `path`.
+- With no lockfile that matches the preset globs, the step fails and names the globs.
+- The post step saves with the key and the paths that the restore step resolved. It does not hash the lockfiles again.
+- The `restore` and `save` sub-actions take `preset` too. `prune` and `inspect` do not.
+
+The [Cache Presets](https://xsavikx.github.io/cloud-cache-action/guide/presets) guide lists the paths and the lockfile globs of each preset, and the source of each value.
+
 ### 🤖 Migrate in Seconds with AI Coding Agents
 
 If you use an AI coding assistant (such as Claude Code, Cursor, Copilot, Antigravity, or Devin), paste this prompt to migrate your repository automatically:
@@ -719,8 +741,9 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | Input                            | Required |                          Default                           | Description                                                                 |
 | -------------------------------- | :------: | :--------------------------------------------------------: | --------------------------------------------------------------------------- |
 | `bucket`                         | **Yes**  |                             —                              | Name of the S3 bucket                                                       |
-| `key`                            | **Yes**  |                             —                              | Explicit key for restoring and saving cache                                 |
-| `path`                           | **Yes**  |                             —                              | Multiline list of paths, globs and `!` exclusions to cache (see [Paths and exclusions](#paths-and-exclusions)) |
+| `key`                            | **Yes**, unless `preset` is set |                             —                              | Explicit key for restoring and saving cache                                 |
+| `path`                           | **Yes**, unless `preset` is set |                             —                              | Multiline list of paths, globs and `!` exclusions to cache (see [Paths and exclusions](#paths-and-exclusions)) |
+| `preset`                         |    No    |                             —                              | Package manager preset that gives the default `path`, `key` and `restore-keys`: `npm`, `yarn`, `pnpm`, `bun`, `pip`, `poetry`, `uv`, `gradle`, `maven`, `cargo`, `go` (see [Cache presets](#cache-presets)) |
 | `restore-keys`                   |    No    |                             —                              | Multiline string of prefix keys for fallback matching                       |
 | `endpoint`                       |    No    |                          Auto/AWS                          | Custom S3 endpoint URL                                                      |
 | `region`                         |    No    |                      Auto/`us-east-1`                      | AWS or S3 provider region                                                   |

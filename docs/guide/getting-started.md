@@ -24,6 +24,8 @@ Add the following step to your GitHub Actions workflow:
       ${{ runner.os }}-node-
 ```
 
+For a package manager cache, `preset: npm` (or `yarn`, `pnpm`, `bun`, `pip`, `poetry`, `uv`, `gradle`, `maven`, `cargo`, `go`) gives the `path`, `key` and `restore-keys` for you. See [Cache Presets](./presets.md).
+
 ## Paths and Exclusions
 
 `path` accepts files, directories, globs, `~` and `!` exclusions, one per line.

@@ -10,6 +10,16 @@ points at the latest `v1.x.y` release.
 
 ### Added
 
+- **`preset` input.** Set `preset: npm` (or `yarn`, `pnpm`, `bun`, `pip`, `poetry`, `uv`,
+  `gradle`, `maven`, `cargo`, `go`) instead of `path`, `key` and `restore-keys`, like the `cache:`
+  input of `actions/setup-node`. The preset gives the download cache of the package manager for
+  the runner OS, the key `<runner.os>-<preset>-<hash of the lockfiles>` and the restore key
+  `<runner.os>-<preset>-`. The hash comes from `hashFiles` of `@actions/glob`, the function that
+  `hashFiles()` in a workflow uses. An explicit `path`, `key` or `restore-keys` input replaces that
+  one value. With no lockfile, the step fails and names the globs. The post step saves with the key
+  and the paths that the restore step resolved. The main action and the `restore` and `save`
+  sub-actions take the input. See the [Cache Presets](./guide/presets.md) guide.
+
 - **Security guide.** A new [Security](./guide/security.md) page explains the cache trust boundary
   and what the action does and does not protect. It covers fork pull requests, `pull_request_target`
   and the read-only credential pattern. It lists each S3 call and the feature that sends it, and it
@@ -49,6 +59,11 @@ points at the latest `v1.x.y` release.
   report is unchanged.
 
 ### Changed
+
+- **`path` and `key` are optional in the manifests.** The main action and the `restore` and
+  `save` manifests now declare `path` and `key` with `required: false`, because a `preset` can
+  give them. With no `preset` and no `key` or `path`, the restore still fails, and the message
+  now tells you to set `preset` or both inputs.
 
 - **A streamed save now stores its sha256 checksum as an object tag** instead of rewriting the
   whole object, which removes about 8 seconds from a 512 MiB save on Amazon S3. An action older

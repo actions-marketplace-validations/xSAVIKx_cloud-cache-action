@@ -89,6 +89,7 @@ export default defineConfig({
         text: 'Getting Started',
         items: [
           { text: 'Introduction', link: '/guide/getting-started' },
+          { text: 'Cache Presets', link: '/guide/presets' },
           { text: 'Dual Caching (S3 + GitHub)', link: '/guide/dual-caching' },
           { text: 'S3 Key Templating', link: '/guide/s3-key-patterns' },
           { text: 'Pruning Caches', link: '/guide/pruning' },
