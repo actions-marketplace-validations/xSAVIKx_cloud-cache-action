@@ -62,13 +62,16 @@ inputs:
     default: '3'
 
   older-than-days:
-    description: 'Delete cache archives whose last-modified time is older than this many days. Set at least one of older-than-days, keep-latest and max-total-size.'
+    description: 'Delete cache archives whose last-modified time is older than this many days. Set at least one of older-than-days, keep-latest, max-total-size and abort-uploads-older-than-hours.'
     required: false
   keep-latest:
     description: 'Positive integer. In each ref, never delete the N most recently modified cache archives. When it is the only rule set, every other archive of the ref is deleted; with another rule it only protects. A key pattern with no ref counts the whole scope as one ref.'
     required: false
   max-total-size:
     description: 'Total size budget in bytes (a plain integer, 0 allowed). After the other rules, delete the oldest remaining cache archives in the scope until the total size fits. keep-latest archives are never deleted.'
+    required: false
+  abort-uploads-older-than-hours:
+    description: 'Positive integer. Abort incomplete multipart uploads under the prune scope that started more than this many hours ago. This rule deletes no cache archive. A provider that cannot list uploads gets a warning, not a failure. Off when omitted.'
     required: false
   ref:
     description: 'Prune only caches under this full Git ref, such as refs/heads/main (not main); every ref when omitted'
@@ -91,6 +94,8 @@ outputs:
     description: 'The total size in bytes of the pruned cache archives'
   kept-count:
     description: 'The number of cache archives that matched the scope but no rule selected for pruning'
+  aborted-uploads:
+    description: 'The number of incomplete multipart uploads aborted (or that would be aborted in a dry run)'
 
 runs:
   using: 'node24'

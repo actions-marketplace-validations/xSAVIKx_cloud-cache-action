@@ -1,4 +1,4 @@
-import { selectForPrune, type PruneCandidate } from '../../../src/core/pruneSelect';
+import { hasPruneRule, selectForPrune, type PruneCandidate } from '../../../src/core/pruneSelect';
 
 const NOW = new Date(Date.UTC(2026, 8, 13, 12, 0, 0));
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -140,5 +140,25 @@ describe('selectForPrune', () => {
       ['dev-2', 'count'],
       ['main-3', 'count'],
     ]);
+  });
+});
+
+describe('the abort-uploads rule', () => {
+  const files = [archive('a', 'r', 100, 50), archive('b', 'r', 100, 1)];
+
+  it('counts as a rule on its own', () => {
+    expect(hasPruneRule({ abortUploadsOlderThanHours: 24 })).toBe(true);
+    expect(hasPruneRule({})).toBe(false);
+  });
+
+  it('selects no archive on its own', () => {
+    const result = selectForPrune(files, { abortUploadsOlderThanHours: 24 }, NOW);
+    expect(result.selected).toEqual([]);
+    expect(result.overBudgetBytes).toBe(0);
+  });
+
+  it('does not stop keep-latest from deleting by count', () => {
+    const result = selectForPrune(files, { keepLatest: 1, abortUploadsOlderThanHours: 24 }, NOW);
+    expect(summary(result)).toEqual([['a', 'count']]);
   });
 });

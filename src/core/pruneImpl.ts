@@ -19,7 +19,7 @@ const FALSE_VALUES = ['false', 'False', 'FALSE'];
 
 /** Every input the prune step reads. `ref` empty means every ref. */
 export interface PruneConfig {
-  /** The selection rules (age, keep-latest, size budget). Each one is optional. */
+  /** The rules (age, keep-latest, size budget, stale uploads). Each one is optional. */
   rules: PruneRules;
   ref: string;
   dryRun: boolean;
@@ -65,6 +65,10 @@ export function readPruneRules(): PruneRules {
     maxTotalSize: parseOptionalNonNegativeInt(
       core.getInput(Inputs.MaxTotalSize),
       Inputs.MaxTotalSize
+    ),
+    abortUploadsOlderThanHours: parseOptionalPositiveInt(
+      core.getInput(Inputs.AbortUploadsOlderThanHours),
+      Inputs.AbortUploadsOlderThanHours
     ),
   };
   if (!hasPruneRule(rules)) {
@@ -142,6 +146,7 @@ export async function pruneImpl(): Promise<void> {
     core.setOutput(Outputs.PrunedCount, String(result.pruned.length));
     core.setOutput(Outputs.PrunedBytes, String(result.prunedBytes));
     core.setOutput(Outputs.KeptCount, String(result.keptCount));
+    core.setOutput(Outputs.AbortedUploads, String(result.abortedUploads));
     emitMetrics(
       {
         step: 'prune',
@@ -154,6 +159,7 @@ export async function pruneImpl(): Promise<void> {
           prunedCount: result.pruned.length,
           prunedBytes: result.prunedBytes,
           keptCount: result.keptCount,
+          abortedUploads: result.abortedUploads,
           dryRun: result.dryRun,
         },
       },

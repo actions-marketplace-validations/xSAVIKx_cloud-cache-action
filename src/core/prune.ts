@@ -1,5 +1,11 @@
 import * as core from '@actions/core';
-import { DeleteObjectCommand, ListObjectsV2Command, type S3Client } from '@aws-sdk/client-s3';
+import {
+  AbortMultipartUploadCommand,
+  DeleteObjectCommand,
+  ListMultipartUploadsCommand,
+  ListObjectsV2Command,
+  type S3Client,
+} from '@aws-sdk/client-s3';
 import { formatSize } from '../utils/inputUtils';
 import { mapWithConcurrency } from '../utils/concurrency';
 import type { KeyTemplate, ScopeProblem } from './keyTemplate';
@@ -34,6 +40,8 @@ export interface PruneResult {
   pruned: PrunedObject[];
   keptCount: number;
   prunedBytes: number;
+  /** Incomplete uploads aborted (or that would be aborted in a dry run). */
+  abortedUploads: number;
   dryRun: boolean;
 }
 
@@ -47,6 +55,7 @@ const DEFAULT_CONCURRENCY = 8;
 const LOG_CAP = 200;
 const ERROR_SAMPLE_CAP = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
 
 interface ListedObject {
   key: string;
@@ -93,6 +102,113 @@ async function listArchiveObjects(
     continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
   } while (continuationToken);
   return objects;
+}
+
+interface StaleUpload {
+  key: string;
+  uploadId: string;
+  initiated: Date;
+}
+
+/**
+ * Lists the incomplete multipart uploads under `prefix` that `isCandidate` accepts and that were
+ * initiated before `cutoff`, following the key and upload-id markers. An upload with no
+ * `Initiated` time is skipped, because its age is unknown.
+ */
+async function listStaleUploads(
+  client: S3Client,
+  bucket: string,
+  prefix: string,
+  isCandidate: (key: string) => boolean,
+  cutoff: Date
+): Promise<StaleUpload[]> {
+  const uploads: StaleUpload[] = [];
+  let keyMarker: string | undefined;
+  let uploadIdMarker: string | undefined;
+  do {
+    const page = await client.send(
+      new ListMultipartUploadsCommand({
+        Bucket: bucket,
+        Prefix: prefix,
+        KeyMarker: keyMarker,
+        UploadIdMarker: uploadIdMarker,
+      })
+    );
+    for (const upload of page.Uploads ?? []) {
+      if (
+        upload.Key &&
+        upload.UploadId &&
+        upload.Initiated &&
+        upload.Initiated < cutoff &&
+        isCandidate(upload.Key)
+      ) {
+        uploads.push({ key: upload.Key, uploadId: upload.UploadId, initiated: upload.Initiated });
+      }
+    }
+    keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
+    uploadIdMarker = page.IsTruncated ? page.NextUploadIdMarker : undefined;
+  } while (keyMarker !== undefined || uploadIdMarker !== undefined);
+  return uploads;
+}
+
+/**
+ * Aborts the stale incomplete uploads, or only lists them when `dryRun` is set, and returns how
+ * many it aborted (or would abort). This step never fails the prune: a provider that cannot list
+ * uploads, such as one that answers NotImplemented, gives a warning and a count of 0. An upload
+ * that no longer exists is ignored, and any other abort error gives a warning for that upload.
+ */
+async function abortStaleUploads(
+  client: S3Client,
+  bucket: string,
+  prefix: string,
+  isCandidate: (key: string) => boolean,
+  options: { olderThanHours: number; now: Date; dryRun: boolean; concurrency: number }
+): Promise<number> {
+  const { olderThanHours, now, dryRun } = options;
+  const cutoff = new Date(now.getTime() - olderThanHours * HOUR_MS);
+  let stale: StaleUpload[];
+  try {
+    stale = await listStaleUploads(client, bucket, prefix, isCandidate, cutoff);
+  } catch (err) {
+    const error = toError(err);
+    core.warning(
+      `Could not list incomplete multipart uploads, so none are aborted: ${error.name}: ${error.message}`
+    );
+    return 0;
+  }
+
+  const verb = dryRun ? 'Would abort' : 'Aborted';
+  let count = 0;
+  const abortOne = async (upload: StaleUpload): Promise<void> => {
+    const age = `${Math.floor((now.getTime() - upload.initiated.getTime()) / HOUR_MS)}h old`;
+    if (!dryRun) {
+      try {
+        await client.send(
+          new AbortMultipartUploadCommand({
+            Bucket: bucket,
+            Key: upload.key,
+            UploadId: upload.uploadId,
+          })
+        );
+      } catch (err) {
+        const error = toError(err);
+        // The upload finished or was aborted between the listing and this call.
+        if (error.name !== 'NoSuchUpload') {
+          core.warning(
+            `Could not abort the incomplete upload of ${upload.key} (upload ${upload.uploadId}): ${error.name}: ${error.message}`
+          );
+        }
+        return;
+      }
+    }
+    count += 1;
+    if (count <= LOG_CAP) {
+      core.info(`${verb} ${upload.key} (upload ${upload.uploadId}, ${age})`);
+    }
+  };
+  await mapWithConcurrency(stale, options.concurrency, abortOne);
+  core.info(`${verb} ${count} incomplete upload(s).`);
+  return count;
 }
 
 function logPruned(
@@ -160,6 +276,16 @@ export async function pruneCaches(tier: PruneTier, options: PruneOptions): Promi
   const now = options.now ?? new Date();
   const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
 
+  const abortedUploads =
+    options.abortUploadsOlderThanHours === undefined
+      ? 0
+      : await abortStaleUploads(client, bucket, prefix, (key) => matcher.test(key), {
+          olderThanHours: options.abortUploadsOlderThanHours,
+          now,
+          dryRun: options.dryRun,
+          concurrency,
+        });
+
   const candidates = await listArchiveObjects(client, bucket, prefix, (key) => {
     const match = matcher.exec(key);
     return match ? (match.groups?.ref ?? options.ref ?? '') : undefined;
@@ -206,6 +332,7 @@ export async function pruneCaches(tier: PruneTier, options: PruneOptions): Promi
     pruned: prunedObjects.map(({ key, size, lastModified }) => ({ key, size, lastModified })),
     keptCount,
     prunedBytes: prunedObjects.reduce((total, object) => total + object.size, 0),
+    abortedUploads,
     dryRun: options.dryRun,
   };
 }

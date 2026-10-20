@@ -38,6 +38,7 @@ export enum Inputs {
   OlderThanDays = 'older-than-days',
   KeepLatest = 'keep-latest',
   MaxTotalSize = 'max-total-size',
+  AbortUploadsOlderThanHours = 'abort-uploads-older-than-hours',
   Ref = 'ref',
   DryRun = 'dry-run',
 
@@ -84,6 +85,7 @@ export enum Outputs {
   PrunedCount = 'pruned-count',
   PrunedBytes = 'pruned-bytes',
   KeptCount = 'kept-count',
+  AbortedUploads = 'aborted-uploads',
 
   // Inspect-only outputs
   WouldHit = 'would-hit',

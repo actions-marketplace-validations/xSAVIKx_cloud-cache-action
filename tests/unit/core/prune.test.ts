@@ -1,6 +1,12 @@
 import { jest } from '@jest/globals';
 import { mockClient } from 'aws-sdk-client-mock';
-import { S3Client, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  ListObjectsV2Command,
+  DeleteObjectCommand,
+  ListMultipartUploadsCommand,
+  AbortMultipartUploadCommand,
+} from '@aws-sdk/client-s3';
 import { compileKeyTemplate, type KeyTemplate } from '../../../src/core/keyTemplate';
 import type { StorageContext } from '../../../src/storage/client';
 
@@ -85,6 +91,7 @@ describe('pruneCaches', () => {
       ],
       keptCount: 1,
       prunedBytes: 100,
+      abortedUploads: 0,
       dryRun: false,
     });
     expect(s3Mock.commandCalls(DeleteObjectCommand)).toHaveLength(1);
@@ -690,5 +697,159 @@ describe('pruneCaches count and size rules', () => {
       pruneCaches({ storage, template: templateFor() }, { dryRun: true, now: NOW })
     ).rejects.toThrow('Set at least one of');
     expect(s3Mock.commandCalls(ListObjectsV2Command)).toHaveLength(0);
+  });
+});
+
+describe('pruneCaches stale multipart uploads', () => {
+  const MAIN_KEY = (name: string): string =>
+    `octo/app/refs%2Fheads%2Fmain/${name}/v1/cache.tar.zst`;
+  const hoursAgo = (n: number): Date => new Date(NOW.getTime() - n * 60 * 60 * 1000);
+  const upload = (
+    key: string,
+    initiated: Date | undefined,
+    id = `id-${key}`
+  ): { Key: string; UploadId: string; Initiated?: Date } => ({
+    Key: key,
+    UploadId: id,
+    Initiated: initiated,
+  });
+  const aborted = (): Array<{ Key?: string; UploadId?: string }> =>
+    s3Mock.commandCalls(AbortMultipartUploadCommand).map((call) => call.args[0].input);
+
+  beforeEach(() => {
+    s3Mock.on(ListObjectsV2Command).resolves({ Contents: [], IsTruncated: false });
+    s3Mock.on(AbortMultipartUploadCommand).resolves({});
+  });
+
+  it('aborts only the uploads older than the limit, under the scope prefix', async () => {
+    s3Mock.on(ListMultipartUploadsCommand).resolves({
+      Uploads: [
+        upload(MAIN_KEY('old'), hoursAgo(30)),
+        upload(MAIN_KEY('new'), hoursAgo(2)),
+        upload(MAIN_KEY('nodate'), undefined),
+        // Not a cache archive key: prune must not touch it.
+        upload('octo/app/refs%2Fheads%2Fmain/k/v1/notes.txt', hoursAgo(99)),
+      ],
+      IsTruncated: false,
+    });
+
+    const result = await pruneCaches(
+      { storage, template: templateFor() },
+      { abortUploadsOlderThanHours: 24, ref: MAIN, dryRun: false, now: NOW }
+    );
+
+    expect(aborted()).toEqual([
+      { Bucket: 'bucket', Key: MAIN_KEY('old'), UploadId: `id-${MAIN_KEY('old')}` },
+    ]);
+    expect(result.abortedUploads).toBe(1);
+    expect(result.pruned).toEqual([]);
+    expect(s3Mock.commandCalls(DeleteObjectCommand)).toHaveLength(0);
+    expect(s3Mock.commandCalls(ListMultipartUploadsCommand)[0].args[0].input).toMatchObject({
+      Bucket: 'bucket',
+      Prefix: 'octo/app/refs%2Fheads%2Fmain/',
+    });
+    expect(mockInfo).toHaveBeenCalledWith(
+      `Aborted ${MAIN_KEY('old')} (upload ${'id-' + MAIN_KEY('old')}, 30h old)`
+    );
+    expect(mockInfo).toHaveBeenCalledWith('Aborted 1 incomplete upload(s).');
+  });
+
+  it('follows the key and upload id markers across pages', async () => {
+    s3Mock
+      .on(ListMultipartUploadsCommand)
+      .resolvesOnce({
+        Uploads: [upload(MAIN_KEY('a'), hoursAgo(50))],
+        IsTruncated: true,
+        NextKeyMarker: 'km',
+        NextUploadIdMarker: 'um',
+      })
+      .resolvesOnce({ Uploads: [upload(MAIN_KEY('b'), hoursAgo(50))], IsTruncated: false });
+
+    const result = await pruneCaches(
+      { storage, template: templateFor() },
+      { abortUploadsOlderThanHours: 24, ref: MAIN, dryRun: false, now: NOW }
+    );
+
+    const calls = s3Mock.commandCalls(ListMultipartUploadsCommand).map((c) => c.args[0].input);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].KeyMarker).toBeUndefined();
+    expect(calls[1]).toMatchObject({ KeyMarker: 'km', UploadIdMarker: 'um' });
+    expect(result.abortedUploads).toBe(2);
+  });
+
+  it('lists but does not abort in a dry run', async () => {
+    s3Mock.on(ListMultipartUploadsCommand).resolves({
+      Uploads: [upload(MAIN_KEY('old'), hoursAgo(30))],
+      IsTruncated: false,
+    });
+    const result = await pruneCaches(
+      { storage, template: templateFor() },
+      { abortUploadsOlderThanHours: 24, ref: MAIN, dryRun: true, now: NOW }
+    );
+    expect(aborted()).toEqual([]);
+    expect(result.abortedUploads).toBe(1);
+    expect(mockInfo).toHaveBeenCalledWith(
+      `Would abort ${MAIN_KEY('old')} (upload ${'id-' + MAIN_KEY('old')}, 30h old)`
+    );
+    expect(mockInfo).toHaveBeenCalledWith('Would abort 1 incomplete upload(s).');
+  });
+
+  it('does not list uploads when the rule is not set', async () => {
+    const result = await pruneCaches(
+      { storage, template: templateFor() },
+      { olderThanDays: 5, ref: MAIN, dryRun: false, now: NOW }
+    );
+    expect(s3Mock.commandCalls(ListMultipartUploadsCommand)).toHaveLength(0);
+    expect(result.abortedUploads).toBe(0);
+  });
+
+  it('warns and goes on when the provider cannot list uploads', async () => {
+    const notImplemented = Object.assign(new Error('A header you provided is not implemented'), {
+      name: 'NotImplemented',
+    });
+    s3Mock.on(ListMultipartUploadsCommand).rejects(notImplemented);
+    s3Mock.on(ListObjectsV2Command).resolves({
+      Contents: [object(MAIN_KEY('a'), 100, daysAgo(10))],
+      IsTruncated: false,
+    });
+    s3Mock.on(DeleteObjectCommand).resolves({});
+
+    const result = await pruneCaches(
+      { storage, template: templateFor() },
+      { olderThanDays: 5, abortUploadsOlderThanHours: 24, ref: MAIN, dryRun: false, now: NOW }
+    );
+
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining('Could not list incomplete multipart uploads')
+    );
+    expect(mockWarning).toHaveBeenCalledWith(expect.stringContaining('NotImplemented'));
+    expect(result.abortedUploads).toBe(0);
+    expect(result.pruned).toHaveLength(1);
+  });
+
+  it('ignores an upload that finished before the abort and warns on other abort errors', async () => {
+    s3Mock.on(ListMultipartUploadsCommand).resolves({
+      Uploads: [
+        upload(MAIN_KEY('done'), hoursAgo(30), 'done'),
+        upload(MAIN_KEY('denied'), hoursAgo(30), 'denied'),
+        upload(MAIN_KEY('ok'), hoursAgo(30), 'ok'),
+      ],
+      IsTruncated: false,
+    });
+    s3Mock
+      .on(AbortMultipartUploadCommand, { UploadId: 'done' })
+      .rejects(Object.assign(new Error('gone'), { name: 'NoSuchUpload' }));
+    s3Mock
+      .on(AbortMultipartUploadCommand, { UploadId: 'denied' })
+      .rejects(Object.assign(new Error('no'), { name: 'AccessDenied' }));
+
+    const result = await pruneCaches(
+      { storage, template: templateFor() },
+      { abortUploadsOlderThanHours: 24, ref: MAIN, dryRun: false, now: NOW }
+    );
+
+    expect(result.abortedUploads).toBe(1);
+    expect(mockWarning).toHaveBeenCalledTimes(1);
+    expect(mockWarning).toHaveBeenCalledWith(expect.stringContaining(MAIN_KEY('denied')));
   });
 });

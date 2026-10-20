@@ -40,10 +40,16 @@ const PRUNE_ONLY_INPUTS: string[] = [
   Inputs.OlderThanDays,
   Inputs.KeepLatest,
   Inputs.MaxTotalSize,
+  Inputs.AbortUploadsOlderThanHours,
   Inputs.Ref,
   Inputs.DryRun,
 ];
-const PRUNE_ONLY_OUTPUTS: string[] = [Outputs.PrunedCount, Outputs.PrunedBytes, Outputs.KeptCount];
+const PRUNE_ONLY_OUTPUTS: string[] = [
+  Outputs.PrunedCount,
+  Outputs.PrunedBytes,
+  Outputs.KeptCount,
+  Outputs.AbortedUploads,
+];
 
 // Inputs/outputs that exist only for the inspect sub-action and are exempt from the root manifest.
 const INSPECT_ONLY_INPUTS: string[] = [Inputs.MaxCandidates];
@@ -125,8 +131,13 @@ describe('action manifests', () => {
     );
   });
 
-  it('prune/action.yml declares older-than-days, keep-latest and max-total-size as optional with no default, and dry-run defaulting to false', () => {
-    for (const name of [Inputs.OlderThanDays, Inputs.KeepLatest, Inputs.MaxTotalSize]) {
+  it('prune/action.yml declares the four rule inputs as optional with no default, and dry-run defaulting to false', () => {
+    for (const name of [
+      Inputs.OlderThanDays,
+      Inputs.KeepLatest,
+      Inputs.MaxTotalSize,
+      Inputs.AbortUploadsOlderThanHours,
+    ]) {
       expect(pruneManifest.inputs[name].required ?? false).toBe(false);
       expect(pruneManifest.inputs[name].default).toBeUndefined();
     }

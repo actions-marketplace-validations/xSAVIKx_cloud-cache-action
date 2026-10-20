@@ -1,6 +1,13 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { HeadObjectCommand, PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
+import {
+  AbortMultipartUploadCommand,
+  CreateMultipartUploadCommand,
+  HeadObjectCommand,
+  ListMultipartUploadsCommand,
+  PutObjectCommand,
+  type S3Client,
+} from '@aws-sdk/client-s3';
 import { Defaults } from '../../src/constants';
 import { compileKeyTemplate } from '../../src/core/keyTemplate';
 import { pruneCaches } from '../../src/core/prune';
@@ -283,5 +290,92 @@ describe('pruneCaches integration', () => {
       expect(await objectExists(otherRepoKey)).toBe(true);
     },
     120_000
+  );
+  itS3(
+    'aborts only stale incomplete uploads inside the prune scope, and lists them in a dry run',
+    async () => {
+      const repository = `cloud-cache-it/prune-uploads-${runId}`;
+      const otherRepository = `cloud-cache-it/prune-uploads-other-${runId}`;
+      const scopeKey = `${repository}/refs%2Fheads%2Fmain/stale/v1/cache.tar.zst`;
+      const strayKey = `${repository}/refs%2Fheads%2Fmain/stale/v1/notes.txt`;
+      const otherKey = `${otherRepository}/refs%2Fheads%2Fmain/stale/v1/cache.tar.zst`;
+
+      const start = async (key: string): Promise<string> => {
+        const started = await client.send(
+          new CreateMultipartUploadCommand({ Bucket: s3.bucket, Key: key })
+        );
+        expect(started.UploadId).toBeTruthy();
+        return started.UploadId as string;
+      };
+      const open = async (repo: string): Promise<Array<{ key?: string; id?: string }>> => {
+        const listed = await client.send(
+          new ListMultipartUploadsCommand({ Bucket: s3.bucket, Prefix: `${repo}/` })
+        );
+        return (listed.Uploads ?? []).map((u) => ({ key: u.Key, id: u.UploadId }));
+      };
+
+      const scopeId = await start(scopeKey);
+      const strayId = await start(strayKey);
+      const otherId = await start(otherKey);
+
+      const template = compileKeyTemplate({
+        pattern: Defaults.DefaultS3KeyPattern,
+        repository,
+        prefix: '',
+        scopedToRepository: true,
+        scopedToRef: true,
+        version: '',
+        archiveFilename: 'cache.tar.zst',
+        env: {},
+      });
+      const storage: StorageContext = {
+        client,
+        bucket: s3.bucket,
+        providerConfig: {
+          provider: s3.provider as 'seaweedfs',
+          region: s3.region,
+          forcePathStyle: true,
+        },
+      };
+      const tier = { storage, template };
+      // The uploads just started; a `now` two days ahead makes them look stale.
+      const later = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+      try {
+        // Right now the uploads are younger than the limit, so nothing is aborted.
+        const fresh = await pruneCaches(tier, { abortUploadsOlderThanHours: 24, dryRun: false });
+        expect(fresh.abortedUploads).toBe(0);
+        expect(await open(repository)).toHaveLength(2);
+
+        const dryRun = await pruneCaches(tier, {
+          abortUploadsOlderThanHours: 24,
+          dryRun: true,
+          now: later,
+        });
+        expect(dryRun.abortedUploads).toBe(1);
+        expect(await open(repository)).toHaveLength(2);
+
+        const real = await pruneCaches(tier, {
+          abortUploadsOlderThanHours: 24,
+          dryRun: false,
+          now: later,
+        });
+        expect(real.abortedUploads).toBe(1);
+        expect(real.pruned).toEqual([]);
+        // The archive upload is gone. The non-archive upload and the other repository stay.
+        expect(await open(repository)).toEqual([{ key: strayKey, id: strayId }]);
+        expect(await open(otherRepository)).toEqual([{ key: otherKey, id: otherId }]);
+      } finally {
+        for (const [key, id] of [
+          [scopeKey, scopeId],
+          [strayKey, strayId],
+          [otherKey, otherId],
+        ]) {
+          await client
+            .send(new AbortMultipartUploadCommand({ Bucket: s3.bucket, Key: key, UploadId: id }))
+            .catch(() => undefined);
+        }
+      }
+    }
   );
 });

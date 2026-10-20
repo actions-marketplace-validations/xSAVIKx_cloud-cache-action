@@ -7,7 +7,7 @@ export interface PruneCandidate {
   group: string;
 }
 
-/** The rules that decide what prune deletes. Each rule is optional; at least one must be set. */
+/** The rules that decide what prune does. Each rule is optional; at least one must be set. */
 export interface PruneRules {
   /** Delete archives last modified more than this many days before `now`. */
   olderThanDays?: number;
@@ -15,6 +15,11 @@ export interface PruneRules {
   keepLatest?: number;
   /** After the other rules, delete the oldest remaining archives until the total fits. */
   maxTotalSize?: number;
+  /**
+   * Abort incomplete multipart uploads started more than this many hours before `now`. This rule
+   * selects no archive: `selectForPrune` ignores it.
+   */
+  abortUploadsOlderThanHours?: number;
 }
 
 export type PruneReason = 'age' | 'count' | 'size budget';
@@ -33,13 +38,14 @@ export interface SelectionResult<T extends PruneCandidate> {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const NO_RULE_MESSAGE =
-  'Set at least one of "older-than-days", "keep-latest" or "max-total-size": prune has no rule to apply.';
+  'Set at least one of "older-than-days", "keep-latest", "max-total-size" or "abort-uploads-older-than-hours": prune has no rule to apply.';
 
 export function hasPruneRule(rules: PruneRules): boolean {
   return (
     rules.olderThanDays !== undefined ||
     rules.keepLatest !== undefined ||
-    rules.maxTotalSize !== undefined
+    rules.maxTotalSize !== undefined ||
+    rules.abortUploadsOlderThanHours !== undefined
   );
 }
 
