@@ -1864,38 +1864,48 @@ describe('saveToS3 streaming', () => {
     expect(mockReplaceObjectMetadata).toHaveBeenCalled();
   });
 
-  describe('when the upload reports no ETag', () => {
-    /**
-     * The upload answers without an ETag, and the HEAD after the tag answers with `head`, built
-     * from the writer id that the upload sent in its metadata.
-     */
-    const uploadWithoutEtag = (
-      head: (writerId: string | undefined) => Partial<CacheObjectMetadata>
-    ): void => {
-      mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
-      mockWaitForExit.mockImplementation(async (c) => {
-        c.stdout.end(Buffer.from('archive-body'));
-        return 0;
-      });
-      let writerId: string | undefined;
-      mockCreateStreamUpload.mockImplementation(
-        (_client, _bucket, _key, _body, _transfer, opts) => {
-          writerId = opts?.metadata?.['cloud-cache-writer'];
-          return {
-            done: jest.fn(async () => ({})),
-            abort: jest.fn(async () => undefined),
-          };
-        }
-      );
-      let calls = 0;
-      mockCheckObjectExists.mockImplementation(async (_client, _bucket, key) => {
-        calls += 1;
-        return calls === 1 ? null : { key, size: 12, ...head(writerId) };
-      });
-    };
+  /**
+   * The upload answers with `uploadEtag` (none when undefined), and the HEAD after the tag
+   * answers with `head`, built from the writer id that the upload sent in its metadata. `head`
+   * can also be 'throws', for a HEAD that fails.
+   */
+  const streamedSave = (
+    uploadEtag: string | undefined,
+    head: ((writerId: string | undefined) => Partial<CacheObjectMetadata>) | 'throws'
+  ): void => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    let writerId: string | undefined;
+    mockCreateStreamUpload.mockImplementation((_client, _bucket, _key, _body, _transfer, opts) => {
+      writerId = opts?.metadata?.['cloud-cache-writer'];
+      return {
+        done: jest.fn(async () => (uploadEtag === undefined ? {} : { ETag: uploadEtag })),
+        abort: jest.fn(async () => undefined),
+      };
+    });
+    let calls = 0;
+    mockCheckObjectExists.mockImplementation(async (_client, _bucket, key) => {
+      calls += 1;
+      if (calls === 1) {
+        return null;
+      }
+      if (head === 'throws') {
+        throw new Error('head blocked');
+      }
+      return { key, size: 12, ...head(writerId) };
+    });
+  };
 
+  const noChecksumWarning = expect.stringContaining(
+    'without a checksum: the upload reported no ETag'
+  ) as unknown as string;
+
+  describe('when the upload reports no ETag', () => {
     it('keeps the tag when the writer metadata matches this save', async () => {
-      uploadWithoutEtag((writerId) => ({
+      streamedSave(undefined, (writerId) => ({
         etag: '"any"',
         metadata: { 'cloud-cache-writer': writerId ?? '' },
       }));
@@ -1907,7 +1917,7 @@ describe('saveToS3 streaming', () => {
     });
 
     it('removes the tag, warns, and does not copy, when another save wrote the object', async () => {
-      uploadWithoutEtag(() => ({ metadata: { 'cloud-cache-writer': 'another-save' } }));
+      streamedSave(undefined, () => ({ metadata: { 'cloud-cache-writer': 'another-save' } }));
       const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
       expect(outcome.kind).toBe('saved');
       expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
@@ -1918,14 +1928,103 @@ describe('saveToS3 streaming', () => {
       );
     });
 
-    it('removes the tag, then copies, when the HEAD returns no writer metadata', async () => {
-      uploadWithoutEtag(() => ({ etag: '"any"' }));
+    it('removes the tag, and keeps no checksum, when the HEAD returns no writer metadata', async () => {
+      // Without an upload ETag, nothing can guard a copy: it could put this save's checksum on
+      // the bytes of another job.
+      streamedSave(undefined, () => ({ etag: '"any"' }));
       const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
       expect(outcome.kind).toBe('saved');
       expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
       expect(mockPutObjectTags.mock.calls[1][3]).toEqual([]);
-      expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(noChecksumWarning);
     });
+
+    it('removes the tag, and keeps no checksum, when the HEAD after the tag fails', async () => {
+      streamedSave(undefined, 'throws');
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+      expect(mockPutObjectTags.mock.calls[1][3]).toEqual([]);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(noChecksumWarning);
+    });
+
+    it('keeps no checksum, and does not copy, when the tag write fails', async () => {
+      streamedSave(undefined, () => ({}));
+      mockPutObjectTags.mockRejectedValueOnce(new Error('tagging blocked'));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(1);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(noChecksumWarning);
+    });
+  });
+
+  describe('when the upload reports an ETag and the HEAD does not', () => {
+    it('keeps the tag when the writer metadata matches this save', async () => {
+      streamedSave('"streamed"', (writerId) => ({
+        metadata: { 'cloud-cache-writer': writerId ?? '' },
+      }));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(1);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).not.toHaveBeenCalled();
+    });
+
+    it('removes the tag, warns, and does not copy, when another save wrote the object', async () => {
+      streamedSave('"streamed"', () => ({ metadata: { 'cloud-cache-writer': 'another-save' } }));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(
+        expect.stringContaining('replaced s3://bucket/') as unknown as string
+      );
+    });
+
+    it('removes the tag, then uses the ETag-guarded copy, when the HEAD has no writer metadata', async () => {
+      streamedSave('"streamed"', () => ({}));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+      expect(mockReplaceObjectMetadata.mock.calls[0][4]).toBe('"streamed"');
+    });
+  });
+
+  it('warns that a checksum tag may remain when its removal fails and the guarded copy gets a 412', async () => {
+    streamedSave('"streamed"', () => ({}));
+    mockPutObjectTags
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('tag rewrite blocked'));
+    mockReplaceObjectMetadata.mockRejectedValue(
+      Object.assign(new Error('At least one of the pre-conditions you specified did not hold'), {
+        name: 'PreconditionFailed',
+        $metadata: { httpStatusCode: 412 },
+      })
+    );
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    expect(outcome.kind).toBe('saved');
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "This save's checksum tag may remain on s3://bucket/"
+      ) as unknown as string
+    );
+  });
+
+  it('does not warn about a remaining tag when the removal worked and the copy gets a 412', async () => {
+    streamedSave('"streamed"', () => ({}));
+    mockReplaceObjectMetadata.mockRejectedValue(
+      Object.assign(new Error('precondition'), {
+        name: 'PreconditionFailed',
+        $metadata: { httpStatusCode: 412 },
+      })
+    );
+    await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    expect(mockWarning).not.toHaveBeenCalledWith(
+      expect.stringContaining('may remain') as unknown as string
+    );
   });
 
   it('copies instead of tagging when user metadata is configured', async () => {

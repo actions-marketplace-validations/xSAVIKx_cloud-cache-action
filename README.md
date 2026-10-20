@@ -490,7 +490,8 @@ stream has finished, so it is attached after the upload. Normally it is attached
 object onto itself instead, the same mechanism v1.2 through v1.5 always used: user `metadata` is
 set, the provider has no tagging API (Garage today), the conditional create was not honored, or
 the ownership check after the tag could not confirm the object. A tag write that fails for any
-other reason falls back to the copy as well. A provider that cannot do the copy either — or an
+other reason falls back to the copy as well. When the upload reported no ETag, these last two
+cases keep no checksum instead (see below). A provider that cannot do the copy either — or an
 archive over 5 GiB, since a copy cannot span more than 5 GiB — costs the checksum, not the cache:
 the save logs
 `Saved s3://<bucket>/<key> but could not attach metadata: <reason>` and succeeds. A tag has no
@@ -505,9 +506,14 @@ carries the checksum tag also carries `cloud-cache-writer=<id>` as user metadata
 `cloud-cache-` keys, it is not reported in `cache-metadata`. It does not count against the
 metadata limit, because the upload sends it only when no user `metadata` is set. When the check
 shows that another job wrote the object, the save removes its checksum tag, warns, and does not
-copy. When the check cannot confirm the object (no object, a failed HEAD, or neither value
-returned), the save removes its checksum tag and uses the copy. A missing checksum only skips the
-integrity check, but a false checksum would reject a good cache. MinIO, SeaweedFS, RustFS and
+copy. The tag set has no partial update, so this can also remove the checksum tag of the other
+job: that cache then has no checksum, but never a false one. When the check cannot confirm the
+object (no object, a failed HEAD, or neither value returned), the save removes its checksum tag.
+It then uses the copy only when the upload reported an ETag, because only then can
+`CopySourceIfMatch` guard the copy. With no upload ETag, the save keeps no checksum and logs
+`Saved s3://<bucket>/<key> without a checksum: the upload reported no ETag, ...`. A failed tag
+write with no upload ETag has the same result. A missing checksum only skips the integrity check,
+but a false checksum would reject a good cache. MinIO, SeaweedFS, RustFS and
 Garage return the `cloud-cache-writer` field on `HeadObject` for single-part and multipart
 uploads.
 

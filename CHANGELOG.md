@@ -46,8 +46,10 @@ points at the latest `v1.x.y` release.
     `cloud-cache-writer` user metadata field instead. The upload writes a random id for this save
     into it, so an object that carries the checksum tag also carries this field. It is not
     reported in `cache-metadata`. When the save cannot confirm the object either way, it now
-    removes its checksum tag before it falls back to the copy, so a checksum is never left on
-    bytes that this save cannot prove are its own.
+    removes its checksum tag. It then falls back to the copy only when the upload reported an
+    ETag, because only then can `CopySourceIfMatch` guard the copy. With no upload ETag, the save
+    keeps no checksum and warns, and a failed tag write is handled the same way. A missing
+    checksum only skips the integrity check, but a false checksum would reject a good cache.
   - The documented IAM policies now grant `s3:GetObjectTagging` and `s3:PutObjectTagging`. A
     restore that cannot read the tags now warns instead of logging a debug line, because the only
     other symptom is an integrity check that silently stops running.
