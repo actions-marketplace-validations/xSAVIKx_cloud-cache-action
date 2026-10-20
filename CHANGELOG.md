@@ -45,6 +45,13 @@ points at the latest `v1.x.y` release.
     restore that cannot read the tags now warns instead of logging a debug line, because the only
     other symptom is an integrity check that silently stops running.
 
+### Fixed
+
+- A dual-cache save where `path` matches nothing now skips both tiers with the reason
+  "no paths matched". Before, the GitHub tier reported an error, because `@actions/cache` throws a
+  plain `Error` for this case and the check expected a `ValidationError`. In strict mode, this
+  failed the step. The S3 tier alone was not affected.
+
 ## [1.5.0] - 2026-09-22
 
 No breaking changes, and nothing changes for an existing workflow: this release only adds a
