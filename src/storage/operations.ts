@@ -21,6 +21,8 @@ export interface CacheObjectMetadata {
   size: number;
   lastModified?: Date;
   etag?: string;
+  /** User metadata from the HeadObject response; undefined when the server returns none. */
+  metadata?: Record<string, string>;
 }
 
 export async function checkObjectExists(
@@ -39,6 +41,7 @@ export async function checkObjectExists(
       size: response.ContentLength || 0,
       lastModified: response.LastModified,
       etag: response.ETag,
+      metadata: response.Metadata,
     };
   } catch (err: unknown) {
     const error = err as { name?: string; $metadata?: { httpStatusCode?: number } };
@@ -342,8 +345,8 @@ export async function uploadFile(
  * via a byte counter) instead of a file path, and returns the upload instead of awaiting it, so
  * the caller can race it against the archiving process and abort it on failure. Its `done()`
  * aborts a multipart upload that fails, the same way `uploadFile` does.
- * Metadata is attached afterwards by `replaceObjectMetadata`: a streamed archive's sha256 cannot
- * be known before it finishes.
+ * The sha256 is attached afterwards: a streamed archive's sha256 cannot be known before it
+ * finishes. `metadata` goes with the create request, so it must be known at upload start.
  */
 export function createStreamUpload(
   client: S3Client,
@@ -351,7 +354,7 @@ export function createStreamUpload(
   key: string,
   body: Readable,
   transfer?: UploadTransfer,
-  options?: Pick<UploadOptions, 'ifNoneMatch' | 'tagging'>
+  options?: Pick<UploadOptions, 'ifNoneMatch' | 'tagging' | 'metadata'>
 ): StreamUpload {
   const upload = new Upload({
     client,
@@ -361,6 +364,7 @@ export function createStreamUpload(
       Body: body,
       IfNoneMatch: options?.ifNoneMatch,
       Tagging: options?.tagging,
+      Metadata: options?.metadata,
     },
     partSize: resolvePartSize(transfer),
     queueSize: resolveQueueSize(transfer),

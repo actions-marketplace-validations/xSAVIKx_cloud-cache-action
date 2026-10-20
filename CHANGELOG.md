@@ -31,8 +31,9 @@ points at the latest `v1.x.y` release.
   whole object, which removes about 8 seconds from a 512 MiB save on Amazon S3. An action older
   than v1.6 restoring such a cache finds no checksum metadata and skips the integrity check
   instead of failing, the same way it already does for a v1.1 cache. The object copy is still used
-  when user `metadata` is set, when the provider has no tagging API (Garage), or when the upload
-  could not use a conditional create. A streamed archive over 5 GiB now gets a checksum for the
+  when user `metadata` is set, when the provider has no tagging API (Garage), when the upload
+  could not use a conditional create, or when the save cannot confirm that it owns the object
+  after the tag. A streamed archive over 5 GiB now gets a checksum for the
   first time, since a tag has no size limit while the copy was refused above 5 GiB. With
   `streaming: true`, the `tags` input is capped at 9 instead of 10, because the reserved checksum
   tag takes one slot.
@@ -41,6 +42,12 @@ points at the latest `v1.x.y` release.
     otherwise let this job tag another job's bytes with this archive's checksum, which a later
     restore would reject. When the ETags differ, the save removes its checksum tag again, warns,
     and leaves the other job's cache alone.
+  - When the upload or the `HeadObject` reports no ETag, the save compares a new
+    `cloud-cache-writer` user metadata field instead. The upload writes a random id for this save
+    into it, so an object that carries the checksum tag also carries this field. It is not
+    reported in `cache-metadata`. When the save cannot confirm the object either way, it now
+    removes its checksum tag before it falls back to the copy, so a checksum is never left on
+    bytes that this save cannot prove are its own.
   - The documented IAM policies now grant `s3:GetObjectTagging` and `s3:PutObjectTagging`. A
     restore that cannot read the tags now warns instead of logging a debug line, because the only
     other symptom is an integrity check that silently stops running.

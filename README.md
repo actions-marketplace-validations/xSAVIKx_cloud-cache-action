@@ -497,6 +497,20 @@ the save logs
 size limit, so a streamed archive over 5 GiB gets a checksum for the first time when the tag path
 applies. The copy was verified to work on MinIO, SeaweedFS, RustFS and Garage.
 
+The ownership check is one `HeadObject` after the tag. It proves that no other job replaced the
+object between the upload and the tag. When the upload and the HEAD both report an ETag, the save
+compares the ETags. Otherwise it compares the `cloud-cache-writer` metadata. The upload writes a
+random id for this save into that field when the tag path applies, so a streamed object that
+carries the checksum tag also carries `cloud-cache-writer=<id>` as user metadata. Like all
+`cloud-cache-` keys, it is not reported in `cache-metadata`. It does not count against the
+metadata limit, because the upload sends it only when no user `metadata` is set. When the check
+shows that another job wrote the object, the save removes its checksum tag, warns, and does not
+copy. When the check cannot confirm the object (no object, a failed HEAD, or neither value
+returned), the save removes its checksum tag and uses the copy. A missing checksum only skips the
+integrity check, but a false checksum would reject a good cache. MinIO, SeaweedFS, RustFS and
+Garage return the `cloud-cache-writer` field on `HeadObject` for single-part and multipart
+uploads.
+
 ---
 
 ## Streaming Archives (Experimental)

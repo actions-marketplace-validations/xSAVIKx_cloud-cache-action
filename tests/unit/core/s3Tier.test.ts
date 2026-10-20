@@ -161,7 +161,7 @@ const mockCreateStreamUpload =
       key: string,
       body: Readable,
       chunkSize?: number,
-      options?: { ifNoneMatch?: string; tagging?: string }
+      options?: { ifNoneMatch?: string; tagging?: string; metadata?: Record<string, string> }
     ) => FakeUpload
   >();
 
@@ -1295,7 +1295,12 @@ describe('saveToS3 streaming', () => {
     expect(call[1]).toBe('bucket');
     expect(call[2]).toBe(objectKey);
     expect(call[4]).toEqual({ concurrency: 8, partSize: 5_242_880 });
-    expect(call[5]).toEqual({ ifNoneMatch: '*' });
+    expect(call[5]).toEqual({
+      ifNoneMatch: '*',
+      metadata: {
+        'cloud-cache-writer': expect.stringMatching(/^[0-9a-f-]{36}$/) as unknown as string,
+      },
+    });
   });
 
   it('never lets the upload observe the body as complete when tar closes with a non-zero code', async () => {
@@ -1547,7 +1552,13 @@ describe('saveToS3 streaming', () => {
       'node_modules',
     ]);
     const [, , , , , options] = mockCreateStreamUpload.mock.calls[0];
-    expect(options).toEqual({ ifNoneMatch: '*', tagging: 'repo=acme%2Fapp' });
+    expect(options).toEqual({
+      ifNoneMatch: '*',
+      tagging: 'repo=acme%2Fapp',
+      metadata: {
+        'cloud-cache-writer': expect.stringMatching(/^[0-9a-f-]{36}$/) as unknown as string,
+      },
+    });
   });
 
   it('falls back to a file-mode save without tags when the streamed upload server rejects tagging', async () => {
@@ -1791,7 +1802,7 @@ describe('saveToS3 streaming', () => {
     );
   });
 
-  it('copies instead when the HeadObject after the tag fails', async () => {
+  it('removes the checksum tag, then copies, when the HeadObject after the tag fails', async () => {
     mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
     mockWaitForExit.mockImplementation(async (c) => {
       c.stdout.end(Buffer.from('archive-body'));
@@ -1807,8 +1818,114 @@ describe('saveToS3 streaming', () => {
     });
     const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
     expect(outcome.kind).toBe('saved');
-    expect(mockPutObjectTags).toHaveBeenCalledTimes(1);
+    expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+    // No user tags: the rewrite is an empty tag set.
+    expect(mockPutObjectTags.mock.calls[1][3]).toEqual([]);
     expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+  });
+
+  it('removes the checksum tag, then copies, when the HeadObject after the tag finds nothing', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    // Both HEADs find nothing: the first is the "already saved?" check, the second the
+    // ownership check after the tag.
+    mockCheckObjectExists.mockResolvedValue(null);
+    const outcome = await saveToS3(
+      tier({ streaming: true, tags: [{ Key: 'team', Value: 'platform' }] }),
+      'k',
+      ['node_modules']
+    );
+    expect(outcome.kind).toBe('saved');
+    expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+    expect(mockPutObjectTags.mock.calls[1][3]).toEqual([{ Key: 'team', Value: 'platform' }]);
+    const [, , , metadata, ifMatch] = mockReplaceObjectMetadata.mock.calls[0];
+    expect(metadata).toEqual({ 'cloud-cache-sha256': expect.any(String) as unknown as string });
+    expect(ifMatch).toBe('"streamed"');
+  });
+
+  it('warns, and still copies, when the tag cannot be removed after an unconfirmed check', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    mockCheckObjectExists.mockResolvedValue(null);
+    mockPutObjectTags
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('tag rewrite blocked'));
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    expect(outcome.kind).toBe('saved');
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining("Could not remove this save's checksum tag") as unknown as string
+    );
+    expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+  });
+
+  describe('when the upload reports no ETag', () => {
+    /**
+     * The upload answers without an ETag, and the HEAD after the tag answers with `head`, built
+     * from the writer id that the upload sent in its metadata.
+     */
+    const uploadWithoutEtag = (
+      head: (writerId: string | undefined) => Partial<CacheObjectMetadata>
+    ): void => {
+      mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+      mockWaitForExit.mockImplementation(async (c) => {
+        c.stdout.end(Buffer.from('archive-body'));
+        return 0;
+      });
+      let writerId: string | undefined;
+      mockCreateStreamUpload.mockImplementation(
+        (_client, _bucket, _key, _body, _transfer, opts) => {
+          writerId = opts?.metadata?.['cloud-cache-writer'];
+          return {
+            done: jest.fn(async () => ({})),
+            abort: jest.fn(async () => undefined),
+          };
+        }
+      );
+      let calls = 0;
+      mockCheckObjectExists.mockImplementation(async (_client, _bucket, key) => {
+        calls += 1;
+        return calls === 1 ? null : { key, size: 12, ...head(writerId) };
+      });
+    };
+
+    it('keeps the tag when the writer metadata matches this save', async () => {
+      uploadWithoutEtag((writerId) => ({
+        etag: '"any"',
+        metadata: { 'cloud-cache-writer': writerId ?? '' },
+      }));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(1);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).not.toHaveBeenCalled();
+    });
+
+    it('removes the tag, warns, and does not copy, when another save wrote the object', async () => {
+      uploadWithoutEtag(() => ({ metadata: { 'cloud-cache-writer': 'another-save' } }));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+      expect(mockPutObjectTags.mock.calls[1][3]).toEqual([]);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(
+        expect.stringContaining('replaced s3://bucket/') as unknown as string
+      );
+    });
+
+    it('removes the tag, then copies, when the HEAD returns no writer metadata', async () => {
+      uploadWithoutEtag(() => ({ etag: '"any"' }));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+      expect(mockPutObjectTags.mock.calls[1][3]).toEqual([]);
+      expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+    });
   });
 
   it('copies instead of tagging when user metadata is configured', async () => {
@@ -1822,6 +1939,8 @@ describe('saveToS3 streaming', () => {
     ]);
     expect(mockPutObjectTags).not.toHaveBeenCalled();
     expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+    // No tag, so no ownership check, so no writer id on the object.
+    expect(mockCreateStreamUpload.mock.calls[0][5]?.metadata).toBeUndefined();
   });
 
   it('copies instead of tagging when the tier cannot use the conditional create', async () => {
@@ -1835,6 +1954,7 @@ describe('saveToS3 streaming', () => {
     await saveToS3(t, 'k', ['node_modules']);
     expect(mockPutObjectTags).not.toHaveBeenCalled();
     expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+    expect(mockCreateStreamUpload.mock.calls[0][5]?.metadata).toBeUndefined();
   });
 
   it('falls back to the copy, and remembers, when the server has no tagging API', async () => {
