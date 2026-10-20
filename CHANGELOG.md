@@ -14,8 +14,18 @@ points at the latest `v1.x.y` release.
   modified archives of each ref, even when they are older than `older-than-days`. `max-total-size`
   is a budget in bytes: after the other rules, prune deletes the oldest remaining archives in the
   scope until the total fits. `older-than-days` is now optional, but the step fails when none of
-  the three inputs is set. Each log line names the rule that selected the archive. See the
-  [Pruning](./guide/pruning.md) guide.
+  the three inputs is set. Each log line names the rule that selected the archive.
+  `max-total-size: 0` is allowed. It deletes every archive that `keep-latest` does not protect.
+  See the [Pruning](./guide/pruning.md) guide.
+
+- **`abort-uploads-older-than-hours` prune input.** A save that stops in the middle of a multipart
+  upload leaves an incomplete upload that uses storage on providers with no lifecycle rule (Garage,
+  SeaweedFS and some MinIO set-ups). Prune now lists the incomplete uploads in its scope and
+  aborts each one that started more than this many hours ago. `dry-run` lists them and aborts
+  none. The input counts as a prune rule on its own: with only this input set, prune aborts
+  uploads and deletes no archive. A provider that cannot list uploads gives a warning, not a
+  failure. The new `aborted-uploads` output and the `abortedUploads` metrics field give the count.
+  See the [Pruning](./guide/pruning.md) guide.
 
 - **`compression-level` input.** Set the zstd (1–19) or gzip (1–9) level a save uses. Unset keeps
   today's exact command (zstd level 3, or gzip via `tar -z`), so an existing workflow sees no

@@ -38,7 +38,7 @@ totals line), so a dry run tells you exactly what a real run would delete.
 ## Inputs
 
 The prune action shares its storage inputs with the main action, plus the inputs of its own below.
-Set at least one of `older-than-days`, `keep-latest` and `max-total-size`.
+Set at least one of `older-than-days`, `keep-latest`, `max-total-size` and `abort-uploads-older-than-hours`.
 
 | Input                             | Required |          Default          | Description                                                                 |
 | ---------------------------------- | :------: | :------------------------: | ---------------------------------------------------------------------------- |
@@ -46,6 +46,7 @@ Set at least one of `older-than-days`, `keep-latest` and `max-total-size`.
 | `older-than-days`                  |    No    |             —              | Delete cache archives whose last-modified time is older than this many days |
 | `keep-latest`                      |    No    |             —              | Positive integer. In each ref, never delete the N most recently modified archives |
 | `max-total-size`                   |    No    |             —              | Total size budget in bytes (a plain integer). Delete the oldest archives until the total fits |
+| `abort-uploads-older-than-hours`   |    No    |             —              | Positive integer. Abort incomplete multipart uploads in the prune scope that started more than this many hours ago. Deletes no archive |
 | `ref`                               |    No    |     _(every ref)_          | Prune only caches under this full Git ref (`refs/heads/main`); empty means every ref |
 | `dry-run`                           |    No    |          `false`           | List cache archives that would be pruned without deleting anything          |
 | `endpoint`                         |    No    |          Auto/AWS          | Custom S3-compatible endpoint URL                                           |
@@ -63,8 +64,8 @@ Set at least one of `older-than-days`, `keep-latest` and `max-total-size`.
 | `retry-count`                      |    No    |            `3`              | Maximum number of S3 retries                                                |
 | `metrics-file`                     |    No    |            `""`             | Append one JSON line of timings and sizes for this step to this file, relative to the workspace |
 
-An invalid `older-than-days`, `keep-latest` or `max-total-size` (not a positive integer; `max-total-size` also accepts `0`), a step
-with none of the three set, or an unrecognized `dry-run` value (anything
+An invalid `older-than-days`, `keep-latest`, `max-total-size` or `abort-uploads-older-than-hours` (not a positive integer; `max-total-size` also accepts `0`), a step
+with none of the four set, or an unrecognized `dry-run` value (anything
 other than `true`, `True`, `TRUE`, `false`, `False` or `FALSE`) fails the step immediately, rather
 than silently falling back to a default — a typo like `dry-run: Flase` must never turn into a real
 deletion.
@@ -76,6 +77,7 @@ deletion.
 | `pruned-count`   | The number of cache archives pruned (or that would be pruned in a dry run)      |
 | `pruned-bytes`   | The total size in bytes of the pruned cache archives                           |
 | `kept-count`     | The number of cache archives that matched the scope but no rule selected       |
+| `aborted-uploads` | The number of incomplete multipart uploads aborted (or that would be aborted in a dry run) |
 
 The outputs are set once the prune finishes. A step that fails earlier — an invalid input, an
 unsafe scope, an S3 error — sets none of them, so guard on `steps.<id>.outcome` before reading
@@ -88,7 +90,7 @@ Set `metrics-file` to append one JSON line describing this prune to a file, in a
 outcome of `pruned`, the pruned byte total, the step's `durationMs`, and the tallies in `extra`:
 
 ```json
-{"step":"prune","timestamp":"2026-09-17T03:00:11.204Z","provider":"r2","bytes":4194304000,"durationMs":9412,"outcome":"pruned","extra":{"prunedCount":37,"prunedBytes":4194304000,"keptCount":12,"dryRun":false}}
+{"step":"prune","timestamp":"2026-09-17T03:00:11.204Z","provider":"r2","bytes":4194304000,"durationMs":9412,"outcome":"pruned","extra":{"prunedCount":37,"prunedBytes":4194304000,"keptCount":12,"abortedUploads":0,"dryRun":false}}
 ```
 
 The line is written once the prune has finished, so a step that fails earlier writes none. Writing
@@ -113,8 +115,8 @@ also matches ref-scoped caches of the same repository that were saved with a non
 (their prefix segment reads as part of the key), subject to the prune rules. If you mix prefixes,
 give every prune step the `prefix` its caches were saved with.
 
-Among candidates, the three rules below choose what to delete. Each rule is optional, and at
-least one must be set.
+Among candidates, the first three rules below choose what to delete. The fourth rule aborts
+incomplete uploads and deletes no archive. Each rule is optional, and at least one must be set.
 
 - **`older-than-days`**: an archive whose `LastModified` is older than this many days is deleted.
 - **`keep-latest`**: in each ref, the N most recently modified archives are never deleted. With
@@ -130,6 +132,15 @@ least one must be set.
   budget. If they alone are over the budget, the step logs a warning and deletes nothing more.
   The value is a plain integer in bytes: `10GB` or `5G` is not accepted. `0` is accepted and
   deletes every archive that `keep-latest` does not protect.
+- **`abort-uploads-older-than-hours`**: a save that stops in the middle of a multipart upload
+  leaves an incomplete upload, which uses storage until someone aborts it. Some providers (Garage,
+  SeaweedFS and some MinIO set-ups) have no lifecycle rule for this. Prune lists the incomplete
+  uploads under the same scope as the archives, with the same key match. It aborts each upload
+  that started more than this many hours ago. `dry-run` lists the uploads and aborts none. This
+  rule alone is a valid prune: it aborts uploads and deletes no archive. If the provider cannot
+  list uploads (for example, it answers `NotImplemented`), prune logs a warning and goes on. An
+  upload that finished before prune aborted it is ignored. Any other abort error gives a warning
+  for that upload and does not fail the step.
 
 "Each ref" is the ref segment of your `s3-key-pattern`. When the pattern has no `${ref}` (or
 `scoped-to-ref` is `false`), prune treats the whole scope as one group, so `keep-latest: 5` keeps the

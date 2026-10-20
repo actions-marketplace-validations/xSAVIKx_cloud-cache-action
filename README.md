@@ -267,8 +267,9 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
 Object storage does not evict old caches the way GitHub's cache service does. The standalone
 `cloud-cache-action/prune` sub-action deletes cache archives from any S3-compatible bucket, so you
 can run it on a schedule. Set at least one rule: `older-than-days` (age), `keep-latest` (the newest
-N archives of each ref are never deleted) or `max-total-size` (a budget in bytes; the oldest
-archives go first until the total fits). **Run it with `dry-run: true` first** to see
+N archives of each ref are never deleted), `max-total-size` (a budget in bytes; the oldest
+archives go first until the total fits) or `abort-uploads-older-than-hours` (abort stale incomplete
+multipart uploads; no archive is deleted). **Run it with `dry-run: true` first** to see
 what it would delete before letting it delete anything:
 
 ```yaml
