@@ -3,7 +3,13 @@ import { DeleteObjectCommand, ListObjectsV2Command, type S3Client } from '@aws-s
 import { formatSize } from '../utils/inputUtils';
 import { mapWithConcurrency } from '../utils/concurrency';
 import type { KeyTemplate, ScopeProblem } from './keyTemplate';
-import { hasPruneRule, selectForPrune, type PruneRules, type Selection } from './pruneSelect';
+import {
+  NO_RULE_MESSAGE,
+  hasPruneRule,
+  selectForPrune,
+  type PruneRules,
+  type Selection,
+} from './pruneSelect';
 import { toError } from './outcomes';
 import type { StorageContext } from '../storage/client';
 
@@ -136,9 +142,7 @@ function refusal(problem: ScopeProblem, ref: string | undefined): string {
  */
 export async function pruneCaches(tier: PruneTier, options: PruneOptions): Promise<PruneResult> {
   if (!hasPruneRule(options)) {
-    throw new Error(
-      'Refusing to prune: set at least one of "older-than-days", "keep-latest" or "max-total-size".'
-    );
+    throw new Error(NO_RULE_MESSAGE);
   }
   const problem = tier.template.scopeProblem(options.ref);
   if (problem) {

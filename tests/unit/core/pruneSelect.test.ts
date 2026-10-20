@@ -81,11 +81,30 @@ describe('selectForPrune', () => {
   it('never selects a keep-latest archive for the budget and reports the excess', () => {
     const result = selectForPrune(objects, { keepLatest: 1, maxTotalSize: 50 }, NOW);
     expect(summary(result)).toEqual([
-      ['dev-2', 'count'],
-      ['main-2', 'count'],
-      ['main-3', 'count'],
+      ['dev-2', 'size budget'],
+      ['main-2', 'size budget'],
+      ['main-3', 'size budget'],
     ]);
     expect(result.overBudgetBytes).toBe(150);
+  });
+
+  it('with keep-latest and a budget, only protects: nothing is deleted when the scope fits', () => {
+    const result = selectForPrune(objects, { keepLatest: 1, maxTotalSize: 500 }, NOW);
+    expect(result.selected).toEqual([]);
+    expect(result.overBudgetBytes).toBe(0);
+  });
+
+  it('with keep-latest and a budget, deletes the oldest unprotected archives only as far as needed', () => {
+    const result = selectForPrune(objects, { keepLatest: 1, maxTotalSize: 400 }, NOW);
+    expect(summary(result)).toEqual([['dev-2', 'size budget']]);
+  });
+
+  it('accepts a budget of 0 and deletes every unprotected archive', () => {
+    const result = selectForPrune(objects, { maxTotalSize: 0 }, NOW);
+    expect(result.selected).toHaveLength(5);
+    expect(selectForPrune(objects, { keepLatest: 1, maxTotalSize: 0 }, NOW).selected).toHaveLength(
+      3
+    );
   });
 
   it('selects nothing when the total already fits the budget', () => {

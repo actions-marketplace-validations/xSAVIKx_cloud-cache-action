@@ -264,10 +264,20 @@ describe('pruneCaches integration', () => {
       expect(await objectExists(oldest)).toBe(false);
       expect(await objectExists(middle)).toBe(true);
 
-      // An impossible budget removes every archive that keep-latest does not protect.
-      const budget = await pruneCaches(tier, { keepLatest: 1, maxTotalSize: 1, dryRun: false });
+      // A budget alone deletes the oldest archive of the whole scope, whatever its ref. The budget
+      // is one byte under the total, so one deletion is enough.
+      const sizeOf = async (key: string): Promise<number> =>
+        (await client.send(new HeadObjectCommand({ Bucket: s3.bucket, Key: key }))).ContentLength ??
+        0;
+      const total = (await sizeOf(middle)) + (await sizeOf(newest)) + (await sizeOf(featureKey));
+      const budget = await pruneCaches(tier, { maxTotalSize: total - 1, dryRun: false });
       expect(budget.pruned.map((p) => p.key)).toEqual([middle]);
       expect(await objectExists(middle)).toBe(false);
+
+      // With keep-latest, the budget still decides, but the newest archive of each ref stays,
+      // even when the budget is 0.
+      const zero = await pruneCaches(tier, { keepLatest: 1, maxTotalSize: 0, dryRun: false });
+      expect(zero.pruned).toEqual([]);
       expect(await objectExists(newest)).toBe(true);
       expect(await objectExists(featureKey)).toBe(true);
       expect(await objectExists(otherRepoKey)).toBe(true);

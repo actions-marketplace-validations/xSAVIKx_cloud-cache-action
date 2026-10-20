@@ -32,6 +32,9 @@ export interface SelectionResult<T extends PruneCandidate> {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+export const NO_RULE_MESSAGE =
+  'Set at least one of "older-than-days", "keep-latest" or "max-total-size": prune has no rule to apply.';
+
 export function hasPruneRule(rules: PruneRules): boolean {
   return (
     rules.olderThanDays !== undefined ||
@@ -45,8 +48,9 @@ export function hasPruneRule(rules: PruneRules): boolean {
  * always counts as protected, because its age is unknown.
  *
  * 1. The newest `keepLatest` archives of each group are protected.
- * 2. An unprotected archive is selected when it is older than `olderThanDays`. When that rule is
- *    not set but `keepLatest` is, every unprotected archive is selected (reason "count").
+ * 2. An unprotected archive is selected when it is older than `olderThanDays`. When `keepLatest`
+ *    is the only rule set, every unprotected archive is selected (reason "count"). With
+ *    `maxTotalSize` also set, `keepLatest` only protects.
  * 3. If the remaining total is above `maxTotalSize`, the oldest unprotected archives are selected
  *    (reason "size budget") until the total fits or none is left.
  */
@@ -65,7 +69,12 @@ export function selectForPrune<T extends PruneCandidate>(
   if (rules.keepLatest !== undefined) {
     const groups = new Map<string, T[]>();
     for (const object of candidates) {
-      groups.set(object.group, [...(groups.get(object.group) ?? []), object]);
+      const members = groups.get(object.group);
+      if (members) {
+        members.push(object);
+      } else {
+        groups.set(object.group, [object]);
+      }
     }
     for (const members of groups.values()) {
       for (const object of members.sort((a, b) => byAge(b, a)).slice(0, rules.keepLatest)) {
@@ -74,6 +83,11 @@ export function selectForPrune<T extends PruneCandidate>(
     }
   }
 
+  // keep-latest deletes by count only when it is the only rule; otherwise it only protects.
+  const countMode =
+    rules.keepLatest !== undefined &&
+    rules.olderThanDays === undefined &&
+    rules.maxTotalSize === undefined;
   const selected: Array<Selection<T>> = [];
   const remaining: T[] = [];
   const cutoff =
@@ -88,7 +102,7 @@ export function selectForPrune<T extends PruneCandidate>(
       } else {
         remaining.push(object);
       }
-    } else if (rules.keepLatest !== undefined) {
+    } else if (countMode) {
       selected.push({ object, reason: 'count' });
     } else {
       remaining.push(object);

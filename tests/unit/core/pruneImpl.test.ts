@@ -200,6 +200,16 @@ describe('pruneImpl', () => {
     expect(options.olderThanDays).toBeUndefined();
   });
 
+  it('accepts a max-total-size of 0', async () => {
+    inputs.set(Inputs.MaxTotalSize, '0');
+    await pruneImpl();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    expect(mockPruneCaches).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ maxTotalSize: 0 })
+    );
+  });
+
   it('passes all three rules together', async () => {
     inputs.set(Inputs.KeepLatest, '2');
     inputs.set(Inputs.MaxTotalSize, '500');
@@ -214,7 +224,6 @@ describe('pruneImpl', () => {
     [Inputs.KeepLatest, '0'],
     [Inputs.KeepLatest, '-1'],
     [Inputs.KeepLatest, '1.5'],
-    [Inputs.MaxTotalSize, '0'],
     [Inputs.MaxTotalSize, '10GB'],
     [Inputs.MaxTotalSize, 'abc'],
   ])('fails when %s is "%s"', async (name, value) => {

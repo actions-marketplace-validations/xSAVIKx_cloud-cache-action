@@ -63,7 +63,7 @@ Set at least one of `older-than-days`, `keep-latest` and `max-total-size`.
 | `retry-count`                      |    No    |            `3`              | Maximum number of S3 retries                                                |
 | `metrics-file`                     |    No    |            `""`             | Append one JSON line of timings and sizes for this step to this file, relative to the workspace |
 
-An invalid `older-than-days`, `keep-latest` or `max-total-size` (not a positive integer), a step
+An invalid `older-than-days`, `keep-latest` or `max-total-size` (not a positive integer; `max-total-size` also accepts `0`), a step
 with none of the three set, or an unrecognized `dry-run` value (anything
 other than `true`, `True`, `TRUE`, `false`, `False` or `FALSE`) fails the step immediately, rather
 than silently falling back to a default — a typo like `dry-run: Flase` must never turn into a real
@@ -110,7 +110,7 @@ that also sets `scoped-to-ref: false` and leaves `ref` empty: the pattern is the
 `${ref}`, exactly as the main action resolves it, and keys that carry a ref segment where the ref
 would be are left for a ref-scoped prune. One exception: an unscoped prune with an empty `prefix`
 also matches ref-scoped caches of the same repository that were saved with a non-empty `prefix`
-(their prefix segment reads as part of the key), subject to `older-than-days`. If you mix prefixes,
+(their prefix segment reads as part of the key), subject to the prune rules. If you mix prefixes,
 give every prune step the `prefix` its caches were saved with.
 
 Among candidates, the three rules below choose what to delete. Each rule is optional, and at
@@ -120,12 +120,16 @@ least one must be set.
 - **`keep-latest`**: in each ref, the N most recently modified archives are never deleted. With
   `older-than-days` also set, an archive is deleted only when it is older than the age limit **and**
   not among the newest N of its ref. With `keep-latest` alone, every other archive of the ref is
-  deleted.
+  deleted. With `max-total-size` and no `older-than-days`, `keep-latest` only protects the newest N,
+  and the budget decides what else is deleted. Groups are per ref, not per cache key: with two cache
+  keys under one ref, `keep-latest: 1` keeps one archive for that ref, and the newest archive of the
+  other key can be deleted.
 - **`max-total-size`**: after the other rules, the total size of the remaining archives in the
   whole prune scope (every ref, not each ref) must be at or below this many bytes. Prune deletes
   the oldest remaining archives until it is. The `keep-latest` archives are never deleted for the
   budget. If they alone are over the budget, the step logs a warning and deletes nothing more.
-  The value is a plain integer in bytes: `10GB` or `5G` is not accepted.
+  The value is a plain integer in bytes: `10GB` or `5G` is not accepted. `0` is accepted and
+  deletes every archive that `keep-latest` does not protect.
 
 "Each ref" is the ref segment of your `s3-key-pattern`. When the pattern has no `${ref}` (or
 `scoped-to-ref` is `false`), prune treats the whole scope as one group, so `keep-latest: 5` keeps the

@@ -688,7 +688,7 @@ describe('pruneCaches count and size rules', () => {
   it('refuses to run with no rule', async () => {
     await expect(
       pruneCaches({ storage, template: templateFor() }, { dryRun: true, now: NOW })
-    ).rejects.toThrow('Refusing to prune: set at least one of');
+    ).rejects.toThrow('Set at least one of');
     expect(s3Mock.commandCalls(ListObjectsV2Command)).toHaveLength(0);
   });
 });

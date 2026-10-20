@@ -2,12 +2,17 @@ import * as core from '@actions/core';
 import { getWorkspace } from '../archive/paths';
 import { Defaults, Inputs, Outputs } from '../constants';
 import { createStorageContext } from '../storage/client';
-import { getInputAsBool, getInputAsInt, parseOptionalPositiveInt } from '../utils/inputUtils';
+import {
+  getInputAsBool,
+  getInputAsInt,
+  parseOptionalNonNegativeInt,
+  parseOptionalPositiveInt,
+} from '../utils/inputUtils';
 import { compileKeyTemplate } from './keyTemplate';
 import { emitMetrics } from './metrics';
 import { toError } from './outcomes';
 import { pruneCaches, type PruneTier } from './prune';
-import { hasPruneRule, type PruneRules } from './pruneSelect';
+import { NO_RULE_MESSAGE, hasPruneRule, type PruneRules } from './pruneSelect';
 
 const TRUE_VALUES = ['true', 'True', 'TRUE'];
 const FALSE_VALUES = ['false', 'False', 'FALSE'];
@@ -48,7 +53,7 @@ function parseDryRun(raw: string): boolean {
 
 /**
  * Reads the selection rules. To add a rule, add its input here and its logic in `./pruneSelect`.
- * `max-total-size` is a plain integer in bytes: the code has no size parser.
+ * `max-total-size` is a plain integer in bytes (0 allowed): the code has no size parser.
  */
 export function readPruneRules(): PruneRules {
   const rules: PruneRules = {
@@ -57,12 +62,13 @@ export function readPruneRules(): PruneRules {
       Inputs.OlderThanDays
     ),
     keepLatest: parseOptionalPositiveInt(core.getInput(Inputs.KeepLatest), Inputs.KeepLatest),
-    maxTotalSize: parseOptionalPositiveInt(core.getInput(Inputs.MaxTotalSize), Inputs.MaxTotalSize),
+    maxTotalSize: parseOptionalNonNegativeInt(
+      core.getInput(Inputs.MaxTotalSize),
+      Inputs.MaxTotalSize
+    ),
   };
   if (!hasPruneRule(rules)) {
-    throw new Error(
-      'Set at least one of "older-than-days", "keep-latest" or "max-total-size": prune has no rule to apply.'
-    );
+    throw new Error(NO_RULE_MESSAGE);
   }
   return rules;
 }

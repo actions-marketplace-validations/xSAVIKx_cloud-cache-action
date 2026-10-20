@@ -65,10 +65,10 @@ inputs:
     description: 'Delete cache archives whose last-modified time is older than this many days. Set at least one of older-than-days, keep-latest and max-total-size.'
     required: false
   keep-latest:
-    description: 'Positive integer. In each ref, never delete the N most recently modified cache archives. Without older-than-days, every other archive of the ref is deleted. A key pattern with no ref counts the whole scope as one ref.'
+    description: 'Positive integer. In each ref, never delete the N most recently modified cache archives. When it is the only rule set, every other archive of the ref is deleted; with another rule it only protects. A key pattern with no ref counts the whole scope as one ref.'
     required: false
   max-total-size:
-    description: 'Total size budget in bytes (a plain integer). After the other rules, delete the oldest remaining cache archives in the scope until the total size fits. keep-latest archives are never deleted.'
+    description: 'Total size budget in bytes (a plain integer, 0 allowed). After the other rules, delete the oldest remaining cache archives in the scope until the total size fits. keep-latest archives are never deleted.'
     required: false
   ref:
     description: 'Prune only caches under this full Git ref, such as refs/heads/main (not main); every ref when omitted'
