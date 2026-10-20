@@ -10,6 +10,12 @@ points at the latest `v1.x.y` release.
 
 ### Added
 
+- **Security guide.** A new [Security](./guide/security.md) page explains the cache trust boundary
+  and what the action does and does not protect. It covers fork pull requests, `pull_request_target`
+  and the read-only credential pattern. It lists each S3 call and the feature that sends it, and it
+  gives least-privilege policies for AWS S3 (read-write, read-only and prune), Cloudflare R2, Google
+  Cloud Storage, MinIO and RustFS. The AWS and MinIO provider pages now link to it.
+
 - **`keep-latest` and `max-total-size` prune inputs.** `keep-latest` keeps the N most recently
   modified archives of each ref, even when they are older than `older-than-days`. `max-total-size`
   is a budget in bytes: after the other rules, prune deletes the oldest remaining archives in the

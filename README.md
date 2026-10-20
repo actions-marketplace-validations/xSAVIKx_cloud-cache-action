@@ -62,6 +62,7 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 - **Metrics**: Every step exposes its timings and byte count as outputs and can append one JSON line per step to a `metrics-file`. See [Metrics and Timings](#metrics-and-timings).
 - **Opt-in Streaming (Experimental)**: Stream archives directly between `tar` and S3 without a temporary file, with `streaming: true`. See [Streaming Archives](#streaming-archives-experimental).
 - **Parallel Transfers**: Restores fetch archives larger than 8 MiB as concurrent `Range` requests, and saves send multipart parts concurrently, 8 at a time each by default, the same fan-out as `actions/cache`. See [Parallel Transfers](#parallel-transfers).
+- **Least-Privilege Policies**: The [Security guide](https://xsavikx.github.io/cloud-cache-action/guide/security.html) explains the trust boundary, fork pull requests, the read-only pattern, and gives IAM policies for AWS, R2, GCS, MinIO and RustFS.
 - **Resilient**: Automatic exponential backoff retries on transient network errors.
 
 ---

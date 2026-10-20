@@ -47,6 +47,8 @@ Do not grant project-wide Editor or Storage Admin roles. Grant access strictly o
 3. **New principals**: Enter the email of your dedicated service account (`github-actions-ci-cache@<project-id>.iam.gserviceaccount.com`).
 4. **Role**: Select **Storage Object User** (`roles/storage.objectUser`), which allows reading, writing, and listing objects without bucket administrative privileges.
 
+To limit the account to the repository prefix, add an IAM condition to the binding. See the [Security guide](../guide/security.md#google-cloud-storage) for the expression and for the points that are not verified.
+
 ### 3. Generate HMAC Key for the Service Account
 1. In the Google Cloud Console, navigate to **Cloud Storage** > **Settings** > **Interoperability**.
 2. Under **Interoperability keys for service accounts**, click **Create a key for a service account**.

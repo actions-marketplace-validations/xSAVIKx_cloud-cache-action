@@ -33,6 +33,7 @@ Key capabilities:
 - [S3 Key Patterns]({{SITE_URL}}guide/s3-key-patterns.html): Custom object key templating, prefixing, and organization-wide cache sharing.
 - [Pruning Caches]({{SITE_URL}}guide/pruning.html): The prune sub-action, usage, key matching, dry runs, safety refusals and scoping.
 - [Inspecting Lookups]({{SITE_URL}}guide/inspecting.html): The explain input and the inspect sub-action, reading the lookup report, outputs and metrics.
+- [Security]({{SITE_URL}}guide/security.html): Trust boundary, fork pull requests, the read-only pattern, the S3 calls the action makes, and least-privilege policies per provider.
 - [Migration Guide]({{SITE_URL}}guide/migration.html): 2-minute migration guide, copy-pastable AI agent migration prompt, and secrets cheat sheet.
 - [Changelog]({{SITE_URL}}changelog.html): Release history, including breaking changes and upgrade notes for every version.
 

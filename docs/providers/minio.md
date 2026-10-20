@@ -45,37 +45,8 @@ mc encrypt set sse-s3 myminio/ci-cache
 > Never use root credentials (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`) in your GitHub Actions workflows. Always create a dedicated Service Account restricted strictly to the CI cache bucket.
 
 ### 1. Create a Restricted Policy (`ci-cache-policy.json`)
-Save the following minimal policy JSON:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket"
-      ],
-      "Resource": "arn:aws:s3:::ci-cache"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:GetObjectTagging",
-        "s3:PutObjectTagging",
-        "s3:AbortMultipartUpload"
-      ],
-      "Resource": "arn:aws:s3:::ci-cache/*"
-    }
-  ]
-}
-```
-
-`s3:GetObjectTagging` and `s3:PutObjectTagging` carry the archive checksum for a streamed save.
-Without them the save falls back to a copy and the restore skips the integrity check, with a
-warning in the log.
+Copy the MinIO policy from the [Security guide](../guide/security.md#minio-and-rustfs) into
+`ci-cache-policy.json`. Change the bucket name and the prefix to match your set-up.
 
 Add the policy to MinIO:
 ```bash
