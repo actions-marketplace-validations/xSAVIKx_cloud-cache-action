@@ -738,6 +738,7 @@ The post step only runs when the job succeeds. To save a cache even when a later
 
 - **Exclusions only remove what the include patterns matched**, as in actions/cache. `path: logs` with `!logs/debug.txt` still caches the whole `logs` directory, because the directory is the match. To leave one file out, match the files instead: `logs/*` with `!logs/debug.txt`.
 - **Symbolic links are not followed while matching.** A pattern that wildcards through a symlinked directory, such as `linked-dir/*` where `linked-dir` is a symlink, matches nothing. A symlink that a pattern matches is archived as a link, not as the files it points to.
+- **Windows symlinks without the privilege.** On a self-hosted Windows runner, the account can lack the `SeCreateSymbolicLinkPrivilege` privilege, and Developer Mode can be off. Then Git's GNU `tar` cannot create native symlinks, and the extract fails with `Cannot create symlink to ...: Operation not permitted`. When symlinks are the only failure, the action logs a warning and extracts the archive one more time with `MSYS=winsymlinks:deepcopy`. Each symlink is then restored as a copy of its target, not as a link. A symlink whose target is not in the archive still fails the restore. BSD `tar` (`C:\Windows\System32\tar.exe`) does not read `MSYS`, so the action does not retry with it.
 
 ---
 
