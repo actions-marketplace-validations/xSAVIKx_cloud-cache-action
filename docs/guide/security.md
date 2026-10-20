@@ -66,18 +66,18 @@ read-write key and saves.
 The table lists every S3 call in the code. Each row names the policy action and the feature that
 sends the call.
 
-| S3 call                                                                  | Policy action                                      | Sent by                                                                                                                           |
-| ------------------------------------------------------------------------ | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `ListObjectsV2`                                                          | `s3:ListBucket`                                    | Restore (the `restore-keys` search), `explain`, the `inspect` sub-action, and `prune`                                             |
-| `HeadObject`                                                             | `s3:GetObject`                                     | Restore (exact-key lookup), save (existence check and the ownership check after a streamed save), `inspect`                       |
-| `GetObject` (also with a `Range` header)                                 | `s3:GetObject`                                     | Restore (download, and the parallel ranged download of large archives)                                                            |
-| `PutObject`, `CreateMultipartUpload`, `UploadPart`, `CompleteMultipartUpload` | `s3:PutObject`                                | Save (the upload helper in the AWS SDK sends these)                                                                               |
-| `PutObjectTagging`                                                       | `s3:PutObjectTagging`                              | Save: the `tags` input, and the checksum tag of a streamed save. A `PutObject` that carries a tag header needs this action too    |
-| `GetObjectTagging`                                                       | `s3:GetObjectTagging`                              | Restore, when the object has no checksum metadata (a streamed save stores the checksum as a tag)                                  |
-| `CopyObject`                                                             | `s3:GetObject` and `s3:PutObject` (and `s3:PutObjectTagging` per AWS for the copied tags) | Save: the fallback that writes the checksum metadata after a streamed save                                  |
-| `AbortMultipartUpload`                                                   | `s3:AbortMultipartUpload`                          | Save, when an upload fails or stops. Also `prune` with `abort-uploads-older-than-hours`                                           |
-| `ListMultipartUploads`                                                   | `s3:ListBucketMultipartUploads`                    | `prune` with `abort-uploads-older-than-hours`                                                                                     |
-| `DeleteObject`                                                           | `s3:DeleteObject`                                  | `prune` only, when it is not a dry run                                                                                            |
+| S3 call                                                                       | Policy action                                                                             | Sent by                                                                                                                        |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `ListObjectsV2`                                                               | `s3:ListBucket`                                                                           | Restore (the `restore-keys` search), `explain`, the `inspect` sub-action, and `prune`                                          |
+| `HeadObject`                                                                  | `s3:GetObject`                                                                            | Restore (exact-key lookup), save (existence check and the ownership check after a streamed save), `inspect`                    |
+| `GetObject` (also with a `Range` header)                                      | `s3:GetObject`                                                                            | Restore (download, and the parallel ranged download of large archives)                                                         |
+| `PutObject`, `CreateMultipartUpload`, `UploadPart`, `CompleteMultipartUpload` | `s3:PutObject`                                                                            | Save (the upload helper in the AWS SDK sends these)                                                                            |
+| `PutObjectTagging`                                                            | `s3:PutObjectTagging`                                                                     | Save: the `tags` input, and the checksum tag of a streamed save. A `PutObject` that carries a tag header needs this action too |
+| `GetObjectTagging`                                                            | `s3:GetObjectTagging`                                                                     | Restore, when the object has no checksum metadata (a streamed save stores the checksum as a tag)                               |
+| `CopyObject`                                                                  | `s3:GetObject` and `s3:PutObject` (and `s3:PutObjectTagging` per AWS for the copied tags) | Save: the fallback that writes the checksum metadata after a streamed save                                                     |
+| `AbortMultipartUpload`                                                        | `s3:AbortMultipartUpload`                                                                 | Save, when an upload fails or stops. Also `prune` with `abort-uploads-older-than-hours`                                        |
+| `ListMultipartUploads`                                                        | `s3:ListBucketMultipartUploads`                                                           | `prune` with `abort-uploads-older-than-hours`                                                                                  |
+| `DeleteObject`                                                                | `s3:DeleteObject`                                                                         | `prune` only, when it is not a dry run                                                                                         |
 
 The action never sends `ListParts`, so `s3:ListMultipartUploadParts` is not needed. The checksum
 tag calls are optional: if a provider or a policy refuses them, the save falls back to the copy and
@@ -107,13 +107,10 @@ pattern instead.
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "ListRepositoryPrefix",
+      "Sid": "ListBucketKeys",
       "Effect": "Allow",
       "Action": "s3:ListBucket",
-      "Resource": "arn:aws:s3:::my-actions-cache-bucket",
-      "Condition": {
-        "StringLike": { "s3:prefix": "my-org/my-repo/*" }
-      }
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket"
     },
     {
       "Sid": "ReadWriteRepositoryObjects",
@@ -140,13 +137,10 @@ Use this policy for pull request jobs together with `read-only: true`.
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "ListRepositoryPrefix",
+      "Sid": "ListBucketKeys",
       "Effect": "Allow",
       "Action": "s3:ListBucket",
-      "Resource": "arn:aws:s3:::my-actions-cache-bucket",
-      "Condition": {
-        "StringLike": { "s3:prefix": "my-org/my-repo/*" }
-      }
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket"
     },
     {
       "Sid": "ReadRepositoryObjects",
@@ -157,6 +151,17 @@ Use this policy for pull request jobs together with `read-only: true`.
   ]
 }
 ```
+
+> [!NOTE]
+> The read-write and read-only policies grant `s3:ListBucket` on the whole bucket, with no
+> `s3:prefix` condition. This is on purpose. For a `HeadObject` on a missing key, S3 returns `404`
+> only when the caller has `s3:ListBucket`, and it returns `403` otherwise. A `HeadObject` request
+> has no `s3:prefix` value, so a prefix condition can turn every miss into a `403`. The action
+> treats `403` as an error, not as a miss. A restore then fails before the `restore-keys` search,
+> and a save fails before the upload. The cost: the key holder can list the key names in the whole
+> bucket. The key holder cannot read the objects outside the repository prefix. If the key names
+> are sensitive, use a dedicated bucket for this repository. This guide did not measure this
+> behaviour on AWS.
 
 ### Prune policy
 
@@ -199,14 +204,12 @@ statement if you do not use that input.
 }
 ```
 
-The last statement has no prefix condition. This guide did not verify that AWS accepts `s3:prefix`
-for `s3:ListBucketMultipartUploads`, so it does not use one there. The action filters the
-list to the prune scope itself. If you prune several repositories with one credential, widen the
+The last statement has no prefix condition, because AWS does not list `s3:prefix` as a condition key
+for `s3:ListBucketMultipartUploads` (AWS Service Authorization Reference for Amazon S3,
+<https://servicereference.us-east-1.amazonaws.com/v1/s3/s3.json>). The action filters the
+list to the prune scope itself. Prune does not call `HeadObject`, so its `s3:ListBucket` statement
+keeps the prefix condition. If you prune several repositories with one credential, widen the
 `Resource` ARNs and the `s3:prefix` value to match.
-
-> [!NOTE]
-> A missing key returns `403` instead of `404` when the credential lacks `s3:ListBucket`. Keep
-> `s3:ListBucket` in every policy, with the prefix condition.
 
 For the role trust policy, the OIDC workflow and the static key option, see [AWS S3
 Setup](../providers/aws-s3.md).
@@ -244,28 +247,38 @@ Google documents this condition expression for an object name prefix:
 resource.name.startsWith('projects/_/buckets/my-actions-cache-bucket/objects/my-org/my-repo/')
 ```
 
-Bind a role to the service account on the bucket with this condition:
+Conditions on a bucket need uniform bucket-level access on that bucket. Google documents this
+requirement. Conditional role bindings also need IAM policy version 3.
 
-- Read-write job: **Storage Object User** (`roles/storage.objectUser`).
-- Read-only job: **Storage Object Viewer** (`roles/storage.objectViewer`).
+Google documents that a `resource.name` condition cannot limit `storage.objects.list`, because
+Cloud Storage grants that permission at the bucket level. A conditional binding alone therefore
+leaves the account unable to list. The `restore-keys` search, `explain`, the `inspect` sub-action
+and `prune` all list objects, and a lookup of a missing key can fail. Use two bindings:
 
-Google documents that conditional role bindings need IAM policy version 3. Google also suggests
-one service account with the Storage Object Viewer role for reads, and a separate service account
-with the Storage Object Creator role for writes, instead of a broad role.
+1. A conditional binding with the object prefix condition above. It grants read and write access
+   to the objects under the repository prefix only.
+   - Read-write job: **Storage Object User** (`roles/storage.objectUser`). This role includes
+     `storage.objects.delete`, so every job that saves can also delete. For a job that does not
+     prune, create a custom role without `storage.objects.delete`. Do not use only **Storage Object
+     Creator**. It has no `storage.objects.get`, so the existence check of a save fails.
+   - Read-only job: **Storage Object Viewer** (`roles/storage.objectViewer`).
+2. An unconditioned binding that grants `storage.objects.list` on the bucket, for example a custom
+   role that holds only that permission. This binding shows the object names of the whole bucket,
+   including other repositories. It does not give read access to their contents. Use a dedicated
+   bucket when the names are sensitive.
 
 This guide did not verify these points, so test them before you rely on them:
 
 - The exact JSON or `gcloud` form of the conditional binding. Use the Google Cloud console or the
   current Google documentation, and not a copy from this page.
-- Whether an object list request passes the condition. Run a restore with `explain: true` after you
-  add the condition, and check that the lookup lists the prefix.
 - Which permission the S3 multipart calls need. The `prune` option `abort-uploads-older-than-hours`
   and an aborted upload use multipart calls, and a role that lacks the multipart permissions can
   refuse them.
 
-Checked on 2026-10-20: <https://docs.cloud.google.com/storage/docs/authentication/hmackeys>.
-The condition expression comes from the Cloud Storage IAM conditions documentation, which this
-guide read through a search result and not through the full page. Read it before use.
+Checked on 2026-10-20: <https://docs.cloud.google.com/storage/docs/access-control/iam>
+(object prefix condition, uniform bucket-level access, no condition on `storage.objects.list`) and
+<https://docs.cloud.google.com/storage/docs/authentication/hmackeys> (HMAC key permissions come from
+the service account).
 
 ## MinIO and RustFS
 
@@ -300,8 +313,12 @@ bucket name and prefix changed. The example below uses the bucket `ci-cache` and
 ```
 
 For a read-only or prune credential, use the same actions as in the AWS sections. Add `s3:DeleteObject`
-for prune. Test the `s3:prefix` condition on your server version. The action sends `Prefix` on
-every list request, but this guide did not verify condition support on each server. If a restore
-finds no cache after you add the condition, remove the condition and keep the object ARN scope.
+for prune.
+
+RustFS 1.0.0 is tested with this policy on a live server. It enforces the `s3:prefix` condition,
+returns `404` for a `HeadObject` on a missing key, and allows the save, restore and tag calls in
+the table above. It denies `ListMultipartUploads` and `DeleteObject` as intended. MinIO is not
+tested. Test the policy on your MinIO version before you rely on it. If a restore finds no cache
+after you add the condition, remove the condition and keep the object ARN scope.
 
 The [MinIO](../providers/minio.md) page shows how to load the policy with `mc admin policy create`.
