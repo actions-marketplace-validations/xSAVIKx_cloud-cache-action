@@ -216,4 +216,62 @@ describe('pruneCaches integration', () => {
       expect(await objectExists(otherRepoKey)).toBe(true);
     }
   );
+  itS3(
+    'keeps the newest archives of each ref and prunes to a size budget, leaving other repositories alone',
+    async () => {
+      const repository = `cloud-cache-it/prune-count-${runId}`;
+      const otherRepository = `cloud-cache-it/prune-count-other-${runId}`;
+      // S3 stores LastModified in whole seconds, so each save waits to get a distinct time.
+      const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 1100));
+
+      const oldest = await saveArchive(repository, 'refs/heads/main', 'k1', 'main-data-1');
+      await tick();
+      const middle = await saveArchive(repository, 'refs/heads/main', 'k2', 'main-data-2');
+      await tick();
+      const newest = await saveArchive(repository, 'refs/heads/main', 'k3', 'main-data-3');
+      const featureKey = await saveArchive(repository, 'refs/heads/feature', 'k1', 'feature-data');
+      const otherRepoKey = await saveArchive(otherRepository, 'refs/heads/main', 'k1', 'other');
+
+      const template = compileKeyTemplate({
+        pattern: Defaults.DefaultS3KeyPattern,
+        repository,
+        prefix: '',
+        scopedToRepository: true,
+        scopedToRef: true,
+        version: '',
+        archiveFilename: 'cache.tar.zst',
+        env: {},
+      });
+      const storage: StorageContext = {
+        client,
+        bucket: s3.bucket,
+        providerConfig: {
+          provider: s3.provider as 'seaweedfs',
+          region: s3.region,
+          forcePathStyle: true,
+        },
+      };
+      const tier = { storage, template };
+
+      // keep-latest counts per ref: the lone feature archive stays, main loses its oldest two.
+      const dryRun = await pruneCaches(tier, { keepLatest: 1, dryRun: true });
+      expect(dryRun.pruned.map((p) => p.key).sort()).toEqual([oldest, middle].sort());
+      expect(dryRun.keptCount).toBe(2);
+      expect(await objectExists(oldest)).toBe(true);
+
+      const real = await pruneCaches(tier, { keepLatest: 2, dryRun: false });
+      expect(real.pruned.map((p) => p.key)).toEqual([oldest]);
+      expect(await objectExists(oldest)).toBe(false);
+      expect(await objectExists(middle)).toBe(true);
+
+      // An impossible budget removes every archive that keep-latest does not protect.
+      const budget = await pruneCaches(tier, { keepLatest: 1, maxTotalSize: 1, dryRun: false });
+      expect(budget.pruned.map((p) => p.key)).toEqual([middle]);
+      expect(await objectExists(middle)).toBe(false);
+      expect(await objectExists(newest)).toBe(true);
+      expect(await objectExists(featureKey)).toBe(true);
+      expect(await objectExists(otherRepoKey)).toBe(true);
+    },
+    120_000
+  );
 });

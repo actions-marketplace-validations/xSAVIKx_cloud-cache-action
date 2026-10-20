@@ -1,8 +1,17 @@
+import { jest } from '@jest/globals';
 import { mockClient } from 'aws-sdk-client-mock';
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { compileKeyTemplate, type KeyTemplate } from '../../../src/core/keyTemplate';
-import { pruneCaches } from '../../../src/core/prune';
 import type { StorageContext } from '../../../src/storage/client';
+
+const mockInfo = jest.fn<(message: string) => void>();
+const mockWarning = jest.fn<(message: string) => void>();
+jest.unstable_mockModule('@actions/core', () => ({
+  info: mockInfo,
+  warning: mockWarning,
+  debug: jest.fn(),
+}));
+const { pruneCaches } = await import('../../../src/core/prune');
 
 const s3Mock = mockClient(S3Client);
 
@@ -45,6 +54,8 @@ function object(
 
 beforeEach(() => {
   s3Mock.reset();
+  mockInfo.mockClear();
+  mockWarning.mockClear();
 });
 
 describe('pruneCaches', () => {
@@ -567,5 +578,117 @@ describe('pruneCaches key matching', () => {
         pruneCaches({ storage, template }, { olderThanDays: 1, ref: MAIN, dryRun: false, now: NOW })
       ).resolves.toMatchObject({ pruned: [] });
     });
+  });
+});
+
+describe('pruneCaches count and size rules', () => {
+  const FEATURE_KEY = (name: string): string =>
+    `octo/app/refs%2Fheads%2Ffeature/${name}/v1/cache.tar.zst`;
+  const MAIN_KEY = (name: string): string =>
+    `octo/app/refs%2Fheads%2Fmain/${name}/v1/cache.tar.zst`;
+  const deleted = (): string[] =>
+    s3Mock.commandCalls(DeleteObjectCommand).map((call) => call.args[0].input.Key as string);
+
+  beforeEach(() => {
+    s3Mock.on(DeleteObjectCommand).resolves({});
+  });
+
+  it('keeps the newest N of each ref and deletes the rest with keep-latest alone', async () => {
+    s3Mock.on(ListObjectsV2Command).resolves({
+      Contents: [
+        object(MAIN_KEY('a'), 10, daysAgo(1)),
+        object(MAIN_KEY('b'), 10, daysAgo(2)),
+        object(MAIN_KEY('c'), 10, daysAgo(3)),
+        object(FEATURE_KEY('a'), 10, daysAgo(50)),
+      ],
+      IsTruncated: false,
+    });
+    const result = await pruneCaches(
+      { storage, template: templateFor() },
+      { keepLatest: 2, dryRun: false, now: NOW }
+    );
+    expect(deleted()).toEqual([MAIN_KEY('c')]);
+    expect(result.keptCount).toBe(3);
+    expect(result.prunedBytes).toBe(10);
+  });
+
+  it('deletes an archive only when it is older than the limit and not among the newest N', async () => {
+    s3Mock.on(ListObjectsV2Command).resolves({
+      Contents: [
+        object(MAIN_KEY('new'), 10, daysAgo(1)),
+        object(MAIN_KEY('old1'), 10, daysAgo(40)),
+        object(MAIN_KEY('old2'), 10, daysAgo(50)),
+        object(FEATURE_KEY('only'), 10, daysAgo(90)),
+      ],
+      IsTruncated: false,
+    });
+    await pruneCaches(
+      { storage, template: templateFor() },
+      { olderThanDays: 30, keepLatest: 1, dryRun: false, now: NOW }
+    );
+    expect(deleted().sort()).toEqual([MAIN_KEY('old1'), MAIN_KEY('old2')]);
+  });
+
+  it('treats the whole scope as one group when the key pattern has no ref', async () => {
+    const template = templateFor({
+      pattern: '${GITHUB_REPOSITORY}/${key}/${version}/${archive_filename}',
+    });
+    s3Mock.on(ListObjectsV2Command).resolves({
+      Contents: [
+        object('octo/app/k1/v1/cache.tar.zst', 10, daysAgo(1)),
+        object('octo/app/k2/v1/cache.tar.zst', 10, daysAgo(2)),
+        object('octo/app/k3/v1/cache.tar.zst', 10, daysAgo(3)),
+      ],
+      IsTruncated: false,
+    });
+    await pruneCaches({ storage, template }, { keepLatest: 2, dryRun: false, now: NOW });
+    expect(deleted()).toEqual(['octo/app/k3/v1/cache.tar.zst']);
+  });
+
+  it('applies the size budget to every ref in scope and logs each reason', async () => {
+    s3Mock.on(ListObjectsV2Command).resolves({
+      Contents: [
+        object(MAIN_KEY('a'), 100, daysAgo(1)),
+        object(MAIN_KEY('b'), 100, daysAgo(60)),
+        object(FEATURE_KEY('a'), 100, daysAgo(20)),
+        object(FEATURE_KEY('b'), 100, daysAgo(5)),
+      ],
+      IsTruncated: false,
+    });
+    const result = await pruneCaches(
+      { storage, template: templateFor() },
+      { olderThanDays: 30, maxTotalSize: 200, dryRun: true, now: NOW }
+    );
+    expect(result.pruned.map((p) => p.key)).toEqual([MAIN_KEY('b'), FEATURE_KEY('a')]);
+    expect(result.prunedBytes).toBe(200);
+    expect(result.keptCount).toBe(2);
+    const lines = mockInfo.mock.calls.map((call) => String(call[0]));
+    expect(lines).toContain(`Would prune ${MAIN_KEY('b')} (100.00 B, 60d old, age)`);
+    expect(lines).toContain(`Would prune ${FEATURE_KEY('a')} (100.00 B, 20d old, size budget)`);
+    expect(lines.at(-1)).toBe(
+      'Would prune 2 cache object(s) totaling 200.00 B (1 by age, 1 by size budget).'
+    );
+    expect(deleted()).toEqual([]);
+  });
+
+  it('warns when keep-latest archives keep the total over the budget', async () => {
+    s3Mock.on(ListObjectsV2Command).resolves({
+      Contents: [object(MAIN_KEY('a'), 100, daysAgo(1))],
+      IsTruncated: false,
+    });
+    await pruneCaches(
+      { storage, template: templateFor() },
+      { keepLatest: 1, maxTotalSize: 40, dryRun: true, now: NOW }
+    );
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining('60.00 B over "max-total-size"')
+    );
+  });
+
+  it('refuses to run with no rule', async () => {
+    await expect(
+      pruneCaches({ storage, template: templateFor() }, { dryRun: true, now: NOW })
+    ).rejects.toThrow('Refusing to prune: set at least one of');
+    expect(s3Mock.commandCalls(ListObjectsV2Command)).toHaveLength(0);
   });
 });

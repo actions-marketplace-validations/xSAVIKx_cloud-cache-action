@@ -177,10 +177,50 @@ describe('pruneImpl', () => {
     }
   );
 
-  it('fails when older-than-days is missing', async () => {
+  it('fails when none of older-than-days, keep-latest and max-total-size is set', async () => {
     inputs.delete(Inputs.OlderThanDays);
     await pruneImpl();
-    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('older-than-days'));
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'Set at least one of "older-than-days", "keep-latest" or "max-total-size": prune has no rule to apply.'
+    );
+    expect(mockCreateStorageContext).not.toHaveBeenCalled();
+    expect(mockPruneCaches).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [Inputs.KeepLatest, '3', { keepLatest: 3 }],
+    [Inputs.MaxTotalSize, '1048576', { maxTotalSize: 1048576 }],
+  ])('accepts %s alone and passes it to pruneCaches', async (name, value, expected) => {
+    inputs.delete(Inputs.OlderThanDays);
+    inputs.set(name, value);
+    await pruneImpl();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    const options = mockPruneCaches.mock.calls[0][1];
+    expect(options).toMatchObject(expected);
+    expect(options.olderThanDays).toBeUndefined();
+  });
+
+  it('passes all three rules together', async () => {
+    inputs.set(Inputs.KeepLatest, '2');
+    inputs.set(Inputs.MaxTotalSize, '500');
+    await pruneImpl();
+    expect(mockPruneCaches).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ olderThanDays: 7, keepLatest: 2, maxTotalSize: 500 })
+    );
+  });
+
+  it.each([
+    [Inputs.KeepLatest, '0'],
+    [Inputs.KeepLatest, '-1'],
+    [Inputs.KeepLatest, '1.5'],
+    [Inputs.MaxTotalSize, '0'],
+    [Inputs.MaxTotalSize, '10GB'],
+    [Inputs.MaxTotalSize, 'abc'],
+  ])('fails when %s is "%s"', async (name, value) => {
+    inputs.set(name, value);
+    await pruneImpl();
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining(name));
     expect(mockPruneCaches).not.toHaveBeenCalled();
   });
 

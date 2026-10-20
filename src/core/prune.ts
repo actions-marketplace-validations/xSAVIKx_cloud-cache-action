@@ -3,12 +3,11 @@ import { DeleteObjectCommand, ListObjectsV2Command, type S3Client } from '@aws-s
 import { formatSize } from '../utils/inputUtils';
 import { mapWithConcurrency } from '../utils/concurrency';
 import type { KeyTemplate, ScopeProblem } from './keyTemplate';
+import { hasPruneRule, selectForPrune, type PruneRules, type Selection } from './pruneSelect';
 import { toError } from './outcomes';
 import type { StorageContext } from '../storage/client';
 
-export interface PruneOptions {
-  /** Delete archives whose LastModified is older than this many days. Must be > 0. */
-  olderThanDays: number;
+export interface PruneOptions extends PruneRules {
   /** Prune only this ref; every ref when omitted. */
   ref?: string;
   /** List candidates without deleting anything. */
@@ -47,14 +46,19 @@ interface ListedObject {
   key: string;
   size: number;
   lastModified?: Date;
+  /** The ref segment of the key; '' when the key template has no ref segment. */
+  group: string;
 }
 
-/** Lists every object under `prefix` that `accept` allows, following continuation tokens. */
+/**
+ * Lists every object under `prefix` that `groupOf` gives a group, following continuation tokens.
+ * `groupOf` returns undefined for an object that is not a candidate.
+ */
 async function listArchiveObjects(
   client: S3Client,
   bucket: string,
   prefix: string,
-  accept: (key: string) => boolean,
+  groupOf: (key: string) => string | undefined,
   pageSize = 1000
 ): Promise<ListedObject[]> {
   const objects: ListedObject[] = [];
@@ -69,10 +73,12 @@ async function listArchiveObjects(
       })
     );
     for (const object of page.Contents ?? []) {
-      if (!object.Key || !accept(object.Key)) {
+      const group = object.Key ? groupOf(object.Key) : undefined;
+      if (!object.Key || group === undefined) {
         continue;
       }
       objects.push({
+        group,
         key: object.Key,
         size: object.Size ?? 0,
         lastModified: object.LastModified,
@@ -83,16 +89,27 @@ async function listArchiveObjects(
   return objects;
 }
 
-function logPruned(objects: readonly ListedObject[], now: Date, dryRun: boolean): void {
+function logPruned(
+  selections: ReadonlyArray<Selection<ListedObject>>,
+  now: Date,
+  dryRun: boolean
+): void {
   const verb = dryRun ? 'Would prune' : 'Pruned';
-  for (const object of objects.slice(0, LOG_CAP)) {
+  for (const { object, reason } of selections.slice(0, LOG_CAP)) {
     const ageDays = object.lastModified
       ? Math.floor((now.getTime() - object.lastModified.getTime()) / DAY_MS)
       : 0;
-    core.info(`${verb} ${object.key} (${formatSize(object.size)}, ${ageDays}d old)`);
+    core.info(`${verb} ${object.key} (${formatSize(object.size)}, ${ageDays}d old, ${reason})`);
   }
-  const totalBytes = objects.reduce((total, object) => total + object.size, 0);
-  core.info(`${verb} ${objects.length} cache object(s) totaling ${formatSize(totalBytes)}.`);
+  const totalBytes = selections.reduce((total, { object }) => total + object.size, 0);
+  const counts = new Map<string, number>();
+  for (const { reason } of selections) {
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+  const reasons = [...counts].map(([reason, count]) => `${count} by ${reason}`).join(', ');
+  core.info(
+    `${verb} ${selections.length} cache object(s) totaling ${formatSize(totalBytes)}${reasons ? ` (${reasons})` : ''}.`
+  );
 }
 
 function refusal(problem: ScopeProblem, ref: string | undefined): string {
@@ -109,14 +126,20 @@ function refusal(problem: ScopeProblem, ref: string | undefined): string {
 }
 
 /**
- * Deletes cache archives older than `options.olderThanDays` in the repository/ref scope
- * `tier.template` resolves, or lists them without deleting when `options.dryRun` is set. Objects
+ * Deletes cache archives chosen by the `options` rules (age, keep-latest per ref, total size) in
+ * the repository/ref scope `tier.template` resolves, or lists them without deleting when
+ * `options.dryRun` is set. The rules are in `./pruneSelect`. Objects
  * are listed under the template's fixed scope prefix, and only those whose whole key matches the
  * template (any key and version, either archive filename) are candidates, so nothing outside the
  * scope and nothing that is not a cache archive is ever touched. Refuses a scope the template
  * cannot tell apart from other repositories or refs.
  */
 export async function pruneCaches(tier: PruneTier, options: PruneOptions): Promise<PruneResult> {
+  if (!hasPruneRule(options)) {
+    throw new Error(
+      'Refusing to prune: set at least one of "older-than-days", "keep-latest" or "max-total-size".'
+    );
+  }
   const problem = tier.template.scopeProblem(options.ref);
   if (problem) {
     throw new Error(refusal(problem, options.ref));
@@ -131,14 +154,20 @@ export async function pruneCaches(tier: PruneTier, options: PruneOptions): Promi
   const { client, bucket } = tier.storage;
   const matcher = tier.template.scopeMatcher(options.ref);
   const now = options.now ?? new Date();
-  const cutoff = now.getTime() - options.olderThanDays * DAY_MS;
   const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
 
-  const candidates = await listArchiveObjects(client, bucket, prefix, (key) => matcher.test(key));
-  const stale = candidates.filter(
-    (object) => object.lastModified !== undefined && object.lastModified.getTime() < cutoff
-  );
-  const keptCount = candidates.length - stale.length;
+  const candidates = await listArchiveObjects(client, bucket, prefix, (key) => {
+    const match = matcher.exec(key);
+    return match ? (match.groups?.ref ?? options.ref ?? '') : undefined;
+  });
+  const { selected, overBudgetBytes } = selectForPrune(candidates, options, now);
+  if (overBudgetBytes > 0) {
+    core.warning(
+      `The remaining cache archives are still ${formatSize(overBudgetBytes)} over "max-total-size": the "keep-latest" archives and archives with no modification time are never pruned.`
+    );
+  }
+  const keptCount = candidates.length - selected.length;
+  const stale = selected.map(({ object }) => object);
 
   const deletedKeys = new Set<string>();
   const failures: Array<{ key: string; error: unknown }> = [];
@@ -153,10 +182,11 @@ export async function pruneCaches(tier: PruneTier, options: PruneOptions): Promi
     });
   }
 
-  const prunedObjects = options.dryRun
-    ? stale
-    : stale.filter((object) => deletedKeys.has(object.key));
-  logPruned(prunedObjects, now, options.dryRun);
+  const prunedSelections = options.dryRun
+    ? selected
+    : selected.filter(({ object }) => deletedKeys.has(object.key));
+  const prunedObjects = prunedSelections.map(({ object }) => object);
+  logPruned(prunedSelections, now, options.dryRun);
 
   if (failures.length > 0) {
     const sample = failures.slice(0, ERROR_SAMPLE_CAP).map((failure) => failure.key);

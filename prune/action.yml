@@ -1,5 +1,5 @@
 name: 'Prune Caches (S3-Compatible)'
-description: 'Delete cache archives older than a given age from any S3-compatible storage'
+description: 'Delete cache archives by age, by count per ref, or to fit a total size budget in any S3-compatible storage'
 author: 'Yurii Serhiichuk (https://serhiichuk.dev)'
 
 inputs:
@@ -62,8 +62,14 @@ inputs:
     default: '3'
 
   older-than-days:
-    description: 'Delete cache archives whose last-modified time is older than this many days'
-    required: true
+    description: 'Delete cache archives whose last-modified time is older than this many days. Set at least one of older-than-days, keep-latest and max-total-size.'
+    required: false
+  keep-latest:
+    description: 'Positive integer. In each ref, never delete the N most recently modified cache archives. Without older-than-days, every other archive of the ref is deleted. A key pattern with no ref counts the whole scope as one ref.'
+    required: false
+  max-total-size:
+    description: 'Total size budget in bytes (a plain integer). After the other rules, delete the oldest remaining cache archives in the scope until the total size fits. keep-latest archives are never deleted.'
+    required: false
   ref:
     description: 'Prune only caches under this full Git ref, such as refs/heads/main (not main); every ref when omitted'
     required: false
@@ -84,7 +90,7 @@ outputs:
   pruned-bytes:
     description: 'The total size in bytes of the pruned cache archives'
   kept-count:
-    description: 'The number of cache archives that matched the scope but were not old enough to prune'
+    description: 'The number of cache archives that matched the scope but no rule selected for pruning'
 
 runs:
   using: 'node24'

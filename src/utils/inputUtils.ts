@@ -124,6 +124,11 @@ export function formatSize(bytes?: number): string {
   return `${size} ${units[unitIndex]}`;
 }
 
+/** Like `parsePositiveInt`, but an empty input gives undefined: the input is optional. */
+export function parseOptionalPositiveInt(raw: string, name: string): number | undefined {
+  return raw.trim() === '' ? undefined : parsePositiveInt(raw, name);
+}
+
 /**
  * Reads an input that must be a positive integer, failing the step on anything else: a typo
  * silently falling back to a default would hide a wrong-looking result rather than report it.

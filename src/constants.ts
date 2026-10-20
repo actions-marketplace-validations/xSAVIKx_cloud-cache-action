@@ -36,6 +36,8 @@ export enum Inputs {
 
   // Prune-only inputs
   OlderThanDays = 'older-than-days',
+  KeepLatest = 'keep-latest',
+  MaxTotalSize = 'max-total-size',
   Ref = 'ref',
   DryRun = 'dry-run',
 
