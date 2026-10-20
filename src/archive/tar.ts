@@ -1,8 +1,10 @@
+import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import * as io from '@actions/io';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import type { CompressionConfig, CompressionMethod } from './compression';
 
 export type TarFlavor = 'gnu' | 'bsd';
@@ -188,25 +190,133 @@ export function buildExtractCommands(plan: ArchivePlan): ArchiveCommand[] {
   ];
 }
 
+/** MSYS value for every archive command: native symlinks, or a failure when not possible. */
+export const MSYS_NATIVE_SYMLINKS = 'winsymlinks:nativestrict';
+
+/**
+ * MSYS value for the one extract retry. The MSYS2 runtime copies the link target. It does not use
+ * 'winsymlinks:native', because that value falls back to WSL symlinks, and Windows programs
+ * cannot open those.
+ */
+export const MSYS_COPY_SYMLINKS = 'winsymlinks:deepcopy';
+
 /**
  * Options for every tar and zstd command. Like actions/cache, sets MSYS so Git's MSYS tar on
  * Windows extracts symlinks as native links instead of copies; other platforms ignore it.
  */
-export function archiveExecOptions(env: NodeJS.ProcessEnv = process.env): exec.ExecOptions {
+export function archiveExecOptions(
+  env: NodeJS.ProcessEnv = process.env,
+  msys: string = MSYS_NATIVE_SYMLINKS
+): exec.ExecOptions {
   const inherited: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {
     if (value !== undefined) {
       inherited[name] = value;
     }
   }
-  return { env: { ...inherited, MSYS: 'winsymlinks:nativestrict' } };
+  return { env: { ...inherited, MSYS: msys } };
 }
 
-async function run(commands: ArchiveCommand[]): Promise<void> {
-  const options = archiveExecOptions();
+// GNU tar prints "<tar>: <file>: Cannot create symlink to <target>: <strerror>". The MSYS runtime
+// maps ERROR_PRIVILEGE_NOT_HELD to EPERM. The program name and the quote marks change, so the
+// patterns do not include them.
+const SYMLINK_EPERM_LINE = /: Cannot create symlink to .*: Operation not permitted$/;
+const TAR_SUMMARY_LINE = /: Exiting with failure status due to previous errors$/;
+
+/** Reads stderr in chunks and finds out if a symlink permission error is the only failure. */
+class SymlinkErrorDetector {
+  private readonly decoder = new StringDecoder('utf8');
+  private partial = '';
+  private symlinkErrors = 0;
+  private otherLines = 0;
+
+  write(chunk: Buffer | string): void {
+    const lines = (this.partial + this.decoder.write(Buffer.from(chunk))).split(/\r?\n/);
+    this.partial = lines.pop() ?? '';
+    for (const line of lines) {
+      this.classify(line);
+    }
+  }
+
+  matches(): boolean {
+    this.classify(this.partial + this.decoder.end());
+    this.partial = '';
+    return this.symlinkErrors > 0 && this.otherLines === 0;
+  }
+
+  private classify(line: string): void {
+    const text = line.trimEnd();
+    if (!text || TAR_SUMMARY_LINE.test(text)) {
+      return;
+    }
+    if (SYMLINK_EPERM_LINE.test(text)) {
+      this.symlinkErrors++;
+    } else {
+      this.otherLines++;
+    }
+  }
+}
+
+/**
+ * True when tar stderr shows only symlinks that tar could not create because of a missing
+ * privilege. Any other error line makes this false, so a retry cannot hide that error.
+ */
+export function isSymlinkPermissionError(stderr: string): boolean {
+  const detector = new SymlinkErrorDetector();
+  detector.write(stderr);
+  return detector.matches();
+}
+
+/**
+ * True for Git's GNU tar on Windows, the only tar that reads MSYS. BSD tar
+ * (C:\Windows\System32\tar.exe) ignores MSYS, so a retry cannot change its result.
+ */
+export function usesSymlinkFallback(plan: Pick<ArchivePlan, 'tar' | 'platform'>): boolean {
+  return plan.platform === 'win32' && plan.tar.flavor === 'gnu';
+}
+
+const SYMLINK_FALLBACK_WARNING =
+  'tar could not create native symlinks: Operation not permitted. The runner account does not ' +
+  'have the SeCreateSymbolicLinkPrivilege privilege, and Windows Developer Mode is off. The ' +
+  `action extracts the archive again with MSYS=${MSYS_COPY_SYMLINKS}. Symlinks are restored as ` +
+  'copies of their targets, not as links.';
+
+async function run(commands: ArchiveCommand[], options = archiveExecOptions()): Promise<void> {
   for (const command of commands) {
     // exec parses its first argument as a command line, so quote paths that contain spaces.
     await exec.exec(`"${command.tool}"`, command.args, options);
+  }
+}
+
+/**
+ * Runs the extract commands for a plan. On Windows with Git's GNU tar, a first attempt that fails
+ * only because native symlinks need a privilege is run one more time with copied symlinks.
+ * The retry needs no cleanup. GNU tar continues after a failed symlink, so the first attempt
+ * writes every other member, and the retry replaces each of them. A copy needs its target to
+ * exist, so these files also let the retry copy a link that comes before its target.
+ */
+export async function runExtract(
+  plan: ArchivePlan,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<void> {
+  const commands = buildExtractCommands(plan);
+  if (!usesSymlinkFallback(plan)) {
+    await run(commands, archiveExecOptions(env));
+    return;
+  }
+  const detector = new SymlinkErrorDetector();
+  const options = archiveExecOptions(env);
+  try {
+    await run(commands, {
+      ...options,
+      listeners: { stderr: (data: Buffer) => detector.write(data) },
+    });
+  } catch (err) {
+    if (!detector.matches()) {
+      throw err;
+    }
+    core.warning(SYMLINK_FALLBACK_WARNING);
+    await run(commands, archiveExecOptions(env, MSYS_COPY_SYMLINKS));
   }
 }
 
@@ -249,16 +359,14 @@ export async function extractArchive(
   try {
     fs.mkdirSync(workspace, { recursive: true });
     const tar = await findTar();
-    await run(
-      buildExtractCommands({
-        tar,
-        platform: process.platform,
-        compression: compression.method,
-        archivePath,
-        workspace,
-        tempDir,
-      })
-    );
+    await runExtract({
+      tar,
+      platform: process.platform,
+      compression: compression.method,
+      archivePath,
+      workspace,
+      tempDir,
+    });
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
