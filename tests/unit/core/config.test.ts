@@ -160,6 +160,7 @@ describe('readCacheConfig', () => {
     persistCacheConfig(state, {
       ...readCacheConfig(),
       primaryKey: 'restored-key',
+      paths: ['~/.cache/pip'],
       retryCount: 0,
       scopedToRef: false,
       dualCacheStrategy: 'skip-on-hit',
@@ -168,12 +169,14 @@ describe('readCacheConfig', () => {
       streaming: true,
     });
     inputs.set(Inputs.Key, 'post-step-key');
+    inputs.set(Inputs.Path, 'post-step-path');
     inputs.set(Inputs.DualCacheStrategy, 'independent');
     inputs.set(Inputs.RestorePriority, 'bogus');
     inputs.set(Inputs.Streaming, 'false');
 
     expect(readCacheConfig(state)).toMatchObject({
       primaryKey: 'restored-key',
+      paths: ['~/.cache/pip'],
       retryCount: 0,
       scopedToRef: false,
       dualCacheStrategy: 'skip-on-hit',

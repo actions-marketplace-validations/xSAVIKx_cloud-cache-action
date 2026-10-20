@@ -9,6 +9,7 @@ export enum Inputs {
   FailOnCacheMiss = 'fail-on-cache-miss',
   LookupOnly = 'lookup-only',
   ReadOnly = 'read-only',
+  Preset = 'preset',
 
   Bucket = 'bucket',
   Endpoint = 'endpoint',
@@ -97,6 +98,7 @@ export enum Outputs {
 
 export enum State {
   CachePrimaryKey = 'CACHE_PRIMARY_KEY',
+  CachePaths = 'CACHE_PATHS',
   CacheMatchedKey = 'CACHE_MATCHED_KEY',
   CacheStorageProvider = 'CACHE_STORAGE_PROVIDER',
   CacheS3Key = 'CACHE_S3_KEY',

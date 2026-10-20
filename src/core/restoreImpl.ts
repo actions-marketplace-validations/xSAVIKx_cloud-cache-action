@@ -8,6 +8,7 @@ import { buildExplainReport, renderExplain, writeExplainSummary } from './explai
 import { restoreFromGitHub } from './githubTier';
 import { emitMetrics, type StepMetrics } from './metrics';
 import { toError, type RestoreOutcome } from './outcomes';
+import { applyPreset, readPreset } from './presets';
 import { buildS3Tier, restoreFromS3, type S3Tier } from './s3Tier';
 import { writeRestoreSummary } from './summary';
 
@@ -115,12 +116,12 @@ export async function restoreImpl(
       );
     }
 
-    config = readCacheConfig();
+    config = await applyPreset(readCacheConfig(), readPreset());
     if (!config.primaryKey) {
-      throw new Error('Input required and not supplied: key');
+      throw new Error('Input required and not supplied: key. Set key and path, or set preset.');
     }
     if (config.paths.length === 0) {
-      throw new Error('Input required and not supplied: path');
+      throw new Error('Input required and not supplied: path. Set key and path, or set preset.');
     }
 
     persistCacheConfig(stateProvider, config);
@@ -187,6 +188,8 @@ export async function restoreImpl(
             size: outcome.s3?.size,
             durationMs: Date.now() - start,
             metadata: outcome.s3?.metadata,
+            preset: config.preset,
+            paths: config.paths,
           });
           return matchedKey;
         }
@@ -230,6 +233,8 @@ export async function restoreImpl(
       source: 'none',
       size: undefined,
       durationMs: Date.now() - start,
+      preset: config.preset,
+      paths: config.paths,
     });
     if (config.failOnCacheMiss) {
       throw new Error(

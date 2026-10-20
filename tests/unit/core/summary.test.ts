@@ -51,6 +51,37 @@ describe('writeRestoreSummary / writeSaveSummary', () => {
     expect(content).toContain('1.24 s');
   });
 
+  it('names the preset and its resolved paths under the restore and save tables', async () => {
+    await writeRestoreSummary({
+      jobSummary: true,
+      primaryKey: 'Linux-npm-abc',
+      cacheHit: false,
+      source: 'none',
+      durationMs: 10,
+      preset: 'npm',
+      paths: ['~/.npm', 'a<b'],
+    });
+    await writeSaveSummary({
+      jobSummary: true,
+      key: 'Linux-npm-abc',
+      savedTo: ['s3'],
+      durationMs: 10,
+      preset: 'npm',
+      paths: ['~/.npm'],
+    });
+
+    const content = fs.readFileSync(summaryFile, 'utf8');
+    expect(content).toContain(
+      '<p>Preset <code>npm</code>, path <code>~/.npm</code>, <code>a&lt;b</code></p>'
+    );
+    expect(content).toContain('<p>Preset <code>npm</code>, path <code>~/.npm</code></p>');
+  });
+
+  it('adds no preset line without a preset', async () => {
+    await writeSaveSummary({ jobSummary: true, key: 'k', savedTo: [], durationMs: 1 });
+    expect(fs.readFileSync(summaryFile, 'utf8')).not.toContain('Preset');
+  });
+
   it('adds a details block with escaped metadata when present', async () => {
     await writeRestoreSummary({
       jobSummary: true,

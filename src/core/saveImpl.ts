@@ -7,6 +7,7 @@ import { readCacheConfig, type CacheConfig } from './config';
 import { existsInGitHub, saveToGitHub } from './githubTier';
 import { emitMetrics, type StepMetrics } from './metrics';
 import { toError, type S3ObjectInfo } from './outcomes';
+import { applyPreset, readPreset } from './presets';
 import { buildS3Tier, saveToS3, type S3Tier } from './s3Tier';
 import { writeSaveSummary } from './summary';
 
@@ -270,7 +271,8 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
       );
     }
 
-    config = readCacheConfig(stateProvider);
+    // In the post step the key and the paths come from state, so the preset does not hash again.
+    config = await applyPreset(readCacheConfig(stateProvider), readPreset());
     strict = config.dualCache && config.dualCacheStrict;
     // Set up front and overwritten on success, so every path — an early skip or an error
     // handled as a warning included — leaves the timing and size outputs defined.
@@ -294,12 +296,12 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
       return;
     }
     if (!config.primaryKey) {
-      core.warning('Key is not specified. Skipping cache save.');
+      core.warning('Key is not specified. Set key and path, or set preset. Skipping cache save.');
       skip('no key');
       return;
     }
     if (config.paths.length === 0) {
-      core.warning('No paths specified to cache. Skipping save.');
+      core.warning('No paths specified to cache. Set path, or set preset. Skipping save.');
       skip('no paths');
       return;
     }
@@ -333,6 +335,8 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
       savedTo: result.sources,
       size: result.size,
       durationMs: Date.now() - start,
+      preset: config.preset,
+      paths: config.paths,
     });
     return config.dualCache ? undefined : result.size;
   } catch (err) {

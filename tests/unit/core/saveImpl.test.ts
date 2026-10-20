@@ -4,6 +4,7 @@ import type { SaveOutcome } from '../../../src/core/outcomes';
 import type { StepMetrics } from '../../../src/core/metrics';
 import type { S3Tier } from '../../../src/core/s3Tier';
 import { MemoryState } from '../../support/memoryState';
+import { makeTempDir, removeDir, setEnv, writeFiles } from '../../support/tempTree';
 
 const inputs = new Map<string, string>();
 const outputs = new Map<string, string>();
@@ -343,9 +344,57 @@ describe('saveImpl', () => {
     it('warns and skips when no key is available', async () => {
       inputs.delete(Inputs.Key);
       await saveImpl(state);
-      expect(mockWarning).toHaveBeenCalledWith('Key is not specified. Skipping cache save.');
+      expect(mockWarning).toHaveBeenCalledWith(
+        'Key is not specified. Set key and path, or set preset. Skipping cache save.'
+      );
       expect(mockBuildS3Tier).not.toHaveBeenCalled();
       expect(mockWriteSaveSummary).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('with a preset', () => {
+    let workspace: string;
+    let restoreEnv: () => void;
+
+    beforeEach(() => {
+      workspace = makeTempDir('save-preset');
+      restoreEnv = setEnv({ GITHUB_WORKSPACE: workspace, RUNNER_OS: 'Linux' });
+      inputs.delete(Inputs.Key);
+      inputs.delete(Inputs.Path);
+      inputs.set(Inputs.Preset, 'npm');
+    });
+
+    afterEach(() => {
+      restoreEnv();
+      removeDir(workspace);
+    });
+
+    it('reuses the key and paths the restore step resolved, without hashing again', async () => {
+      // No lockfile in the workspace: hashing again would fail the save.
+      state.setState(State.CachePrimaryKey, 'Linux-npm-fromrestore');
+      state.setState(State.CachePaths, JSON.stringify(['~/.npm']));
+      await saveImpl(state);
+      expect(mockWarning).not.toHaveBeenCalled();
+      expect(mockSaveToS3).toHaveBeenCalledWith(tier, 'Linux-npm-fromrestore', ['~/.npm']);
+      expect(mockWriteSaveSummary).toHaveBeenCalledWith(
+        expect.objectContaining({ key: 'Linux-npm-fromrestore', preset: 'npm' })
+      );
+    });
+
+    it('hashes the lockfiles when no restore step ran (the save sub-action)', async () => {
+      writeFiles(workspace, { 'package-lock.json': '{}' });
+      await saveImpl(state);
+      const [, key, paths] = mockSaveToS3.mock.calls[0];
+      expect(key).toMatch(/^Linux-npm-[0-9a-f]{64}$/);
+      expect(paths).toEqual(['~/.npm']);
+    });
+
+    it('warns and does not save when no lockfile is found', async () => {
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(
+        expect.stringContaining('Preset "npm" found no lockfile to hash')
+      );
+      expect(mockSaveToS3).not.toHaveBeenCalled();
     });
   });
 

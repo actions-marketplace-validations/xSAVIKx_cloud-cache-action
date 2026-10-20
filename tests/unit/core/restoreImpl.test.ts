@@ -4,6 +4,7 @@ import type { RestoreOutcome } from '../../../src/core/outcomes';
 import type { StepMetrics } from '../../../src/core/metrics';
 import type { S3Tier } from '../../../src/core/s3Tier';
 import { MemoryState } from '../../support/memoryState';
+import { makeTempDir, removeDir, setEnv, writeFiles } from '../../support/tempTree';
 
 const inputs = new Map<string, string>();
 const outputs = new Map<string, string>();
@@ -309,11 +310,73 @@ describe('restoreImpl', () => {
     expect(mockRestoreFromS3).not.toHaveBeenCalled();
   });
 
-  it('fails when the key input is missing', async () => {
+  it('fails when the key input is missing and no preset is set', async () => {
     inputs.delete(Inputs.Key);
     await restoreImpl(state, false);
-    expect(mockSetFailed).toHaveBeenCalledWith('Input required and not supplied: key');
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'Input required and not supplied: key. Set key and path, or set preset.'
+    );
     expect(mockWriteRestoreSummary).not.toHaveBeenCalled();
+  });
+
+  it('fails when the path input is missing and no preset is set', async () => {
+    inputs.delete(Inputs.Path);
+    await restoreImpl(state, false);
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'Input required and not supplied: path. Set key and path, or set preset.'
+    );
+  });
+
+  describe('with a preset', () => {
+    let workspace: string;
+    let restoreEnv: () => void;
+
+    beforeEach(() => {
+      workspace = makeTempDir('restore-preset');
+      restoreEnv = setEnv({ GITHUB_WORKSPACE: workspace, RUNNER_OS: 'Linux' });
+      inputs.delete(Inputs.Key);
+      inputs.delete(Inputs.Path);
+      inputs.delete(Inputs.RestoreKeys);
+      inputs.set(Inputs.Preset, 'npm');
+    });
+
+    afterEach(() => {
+      restoreEnv();
+      removeDir(workspace);
+    });
+
+    it('resolves the path, key and restore-keys, and persists them for the post step', async () => {
+      writeFiles(workspace, { 'package-lock.json': '{}' });
+      await restoreImpl(state, false);
+
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      const [, key, restoreKeys] = mockRestoreFromS3.mock.calls[0];
+      expect(key).toMatch(/^Linux-npm-[0-9a-f]{64}$/);
+      expect(restoreKeys).toEqual(['Linux-npm-']);
+      expect(outputs.get('cache-primary-key')).toBe(key);
+      expect(state.getState(State.CachePrimaryKey)).toBe(key);
+      expect(JSON.parse(state.getState(State.CachePaths))).toEqual(['~/.npm']);
+      expect(mockBuildS3Tier).toHaveBeenCalledWith(
+        expect.objectContaining({ paths: ['~/.npm'], preset: 'npm' })
+      );
+      expect(mockWriteRestoreSummary).toHaveBeenCalledWith(
+        expect.objectContaining({ primaryKey: key, preset: 'npm', paths: ['~/.npm'] })
+      );
+    });
+
+    it('fails and names the globs when no lockfile is found', async () => {
+      await restoreImpl(state, false);
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining('It looked for: **/package-lock.json, **/npm-shrinkwrap.json.')
+      );
+      expect(mockRestoreFromS3).not.toHaveBeenCalled();
+    });
+
+    it('fails on an unknown preset', async () => {
+      inputs.set(Inputs.Preset, 'npmx');
+      await restoreImpl(state, false);
+      expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('Input "preset" must be'));
+    });
   });
 
   it('logs the explain report before restoring, without changing the outcome', async () => {

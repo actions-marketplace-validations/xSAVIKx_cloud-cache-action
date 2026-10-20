@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { Defaults, Inputs, Outputs } from '../../src/constants';
+import { PRESET_NAMES } from '../../src/core/presets';
 
 interface ManifestInput {
   description: string;
@@ -273,6 +274,33 @@ describe('action manifests', () => {
         });
       }
     }
+  });
+
+  it('declares preset on the root, restore and save manifests only, and makes path and key optional there', () => {
+    for (const [file, manifest] of [['action.yml', root], ...subActions] as Array<
+      [string, Manifest]
+    >) {
+      const preset = manifest.inputs[Inputs.Preset];
+      expect({ file, declared: preset !== undefined }).toEqual({ file, declared: true });
+      expect({ file, default: preset.default }).toEqual({ file, default: undefined });
+      expect({ file, required: preset.required }).toEqual({ file, required: false });
+      expect({ file, description: preset.description }).toEqual({
+        file,
+        description: root.inputs[Inputs.Preset].description,
+      });
+      for (const name of [Inputs.Path, Inputs.Key]) {
+        expect({ file, name, required: manifest.inputs[name].required }).toEqual({
+          file,
+          name,
+          required: false,
+        });
+      }
+    }
+    for (const name of PRESET_NAMES) {
+      expect(root.inputs[Inputs.Preset].description).toContain(name);
+    }
+    expect(pruneManifest.inputs[Inputs.Preset]).toBeUndefined();
+    expect(inspectManifest.inputs[Inputs.Preset]).toBeUndefined();
   });
 
   it('declares the tier inputs the inspect report reads on inspect/action.yml', () => {

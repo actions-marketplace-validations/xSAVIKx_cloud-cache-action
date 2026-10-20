@@ -14,6 +14,9 @@ export interface RestoreSummaryData {
   size?: number;
   durationMs: number;
   metadata?: Record<string, string>;
+  /** The preset that gave the defaults, if any; the summary then shows the resolved paths. */
+  preset?: string;
+  paths?: readonly string[];
 }
 
 /** Data for the save step's job summary table. `jobSummary` is the resolved job-summary input. */
@@ -23,6 +26,18 @@ export interface SaveSummaryData {
   savedTo: Array<'s3' | 'github'>;
   size?: number;
   durationMs: number;
+  /** The preset that gave the defaults, if any; the summary then shows the resolved paths. */
+  preset?: string;
+  paths?: readonly string[];
+}
+
+/** One line that names the preset and the paths it resolved, under the table. */
+function addPresetLine(preset: string | undefined, paths: readonly string[] | undefined): void {
+  if (!preset) {
+    return;
+  }
+  const list = (paths ?? []).map((p) => `<code>${escapeHtml(p)}</code>`).join(', ');
+  core.summary.addRaw(`<p>Preset <code>${escapeHtml(preset)}</code>, path ${list}</p>`, true);
 }
 
 function formatDuration(durationMs: number): string {
@@ -83,6 +98,7 @@ export async function writeRestoreSummary(data: RestoreSummaryData): Promise<voi
       formatDuration(data.durationMs),
     ],
   ]);
+  addPresetLine(data.preset, data.paths);
   if (data.metadata && Object.keys(data.metadata).length > 0) {
     core.summary.addDetails(
       'Object metadata',
@@ -112,5 +128,6 @@ export async function writeSaveSummary(data: SaveSummaryData): Promise<void> {
       formatDuration(data.durationMs),
     ],
   ]);
+  addPresetLine(data.preset, data.paths);
   await flush();
 }
