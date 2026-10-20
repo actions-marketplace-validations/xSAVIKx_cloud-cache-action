@@ -276,10 +276,11 @@ export function usesSymlinkFallback(plan: Pick<ArchivePlan, 'tar' | 'platform'>)
 }
 
 const SYMLINK_FALLBACK_WARNING =
-  'tar could not create native symlinks: Operation not permitted. The runner account does not ' +
-  'have the SeCreateSymbolicLinkPrivilege privilege, and Windows Developer Mode is off. The ' +
-  `action extracts the archive again with MSYS=${MSYS_COPY_SYMLINKS}. Symlinks are restored as ` +
-  'copies of their targets, not as links.';
+  'tar could not create native symlinks: Operation not permitted. The usual cause is a runner ' +
+  'account without the SeCreateSymbolicLinkPrivilege privilege while Windows Developer Mode is ' +
+  'off. Another possible cause is a volume that does not support symlinks. The action extracts ' +
+  `the archive again with MSYS=${MSYS_COPY_SYMLINKS}. Symlinks are restored as copies of their ` +
+  'targets, not as links.';
 
 async function run(commands: ArchiveCommand[], options = archiveExecOptions()): Promise<void> {
   for (const command of commands) {
@@ -300,7 +301,11 @@ export async function runExtract(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<void> {
   const commands = buildExtractCommands(plan);
-  if (!usesSymlinkFallback(plan)) {
+  // One detector reads the stderr of every command in the list. This is correct only for one
+  // command: the separate zstd step of a two-command plan writes status lines to stderr, and
+  // these lines would stop every retry. Git's GNU tar always gets one command, so a plan with
+  // more commands runs without the fallback.
+  if (!usesSymlinkFallback(plan) || commands.length !== 1) {
     await run(commands, archiveExecOptions(env));
     return;
   }
