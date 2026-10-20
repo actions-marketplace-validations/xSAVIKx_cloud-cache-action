@@ -75,11 +75,15 @@ points at the latest `v1.x.y` release.
   plain `Error` for this case and the check expected a `ValidationError`. In strict mode, this
   failed the step. The S3 tier alone was not affected.
 
-- On Windows, a restore with Git's GNU `tar` no longer fails when the runner account cannot create
-  native symlinks (no `SeCreateSymbolicLinkPrivilege` and no Developer Mode). When the only errors
+- On Windows, an S3 tier restore in file mode with Git's GNU `tar` no longer fails when the runner
+  account cannot create native symlinks (no `SeCreateSymbolicLinkPrivilege` and no Developer Mode). When the only errors
   are `Cannot create symlink to ...: Operation not permitted`, the action logs a warning and
   extracts the archive one more time with `MSYS=winsymlinks:deepcopy`. Symlinks are then restored
   as copies of their targets. Any other extract error still fails the restore without a retry.
+  The retry does not run with `streaming: true`, or for the GitHub tier with `dual-cache: true`,
+  because `@actions/cache` runs its own `tar`. A symlink whose target is a later symlink in the
+  archive still fails. A copied directory symlink can make the restored tree much larger than the
+  archive.
 
 ## [1.5.0] - 2026-09-22
 
