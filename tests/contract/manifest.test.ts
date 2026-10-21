@@ -195,7 +195,13 @@ describe('action manifests', () => {
     const entries = allManifests.flatMap(([file, manifest]) =>
       [manifest.runs.main, manifest.runs.post]
         .filter((entry): entry is string => entry !== undefined)
-        .map((entry) => path.relative(REPO, path.resolve(REPO, path.dirname(file), entry)))
+        .map((entry) =>
+          // path.relative gives backslashes on Windows; the expected keys use forward slashes.
+          path
+            .relative(REPO, path.resolve(REPO, path.dirname(file), entry))
+            .split(path.sep)
+            .join('/')
+        )
     );
     expect(entries.sort()).toEqual(Object.keys(expected).sort());
     for (const [entry, fn] of Object.entries(expected)) {

@@ -22,6 +22,7 @@ jest.unstable_mockModule('../../src/archive/compression', () => ({
 
 const { restoreImpl } = await import('../../src/core/restoreImpl');
 const { saveImpl } = await import('../../src/core/saveImpl');
+const { PRESETS, runnerOs } = await import('../../src/core/presets');
 
 const s3 = getTestS3Config();
 const runId = `${Date.now()}-${process.pid}`;
@@ -197,7 +198,10 @@ describe.each<CompressionConfig & { streaming: boolean }>([
 
 describe('presets', () => {
   itS3('round-trips the npm cache with the preset path, key and restore-keys', async () => {
-    const npmCache = path.join(roots.home, '.npm');
+    // The preset path of this runner, for example ~/.npm on Linux and ~\AppData\Local\npm-cache
+    // on Windows, with ~ replaced by the test home.
+    const presetPath = PRESETS.npm.paths[runnerOs()][0];
+    const npmCache = path.join(roots.home, ...presetPath.slice(2).split(/[\\/]/));
     writeFiles(roots.workspace, { 'package-lock.json': '{"lockfileVersion":3}' });
     writeFiles(npmCache, { '_cacache/index-v5/aa/bb': 'index', '_cacache/content-v2/x': 'blob' });
 
