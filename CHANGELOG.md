@@ -21,7 +21,8 @@ points at the latest `v1.x.y` release.
   sub-actions take the input. See the [Cache Presets](./guide/presets.md) guide.
 
 - **`ACTIONS_CACHE_MODE` support.** The S3 tier now obeys the `ACTIONS_CACHE_MODE` environment
-  variable in the same way as `@actions/cache` 6.2.0 does for GitHub Actions Cache. `none` skips
+  variable in the same way as `@actions/cache` 6.2.0 (and the 5.2.0 backport) does for GitHub
+  Actions Cache. GitHub sets the variable from the `cache-mode` workflow key. `none` skips
   the restore and the save. `read` skips the save. `write-only` skips the restore. `write`, an
   unset variable and an unknown value change nothing. The action trims the value and ignores its
   case, as the toolkit does. A skip logs one info line that names the variable. The metrics line
@@ -71,9 +72,20 @@ points at the latest `v1.x.y` release.
 
 ### Changed
 
-- **An S3 save that the storage refuses with `403` or `AccessDenied` now tells you why.** The
+- **S3-only jobs on low-trust triggers no longer save by default.** The S3 tier now obeys
+  `ACTIONS_CACHE_MODE`. GitHub sets it from the `cache-mode` workflow key, which is generally
+  available since 2026-09-10. When the workflow does not set the key, the
+  [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) gives a default of `read` for low-trust triggers, such as
+  `pull_request_target`, `issue_comment` and `workflow_run`, that resolve to the default-branch
+  scope. A job on such a trigger then restores but does not save, and logs one info line. The
+  `pull_request` event is not affected. To save from such a job again, set `cache-mode: write` on
+  the job. Only do this when the job cannot run untrusted code.
+
+- **An S3 save that the storage refuses with `AccessDenied` now tells you why.** The
   warning adds: "The credentials cannot write to the bucket. Set read-only: true to skip the save
-  and silence this message." The step still only warns. Strict dual-cache mode still fails the
+  and silence this message." A `403` for wrong credentials (`InvalidAccessKeyId`,
+  `SignatureDoesNotMatch`, `RequestTimeTooSkewed`, `ExpiredToken`, `InvalidToken`,
+  `TokenRefreshRequired`) does not get the hint. The step still only warns. Strict dual-cache mode still fails the
   step, as for every other save error, and the failure message has the same hint.
 
 - **`path` and `key` are optional in the manifests.** The main action and the `restore` and

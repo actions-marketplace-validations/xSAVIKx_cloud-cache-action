@@ -718,7 +718,7 @@ inputs writes the same object as v1.2 did. Every addition is opt-in:
 
 The action takes the inputs and gives the outputs of `actions/cache`. See [Features](#features) for the list. This section gives the behaviour that has no input.
 
-**`ACTIONS_CACHE_MODE`.** `@actions/cache` 6.2.0 and later read this environment variable, and this action applies the same rules to the S3 tier:
+**`ACTIONS_CACHE_MODE`.** GitHub sets this environment variable from the `cache-mode` workflow key (generally available since 2026-09-10). The value is `read`, `write`, `write-only` or `none`, at the workflow level or at `jobs.<job_id>.cache-mode`. When the workflow does not set the key, the [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) gives a default of `read` for low-trust triggers, such as `pull_request_target`, `issue_comment` and `workflow_run`, that resolve to the default-branch scope. The `pull_request` event is not affected. `@actions/cache` 6.2.0 (and the 5.2.0 backport) reads the variable, and this action applies the same rules to the S3 tier:
 
 | `ACTIONS_CACHE_MODE`                      | Restore | Save    |
 | ----------------------------------------- | ------- | ------- |
@@ -729,7 +729,9 @@ The action takes the inputs and gives the outputs of `actions/cache`. See [Featu
 
 The action trims the value and ignores its case. A skip logs one info line that names the variable, and the metrics line and the job summary show the step as `skipped` with the reason. A skip does not fail the step, also with `dual-cache-strict: true`. A skipped restore sets `cache-hit` to `false`. With `fail-on-cache-miss: true`, a skipped restore fails the step, as in `actions/cache`. `read-only: true` skips the save in every mode.
 
-**Write denied.** When the storage refuses an S3 save with `403` or `AccessDenied`, the step logs a warning that the credentials cannot write to the bucket, and that `read-only: true` skips the save. The job does not fail. With `dual-cache-strict: true`, the step fails, as for every other save error. For jobs that must not write, such as pull requests, see the read-only pattern in the [Security guide](https://xsavikx.github.io/cloud-cache-action/guide/security.html).
+An S3-only job on one of those low-trust triggers can stop saving after you upgrade to this version. To save from such a job again, set `cache-mode: write` on the job. Only do this when the job cannot run untrusted code, because the read default is there to stop cache poisoning.
+
+**Write denied.** When the storage refuses an S3 save with `AccessDenied` (or a `403` that is not a credential error), the step logs a warning that the credentials cannot write to the bucket, and that `read-only: true` skips the save. The job does not fail. With `dual-cache-strict: true`, the step fails, as for every other save error. A `403` for wrong credentials, such as `InvalidAccessKeyId`, `SignatureDoesNotMatch` or `ExpiredToken`, gives the usual warning without the hint. For jobs that must not write, such as pull requests, see the read-only pattern in the [Security guide](https://xsavikx.github.io/cloud-cache-action/guide/security.html).
 
 **`save-always`.** The action does not support this deprecated input. See [Saving after failed steps](#saving-after-failed-steps).
 
