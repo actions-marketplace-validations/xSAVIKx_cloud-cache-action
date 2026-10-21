@@ -4773,6 +4773,7 @@ const _mw13 = (Command, cs, config, o) => [
 ];
 
 class S3ServiceException extends ServiceException {
+    static shapeId = "smithy.ts.sdk.synthetic.com.amazonaws.s3#S3ServiceException";
     constructor(options) {
         super(options);
         Object.setPrototypeOf(this, S3ServiceException.prototype);
@@ -4780,6 +4781,7 @@ class S3ServiceException extends ServiceException {
 }
 
 class NoSuchUpload extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#NoSuchUpload";
     name = "NoSuchUpload";
     $fault = "client";
     constructor(opts) {
@@ -4792,6 +4794,7 @@ class NoSuchUpload extends S3ServiceException {
     }
 }
 class AccessDenied extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#AccessDenied";
     name = "AccessDenied";
     $fault = "client";
     constructor(opts) {
@@ -4804,6 +4807,7 @@ class AccessDenied extends S3ServiceException {
     }
 }
 class ObjectNotInActiveTierError extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#ObjectNotInActiveTierError";
     name = "ObjectNotInActiveTierError";
     $fault = "client";
     constructor(opts) {
@@ -4816,6 +4820,7 @@ class ObjectNotInActiveTierError extends S3ServiceException {
     }
 }
 class BucketAlreadyExists extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#BucketAlreadyExists";
     name = "BucketAlreadyExists";
     $fault = "client";
     constructor(opts) {
@@ -4828,6 +4833,7 @@ class BucketAlreadyExists extends S3ServiceException {
     }
 }
 class BucketAlreadyOwnedByYou extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#BucketAlreadyOwnedByYou";
     name = "BucketAlreadyOwnedByYou";
     $fault = "client";
     constructor(opts) {
@@ -4840,6 +4846,7 @@ class BucketAlreadyOwnedByYou extends S3ServiceException {
     }
 }
 class NoSuchBucket extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#NoSuchBucket";
     name = "NoSuchBucket";
     $fault = "client";
     constructor(opts) {
@@ -4852,6 +4859,7 @@ class NoSuchBucket extends S3ServiceException {
     }
 }
 class NoSuchKey extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#NoSuchKey";
     name = "NoSuchKey";
     $fault = "client";
     constructor(opts) {
@@ -4864,6 +4872,7 @@ class NoSuchKey extends S3ServiceException {
     }
 }
 class InvalidObjectState extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#InvalidObjectState";
     name = "InvalidObjectState";
     $fault = "client";
     StorageClass;
@@ -4880,6 +4889,7 @@ class InvalidObjectState extends S3ServiceException {
     }
 }
 class NoSuchAnnotation extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#NoSuchAnnotation";
     name = "NoSuchAnnotation";
     $fault = "client";
     constructor(opts) {
@@ -4892,6 +4902,7 @@ class NoSuchAnnotation extends S3ServiceException {
     }
 }
 class NotFound extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#NotFound";
     name = "NotFound";
     $fault = "client";
     constructor(opts) {
@@ -4904,6 +4915,7 @@ class NotFound extends S3ServiceException {
     }
 }
 class InvalidPrefix extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#InvalidPrefix";
     name = "InvalidPrefix";
     $fault = "client";
     constructor(opts) {
@@ -4916,6 +4928,7 @@ class InvalidPrefix extends S3ServiceException {
     }
 }
 class EncryptionTypeMismatch extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#EncryptionTypeMismatch";
     name = "EncryptionTypeMismatch";
     $fault = "client";
     constructor(opts) {
@@ -4928,6 +4941,7 @@ class EncryptionTypeMismatch extends S3ServiceException {
     }
 }
 class InvalidRequest extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#InvalidRequest";
     name = "InvalidRequest";
     $fault = "client";
     constructor(opts) {
@@ -4940,6 +4954,7 @@ class InvalidRequest extends S3ServiceException {
     }
 }
 class InvalidWriteOffset extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#InvalidWriteOffset";
     name = "InvalidWriteOffset";
     $fault = "client";
     constructor(opts) {
@@ -4952,6 +4967,7 @@ class InvalidWriteOffset extends S3ServiceException {
     }
 }
 class TooManyParts extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#TooManyParts";
     name = "TooManyParts";
     $fault = "client";
     constructor(opts) {
@@ -4964,6 +4980,7 @@ class TooManyParts extends S3ServiceException {
     }
 }
 class AnnotationLimitExceeded extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#AnnotationLimitExceeded";
     name = "AnnotationLimitExceeded";
     $fault = "client";
     constructor(opts) {
@@ -4976,6 +4993,7 @@ class AnnotationLimitExceeded extends S3ServiceException {
     }
 }
 class AnnotationNameTooLong extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#AnnotationNameTooLong";
     name = "AnnotationNameTooLong";
     $fault = "client";
     constructor(opts) {
@@ -4988,6 +5006,7 @@ class AnnotationNameTooLong extends S3ServiceException {
     }
 }
 class InvalidAnnotationName extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#InvalidAnnotationName";
     name = "InvalidAnnotationName";
     $fault = "client";
     constructor(opts) {
@@ -5000,6 +5019,7 @@ class InvalidAnnotationName extends S3ServiceException {
     }
 }
 class UnsupportedMediaType extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#UnsupportedMediaType";
     name = "UnsupportedMediaType";
     $fault = "client";
     constructor(opts) {
@@ -5012,6 +5032,7 @@ class UnsupportedMediaType extends S3ServiceException {
     }
 }
 class IdempotencyParameterMismatch extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#IdempotencyParameterMismatch";
     name = "IdempotencyParameterMismatch";
     $fault = "client";
     constructor(opts) {
@@ -5024,6 +5045,7 @@ class IdempotencyParameterMismatch extends S3ServiceException {
     }
 }
 class ObjectAlreadyInActiveTierError extends S3ServiceException {
+    static shapeId = "com.amazonaws.s3#ObjectAlreadyInActiveTierError";
     name = "ObjectAlreadyInActiveTierError";
     $fault = "client";
     constructor(opts) {
@@ -6116,10 +6138,10 @@ const _xawob = "x-amz-write-offset-bytes";
 const _xawrl = "x-amz-website-redirect-location";
 const _xs = "xsi:type";
 const n0 = "com.amazonaws.s3";
-const _s_registry = TypeRegistry.for(_s);
+const _s_registry = new TypeRegistry(_s);
 var S3ServiceException$ = [-3, _s, "S3ServiceException", 0, [], []];
 _s_registry.registerError(S3ServiceException$, S3ServiceException);
-const n0_registry = TypeRegistry.for(n0);
+const n0_registry = new TypeRegistry(n0);
 var AccessDenied$ = [-3, n0, _AD,
     { [_e]: _c, [_hE]: 403 },
     [],
@@ -8463,7 +8485,7 @@ var WriteGetObjectResponse$ = [9, n0, _WGOR,
 class CreateSessionCommand extends command(_ep4, _mw0, "CreateSession", CreateSession$) {
 }
 
-var version = "3.1128.0";
+var version = "3.1153.0";
 var packageInfo = {
 	version: version};
 
@@ -9435,6 +9457,7 @@ const InventoryOptionalField = {
     ETag: "ETag",
     EncryptionStatus: "EncryptionStatus",
     IntelligentTieringAccessTier: "IntelligentTieringAccessTier",
+    IntelligentTieringReferenceDate: "IntelligentTieringReferenceDate",
     IsMultipartUploaded: "IsMultipartUploaded",
     LastModifiedDate: "LastModifiedDate",
     LifecycleExpirationDate: "LifecycleExpirationDate",
@@ -11361,6 +11384,7 @@ const { setCredentialFeature } = __nccwpck_require__(5152);
 const { normalizeProvider, memoizeIdentityProvider, isIdentityExpired, doesIdentityRequireRefresh } = __nccwpck_require__(402);
 const { SignatureV4 } = __nccwpck_require__(5118);
 const { HttpResponse, HttpRequest } = __nccwpck_require__(3422);
+const { SMITHY_CONTEXT_KEY } = __nccwpck_require__(690);
 
 const getDateHeader = (response) => HttpResponse.isInstance(response) ? (response.headers?.date ?? response.headers?.Date) : undefined;
 const getAgeHeader = (response) => HttpResponse.isInstance(response) ? (response.headers?.age ?? response.headers?.Age) : undefined;
@@ -11387,6 +11411,12 @@ const throwSigningPropertyError = (name, property) => {
         throw new Error(`Property \`${name}\` is not resolved for AWS SDK SigV4Auth`);
     }
     return property;
+};
+const hasEventStreamOutput = (signingProperties) => {
+    const context = signingProperties.context;
+    const eventStream = context?.[SMITHY_CONTEXT_KEY]
+        ?.eventStream;
+    return eventStream?.output === true;
 };
 const validateSigningProperties = async (signingProperties) => {
     const context = throwSigningPropertyError("context", signingProperties.context);
@@ -11423,7 +11453,9 @@ class AwsSdkSigV4Signer {
         }
         const noSkewCorrection = (await config.disableClockSkewCorrection?.()) === true;
         signingProperties._disableClockSkewCorrection = noSkewCorrection;
-        if (!noSkewCorrection) {
+        const skipSkewSampling = noSkewCorrection || hasEventStreamOutput(signingProperties);
+        signingProperties._skipClockSkewSampling = skipSkewSampling;
+        if (!skipSkewSampling) {
             signingProperties._preRequestSystemClockOffset = config.systemClockOffset;
             signingProperties._requestSentAt = Date.now();
         }
@@ -11437,7 +11469,7 @@ class AwsSdkSigV4Signer {
     errorHandler(signingProperties) {
         return (error) => {
             const errorException = error;
-            if (!signingProperties._disableClockSkewCorrection) {
+            if (!signingProperties._skipClockSkewSampling && !signingProperties._disableClockSkewCorrection) {
                 const serverTime = errorException.ServerTime ?? getDateHeader(errorException.$response);
                 if (serverTime) {
                     const config = throwSigningPropertyError("config", signingProperties.config);
@@ -11458,7 +11490,7 @@ class AwsSdkSigV4Signer {
         };
     }
     successHandler(httpResponse, signingProperties) {
-        if (signingProperties._disableClockSkewCorrection) {
+        if (signingProperties._skipClockSkewSampling || signingProperties._disableClockSkewCorrection) {
             return;
         }
         const dateHeader = getDateHeader(httpResponse);
@@ -11715,9 +11747,20 @@ exports.validateSigningProperties = validateSigningProperties;
 const { SmithyRpcV2CborProtocol, loadSmithyRpcV2CborErrorCode } = __nccwpck_require__(4645);
 const { TypeRegistry, NormalizedSchema, deref } = __nccwpck_require__(6890);
 const { decorateServiceException, getValueFromTextNode } = __nccwpck_require__(2658);
-const { collectBody, determineTimestampFormat, RpcProtocol, HttpBindingProtocol, HttpInterceptingShapeSerializer, HttpInterceptingShapeDeserializer, FromStringShapeDeserializer, extendedEncodeURIComponent } = __nccwpck_require__(3422);
-const { NumericValue, toUtf8, fromBase64, LazyJsonString, parseEpochTimestamp, parseRfc7231DateTime, parseRfc3339DateTimeWithOffset, generateIdempotencyToken, toBase64, dateToUtcString, expectUnion } = __nccwpck_require__(2430);
+const { RpcProtocol, JsonCodec2, loadJsonRpcErrorCode, HttpBindingProtocol, HttpInterceptingShapeSerializer, HttpInterceptingShapeDeserializer, loadRestJsonErrorCode, FromStringShapeDeserializer, determineTimestampFormat, extendedEncodeURIComponent, collectBody } = __nccwpck_require__(3422);
+const { JsonCodec, JsonShapeDeserializer, JsonShapeDeserializer2, JsonShapeSerializer, JsonShapeSerializer2, parseJsonBody, parseJsonErrorBody } = __nccwpck_require__(3422);
+exports.JsonCodec = JsonCodec;
+exports.JsonCodec2 = JsonCodec2;
+exports.JsonShapeDeserializer = JsonShapeDeserializer;
+exports.JsonShapeDeserializer2 = JsonShapeDeserializer2;
+exports.JsonShapeSerializer = JsonShapeSerializer;
+exports.JsonShapeSerializer2 = JsonShapeSerializer2;
+exports.loadJsonRpcErrorCode = loadJsonRpcErrorCode;
+exports.loadRestJsonErrorCode = loadRestJsonErrorCode;
+exports.parseJsonBody = parseJsonBody;
+exports.parseJsonErrorBody = parseJsonErrorBody;
 const { parseXML, XmlNode, XmlText } = __nccwpck_require__(4274);
+const { toUtf8, toBase64, generateIdempotencyToken, NumericValue, dateToUtcString, fromBase64, expectUnion } = __nccwpck_require__(2430);
 
 class ProtocolLib {
     queryCompat;
@@ -11904,1139 +11947,6 @@ class AwsSmithyRpcV2CborProtocol extends SmithyRpcV2CborProtocol {
             $fault: ns.getMergedTraits().error,
             message,
         }, output), dataObject);
-    }
-}
-
-class SerdeContextConfig {
-    serdeContext;
-    setSerdeContext(serdeContext) {
-        this.serdeContext = serdeContext;
-    }
-}
-
-class UnionSerde {
-    from;
-    to;
-    keys;
-    constructor(from, to) {
-        this.from = from;
-        this.to = to;
-        const keys = Object.keys(this.from);
-        const set = new Set(keys);
-        set.delete("__type");
-        this.keys = set;
-    }
-    mark(key) {
-        this.keys.delete(key);
-    }
-    hasUnknown() {
-        return this.keys.size === 1 && Object.keys(this.to).length === 0;
-    }
-    writeUnknown() {
-        if (this.hasUnknown()) {
-            const k = this.keys.values().next().value;
-            const v = this.from[k];
-            this.to.$unknown = [k, v];
-        }
-    }
-}
-
-let canParseBuffer;
-function detectBufferParsing() {
-    if (canParseBuffer === undefined) {
-        try {
-            if (typeof Buffer !== "function") {
-                canParseBuffer = false;
-            }
-            else {
-                const result = JSON.parse(Buffer.from([0x7b, 0x7d]));
-                canParseBuffer = result !== null && typeof result === "object";
-            }
-        }
-        catch {
-            canParseBuffer = false;
-        }
-    }
-    return canParseBuffer;
-}
-
-function jsonReviver(key, value, context) {
-    if (context?.source) {
-        const numericString = context.source;
-        if (typeof value === "number") {
-            const inSafeRange = value <= Number.MAX_SAFE_INTEGER && value >= Number.MIN_SAFE_INTEGER;
-            if (inSafeRange) {
-                if (isRepresentable(numericString, value)) {
-                    return value;
-                }
-                return new NumericValue(numericString, "bigDecimal");
-            }
-            else {
-                if (isFractionalBigNumeric(numericString)) {
-                    return new NumericValue(numericString, "bigDecimal");
-                }
-                if (/[eE]/.test(numericString)) {
-                    return expandExponentToBigInt(numericString);
-                }
-                return BigInt(numericString);
-            }
-        }
-    }
-    return value;
-}
-function isFractionalBigNumeric(s) {
-    const dotIndex = s.indexOf(".");
-    if (dotIndex === -1) {
-        return false;
-    }
-    const eIndex = s.search(/[eE]/);
-    if (eIndex === -1) {
-        return true;
-    }
-    const fracDigits = eIndex - dotIndex - 1;
-    const exp = parseInt(s.slice(eIndex + 1), 10);
-    return exp < fracDigits;
-}
-function isRepresentable(numericString, value) {
-    if (numericString === String(value)) {
-        return true;
-    }
-    if (Object.is(value, -0)) {
-        return true;
-    }
-    if (/[eE]/.test(numericString)) {
-        return expandToDecimal(numericString) === expandToDecimal(String(value));
-    }
-    const normalized = numericString.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
-    const canonical = String(value);
-    if (normalized === canonical) {
-        return true;
-    }
-    if (/[eE]/.test(canonical)) {
-        return normalized === expandToDecimal(canonical);
-    }
-    return false;
-}
-function expandToDecimal(s) {
-    const negative = s.startsWith("-");
-    const abs = negative ? s.slice(1) : s;
-    const eIndex = abs.search(/[eE]/);
-    let result;
-    if (eIndex === -1) {
-        result = abs;
-    }
-    else {
-        const exp = parseInt(abs.slice(eIndex + 1), 10);
-        const mantissa = abs.slice(0, eIndex);
-        const dotIndex = mantissa.indexOf(".");
-        let digits;
-        let intLen;
-        if (dotIndex === -1) {
-            digits = mantissa;
-            intLen = mantissa.length;
-        }
-        else {
-            digits = mantissa.slice(0, dotIndex) + mantissa.slice(dotIndex + 1);
-            intLen = dotIndex;
-        }
-        digits = digits.replace(/0+$/, "") || "0";
-        const newDotPos = intLen + exp;
-        if (digits === "0") {
-            result = "0";
-        }
-        else if (newDotPos <= 0) {
-            result = "0." + "0".repeat(-newDotPos) + digits;
-        }
-        else if (newDotPos >= digits.length) {
-            result = digits + "0".repeat(newDotPos - digits.length);
-        }
-        else {
-            result = digits.slice(0, newDotPos) + "." + digits.slice(newDotPos);
-        }
-    }
-    if (result.includes(".")) {
-        result = result.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
-    }
-    return (negative ? "-" : "") + result;
-}
-function expandExponentToBigInt(s) {
-    const eIndex = s.search(/[eE]/);
-    const exp = parseInt(s.slice(eIndex + 1), 10);
-    const negative = s.startsWith("-");
-    const mantissa = s.slice(negative ? 1 : 0, eIndex);
-    const dotIndex = mantissa.indexOf(".");
-    let digits;
-    let shift;
-    if (dotIndex === -1) {
-        digits = mantissa;
-        shift = exp;
-    }
-    else {
-        digits = mantissa.slice(0, dotIndex) + mantissa.slice(dotIndex + 1);
-        const fracDigits = mantissa.length - dotIndex - 1;
-        shift = exp - fracDigits;
-    }
-    digits = digits.replace(/0+$/, "") || "0";
-    const result = BigInt(digits) * 10n ** BigInt(shift + (mantissa.replace(".", "").length - digits.length));
-    return negative ? -result : result;
-}
-
-const REVIVER_SYMBOL = Symbol.for("@aws-sdk/reviver");
-function needsReviver(schema) {
-    const ns = NormalizedSchema.of(schema);
-    const raw = ns.getSchema();
-    if (Array.isArray(raw) && ns.isStructSchema()) {
-        if (REVIVER_SYMBOL in raw) {
-            return raw[REVIVER_SYMBOL];
-        }
-        const result = _check(ns, new Set());
-        raw[REVIVER_SYMBOL] = result;
-        return result;
-    }
-    return _check(ns, new Set());
-}
-function _check(ns, seen) {
-    const raw = ns.getSchema();
-    if (seen.has(raw)) {
-        return false;
-    }
-    seen.add(raw);
-    if (ns.isBigIntegerSchema() || ns.isBigDecimalSchema()) {
-        return true;
-    }
-    if (ns.isStructSchema()) {
-        for (const [, memberSchema] of ns.structIterator()) {
-            if (_check(memberSchema, seen)) {
-                return true;
-            }
-        }
-    }
-    else if (ns.isListSchema() || ns.isMapSchema()) {
-        if (_check(ns.getValueSchema(), seen)) {
-            return true;
-        }
-    }
-    else if (ns.isDocumentSchema()) {
-        return true;
-    }
-    return false;
-}
-
-const collectBodyString = (streamBody, context) => collectBody(streamBody, context).then((body) => (context?.utf8Encoder ?? toUtf8)(body));
-
-async function parseJsonBody(streamBody, context, schema) {
-    let parsingInput;
-    if (detectBufferParsing() && typeof streamBody?.[Symbol.asyncIterator] === "function") {
-        const buffer = await collectBody(streamBody, context);
-        if (typeof Buffer === "function") {
-            if (Buffer.isBuffer(buffer)) {
-                parsingInput = buffer;
-            }
-            else {
-                parsingInput = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-            }
-        }
-    }
-    if (!parsingInput) {
-        parsingInput = await collectBodyString(streamBody, context);
-    }
-    if (parsingInput.length === 0) {
-        return {};
-    }
-    const reviver = schema && needsReviver(schema) ? jsonReviver : undefined;
-    try {
-        return JSON.parse(parsingInput, reviver);
-    }
-    catch (e) {
-        if (e?.name === "SyntaxError") {
-            Object.defineProperty(e, "$responseBodyText", {
-                value: typeof parsingInput === "string" ? parsingInput : parsingInput.toString("utf8"),
-            });
-        }
-        throw e;
-    }
-}
-const parseJsonErrorBody = async (errorBody, context) => {
-    const value = await parseJsonBody(errorBody, context);
-    value.message = value.message ?? value.Message;
-    return value;
-};
-const findKey = (object, key) => Object.keys(object).find((k) => k.toLowerCase() === key.toLowerCase());
-const sanitizeErrorCode = (rawValue) => {
-    let cleanValue = rawValue;
-    if (typeof cleanValue === "number") {
-        cleanValue = cleanValue.toString();
-    }
-    if (cleanValue.indexOf(",") >= 0) {
-        cleanValue = cleanValue.split(",")[0];
-    }
-    if (cleanValue.indexOf(":") >= 0) {
-        cleanValue = cleanValue.split(":")[0];
-    }
-    if (cleanValue.indexOf("#") >= 0) {
-        cleanValue = cleanValue.split("#")[1];
-    }
-    return cleanValue;
-};
-const loadRestJsonErrorCode = (output, data) => {
-    return loadErrorCode(output, data, ["header", "code", "type"]);
-};
-const loadJsonRpcErrorCode = (output, data, queryCompat = false) => {
-    return loadErrorCode(output, data, queryCompat ? ["code", "header", "type"] : ["type", "code", "header"]);
-};
-const loadErrorCode = ({ headers }, data, order) => {
-    while (order.length > 0) {
-        const location = order.shift();
-        switch (location) {
-            case "header":
-                const headerKey = findKey(headers ?? {}, "x-amzn-errortype");
-                if (headerKey !== undefined) {
-                    return sanitizeErrorCode(headers[headerKey]);
-                }
-                break;
-            case "code":
-                const codeKey = findKey(data ?? {}, "code");
-                if (codeKey && data[codeKey] !== undefined) {
-                    return sanitizeErrorCode(data[codeKey]);
-                }
-                break;
-            case "type":
-                if (data?.__type !== undefined) {
-                    return sanitizeErrorCode(data.__type);
-                }
-                break;
-        }
-    }
-};
-
-function writeKey(obj) {
-    Object.defineProperty(obj, "__proto__", { value: undefined, writable: true, enumerable: true, configurable: true });
-}
-
-class JsonShapeDeserializer2 extends SerdeContextConfig {
-    settings;
-    constructor(settings) {
-        super();
-        this.settings = settings;
-    }
-    async read(schema, data) {
-        const reviver = needsReviver(schema) ? jsonReviver : undefined;
-        let parsed;
-        if (typeof data === "string") {
-            if (data.length === 0) {
-                return {};
-            }
-            parsed = JSON.parse(data, reviver);
-        }
-        else if (data instanceof Uint8Array && detectBufferParsing()) {
-            if (data.byteLength === 0) {
-                return {};
-            }
-            const buf = Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-            parsed = JSON.parse(buf, reviver);
-        }
-        else {
-            parsed = await parseJsonBody(data, this.serdeContext, schema);
-        }
-        return this._read(schema, parsed);
-    }
-    readObject(schema, data) {
-        return this._read(schema, data);
-    }
-    _read(schema, value) {
-        const isObject = value !== null && typeof value === "object";
-        const ns = NormalizedSchema.of(schema);
-        if (isObject) {
-            if (ns.isStructSchema()) {
-                return this._readStruct(ns, value);
-            }
-            if (Array.isArray(value) && ns.isListSchema()) {
-                const listMember = ns.getValueSchema();
-                if (this.needsTransform(listMember)) {
-                    for (let i = 0; i < value.length; ++i) {
-                        value[i] = this._read(listMember, value[i]);
-                    }
-                }
-                return value;
-            }
-            if (ns.isMapSchema()) {
-                const mapMember = ns.getValueSchema();
-                const map = value;
-                if (this.needsTransform(mapMember)) {
-                    for (const k in map) {
-                        if (k === "__proto__") {
-                            writeKey(map);
-                        }
-                        map[k] = this._read(mapMember, map[k]);
-                    }
-                }
-                return map;
-            }
-        }
-        if (ns.isBlobSchema() && typeof value === "string") {
-            return fromBase64(value);
-        }
-        const mediaType = ns.getMergedTraits().mediaType;
-        if (ns.isStringSchema() && typeof value === "string" && mediaType) {
-            const isJson = mediaType === "application/json" || mediaType.endsWith("+json");
-            if (isJson) {
-                return LazyJsonString.from(value);
-            }
-            return value;
-        }
-        if (ns.isTimestampSchema() && value != null) {
-            const format = determineTimestampFormat(ns, this.settings);
-            switch (format) {
-                case 5:
-                    return parseRfc3339DateTimeWithOffset(value);
-                case 6:
-                    return parseRfc7231DateTime(value);
-                case 7:
-                    return parseEpochTimestamp(value);
-                default:
-                    console.warn("Missing timestamp format, parsing value with Date constructor:", value);
-                    return new Date(value);
-            }
-        }
-        if (ns.isBigIntegerSchema() && (typeof value === "number" || typeof value === "string")) {
-            return BigInt(value);
-        }
-        if (ns.isBigDecimalSchema() && value != undefined) {
-            if (value instanceof NumericValue) {
-                return value;
-            }
-            const untyped = value;
-            if (untyped.type === "bigDecimal" && "string" in untyped) {
-                return new NumericValue(untyped.string, untyped.type);
-            }
-            return new NumericValue(String(value), "bigDecimal");
-        }
-        if (ns.isNumericSchema() && typeof value === "string") {
-            switch (value) {
-                case "Infinity":
-                    return Infinity;
-                case "-Infinity":
-                    return -Infinity;
-                case "NaN":
-                    return NaN;
-            }
-            return value;
-        }
-        if (ns.isDocumentSchema()) {
-            if (isObject) {
-                if (Array.isArray(value)) {
-                    for (let i = 0; i < value.length; ++i) {
-                        const v = value[i];
-                        if (!(v instanceof NumericValue)) {
-                            value[i] = this._read(ns, v);
-                        }
-                    }
-                }
-                else {
-                    const doc = value;
-                    for (const k in doc) {
-                        if (k === "__proto__") {
-                            writeKey(doc);
-                        }
-                        const v = doc[k];
-                        if (!(v instanceof NumericValue)) {
-                            doc[k] = this._read(ns, v);
-                        }
-                    }
-                }
-            }
-        }
-        return value;
-    }
-    _readStruct(ns, record) {
-        const union = ns.isUnionSchema();
-        const out = {};
-        let nameMap;
-        const hasType = typeof record.__type === "string";
-        const { jsonName } = this.settings;
-        if (jsonName && hasType) {
-            nameMap = {};
-        }
-        let unionSerde;
-        if (union) {
-            unionSerde = new UnionSerde(record, out);
-        }
-        for (const [memberName, memberSchema] of ns.structIterator()) {
-            let fromKey = memberName;
-            if (jsonName) {
-                fromKey = memberSchema.getMergedTraits().jsonName ?? fromKey;
-                if (hasType) {
-                    nameMap[fromKey] = memberName;
-                }
-            }
-            if (union) {
-                unionSerde.mark(fromKey);
-            }
-            if (record[fromKey] != null) {
-                out[memberName] = this._read(memberSchema, record[fromKey]);
-            }
-        }
-        if (union) {
-            unionSerde.writeUnknown();
-        }
-        else if (hasType) {
-            for (const k in record) {
-                const v = record[k];
-                const t = jsonName ? (nameMap[k] ?? k) : k;
-                if (!(t in out)) {
-                    out[t] = v;
-                }
-            }
-        }
-        return out;
-    }
-    needsTransform(ns) {
-        if (ns.isBlobSchema() || ns.isTimestampSchema() || ns.isBigIntegerSchema() || ns.isBigDecimalSchema()) {
-            return true;
-        }
-        if (ns.isDocumentSchema() || ns.isStructSchema() || ns.isListSchema() || ns.isMapSchema()) {
-            return true;
-        }
-        if (ns.isStringSchema() && ns.getMergedTraits().mediaType) {
-            return true;
-        }
-        return false;
-    }
-}
-
-class JsonBytesStringAdapter extends Uint8Array {
-    string = null;
-    static allocUnsafe(bytes) {
-        if (typeof Buffer === "function") {
-            const buffer = Buffer.allocUnsafe(bytes);
-            return new JsonBytesStringAdapter(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-        }
-        return new JsonBytesStringAdapter(bytes);
-    }
-    toString() {
-        return this.s();
-    }
-    valueOf() {
-        return this.s();
-    }
-    includes(searchString, position) {
-        if (typeof searchString === "string") {
-            return this.s().includes(searchString, position);
-        }
-        return Uint8Array.prototype.includes.call(this, searchString, position);
-    }
-    indexOf(searchString, position) {
-        if (typeof searchString === "string") {
-            return this.s().indexOf(searchString, position);
-        }
-        return Uint8Array.prototype.indexOf.call(this, searchString, position);
-    }
-    lastIndexOf(searchString, position) {
-        if (typeof searchString === "string") {
-            return this.s().lastIndexOf(searchString, position);
-        }
-        const fn = Uint8Array.prototype.lastIndexOf;
-        if (position !== undefined) {
-            return fn.call(this, searchString, position);
-        }
-        return fn.call(this, searchString);
-    }
-    startsWith(searchString, position) {
-        return this.s().startsWith(searchString, position);
-    }
-    endsWith(searchString, endPosition) {
-        return this.s().endsWith(searchString, endPosition);
-    }
-    match(regexp) {
-        return this.s().match(regexp);
-    }
-    replace(searchValue, replaceValue) {
-        return this.s().replace(searchValue, replaceValue);
-    }
-    search(regexp) {
-        return this.s().search(regexp);
-    }
-    split(separator, limit) {
-        return this.s().split(separator, limit);
-    }
-    substring(start, end) {
-        return this.s().substring(start, end);
-    }
-    trim() {
-        return this.s().trim();
-    }
-    trimStart() {
-        return this.s().trimStart();
-    }
-    trimEnd() {
-        return this.s().trimEnd();
-    }
-    charAt(pos) {
-        return this.s().charAt(pos);
-    }
-    charCodeAt(index) {
-        return this.s().charCodeAt(index);
-    }
-    padStart(maxLength, fillString) {
-        return this.s().padStart(maxLength, fillString);
-    }
-    padEnd(maxLength, fillString) {
-        return this.s().padEnd(maxLength, fillString);
-    }
-    repeat(count) {
-        return this.s().repeat(count);
-    }
-    toUpperCase() {
-        return this.s().toUpperCase();
-    }
-    toLowerCase() {
-        return this.s().toLowerCase();
-    }
-    s() {
-        if (this.string == null) {
-            const n = Date.now();
-            if (n > warned + 60_000) {
-                console.warn("@aws-sdk/core/protocols - WARN - JsonCodec2: you have called a string method on a Uint8Array request body. " +
-                    "It has been automatically converted to string. In a future version this will throw an error.");
-                warned = n;
-            }
-            this.string = toUtf8(this);
-        }
-        return this.string;
-    }
-}
-var warned = 0;
-
-const encoder = new TextEncoder();
-const OPEN_BRACE = 0x7b;
-const CLOSE_BRACE = 0x7d;
-const OPEN_BRACKET = 0x5b;
-const CLOSE_BRACKET = 0x5d;
-const QUOTE = 0x22;
-const COLON = 0x3a;
-const COMMA = 0x2c;
-const BACKSLASH = 0x5c;
-const TRUE = new Uint8Array([0x74, 0x72, 0x75, 0x65]);
-const FALSE = new Uint8Array([0x66, 0x61, 0x6c, 0x73, 0x65]);
-const NULL = new Uint8Array([0x6e, 0x75, 0x6c, 0x6c]);
-const ESCAPE_TABLE = new Array(128).fill(null);
-ESCAPE_TABLE[0x08] = "b";
-ESCAPE_TABLE[0x09] = "t";
-ESCAPE_TABLE[0x0a] = "n";
-ESCAPE_TABLE[0x0c] = "f";
-ESCAPE_TABLE[0x0d] = "r";
-ESCAPE_TABLE[0x22] = '"';
-ESCAPE_TABLE[0x5c] = "\\";
-for (let i = 0; i < 0x20; i++) {
-    if (ESCAPE_TABLE[i] === null) {
-        ESCAPE_TABLE[i] = "u00" + i.toString(16).padStart(2, "0");
-    }
-}
-const INITIAL_BUFFER_SIZE = 2048;
-function alloc(size) {
-    return JsonBytesStringAdapter.allocUnsafe(size);
-}
-class JsonShapeSerializer2 extends SerdeContextConfig {
-    settings;
-    json;
-    i = 0;
-    rootSchema;
-    rawValue;
-    passthrough = false;
-    constructor(settings) {
-        super();
-        this.settings = settings;
-        this.json = alloc(INITIAL_BUFFER_SIZE);
-    }
-    write(schema, value) {
-        this.i = 0;
-        this.rawValue = value;
-        this.rootSchema = NormalizedSchema.of(schema);
-        this.passthrough = this.rootSchema.isBlobSchema() || this.rootSchema.isStringSchema();
-        if (!this.passthrough) {
-            this.writeValue(this.rootSchema, value, undefined);
-        }
-    }
-    writeDiscriminatedDocument(schema, value) {
-        this.i = 0;
-        this.rootSchema = NormalizedSchema.of(schema);
-        const ns = this.rootSchema;
-        if (ns.isStructSchema() && value != null && typeof value === "object") {
-            this.writeValue(ns, value, undefined);
-            const prefix = `"__type":"${ns.getName(true) ?? "Unknown"}",`;
-            const z = prefix.length;
-            this.ensure(z);
-            this.json.copyWithin(1 + z, 1, this.i);
-            encoder.encodeInto(prefix, this.json.subarray(1));
-            this.i += z;
-        }
-        else {
-            this.writeValue(ns, value, undefined);
-        }
-    }
-    flush() {
-        this.rootSchema = undefined;
-        const finalPosition = this.i;
-        this.i = 0;
-        const raw = this.rawValue;
-        this.rawValue = undefined;
-        if (finalPosition === 0) {
-            return raw;
-        }
-        const result = this.json.subarray(0, finalPosition);
-        this.json = alloc(INITIAL_BUFFER_SIZE);
-        return result;
-    }
-    ensure(byteCount) {
-        const { i, json } = this;
-        if (i + byteCount > json.length) {
-            let newSize = json.length * 2;
-            while (newSize < i + byteCount) {
-                newSize *= 2;
-            }
-            const next = alloc(newSize);
-            next.set(this.json);
-            this.json = next;
-        }
-    }
-    writeAscii(s) {
-        const z = s.length;
-        this.ensure(z);
-        let { i, json } = this;
-        for (let j = 0; j < z; ++j) {
-            json[i] = s.charCodeAt(j);
-            i += 1;
-        }
-        this.i = i;
-    }
-    writeAsciiQuoted(s) {
-        const z = s.length;
-        this.ensure(z + 4);
-        let { json, i } = this;
-        json[i++] = QUOTE;
-        for (let j = 0; j < z; ++j) {
-            json[i++] = s.charCodeAt(j);
-        }
-        json[i++] = QUOTE;
-        this.i = i;
-    }
-    writeJsonString(s) {
-        this.ensure(s.length * 3 + 2);
-        this.json[this.i++] = QUOTE;
-        const z = s.length;
-        for (let j = 0; j < z; ++j) {
-            const c = s.charCodeAt(j);
-            if (c > 0x22 && c < 0x5c) {
-                this.json[this.i++] = c;
-            }
-            else if (c < 0x80) {
-                const esc = ESCAPE_TABLE[c];
-                if (esc !== null) {
-                    this.ensure(esc.length + 1);
-                    this.json[this.i++] = BACKSLASH;
-                    for (let k = 0; k < esc.length; k++) {
-                        this.json[this.i++] = esc.charCodeAt(k);
-                    }
-                }
-                else {
-                    this.json[this.i++] = c;
-                }
-            }
-            else if (c >= 0xd800 && c <= 0xdbff) {
-                const next = j + 1 < z ? s.charCodeAt(j + 1) : 0;
-                if (next >= 0xdc00 && next <= 0xdfff) {
-                    this.ensure(4);
-                    const { written } = encoder.encodeInto(s.substring(j, j + 2), this.json.subarray(this.i));
-                    this.i += written;
-                    ++j;
-                }
-                else {
-                    this.ensure(6);
-                    this.writeUnicodeEscape(c);
-                }
-            }
-            else if (c >= 0xdc00 && c <= 0xdfff) {
-                this.ensure(6);
-                this.writeUnicodeEscape(c);
-            }
-            else {
-                let { i, json } = this;
-                if (c < 0x800) {
-                    json[i++] = 0xc0 | (c >> 6);
-                    json[i++] = 0x80 | (c & 0x3f);
-                }
-                else {
-                    json[i++] = 0xe0 | (c >> 12);
-                    json[i++] = 0x80 | ((c >> 6) & 0x3f);
-                    json[i++] = 0x80 | (c & 0x3f);
-                }
-                this.i = i;
-            }
-        }
-        this.json[this.i++] = QUOTE;
-    }
-    writeUnicodeEscape(code) {
-        let { json, i } = this;
-        json[i++] = BACKSLASH;
-        json[i++] = 0x75;
-        const hex = code.toString(16).padStart(4, "0");
-        for (let j = 0; j < 4; ++j) {
-            json[i++] = hex.charCodeAt(j);
-        }
-        this.i = i;
-    }
-    static B64 = (() => {
-        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        const table = new Uint8Array(64);
-        for (let i = 0; i < 64; ++i) {
-            table[i] = chars.charCodeAt(i);
-        }
-        return table;
-    })();
-    writeBase64(data) {
-        const b64Len = Math.ceil(data.length / 3) * 4;
-        this.ensure(b64Len + 2);
-        const json = this.json;
-        const B64 = JsonShapeSerializer2.B64;
-        let i = this.i;
-        json[i++] = QUOTE;
-        const len = data.length;
-        const remainder = len % 3;
-        const mainLen = len - remainder;
-        for (let j = 0; j < mainLen; j += 3) {
-            const a = data[j];
-            const b = data[j + 1];
-            const c = data[j + 2];
-            json[i++] = B64[a >> 2];
-            json[i++] = B64[((a & 0x03) << 4) | (b >> 4)];
-            json[i++] = B64[((b & 0x0f) << 2) | (c >> 6)];
-            json[i++] = B64[c & 0x3f];
-        }
-        if (remainder === 2) {
-            const a = data[mainLen];
-            const b = data[mainLen + 1];
-            json[i++] = B64[a >> 2];
-            json[i++] = B64[((a & 0x03) << 4) | (b >> 4)];
-            json[i++] = B64[(b & 0x0f) << 2];
-            json[i++] = 0x3d;
-        }
-        else if (remainder === 1) {
-            const a = data[mainLen];
-            json[i++] = B64[a >> 2];
-            json[i++] = B64[(a & 0x03) << 4];
-            json[i++] = 0x3d;
-            json[i++] = 0x3d;
-        }
-        json[i++] = QUOTE;
-        this.i = i;
-    }
-    writeValue(schema, value, container) {
-        if (value == null) {
-            if (container?.isStructSchema()) {
-                if (value === undefined) {
-                    const ns = NormalizedSchema.of(schema);
-                    if (ns.isIdempotencyToken()) {
-                        this.writeAsciiQuoted(generateIdempotencyToken());
-                        return;
-                    }
-                }
-                return;
-            }
-            this.ensure(4);
-            this.json.set(NULL, this.i);
-            this.i += 4;
-            return;
-        }
-        const ns = NormalizedSchema.of(schema);
-        const isObject = typeof value === "object";
-        if (ns.isStringSchema()) {
-            const mediaType = ns.getMergedTraits().mediaType;
-            if (mediaType) {
-                const isJson = mediaType === "application/json" || mediaType.endsWith("+json");
-                if (isJson) {
-                    this.writeJsonString(LazyJsonString.from(value).toString());
-                    return;
-                }
-            }
-        }
-        if (isObject) {
-            if (ns.isStructSchema()) {
-                this.writeStruct(ns, value);
-                return;
-            }
-            if (Array.isArray(value) && (ns.isListSchema() || ns.isDocumentSchema())) {
-                this.writeList(ns, value, ns.isDocumentSchema());
-                return;
-            }
-            if (ns.isMapSchema()) {
-                this.writeMap(ns, value, false);
-                return;
-            }
-            if (value instanceof Uint8Array && (ns.isBlobSchema() || ns.isDocumentSchema())) {
-                this.writeBase64(value);
-                return;
-            }
-            if (value instanceof Date && (ns.isTimestampSchema() || ns.isDocumentSchema())) {
-                this.writeTimestamp(ns, value);
-                return;
-            }
-            if (value instanceof NumericValue) {
-                this.writeAscii(value.string);
-                return;
-            }
-            if (ns.isDocumentSchema()) {
-                if (Array.isArray(value)) {
-                    this.writeList(ns, value, true);
-                }
-                else {
-                    this.writeMap(ns, value, true);
-                }
-                return;
-            }
-            const json = JSON.stringify(value);
-            this.writeAscii(json);
-            return;
-        }
-        if (typeof value === "string") {
-            if (ns.isBlobSchema()) {
-                const b64 = (this.serdeContext?.base64Encoder ?? toBase64)(value);
-                this.writeAsciiQuoted(b64);
-                return;
-            }
-            this.writeJsonString(value);
-            return;
-        }
-        if (typeof value === "number") {
-            if (Math.abs(value) === Infinity || Number.isNaN(value)) {
-                this.writeAsciiQuoted(String(value));
-                return;
-            }
-            const numStr = String(value);
-            this.writeAscii(numStr);
-            return;
-        }
-        if (typeof value === "boolean") {
-            this.ensure(5);
-            let { i, json } = this;
-            if (value) {
-                json.set(TRUE, i);
-                i += 4;
-            }
-            else {
-                json.set(FALSE, i);
-                i += 5;
-            }
-            this.i = i;
-            return;
-        }
-        if (typeof value === "bigint") {
-            this.writeAscii(value.toString());
-            return;
-        }
-        this.writeAscii(String(value));
-    }
-    writeStruct(ns, value) {
-        this.ensure(2);
-        this.json[this.i++] = OPEN_BRACE;
-        let wroteAny = false;
-        const hasType = typeof value.__type === "string";
-        let writtenKeys;
-        if (hasType) {
-            writtenKeys = new Set();
-        }
-        for (const [memberName, memberSchema] of ns.structIterator()) {
-            const item = value[memberName];
-            if (item == null && !memberSchema.isIdempotencyToken()) {
-                continue;
-            }
-            if (wroteAny) {
-                this.ensure(1);
-                this.json[this.i++] = COMMA;
-            }
-            wroteAny = true;
-            const targetKey = this.settings.jsonName ? (memberSchema.getMergedTraits().jsonName ?? memberName) : memberName;
-            if (writtenKeys) {
-                writtenKeys.add(memberName);
-                writtenKeys.add(targetKey);
-            }
-            this.writeAsciiQuoted(targetKey);
-            this.json[this.i++] = COLON;
-            this.writeValue(memberSchema, item, ns);
-        }
-        if (!wroteAny && ns.isUnionSchema()) {
-            const { $unknown } = value;
-            if (Array.isArray($unknown)) {
-                const [k, v] = $unknown;
-                this.writeAsciiQuoted(k);
-                this.ensure(1);
-                this.json[this.i++] = COLON;
-                this.writeValue(15, v, ns);
-            }
-        }
-        else if (hasType) {
-            for (const k in value) {
-                if (writtenKeys.has(k)) {
-                    continue;
-                }
-                writtenKeys.add(k);
-                const v = value[k];
-                if (wroteAny) {
-                    this.ensure(1);
-                    this.json[this.i++] = COMMA;
-                }
-                wroteAny = true;
-                this.writeAsciiQuoted(k);
-                this.ensure(1);
-                this.json[this.i++] = COLON;
-                this.writeValue(15, v, undefined);
-            }
-        }
-        this.ensure(1);
-        this.json[this.i++] = CLOSE_BRACE;
-    }
-    writeList(ns, value, isDocument) {
-        const sparse = !!ns.getMergedTraits().sparse;
-        const valueSchema = ns.getValueSchema();
-        if (!isDocument) {
-            if (valueSchema.isStringSchema() || valueSchema.isNumericSchema() || valueSchema.isBooleanSchema()) {
-                let hasSpecials = false;
-                for (let i = 0; i < value.length; ++i) {
-                    const v = value[i];
-                    if (Number.isNaN(v) || v === Infinity || v === -Infinity || (v == null && !sparse)) {
-                        hasSpecials = true;
-                        break;
-                    }
-                }
-                let json;
-                if (!hasSpecials) {
-                    json = JSON.stringify(value);
-                }
-                else {
-                    const out = [];
-                    for (let i = 0; i < value.length; ++i) {
-                        const v = value[i];
-                        if (v == null && !sparse)
-                            continue;
-                        if (Number.isNaN(v) || v === Infinity || v === -Infinity) {
-                            out.push(String(v));
-                        }
-                        else {
-                            out.push(v);
-                        }
-                    }
-                    json = JSON.stringify(out);
-                }
-                this.ensure(json.length * 3);
-                this.i += encoder.encodeInto(json, this.json.subarray(this.i)).written;
-                return;
-            }
-        }
-        this.ensure(2);
-        this.json[this.i++] = OPEN_BRACKET;
-        let wroteFirstItem = false;
-        for (let i = 0; i < value.length; ++i) {
-            const item = value[i];
-            if (isDocument ? item === undefined : item == null && !sparse) {
-                continue;
-            }
-            if (wroteFirstItem) {
-                this.ensure(1);
-                this.json[this.i++] = COMMA;
-            }
-            this.writeValue(valueSchema, item, undefined);
-            wroteFirstItem = true;
-        }
-        this.ensure(1);
-        this.json[this.i++] = CLOSE_BRACKET;
-    }
-    writeMap(ns, value, isDocument) {
-        const sparse = !!ns.getMergedTraits().sparse;
-        const valueSchema = ns.getValueSchema();
-        if (!isDocument) {
-            if (valueSchema.isStringSchema() || valueSchema.isNumericSchema() || valueSchema.isBooleanSchema()) {
-                let modifications;
-                for (const k in value) {
-                    const v = value[k];
-                    if (Number.isNaN(v) || v === Infinity || v === -Infinity) {
-                        (modifications ??= {})[k] = v;
-                        value[k] = String(v);
-                    }
-                    else if (v === null && !sparse) {
-                        (modifications ??= {})[k] = null;
-                        value[k] = undefined;
-                    }
-                }
-                const json = JSON.stringify(value);
-                if (modifications) {
-                    Object.assign(value, modifications);
-                }
-                this.ensure(json.length * 3);
-                this.i += encoder.encodeInto(json, this.json.subarray(this.i)).written;
-                return;
-            }
-        }
-        this.ensure(2);
-        this.json[this.i++] = OPEN_BRACE;
-        let first = true;
-        for (const k in value) {
-            const v = value[k];
-            if (isDocument ? v === undefined : v == null && !sparse) {
-                continue;
-            }
-            if (!first) {
-                this.ensure(1);
-                this.json[this.i++] = COMMA;
-            }
-            first = false;
-            this.writeJsonString(k);
-            this.ensure(1);
-            this.json[this.i++] = COLON;
-            this.writeValue(valueSchema, v, undefined);
-        }
-        this.ensure(1);
-        this.json[this.i++] = CLOSE_BRACE;
-    }
-    writeTimestamp(ns, value) {
-        const format = determineTimestampFormat(ns, this.settings);
-        switch (format) {
-            case 5: {
-                const iso = value.toISOString().replace(".000Z", "Z");
-                this.writeAsciiQuoted(iso);
-                return;
-            }
-            case 6: {
-                this.writeAsciiQuoted(dateToUtcString(value));
-                return;
-            }
-            case 7: {
-                const epochSecs = String(value.getTime() / 1000);
-                this.writeAscii(epochSecs);
-                return;
-            }
-            default: {
-                const epochSecs = String(value.getTime() / 1000);
-                this.writeAscii(epochSecs);
-                return;
-            }
-        }
-    }
-}
-
-class JsonCodec2 extends SerdeContextConfig {
-    settings;
-    constructor(settings) {
-        super();
-        this.settings = settings;
-    }
-    createSerializer() {
-        const serializer = new JsonShapeSerializer2(this.settings);
-        serializer.setSerdeContext(this.serdeContext);
-        return serializer;
-    }
-    createDeserializer() {
-        const deserializer = new JsonShapeDeserializer2(this.settings);
-        deserializer.setSerdeContext(this.serdeContext);
-        return deserializer;
     }
 }
 
@@ -13237,407 +12147,42 @@ class AwsRestJsonProtocol extends HttpBindingProtocol {
     }
 }
 
-class JsonShapeDeserializer extends SerdeContextConfig {
-    settings;
-    constructor(settings) {
-        super();
-        this.settings = settings;
-    }
-    async read(schema, data) {
-        const reviver = needsReviver(schema) ? jsonReviver : undefined;
-        return this._read(schema, typeof data === "string" ? JSON.parse(data, reviver) : await parseJsonBody(data, this.serdeContext, schema));
-    }
-    readObject(schema, data) {
-        return this._read(schema, data);
-    }
-    _read(schema, value) {
-        const isObject = value !== null && typeof value === "object";
-        const ns = NormalizedSchema.of(schema);
-        if (isObject) {
-            if (ns.isStructSchema()) {
-                const record = value;
-                const union = ns.isUnionSchema();
-                const out = {};
-                let nameMap = void 0;
-                const { jsonName } = this.settings;
-                if (jsonName) {
-                    nameMap = {};
-                }
-                let unionSerde;
-                if (union) {
-                    unionSerde = new UnionSerde(record, out);
-                }
-                for (const [memberName, memberSchema] of ns.structIterator()) {
-                    let fromKey = memberName;
-                    if (jsonName) {
-                        fromKey = memberSchema.getMergedTraits().jsonName ?? fromKey;
-                        nameMap[fromKey] = memberName;
-                    }
-                    if (union) {
-                        unionSerde.mark(fromKey);
-                    }
-                    if (record[fromKey] != null) {
-                        out[memberName] = this._read(memberSchema, record[fromKey]);
-                    }
-                }
-                if (union) {
-                    unionSerde.writeUnknown();
-                }
-                else if (typeof record.__type === "string") {
-                    for (const k in record) {
-                        const v = record[k];
-                        const t = jsonName ? (nameMap[k] ?? k) : k;
-                        if (!(t in out)) {
-                            out[t] = v;
-                        }
-                    }
-                }
-                return out;
-            }
-            if (Array.isArray(value) && ns.isListSchema()) {
-                const listMember = ns.getValueSchema();
-                const out = [];
-                for (const item of value) {
-                    out.push(this._read(listMember, item));
-                }
-                return out;
-            }
-            if (ns.isMapSchema()) {
-                const mapMember = ns.getValueSchema();
-                const out = {};
-                for (const _k in value) {
-                    if (_k === "__proto__") {
-                        writeKey(out);
-                    }
-                    out[_k] = this._read(mapMember, value[_k]);
-                }
-                return out;
-            }
-        }
-        if (ns.isBlobSchema() && typeof value === "string") {
-            return fromBase64(value);
-        }
-        const mediaType = ns.getMergedTraits().mediaType;
-        if (ns.isStringSchema() && typeof value === "string" && mediaType) {
-            const isJson = mediaType === "application/json" || mediaType.endsWith("+json");
-            if (isJson) {
-                return LazyJsonString.from(value);
-            }
-            return value;
-        }
-        if (ns.isTimestampSchema() && value != null) {
-            const format = determineTimestampFormat(ns, this.settings);
-            switch (format) {
-                case 5:
-                    return parseRfc3339DateTimeWithOffset(value);
-                case 6:
-                    return parseRfc7231DateTime(value);
-                case 7:
-                    return parseEpochTimestamp(value);
-                default:
-                    console.warn("Missing timestamp format, parsing value with Date constructor:", value);
-                    return new Date(value);
-            }
-        }
-        if (ns.isBigIntegerSchema() && (typeof value === "number" || typeof value === "string")) {
-            return BigInt(value);
-        }
-        if (ns.isBigDecimalSchema() && value != undefined) {
-            if (value instanceof NumericValue) {
-                return value;
-            }
-            const untyped = value;
-            if (untyped.type === "bigDecimal" && "string" in untyped) {
-                return new NumericValue(untyped.string, untyped.type);
-            }
-            return new NumericValue(String(value), "bigDecimal");
-        }
-        if (ns.isNumericSchema() && typeof value === "string") {
-            switch (value) {
-                case "Infinity":
-                    return Infinity;
-                case "-Infinity":
-                    return -Infinity;
-                case "NaN":
-                    return NaN;
-            }
-            return value;
-        }
-        if (ns.isDocumentSchema()) {
-            if (isObject) {
-                const out = Array.isArray(value) ? [] : {};
-                for (const k in value) {
-                    if (k === "__proto__") {
-                        writeKey(out);
-                    }
-                    const v = value[k];
-                    if (v instanceof NumericValue) {
-                        out[k] = v;
-                    }
-                    else {
-                        out[k] = this._read(ns, v);
-                    }
-                }
-                return out;
-            }
-            else {
-                return structuredClone(value);
-            }
-        }
-        return value;
+class SerdeContextConfig {
+    serdeContext;
+    setSerdeContext(serdeContext) {
+        this.serdeContext = serdeContext;
     }
 }
 
-const NUMERIC_CONTROL_CHAR = String.fromCharCode(925);
-class JsonReplacer {
-    values = new Map();
-    counter = 0;
-    stage = 0;
-    createReplacer() {
-        if (this.stage === 1) {
-            throw new Error("@aws-sdk/core/protocols - JsonReplacer already created.");
-        }
-        if (this.stage === 2) {
-            throw new Error("@aws-sdk/core/protocols - JsonReplacer exhausted.");
-        }
-        this.stage = 1;
-        return (key, value) => {
-            if (value instanceof NumericValue) {
-                const v = `${NUMERIC_CONTROL_CHAR + "nv" + this.counter++}_` + value.string;
-                this.values.set(`"${v}"`, value.string);
-                return v;
-            }
-            if (typeof value === "bigint") {
-                const s = value.toString();
-                const v = `${NUMERIC_CONTROL_CHAR + "b" + this.counter++}_` + s;
-                this.values.set(`"${v}"`, s);
-                return v;
-            }
-            return value;
-        };
+class UnionSerde {
+    from;
+    to;
+    keys;
+    constructor(from, to) {
+        this.from = from;
+        this.to = to;
+        const keys = Object.keys(this.from);
+        const set = new Set(keys);
+        set.delete("__type");
+        this.keys = set;
     }
-    replaceInJson(json) {
-        if (this.stage === 0) {
-            throw new Error("@aws-sdk/core/protocols - JsonReplacer not created yet.");
+    mark(key) {
+        this.keys.delete(key);
+    }
+    hasUnknown() {
+        return this.keys.size === 1 && Object.keys(this.to).length === 0;
+    }
+    writeUnknown() {
+        if (this.hasUnknown()) {
+            const k = this.keys.values().next().value;
+            const v = this.from[k];
+            this.to.$unknown = [k, v];
         }
-        if (this.stage === 2) {
-            throw new Error("@aws-sdk/core/protocols - JsonReplacer exhausted.");
-        }
-        this.stage = 2;
-        if (this.counter === 0) {
-            return json;
-        }
-        for (const [key, value] of this.values) {
-            json = json.replace(key, value);
-        }
-        return json;
     }
 }
 
-class JsonShapeSerializer extends SerdeContextConfig {
-    settings;
-    buffer;
-    useReplacer = false;
-    rootSchema;
-    constructor(settings) {
-        super();
-        this.settings = settings;
-    }
-    write(schema, value) {
-        this.rootSchema = NormalizedSchema.of(schema);
-        this.buffer = this._write(this.rootSchema, value);
-    }
-    flush() {
-        const { rootSchema, useReplacer } = this;
-        this.rootSchema = undefined;
-        this.useReplacer = false;
-        if (rootSchema?.isStructSchema() || rootSchema?.isDocumentSchema()) {
-            if (!useReplacer) {
-                return JSON.stringify(this.buffer);
-            }
-            const replacer = new JsonReplacer();
-            return replacer.replaceInJson(JSON.stringify(this.buffer, replacer.createReplacer(), 0));
-        }
-        return this.buffer;
-    }
-    writeDiscriminatedDocument(schema, value) {
-        this.write(schema, value);
-        if (typeof this.buffer === "object") {
-            this.buffer.__type = NormalizedSchema.of(schema).getName(true);
-        }
-    }
-    _write(schema, value, container) {
-        const isObject = value !== null && typeof value === "object";
-        const ns = NormalizedSchema.of(schema);
-        if (isObject) {
-            if (ns.isStructSchema()) {
-                const record = value;
-                const out = {};
-                const { jsonName } = this.settings;
-                let nameMap = void 0;
-                if (jsonName) {
-                    nameMap = {};
-                }
-                let outCount = 0;
-                for (const [memberName, memberSchema] of ns.structIterator()) {
-                    const serializableValue = this._write(memberSchema, record[memberName], ns);
-                    if (serializableValue !== undefined) {
-                        let targetKey = memberName;
-                        if (jsonName) {
-                            targetKey = memberSchema.getMergedTraits().jsonName ?? memberName;
-                            nameMap[memberName] = targetKey;
-                        }
-                        out[targetKey] = serializableValue;
-                        outCount++;
-                    }
-                }
-                if (ns.isUnionSchema() && outCount === 0) {
-                    const { $unknown } = record;
-                    if (Array.isArray($unknown)) {
-                        const [k, v] = $unknown;
-                        if (k === "__proto__") {
-                            writeKey(out);
-                        }
-                        out[k] = this._write(15, v);
-                    }
-                }
-                else if (typeof record.__type === "string") {
-                    for (const k in record) {
-                        const v = record[k];
-                        const targetKey = jsonName ? (nameMap[k] ?? k) : k;
-                        if (!(targetKey in out)) {
-                            out[targetKey] = this._write(15, v);
-                        }
-                    }
-                }
-                return out;
-            }
-            if (Array.isArray(value) && ns.isListSchema()) {
-                const listMember = ns.getValueSchema();
-                const out = [];
-                const sparse = !!ns.getMergedTraits().sparse;
-                for (const item of value) {
-                    if (sparse || item != null) {
-                        out.push(this._write(listMember, item));
-                    }
-                }
-                return out;
-            }
-            if (ns.isMapSchema()) {
-                const mapMember = ns.getValueSchema();
-                const out = {};
-                const sparse = !!ns.getMergedTraits().sparse;
-                for (const _k in value) {
-                    const _v = value[_k];
-                    if (sparse || _v != null) {
-                        if (_k === "__proto__") {
-                            writeKey(out);
-                        }
-                        out[_k] = this._write(mapMember, _v);
-                    }
-                }
-                return out;
-            }
-            if (value instanceof Uint8Array && ns.isBlobSchema()) {
-                if (ns === this.rootSchema) {
-                    return value;
-                }
-                return (this.serdeContext?.base64Encoder ?? toBase64)(value);
-            }
-            if (value instanceof Date && (ns.isTimestampSchema() || ns.isDocumentSchema())) {
-                const format = determineTimestampFormat(ns, this.settings);
-                switch (format) {
-                    case 5:
-                        return value.toISOString().replace(".000Z", "Z");
-                    case 6:
-                        return dateToUtcString(value);
-                    case 7:
-                        return value.getTime() / 1000;
-                    default:
-                        console.warn("Missing timestamp format, using epoch seconds", value);
-                        return value.getTime() / 1000;
-                }
-            }
-            if (value instanceof NumericValue) {
-                this.useReplacer = true;
-            }
-        }
-        if (value === null && container?.isStructSchema()) {
-            return void 0;
-        }
-        if (ns.isStringSchema()) {
-            if (typeof value === "undefined" && ns.isIdempotencyToken()) {
-                return generateIdempotencyToken();
-            }
-            const mediaType = ns.getMergedTraits().mediaType;
-            if (value != null && mediaType) {
-                const isJson = mediaType === "application/json" || mediaType.endsWith("+json");
-                if (isJson) {
-                    return LazyJsonString.from(value);
-                }
-            }
-            return value;
-        }
-        if (typeof value === "number") {
-            if (Math.abs(value) === Infinity || isNaN(value)) {
-                return String(value);
-            }
-            return value;
-        }
-        if (typeof value === "string" && ns.isBlobSchema()) {
-            if (ns === this.rootSchema) {
-                return value;
-            }
-            return (this.serdeContext?.base64Encoder ?? toBase64)(value);
-        }
-        if (typeof value === "bigint") {
-            this.useReplacer = true;
-        }
-        if (ns.isDocumentSchema()) {
-            if (isObject) {
-                if (value instanceof Uint8Array) {
-                    return (this.serdeContext?.base64Encoder ?? toBase64)(value);
-                }
-                const out = Array.isArray(value) ? [] : {};
-                for (const k in value) {
-                    const v = value[k];
-                    if (k === "__proto__") {
-                        writeKey(out);
-                    }
-                    if (v instanceof NumericValue) {
-                        this.useReplacer = true;
-                        out[k] = v;
-                    }
-                    else {
-                        out[k] = this._write(ns, v);
-                    }
-                }
-                return out;
-            }
-            else {
-                return structuredClone(value);
-            }
-        }
-        return value;
-    }
-}
-
-class JsonCodec extends SerdeContextConfig {
-    settings;
-    constructor(settings) {
-        super();
-        this.settings = settings;
-    }
-    createSerializer() {
-        const serializer = new JsonShapeSerializer(this.settings);
-        serializer.setSerdeContext(this.serdeContext);
-        return serializer;
-    }
-    createDeserializer() {
-        const deserializer = new JsonShapeDeserializer(this.settings);
-        deserializer.setSerdeContext(this.serdeContext);
-        return deserializer;
-    }
+function writeKey(obj) {
+    Object.defineProperty(obj, "__proto__", { value: undefined, writable: true, enumerable: true, configurable: true });
 }
 
 class XmlShapeDeserializer extends SerdeContextConfig {
@@ -14123,6 +12668,8 @@ class AwsEc2QueryProtocol extends AwsQueryProtocol {
         return false;
     }
 }
+
+const collectBodyString = (streamBody, context) => collectBody(streamBody, context).then((body) => (context?.utf8Encoder ?? toUtf8)(body));
 
 const parseXmlBody = (streamBody, context) => collectBodyString(streamBody, context).then((encoded) => {
     if (encoded.length) {
@@ -14640,12 +13187,6 @@ exports.AwsQueryProtocol = AwsQueryProtocol;
 exports.AwsRestJsonProtocol = AwsRestJsonProtocol;
 exports.AwsRestXmlProtocol = AwsRestXmlProtocol;
 exports.AwsSmithyRpcV2CborProtocol = AwsSmithyRpcV2CborProtocol;
-exports.JsonCodec = JsonCodec;
-exports.JsonCodec2 = JsonCodec2;
-exports.JsonShapeDeserializer = JsonShapeDeserializer;
-exports.JsonShapeDeserializer2 = JsonShapeDeserializer2;
-exports.JsonShapeSerializer = JsonShapeSerializer;
-exports.JsonShapeSerializer2 = JsonShapeSerializer2;
 exports.QueryShapeSerializer = QueryShapeSerializer;
 exports.XmlCodec = XmlCodec;
 exports.XmlShapeDeserializer = XmlShapeDeserializer;
@@ -14654,11 +13195,7 @@ exports._toBool = _toBool;
 exports._toNum = _toNum;
 exports._toStr = _toStr;
 exports.awsExpectUnion = awsExpectUnion;
-exports.loadJsonRpcErrorCode = loadJsonRpcErrorCode;
-exports.loadRestJsonErrorCode = loadRestJsonErrorCode;
 exports.loadRestXmlErrorCode = loadRestXmlErrorCode;
-exports.parseJsonBody = parseJsonBody;
-exports.parseJsonErrorBody = parseJsonErrorBody;
 exports.parseXmlBody = parseXmlBody;
 exports.parseXmlErrorBody = parseXmlErrorBody;
 
@@ -16567,10 +15104,10 @@ exports._ = Upload;
 
 const { NoOpLogger, getSmithyContext } = __nccwpck_require__(2658);
 const { HttpRequest, HttpResponse } = __nccwpck_require__(3422);
+const { setFeature } = __nccwpck_require__(5152);
 const { parseRfc7231DateTime } = __nccwpck_require__(2430);
 const { SignatureV4SignWithCredentials } = __nccwpck_require__(5785);
 const { booleanSelector, SelectorType } = __nccwpck_require__(7291);
-const { setFeature } = __nccwpck_require__(5152);
 const { httpSigningMiddlewareOptions } = __nccwpck_require__(402);
 const { Readable } = __nccwpck_require__(7075);
 const { validate, parse } = __nccwpck_require__(519);
@@ -16667,6 +15204,7 @@ function regionRedirectMiddleware(clientConfig) {
                             const actualRegion = bucketRegionHeader;
                             context.logger?.debug(`Redirecting from ${await clientConfig.region()} to ${actualRegion}`);
                             context.__s3RegionRedirect = actualRegion;
+                            setFeature(context, "S3_REGION_REDIRECT", "Ah");
                         }
                         catch (e) {
                             throw new Error("Region redirect failed: " + e);
@@ -17692,7 +16230,7 @@ const commonParams = {
     UseDualStack: { type: "builtInParams", name: "useDualstackEndpoint" },
 };
 
-var version = "3.997.44";
+var version = "3.997.48";
 var packageInfo = {
 	version: version};
 
@@ -17809,6 +16347,7 @@ const defaultEndpointResolver = (endpointParams, context = {}) => {
 customEndpointFunctions.aws = awsEndpointFunctions;
 
 class SigninServiceException extends ServiceException {
+    static shapeId = "smithy.ts.sdk.synthetic.com.amazonaws.signin#SigninServiceException";
     constructor(options) {
         super(options);
         Object.setPrototypeOf(this, SigninServiceException.prototype);
@@ -17816,6 +16355,7 @@ class SigninServiceException extends ServiceException {
 }
 
 class AccessDeniedException extends SigninServiceException {
+    static shapeId = "com.amazonaws.signin#AccessDeniedException";
     name = "AccessDeniedException";
     $fault = "client";
     error;
@@ -17830,6 +16370,7 @@ class AccessDeniedException extends SigninServiceException {
     }
 }
 class InternalServerException extends SigninServiceException {
+    static shapeId = "com.amazonaws.signin#InternalServerException";
     name = "InternalServerException";
     $fault = "server";
     error;
@@ -17844,6 +16385,7 @@ class InternalServerException extends SigninServiceException {
     }
 }
 class TooManyRequestsError extends SigninServiceException {
+    static shapeId = "com.amazonaws.signin#TooManyRequestsError";
     name = "TooManyRequestsError";
     $fault = "client";
     error;
@@ -17858,6 +16400,7 @@ class TooManyRequestsError extends SigninServiceException {
     }
 }
 class ValidationException extends SigninServiceException {
+    static shapeId = "com.amazonaws.signin#ValidationException";
     name = "ValidationException";
     $fault = "client";
     error;
@@ -17916,10 +16459,10 @@ const _tO = "tokenOutput";
 const _tT = "tokenType";
 const _tt = "token_type";
 const n0 = "com.amazonaws.signin";
-const _s_registry = TypeRegistry.for(_s);
+const _s_registry = new TypeRegistry(_s);
 var SigninServiceException$ = [-3, _s, "SigninServiceException", 0, [], []];
 _s_registry.registerError(SigninServiceException$, SigninServiceException);
-const n0_registry = TypeRegistry.for(n0);
+const n0_registry = new TypeRegistry(n0);
 var AccessDeniedException$ = [-3, n0, _ADE,
     { [_e]: _c },
     [_e, _m],
@@ -18289,7 +16832,7 @@ const commonParams = {
     UseDualStack: { type: "builtInParams", name: "useDualstackEndpoint" },
 };
 
-var version = "3.997.44";
+var version = "3.997.48";
 var packageInfo = {
 	version: version};
 
@@ -18355,6 +16898,7 @@ const defaultEndpointResolver = (endpointParams, context = {}) => {
 customEndpointFunctions.aws = awsEndpointFunctions;
 
 class SSOOIDCServiceException extends ServiceException {
+    static shapeId = "smithy.ts.sdk.synthetic.com.amazonaws.ssooidc#SSOOIDCServiceException";
     constructor(options) {
         super(options);
         Object.setPrototypeOf(this, SSOOIDCServiceException.prototype);
@@ -18362,6 +16906,7 @@ class SSOOIDCServiceException extends ServiceException {
 }
 
 class AccessDeniedException extends SSOOIDCServiceException {
+    static shapeId = "com.amazonaws.ssooidc#AccessDeniedException";
     name = "AccessDeniedException";
     $fault = "client";
     error;
@@ -18380,6 +16925,7 @@ class AccessDeniedException extends SSOOIDCServiceException {
     }
 }
 class AuthorizationPendingException extends SSOOIDCServiceException {
+    static shapeId = "com.amazonaws.ssooidc#AuthorizationPendingException";
     name = "AuthorizationPendingException";
     $fault = "client";
     error;
@@ -18396,6 +16942,7 @@ class AuthorizationPendingException extends SSOOIDCServiceException {
     }
 }
 class ExpiredTokenException extends SSOOIDCServiceException {
+    static shapeId = "com.amazonaws.ssooidc#ExpiredTokenException";
     name = "ExpiredTokenException";
     $fault = "client";
     error;
@@ -18412,6 +16959,7 @@ class ExpiredTokenException extends SSOOIDCServiceException {
     }
 }
 class InternalServerException extends SSOOIDCServiceException {
+    static shapeId = "com.amazonaws.ssooidc#InternalServerException";
     name = "InternalServerException";
     $fault = "server";
     error;
@@ -18428,6 +16976,7 @@ class InternalServerException extends SSOOIDCServiceException {
     }
 }
 class InvalidClientException extends SSOOIDCServiceException {
+    static shapeId = "com.amazonaws.ssooidc#InvalidClientException";
     name = "InvalidClientException";
     $fault = "client";
     error;
@@ -18444,6 +16993,7 @@ class InvalidClientException extends SSOOIDCServiceException {
     }
 }
 class InvalidGrantException extends SSOOIDCServiceException {
+    static shapeId = "com.amazonaws.ssooidc#InvalidGrantException";
     name = "InvalidGrantException";
     $fault = "client";
     error;
@@ -18460,6 +17010,7 @@ class InvalidGrantException extends SSOOIDCServiceException {
     }
 }
 class InvalidRequestException extends SSOOIDCServiceException {
+    static shapeId = "com.amazonaws.ssooidc#InvalidRequestException";
     name = "InvalidRequestException";
     $fault = "client";
     error;
@@ -18478,6 +17029,7 @@ class InvalidRequestException extends SSOOIDCServiceException {
     }
 }
 class InvalidScopeException extends SSOOIDCServiceException {
+    static shapeId = "com.amazonaws.ssooidc#InvalidScopeException";
     name = "InvalidScopeException";
     $fault = "client";
     error;
@@ -18494,6 +17046,7 @@ class InvalidScopeException extends SSOOIDCServiceException {
     }
 }
 class SlowDownException extends SSOOIDCServiceException {
+    static shapeId = "com.amazonaws.ssooidc#SlowDownException";
     name = "SlowDownException";
     $fault = "client";
     error;
@@ -18510,6 +17063,7 @@ class SlowDownException extends SSOOIDCServiceException {
     }
 }
 class UnauthorizedClientException extends SSOOIDCServiceException {
+    static shapeId = "com.amazonaws.ssooidc#UnauthorizedClientException";
     name = "UnauthorizedClientException";
     $fault = "client";
     error;
@@ -18526,6 +17080,7 @@ class UnauthorizedClientException extends SSOOIDCServiceException {
     }
 }
 class UnsupportedGrantTypeException extends SSOOIDCServiceException {
+    static shapeId = "com.amazonaws.ssooidc#UnsupportedGrantTypeException";
     name = "UnsupportedGrantTypeException";
     $fault = "client";
     error;
@@ -18583,10 +17138,10 @@ const _sc = "scope";
 const _se = "server";
 const _tT = "tokenType";
 const n0 = "com.amazonaws.ssooidc";
-const _s_registry = TypeRegistry.for(_s);
+const _s_registry = new TypeRegistry(_s);
 var SSOOIDCServiceException$ = [-3, _s, "SSOOIDCServiceException", 0, [], []];
 _s_registry.registerError(SSOOIDCServiceException$, SSOOIDCServiceException);
-const n0_registry = TypeRegistry.for(n0);
+const n0_registry = new TypeRegistry(n0);
 var AccessDeniedException$ = [-3, n0, _ADE,
     { [_e]: _c, [_hE]: 400 },
     [_e, _r, _ed],
@@ -18970,7 +17525,7 @@ const commonParams = {
     UseDualStack: { type: "builtInParams", name: "useDualstackEndpoint" },
 };
 
-var version = "3.997.44";
+var version = "3.997.48";
 var packageInfo = {
 	version: version};
 
@@ -19036,6 +17591,7 @@ const defaultEndpointResolver = (endpointParams, context = {}) => {
 customEndpointFunctions.aws = awsEndpointFunctions;
 
 class SSOServiceException extends ServiceException {
+    static shapeId = "smithy.ts.sdk.synthetic.com.amazonaws.sso#SSOServiceException";
     constructor(options) {
         super(options);
         Object.setPrototypeOf(this, SSOServiceException.prototype);
@@ -19043,6 +17599,7 @@ class SSOServiceException extends ServiceException {
 }
 
 class InvalidRequestException extends SSOServiceException {
+    static shapeId = "com.amazonaws.sso#InvalidRequestException";
     name = "InvalidRequestException";
     $fault = "client";
     constructor(opts) {
@@ -19055,6 +17612,7 @@ class InvalidRequestException extends SSOServiceException {
     }
 }
 class ResourceNotFoundException extends SSOServiceException {
+    static shapeId = "com.amazonaws.sso#ResourceNotFoundException";
     name = "ResourceNotFoundException";
     $fault = "client";
     constructor(opts) {
@@ -19067,6 +17625,7 @@ class ResourceNotFoundException extends SSOServiceException {
     }
 }
 class TooManyRequestsException extends SSOServiceException {
+    static shapeId = "com.amazonaws.sso#TooManyRequestsException";
     name = "TooManyRequestsException";
     $fault = "client";
     constructor(opts) {
@@ -19079,6 +17638,7 @@ class TooManyRequestsException extends SSOServiceException {
     }
 }
 class UnauthorizedException extends SSOServiceException {
+    static shapeId = "com.amazonaws.sso#UnauthorizedException";
     name = "UnauthorizedException";
     $fault = "client";
     constructor(opts) {
@@ -19122,10 +17682,10 @@ const _sAK = "secretAccessKey";
 const _sT = "sessionToken";
 const _xasbt = "x-amz-sso_bearer_token";
 const n0 = "com.amazonaws.sso";
-const _s_registry = TypeRegistry.for(_s);
+const _s_registry = new TypeRegistry(_s);
 var SSOServiceException$ = [-3, _s, "SSOServiceException", 0, [], []];
 _s_registry.registerError(SSOServiceException$, SSOServiceException);
-const n0_registry = TypeRegistry.for(n0);
+const n0_registry = new TypeRegistry(n0);
 var InvalidRequestException$ = [-3, n0, _IRE,
     { [_e]: _c, [_hE]: 400 },
     [_m],
@@ -19625,11 +18185,12 @@ const commonParams = {
     UseDualStack: { type: "builtInParams", name: "useDualstackEndpoint" },
 };
 
-var version = "3.997.44";
+var version = "3.997.48";
 var packageInfo = {
 	version: version};
 
 class STSServiceException extends ServiceException {
+    static shapeId = "smithy.ts.sdk.synthetic.com.amazonaws.sts#STSServiceException";
     constructor(options) {
         super(options);
         Object.setPrototypeOf(this, STSServiceException.prototype);
@@ -19637,6 +18198,7 @@ class STSServiceException extends ServiceException {
 }
 
 class ExpiredTokenException extends STSServiceException {
+    static shapeId = "com.amazonaws.sts#ExpiredTokenException";
     name = "ExpiredTokenException";
     $fault = "client";
     constructor(opts) {
@@ -19649,6 +18211,7 @@ class ExpiredTokenException extends STSServiceException {
     }
 }
 class MalformedPolicyDocumentException extends STSServiceException {
+    static shapeId = "com.amazonaws.sts#MalformedPolicyDocumentException";
     name = "MalformedPolicyDocumentException";
     $fault = "client";
     constructor(opts) {
@@ -19661,6 +18224,7 @@ class MalformedPolicyDocumentException extends STSServiceException {
     }
 }
 class PackedPolicyTooLargeException extends STSServiceException {
+    static shapeId = "com.amazonaws.sts#PackedPolicyTooLargeException";
     name = "PackedPolicyTooLargeException";
     $fault = "client";
     constructor(opts) {
@@ -19673,6 +18237,7 @@ class PackedPolicyTooLargeException extends STSServiceException {
     }
 }
 class RegionDisabledException extends STSServiceException {
+    static shapeId = "com.amazonaws.sts#RegionDisabledException";
     name = "RegionDisabledException";
     $fault = "client";
     constructor(opts) {
@@ -19685,6 +18250,7 @@ class RegionDisabledException extends STSServiceException {
     }
 }
 class IDPRejectedClaimException extends STSServiceException {
+    static shapeId = "com.amazonaws.sts#IDPRejectedClaimException";
     name = "IDPRejectedClaimException";
     $fault = "client";
     constructor(opts) {
@@ -19697,6 +18263,7 @@ class IDPRejectedClaimException extends STSServiceException {
     }
 }
 class InvalidIdentityTokenException extends STSServiceException {
+    static shapeId = "com.amazonaws.sts#InvalidIdentityTokenException";
     name = "InvalidIdentityTokenException";
     $fault = "client";
     constructor(opts) {
@@ -19709,6 +18276,7 @@ class InvalidIdentityTokenException extends STSServiceException {
     }
 }
 class IDPCommunicationErrorException extends STSServiceException {
+    static shapeId = "com.amazonaws.sts#IDPCommunicationErrorException";
     name = "IDPCommunicationErrorException";
     $fault = "client";
     $retryable = {};
@@ -19744,6 +18312,7 @@ const _IDPRCE = "IDPRejectedClaimException";
 const _IITE = "InvalidIdentityTokenException";
 const _K = "Key";
 const _MPDE = "MalformedPolicyDocumentException";
+const _MSTS = "MinimumSessionTokenSize";
 const _P = "Policy";
 const _PA = "PolicyArns";
 const _PAr = "ProviderArn";
@@ -19763,6 +18332,8 @@ const _SFWIT = "SubjectFromWebIdentityToken";
 const _SI = "SourceIdentity";
 const _SN = "SerialNumber";
 const _ST = "SessionToken";
+const _STS = "SessionTokenSize";
+const _STU = "SessionTokenUtilization";
 const _T = "Tags";
 const _TC = "TokenCode";
 const _TTK = "TransitiveTagKeys";
@@ -19781,10 +18352,10 @@ const _pDLT = "policyDescriptorListType";
 const _s = "smithy.ts.sdk.synthetic.com.amazonaws.sts";
 const _tLT = "tagListType";
 const n0 = "com.amazonaws.sts";
-const _s_registry = TypeRegistry.for(_s);
+const _s_registry = new TypeRegistry(_s);
 var STSServiceException$ = [-3, _s, "STSServiceException", 0, [], []];
 _s_registry.registerError(STSServiceException$, STSServiceException);
-const n0_registry = TypeRegistry.for(n0);
+const n0_registry = new TypeRegistry(n0);
 var ExpiredTokenException$ = [-3, n0, _ETE,
     { [_aQE]: [`ExpiredTokenException`, 400], [_e]: _c, [_hE]: 400 },
     [_m],
@@ -19840,23 +18411,23 @@ var AssumedRoleUser$ = [3, n0, _ARU,
 ];
 var AssumeRoleRequest$ = [3, n0, _ARR,
     0,
-    [_RA, _RSN, _PA, _P, _DS, _T, _TTK, _EI, _SN, _TC, _SI, _PC],
-    [0, 0, () => policyDescriptorListType, 0, 1, () => tagListType, 64 | 0, 0, 0, 0, 0, () => ProvidedContextsListType], 2
+    [_RA, _RSN, _PA, _P, _DS, _T, _TTK, _EI, _SN, _TC, _SI, _PC, _MSTS],
+    [0, 0, () => policyDescriptorListType, 0, 1, () => tagListType, 64 | 0, 0, 0, 0, 0, () => ProvidedContextsListType, 1], 2
 ];
 var AssumeRoleResponse$ = [3, n0, _ARRs,
     0,
-    [_C, _ARU, _PPS, _SI],
-    [[() => Credentials$, 0], () => AssumedRoleUser$, 1, 0]
+    [_C, _ARU, _PPS, _SI, _STU, _STS],
+    [[() => Credentials$, 0], () => AssumedRoleUser$, 1, 0, 1, 1]
 ];
 var AssumeRoleWithWebIdentityRequest$ = [3, n0, _ARWWIR,
     0,
-    [_RA, _RSN, _WIT, _PI, _PA, _P, _DS],
-    [0, 0, [() => clientTokenType, 0], 0, () => policyDescriptorListType, 0, 1], 3
+    [_RA, _RSN, _WIT, _PI, _PA, _P, _DS, _MSTS],
+    [0, 0, [() => clientTokenType, 0], 0, () => policyDescriptorListType, 0, 1, 1], 3
 ];
 var AssumeRoleWithWebIdentityResponse$ = [3, n0, _ARWWIRs,
     0,
-    [_C, _SFWIT, _ARU, _PPS, _Pr, _Au, _SI],
-    [[() => Credentials$, 0], 0, () => AssumedRoleUser$, 1, 0, 0, 0]
+    [_C, _SFWIT, _ARU, _PPS, _Pr, _Au, _SI, _STU, _STS],
+    [[() => Credentials$, 0], 0, () => AssumedRoleUser$, 1, 0, 0, 0, 1, 1]
 ];
 var Credentials$ = [3, n0, _C,
     0,
@@ -20476,6 +19047,7 @@ const writeSSOTokenToFile = (id, ssoToken) => {
 };
 
 const lastRefreshAttemptTimes = new Map();
+const inFlightRefreshes = new Map();
 const fromSso = (init = {}) => async ({ callerClientConfig } = {}) => {
     init.logger?.debug("@aws-sdk/token-providers - fromSso");
     const profiles = await parseKnownFiles(init);
@@ -20490,6 +19062,10 @@ const fromSso = (init = {}) => async ({ callerClientConfig } = {}) => {
         throw new TokenProviderError(`Profile '${profileName}' is missing required property 'sso_session'.`);
     }
     const ssoSessionName = profile["sso_session"];
+    const inFlightRefresh = inFlightRefreshes.get(ssoSessionName);
+    if (inFlightRefresh) {
+        return await inFlightRefresh;
+    }
     const ssoSessions = await loadSsoSessionData(init);
     const ssoSession = ssoSessions[ssoSessionName];
     if (!ssoSession) {
@@ -20519,6 +19095,10 @@ const fromSso = (init = {}) => async ({ callerClientConfig } = {}) => {
     if (existingToken.expiration.getTime() - Date.now() > EXPIRE_WINDOW_MS) {
         return existingToken;
     }
+    const inFlightRefreshAfterReadingToken = inFlightRefreshes.get(ssoSessionName);
+    if (inFlightRefreshAfterReadingToken) {
+        return await inFlightRefreshAfterReadingToken;
+    }
     const lastRefreshAttemptTime = lastRefreshAttemptTimes.get(ssoSessionName) ?? 0;
     if (Date.now() - lastRefreshAttemptTime < 30 * 1000) {
         validateTokenExpiry(existingToken);
@@ -20527,30 +19107,39 @@ const fromSso = (init = {}) => async ({ callerClientConfig } = {}) => {
     validateTokenKey("clientId", ssoToken.clientId, true);
     validateTokenKey("clientSecret", ssoToken.clientSecret, true);
     validateTokenKey("refreshToken", ssoToken.refreshToken, true);
-    try {
-        lastRefreshAttemptTimes.set(ssoSessionName, Date.now());
-        const newSsoOidcToken = await getNewSsoOidcToken(ssoToken, ssoRegion, init, callerClientConfig);
-        validateTokenKey("accessToken", newSsoOidcToken.accessToken);
-        validateTokenKey("expiresIn", newSsoOidcToken.expiresIn);
-        const newTokenExpiration = new Date(Date.now() + newSsoOidcToken.expiresIn * 1000);
+    const refresh = (async () => {
         try {
-            await writeSSOTokenToFile(ssoSessionName, {
-                ...ssoToken,
-                accessToken: newSsoOidcToken.accessToken,
-                expiresAt: newTokenExpiration.toISOString(),
-                refreshToken: newSsoOidcToken.refreshToken,
-            });
+            lastRefreshAttemptTimes.set(ssoSessionName, Date.now());
+            const newSsoOidcToken = await getNewSsoOidcToken(ssoToken, ssoRegion, init, callerClientConfig);
+            validateTokenKey("accessToken", newSsoOidcToken.accessToken);
+            validateTokenKey("expiresIn", newSsoOidcToken.expiresIn);
+            const newTokenExpiration = new Date(Date.now() + newSsoOidcToken.expiresIn * 1000);
+            try {
+                await writeSSOTokenToFile(ssoSessionName, {
+                    ...ssoToken,
+                    accessToken: newSsoOidcToken.accessToken,
+                    expiresAt: newTokenExpiration.toISOString(),
+                    refreshToken: newSsoOidcToken.refreshToken,
+                });
+            }
+            catch (error) {
+            }
+            return {
+                token: newSsoOidcToken.accessToken,
+                expiration: newTokenExpiration,
+            };
         }
         catch (error) {
+            validateTokenExpiry(existingToken);
+            return existingToken;
         }
-        return {
-            token: newSsoOidcToken.accessToken,
-            expiration: newTokenExpiration,
-        };
+    })();
+    inFlightRefreshes.set(ssoSessionName, refresh);
+    try {
+        return await refresh;
     }
-    catch (error) {
-        validateTokenExpiry(existingToken);
-        return existingToken;
+    finally {
+        inFlightRefreshes.delete(ssoSessionName);
     }
 };
 
@@ -27246,25 +25835,10 @@ const loadSmithyRpcV2CborErrorCode = (output, data) => {
         if (cleanValue.indexOf(":") >= 0) {
             cleanValue = cleanValue.split(":")[0];
         }
-        if (cleanValue.indexOf("#") >= 0) {
-            cleanValue = cleanValue.split("#")[1];
-        }
         return cleanValue;
     };
     if (data["__type"] !== undefined) {
         return sanitizeErrorCode(data["__type"]);
-    }
-    let codeKey;
-    for (const key in data) {
-        if (!hasOwn(data, key))
-            continue;
-        if (key.toLowerCase() === "code") {
-            codeKey = key;
-            break;
-        }
-    }
-    if (codeKey && data[codeKey] !== undefined) {
-        return sanitizeErrorCode(data[codeKey]);
     }
 };
 const checkCborResponse = (response) => {
@@ -28622,37 +27196,37 @@ class SmithyRpcV2CborProtocol extends RpcProtocol {
         return super.deserializeResponse(operationSchema, context, response);
     }
     async handleError(operationSchema, context, response, dataObject, metadata) {
-        const errorName = loadSmithyRpcV2CborErrorCode(response, dataObject) ?? "Unknown";
+        const errorIdentifier = loadSmithyRpcV2CborErrorCode(response, dataObject) ?? "Unknown";
+        const preferredNamespaces = ["*"];
+        const { defaultNamespace } = this.options;
+        preferredNamespaces.unshift(defaultNamespace);
+        const [namespace, errorShapeName] = (() => {
+            if (errorIdentifier.includes("#")) {
+                return errorIdentifier.split("#");
+            }
+            return [undefined, errorIdentifier];
+        })();
+        if (namespace) {
+            preferredNamespaces.unshift(namespace);
+        }
         const errorMetadata = {
             $metadata: metadata,
-            $fault: response.statusCode <= 500 ? "client" : "server",
+            $fault: response.statusCode < 500 ? "client" : "server",
         };
-        let namespace = this.options.defaultNamespace;
-        if (errorName.includes("#")) {
-            [namespace] = errorName.split("#");
+        const preferredRegistries = [this.compositeErrorRegistry];
+        if (namespace) {
+            preferredRegistries.push(TypeRegistry.for(namespace));
         }
-        const registry = this.compositeErrorRegistry;
-        const nsRegistry = TypeRegistry.for(namespace);
-        registry.copyFrom(nsRegistry);
-        let errorSchema;
-        try {
-            errorSchema = registry.getSchema(errorName);
-        }
-        catch (ignored) {
+        preferredRegistries.push(TypeRegistry.for(defaultNamespace));
+        const [errorSchema, ErrorCtor, errorMode] = this.resolveError(errorShapeName, preferredNamespaces, preferredRegistries);
+        if (errorMode === "native" || errorMode === "synthetic") {
             if (dataObject.Message) {
                 dataObject.message = dataObject.Message;
             }
-            const syntheticRegistry = TypeRegistry.for("smithy.ts.sdk.synthetic." + namespace);
-            registry.copyFrom(syntheticRegistry);
-            const baseExceptionSchema = registry.getBaseException();
-            if (baseExceptionSchema) {
-                const ErrorCtor = registry.getErrorCtor(baseExceptionSchema);
-                throw Object.assign(new ErrorCtor({ name: errorName }), errorMetadata, dataObject);
-            }
-            throw Object.assign(new Error(errorName), errorMetadata, dataObject);
+            const error = errorMode === "synthetic" ? new ErrorCtor({ name: errorShapeName }) : new Error(errorShapeName);
+            throw Object.assign(error, errorMetadata, dataObject);
         }
         const ns = NormalizedSchema.of(errorSchema);
-        const ErrorCtor = registry.getErrorCtor(errorSchema);
         const message = dataObject.message ?? dataObject.Message ?? "Unknown";
         const exception = new ErrorCtor({});
         const output = {};
@@ -30090,20 +28664,27 @@ class Command {
         }
         const stack = clientStack.concat(this.middlewareStack);
         const { logger } = configuration;
+        const additionalSmithyContext = additionalContext[SMITHY_CONTEXT_KEY];
         const handlerExecutionContext = {
             logger,
             clientName,
             commandName,
             inputFilterSensitiveLog,
             outputFilterSensitiveLog,
+            ...additionalContext,
             [SMITHY_CONTEXT_KEY]: {
+                ...additionalSmithyContext,
                 commandInstance: this,
                 ...smithyContext,
+                ...(options?.metricsRecorder === undefined ? {} : { metricsRecorder: options.metricsRecorder }),
             },
-            ...additionalContext,
         };
         const { requestHandler } = configuration;
         let requestOptions = options ?? {};
+        if (requestOptions.metricsRecorder) {
+            requestOptions = { ...requestOptions };
+            delete requestOptions.metricsRecorder;
+        }
         if (smithyContext.eventStream) {
             requestOptions = {
                 isEventStream: true,
@@ -30258,6 +28839,7 @@ const createAggregatedClient = (commands, Client, options) => {
 };
 
 class ServiceException extends Error {
+    static shapeId = "smithy.ts.sdk.synthetic.nonamespace.client#ServiceException";
     $fault;
     $response;
     $retryable;
@@ -30286,10 +28868,46 @@ class ServiceException extends Error {
             return ServiceException.isInstance(instance);
         }
         if (ServiceException.isInstance(instance)) {
-            if (candidate.name && this.name) {
-                return this.prototype.isPrototypeOf(instance) || candidate.name === this.name;
+            if (this.prototype.isPrototypeOf(instance)) {
+                return true;
             }
-            return this.prototype.isPrototypeOf(instance);
+            const targetId = Object.prototype.hasOwnProperty.call(this, "shapeId")
+                ? this.shapeId
+                : undefined;
+            let candidateHasShapeId = false;
+            if (targetId) {
+                let proto = Object.getPrototypeOf(candidate);
+                while (proto && proto !== Object.prototype) {
+                    const ctor = proto.constructor;
+                    const candidateId = ctor !== ServiceException && Object.prototype.hasOwnProperty.call(ctor, "shapeId")
+                        ? ctor?.shapeId
+                        : undefined;
+                    if (candidateId) {
+                        candidateHasShapeId = true;
+                        if (candidateId === targetId) {
+                            return true;
+                        }
+                    }
+                    proto = Object.getPrototypeOf(proto);
+                }
+            }
+            if (targetId && candidateHasShapeId) {
+                return false;
+            }
+            const targetName = this.name;
+            if (targetName && targetName.length >= 6) {
+                if (candidate.name === targetName) {
+                    return true;
+                }
+                let proto = Object.getPrototypeOf(candidate);
+                while (proto && proto !== Object.prototype) {
+                    const ctorName = proto.constructor?.name;
+                    if (ctorName && ctorName !== "Error" && ctorName === targetName) {
+                        return true;
+                    }
+                    proto = Object.getPrototypeOf(proto);
+                }
+            }
         }
         return false;
     }
@@ -31804,7 +30422,8 @@ class EndpointCache {
             return false;
         }
         for (const param of parameters) {
-            const val = String(endpointParams[param] ?? "");
+            const raw = endpointParams[param];
+            const val = raw == null ? "\0" : String(raw);
             if (val.includes("|;")) {
                 return false;
             }
@@ -33263,15 +31882,15 @@ exports.universalEventStreamSerdeProvider = eventStreamSerdeProvider$1;
 /***/ 3422:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
-const { Uint8ArrayBlobAdapter, sdkStreamMixin, splitEvery, splitHeader, fromBase64, _parseEpochTimestamp, _parseRfc7231DateTime, _parseRfc3339DateTimeWithOffset, LazyJsonString, NumericValue, toUtf8, fromUtf8, generateIdempotencyToken, toBase64, dateToUtcString, quoteHeader } = __nccwpck_require__(2430);
-const { HttpRequest, HttpResponse, hasOwn, isValidHostname } = __nccwpck_require__(4534);
+const { Uint8ArrayBlobAdapter, sdkStreamMixin, splitEvery, splitHeader, fromBase64, _parseEpochTimestamp, _parseRfc7231DateTime, _parseRfc3339DateTimeWithOffset, LazyJsonString, NumericValue, toUtf8, fromUtf8, generateIdempotencyToken, toBase64, dateToUtcString, quoteHeader, parseEpochTimestamp, parseRfc7231DateTime, parseRfc3339DateTimeWithOffset } = __nccwpck_require__(2430);
+const { HttpRequest, HttpResponse, hasOwn, isValidHostname, getSmithyContext } = __nccwpck_require__(4534);
 const { parseQueryString, parseUrl } = __nccwpck_require__(4534);
 exports.HttpRequest = HttpRequest;
 exports.HttpResponse = HttpResponse;
 exports.isValidHostname = isValidHostname;
 exports.parseQueryString = parseQueryString;
 exports.parseUrl = parseUrl;
-const { TypeRegistry, NormalizedSchema, translateTraits } = __nccwpck_require__(6890);
+const { TypeRegistry, NormalizedSchema, translateTraits, deref } = __nccwpck_require__(6890);
 const { FieldPosition } = __nccwpck_require__(690);
 
 const collectBody = async (streamBody = new Uint8Array(), context) => {
@@ -33304,7 +31923,7 @@ class HttpProtocol extends SerdeContext {
     constructor(options) {
         super();
         this.options = options;
-        this.compositeErrorRegistry = TypeRegistry.for(options.defaultNamespace);
+        this.compositeErrorRegistry = new TypeRegistry(options.defaultNamespace);
         for (const etr of options.errorTypeRegistries ?? []) {
             this.compositeErrorRegistry.copyFrom(etr);
         }
@@ -33399,6 +32018,47 @@ class HttpProtocol extends SerdeContext {
             cfId: output.headers["x-amz-cf-id"],
         };
     }
+    resolveError(name, namespaces, registries) {
+        const defaultErrorSchema = [-3, "", "Error", 0, [], [], 0];
+        let schema;
+        for (const registry of registries) {
+            for (const ns of namespaces) {
+                try {
+                    if (ns === "*") {
+                        schema = registry.getSchema(name);
+                    }
+                    else {
+                        schema = registry.getSchema(ns + "#" + name);
+                    }
+                    const errorCtor = registry.getErrorCtor(schema);
+                    if (errorCtor) {
+                        return [schema, errorCtor, "modeled"];
+                    }
+                    else {
+                        const syntheticErrorSchema = registry.getBaseException();
+                        if (syntheticErrorSchema) {
+                            const syntheticErrorCtor = registry.getErrorCtor(syntheticErrorSchema);
+                            if (syntheticErrorCtor) {
+                                return [schema, syntheticErrorCtor, "synthetic"];
+                            }
+                        }
+                    }
+                }
+                catch (ignored) {
+                }
+            }
+        }
+        for (const registry of registries) {
+            const syntheticErrorSchema = registry.getBaseException();
+            if (syntheticErrorSchema) {
+                const syntheticErrorCtor = registry.getErrorCtor(syntheticErrorSchema);
+                if (syntheticErrorCtor) {
+                    return [syntheticErrorSchema, syntheticErrorCtor, "synthetic"];
+                }
+            }
+        }
+        return [defaultErrorSchema, Error, "native"];
+    }
     async serializeEventStream({ eventStream, requestSchema, initialRequest, }) {
         const eventStreamSerde = await this.loadEventStreamCapability();
         return eventStreamSerde.serializeEventStream({
@@ -33427,13 +32087,6 @@ class HttpProtocol extends SerdeContext {
             compositeErrorRegistry: this.compositeErrorRegistry,
         });
     }
-    resolveEventStreamMarshaller(importedProvider) {
-        const context = this.serdeContext;
-        if (context.eventStreamMarshaller) {
-            return context.eventStreamMarshaller;
-        }
-        return importedProvider(this.serdeContext);
-    }
     getDefaultContentType() {
         throw new Error(`@smithy/core/protocols - ${this.constructor.name} getDefaultContentType() implementation missing.`);
     }
@@ -33446,6 +32099,13 @@ class HttpProtocol extends SerdeContext {
             throw new Error("@smithy/core - HttpProtocol: eventStreamMarshaller missing in serdeContext.");
         }
         return context.eventStreamMarshaller;
+    }
+    resolveEventStreamMarshaller(importedProvider) {
+        const context = this.serdeContext;
+        if (context.eventStreamMarshaller) {
+            return context.eventStreamMarshaller;
+        }
+        return importedProvider(this.serdeContext);
     }
 }
 
@@ -34297,6 +32957,1686 @@ function buildQueryString(query) {
     return parts.join("&");
 }
 
+class SerdeContextConfig {
+    serdeContext;
+    setSerdeContext(serdeContext) {
+        this.serdeContext = serdeContext;
+    }
+}
+
+class UnionSerde {
+    from;
+    to;
+    keys;
+    constructor(from, to) {
+        this.from = from;
+        this.to = to;
+        const keys = Object.keys(this.from);
+        const set = new Set(keys);
+        set.delete("__type");
+        this.keys = set;
+    }
+    mark(key) {
+        this.keys.delete(key);
+    }
+    hasUnknown() {
+        return this.keys.size === 1 && Object.keys(this.to).length === 0;
+    }
+    writeUnknown() {
+        if (this.hasUnknown()) {
+            const k = this.keys.values().next().value;
+            const v = this.from[k];
+            this.to.$unknown = [k, v];
+        }
+    }
+}
+
+let canParseBuffer;
+function detectBufferParsing() {
+    if (canParseBuffer === undefined) {
+        try {
+            if (typeof Buffer !== "function") {
+                canParseBuffer = false;
+            }
+            else {
+                const result = JSON.parse(Buffer.from([0x7b, 0x7d]));
+                canParseBuffer = result !== null && typeof result === "object";
+            }
+        }
+        catch {
+            canParseBuffer = false;
+        }
+    }
+    return canParseBuffer;
+}
+
+function jsonReviver(key, value, context) {
+    if (context?.source) {
+        const numericString = context.source;
+        if (typeof value === "number") {
+            const inSafeRange = value <= Number.MAX_SAFE_INTEGER && value >= Number.MIN_SAFE_INTEGER;
+            if (inSafeRange) {
+                if (isRepresentable(numericString, value)) {
+                    return value;
+                }
+                return new NumericValue(numericString, "bigDecimal");
+            }
+            else {
+                if (isFractionalBigNumeric(numericString)) {
+                    return new NumericValue(numericString, "bigDecimal");
+                }
+                if (/[eE]/.test(numericString)) {
+                    return expandExponentToBigInt(numericString);
+                }
+                return BigInt(numericString);
+            }
+        }
+    }
+    return value;
+}
+function isFractionalBigNumeric(s) {
+    const dotIndex = s.indexOf(".");
+    if (dotIndex === -1) {
+        return false;
+    }
+    const eIndex = s.search(/[eE]/);
+    if (eIndex === -1) {
+        return true;
+    }
+    const fracDigits = eIndex - dotIndex - 1;
+    const exp = parseInt(s.slice(eIndex + 1), 10);
+    return exp < fracDigits;
+}
+function isRepresentable(numericString, value) {
+    if (numericString === String(value)) {
+        return true;
+    }
+    if (Object.is(value, -0)) {
+        return true;
+    }
+    if (/[eE]/.test(numericString)) {
+        return expandToDecimal(numericString) === expandToDecimal(String(value));
+    }
+    const normalized = numericString.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+    const canonical = String(value);
+    if (normalized === canonical) {
+        return true;
+    }
+    if (/[eE]/.test(canonical)) {
+        return normalized === expandToDecimal(canonical);
+    }
+    return false;
+}
+function expandToDecimal(s) {
+    const negative = s.startsWith("-");
+    const abs = negative ? s.slice(1) : s;
+    const eIndex = abs.search(/[eE]/);
+    let result;
+    if (eIndex === -1) {
+        result = abs;
+    }
+    else {
+        const exp = parseInt(abs.slice(eIndex + 1), 10);
+        const mantissa = abs.slice(0, eIndex);
+        const dotIndex = mantissa.indexOf(".");
+        let digits;
+        let intLen;
+        if (dotIndex === -1) {
+            digits = mantissa;
+            intLen = mantissa.length;
+        }
+        else {
+            digits = mantissa.slice(0, dotIndex) + mantissa.slice(dotIndex + 1);
+            intLen = dotIndex;
+        }
+        digits = digits.replace(/0+$/, "") || "0";
+        const newDotPos = intLen + exp;
+        if (digits === "0") {
+            result = "0";
+        }
+        else if (newDotPos <= 0) {
+            result = "0." + "0".repeat(-newDotPos) + digits;
+        }
+        else if (newDotPos >= digits.length) {
+            result = digits + "0".repeat(newDotPos - digits.length);
+        }
+        else {
+            result = digits.slice(0, newDotPos) + "." + digits.slice(newDotPos);
+        }
+    }
+    if (result.includes(".")) {
+        result = result.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+    }
+    return (negative ? "-" : "") + result;
+}
+function expandExponentToBigInt(s) {
+    const eIndex = s.search(/[eE]/);
+    const exp = parseInt(s.slice(eIndex + 1), 10);
+    const negative = s.startsWith("-");
+    const mantissa = s.slice(negative ? 1 : 0, eIndex);
+    const dotIndex = mantissa.indexOf(".");
+    let digits;
+    let shift;
+    if (dotIndex === -1) {
+        digits = mantissa;
+        shift = exp;
+    }
+    else {
+        digits = mantissa.slice(0, dotIndex) + mantissa.slice(dotIndex + 1);
+        const fracDigits = mantissa.length - dotIndex - 1;
+        shift = exp - fracDigits;
+    }
+    digits = digits.replace(/0+$/, "") || "0";
+    const result = BigInt(digits) * 10n ** BigInt(shift + (mantissa.replace(".", "").length - digits.length));
+    return negative ? -result : result;
+}
+
+const REVIVER_SYMBOL = Symbol.for("@aws-sdk/reviver");
+function needsReviver(schema) {
+    const ns = NormalizedSchema.of(schema);
+    const raw = ns.getSchema();
+    if (Array.isArray(raw) && ns.isStructSchema()) {
+        if (REVIVER_SYMBOL in raw) {
+            return raw[REVIVER_SYMBOL];
+        }
+        const result = _check(ns, new Set());
+        raw[REVIVER_SYMBOL] = result;
+        return result;
+    }
+    return _check(ns, new Set());
+}
+function _check(ns, seen) {
+    const raw = ns.getSchema();
+    if (seen.has(raw)) {
+        return false;
+    }
+    seen.add(raw);
+    if (ns.isBigIntegerSchema() || ns.isBigDecimalSchema()) {
+        return true;
+    }
+    if (ns.isStructSchema()) {
+        for (const [, memberSchema] of ns.structIterator()) {
+            if (_check(memberSchema, seen)) {
+                return true;
+            }
+        }
+    }
+    else if (ns.isListSchema() || ns.isMapSchema()) {
+        if (_check(ns.getValueSchema(), seen)) {
+            return true;
+        }
+    }
+    else if (ns.isDocumentSchema()) {
+        return true;
+    }
+    return false;
+}
+
+const collectBodyString = (streamBody, context) => collectBody(streamBody, context).then((body) => (context?.utf8Encoder ?? toUtf8)(body));
+
+async function parseJsonBody(streamBody, context, schema) {
+    let parsingInput;
+    if (detectBufferParsing() && typeof streamBody?.[Symbol.asyncIterator] === "function") {
+        const buffer = await collectBody(streamBody, context);
+        if (typeof Buffer === "function") {
+            if (Buffer.isBuffer(buffer)) {
+                parsingInput = buffer;
+            }
+            else {
+                parsingInput = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+            }
+        }
+    }
+    if (!parsingInput) {
+        parsingInput = await collectBodyString(streamBody, context);
+    }
+    if (parsingInput.length === 0) {
+        return {};
+    }
+    const reviver = schema && needsReviver(schema) ? jsonReviver : undefined;
+    try {
+        return JSON.parse(parsingInput, reviver);
+    }
+    catch (e) {
+        if (e?.name === "SyntaxError") {
+            Object.defineProperty(e, "$responseBodyText", {
+                value: typeof parsingInput === "string" ? parsingInput : parsingInput.toString("utf8"),
+            });
+        }
+        throw e;
+    }
+}
+const parseJsonErrorBody = async (errorBody, context) => {
+    const value = await parseJsonBody(errorBody, context);
+    value.message = value.message ?? value.Message;
+    return value;
+};
+const findKey = (object, key) => Object.keys(object).find((k) => k.toLowerCase() === key.toLowerCase());
+const sanitizeErrorCode = (rawValue) => {
+    let cleanValue = rawValue;
+    if (typeof cleanValue === "number") {
+        cleanValue = cleanValue.toString();
+    }
+    if (cleanValue.indexOf(",") >= 0) {
+        cleanValue = cleanValue.split(",")[0];
+    }
+    if (cleanValue.indexOf(":") >= 0) {
+        cleanValue = cleanValue.split(":")[0];
+    }
+    if (cleanValue.indexOf("#") >= 0) {
+        cleanValue = cleanValue.split("#")[1];
+    }
+    return cleanValue;
+};
+const loadRestJsonErrorCode = (output, data) => {
+    return loadErrorCode(output, data, ["header", "code", "type"]);
+};
+const loadJsonRpcErrorCode = (output, data, queryCompat = false) => {
+    return loadErrorCode(output, data, queryCompat ? ["code", "header", "type"] : ["type", "code", "header"]);
+};
+const loadSmithyRpcV2JsonErrorCode = (output, data) => {
+    if (data?.__type !== undefined) {
+        let cleanValue = data.__type;
+        if (typeof cleanValue === "number") {
+            cleanValue = cleanValue.toString();
+        }
+        if (cleanValue.indexOf(",") >= 0) {
+            cleanValue = cleanValue.split(",")[0];
+        }
+        if (cleanValue.indexOf(":") >= 0) {
+            cleanValue = cleanValue.split(":")[0];
+        }
+        return cleanValue;
+    }
+};
+const loadErrorCode = ({ headers }, data, order) => {
+    while (order.length > 0) {
+        const location = order.shift();
+        switch (location) {
+            case "header":
+                const headerKey = findKey(headers ?? {}, "x-amzn-errortype");
+                if (headerKey !== undefined) {
+                    return sanitizeErrorCode(headers[headerKey]);
+                }
+                break;
+            case "code":
+                const codeKey = findKey(data ?? {}, "code");
+                if (codeKey && data[codeKey] !== undefined) {
+                    return sanitizeErrorCode(data[codeKey]);
+                }
+                break;
+            case "type":
+                if (data?.__type !== undefined) {
+                    return sanitizeErrorCode(data.__type);
+                }
+                break;
+        }
+    }
+};
+
+function writeKey(obj) {
+    Object.defineProperty(obj, "__proto__", { value: undefined, writable: true, enumerable: true, configurable: true });
+}
+
+class JsonShapeDeserializer2 extends SerdeContextConfig {
+    settings;
+    constructor(settings) {
+        super();
+        this.settings = settings;
+    }
+    async read(schema, data) {
+        const reviver = needsReviver(schema) ? jsonReviver : undefined;
+        let parsed;
+        if (typeof data === "string") {
+            if (data.length === 0) {
+                return {};
+            }
+            parsed = JSON.parse(data, reviver);
+        }
+        else if (data instanceof Uint8Array && detectBufferParsing()) {
+            if (data.byteLength === 0) {
+                return {};
+            }
+            const buf = Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+            parsed = JSON.parse(buf, reviver);
+        }
+        else {
+            parsed = await parseJsonBody(data, this.serdeContext, schema);
+        }
+        return this._read(schema, parsed);
+    }
+    readObject(schema, data) {
+        return this._read(schema, data);
+    }
+    _read(schema, value) {
+        const isObject = value !== null && typeof value === "object";
+        const ns = NormalizedSchema.of(schema);
+        if (isObject) {
+            if (ns.isStructSchema()) {
+                return this._readStruct(ns, value);
+            }
+            if (Array.isArray(value) && ns.isListSchema()) {
+                const listMember = ns.getValueSchema();
+                if (this.needsTransform(listMember)) {
+                    for (let i = 0; i < value.length; ++i) {
+                        value[i] = this._read(listMember, value[i]);
+                    }
+                }
+                return value;
+            }
+            if (ns.isMapSchema()) {
+                const mapMember = ns.getValueSchema();
+                const map = value;
+                if (this.needsTransform(mapMember)) {
+                    for (const k in map) {
+                        if (!hasOwn(map, k))
+                            continue;
+                        if (k === "__proto__") {
+                            writeKey(map);
+                        }
+                        map[k] = this._read(mapMember, map[k]);
+                    }
+                }
+                return map;
+            }
+        }
+        if (ns.isBlobSchema() && typeof value === "string") {
+            return fromBase64(value);
+        }
+        const mediaType = ns.getMergedTraits().mediaType;
+        if (ns.isStringSchema() && typeof value === "string" && mediaType) {
+            const isJson = mediaType === "application/json" || mediaType.endsWith("+json");
+            if (isJson) {
+                return LazyJsonString.from(value);
+            }
+            return value;
+        }
+        if (ns.isTimestampSchema() && value != null) {
+            const format = determineTimestampFormat(ns, this.settings);
+            switch (format) {
+                case 5:
+                    return parseRfc3339DateTimeWithOffset(value);
+                case 6:
+                    return parseRfc7231DateTime(value);
+                case 7:
+                    return parseEpochTimestamp(value);
+                default:
+                    console.warn("Missing timestamp format, parsing value with Date constructor:", value);
+                    return new Date(value);
+            }
+        }
+        if (ns.isBigIntegerSchema() && (typeof value === "number" || typeof value === "string")) {
+            return BigInt(value);
+        }
+        if (ns.isBigDecimalSchema() && value != undefined) {
+            if (value instanceof NumericValue) {
+                return value;
+            }
+            const untyped = value;
+            if (untyped.type === "bigDecimal" && "string" in untyped) {
+                return new NumericValue(untyped.string, untyped.type);
+            }
+            return new NumericValue(String(value), "bigDecimal");
+        }
+        if (ns.isNumericSchema() && typeof value === "string") {
+            switch (value) {
+                case "Infinity":
+                    return Infinity;
+                case "-Infinity":
+                    return -Infinity;
+                case "NaN":
+                    return NaN;
+            }
+            return value;
+        }
+        if (ns.isDocumentSchema()) {
+            if (isObject) {
+                if (Array.isArray(value)) {
+                    for (let i = 0; i < value.length; ++i) {
+                        const v = value[i];
+                        if (!(v instanceof NumericValue)) {
+                            value[i] = this._read(ns, v);
+                        }
+                    }
+                }
+                else {
+                    const doc = value;
+                    for (const k in doc) {
+                        if (!hasOwn(doc, k))
+                            continue;
+                        if (k === "__proto__") {
+                            writeKey(doc);
+                        }
+                        const v = doc[k];
+                        if (!(v instanceof NumericValue)) {
+                            doc[k] = this._read(ns, v);
+                        }
+                    }
+                }
+            }
+        }
+        return value;
+    }
+    _readStruct(ns, record) {
+        const union = ns.isUnionSchema();
+        const out = {};
+        let nameMap;
+        const hasType = typeof record.__type === "string";
+        const { jsonName } = this.settings;
+        if (jsonName && hasType) {
+            nameMap = {};
+        }
+        let unionSerde;
+        if (union) {
+            unionSerde = new UnionSerde(record, out);
+        }
+        for (const [memberName, memberSchema] of ns.structIterator()) {
+            let fromKey = memberName;
+            if (jsonName) {
+                fromKey = memberSchema.getMergedTraits().jsonName ?? fromKey;
+                if (hasType) {
+                    nameMap[fromKey] = memberName;
+                }
+            }
+            if (union) {
+                unionSerde.mark(fromKey);
+            }
+            if (record[fromKey] != null) {
+                out[memberName] = this._read(memberSchema, record[fromKey]);
+            }
+        }
+        if (union) {
+            unionSerde.writeUnknown();
+        }
+        else if (hasType) {
+            for (const k in record) {
+                if (!hasOwn(record, k))
+                    continue;
+                const v = record[k];
+                const t = jsonName ? (nameMap[k] ?? k) : k;
+                if (!(t in out)) {
+                    out[t] = v;
+                }
+            }
+        }
+        return out;
+    }
+    needsTransform(ns) {
+        if (ns.isBlobSchema() ||
+            ns.isTimestampSchema() ||
+            ns.isBigIntegerSchema() ||
+            ns.isBigDecimalSchema() ||
+            ns.isNumericSchema()) {
+            return true;
+        }
+        if (ns.isDocumentSchema() || ns.isStructSchema() || ns.isListSchema() || ns.isMapSchema()) {
+            return true;
+        }
+        if (ns.isStringSchema() && ns.getMergedTraits().mediaType) {
+            return true;
+        }
+        return false;
+    }
+}
+
+class JsonBytesStringAdapter extends Uint8Array {
+    string = null;
+    static allocUnsafe(bytes) {
+        if (typeof Buffer === "function") {
+            const buffer = Buffer.allocUnsafe(bytes);
+            return new JsonBytesStringAdapter(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+        }
+        return new JsonBytesStringAdapter(bytes);
+    }
+    toString() {
+        return this.s();
+    }
+    valueOf() {
+        return this.s();
+    }
+    includes(searchString, position) {
+        if (typeof searchString === "string") {
+            return this.s().includes(searchString, position);
+        }
+        return Uint8Array.prototype.includes.call(this, searchString, position);
+    }
+    indexOf(searchString, position) {
+        if (typeof searchString === "string") {
+            return this.s().indexOf(searchString, position);
+        }
+        return Uint8Array.prototype.indexOf.call(this, searchString, position);
+    }
+    lastIndexOf(searchString, position) {
+        if (typeof searchString === "string") {
+            return this.s().lastIndexOf(searchString, position);
+        }
+        const fn = Uint8Array.prototype.lastIndexOf;
+        if (position !== undefined) {
+            return fn.call(this, searchString, position);
+        }
+        return fn.call(this, searchString);
+    }
+    startsWith(searchString, position) {
+        return this.s().startsWith(searchString, position);
+    }
+    endsWith(searchString, endPosition) {
+        return this.s().endsWith(searchString, endPosition);
+    }
+    match(regexp) {
+        return this.s().match(regexp);
+    }
+    replace(searchValue, replaceValue) {
+        return this.s().replace(searchValue, replaceValue);
+    }
+    search(regexp) {
+        return this.s().search(regexp);
+    }
+    split(separator, limit) {
+        return this.s().split(separator, limit);
+    }
+    substring(start, end) {
+        return this.s().substring(start, end);
+    }
+    trim() {
+        return this.s().trim();
+    }
+    trimStart() {
+        return this.s().trimStart();
+    }
+    trimEnd() {
+        return this.s().trimEnd();
+    }
+    charAt(pos) {
+        return this.s().charAt(pos);
+    }
+    charCodeAt(index) {
+        return this.s().charCodeAt(index);
+    }
+    padStart(maxLength, fillString) {
+        return this.s().padStart(maxLength, fillString);
+    }
+    padEnd(maxLength, fillString) {
+        return this.s().padEnd(maxLength, fillString);
+    }
+    repeat(count) {
+        return this.s().repeat(count);
+    }
+    toUpperCase() {
+        return this.s().toUpperCase();
+    }
+    toLowerCase() {
+        return this.s().toLowerCase();
+    }
+    s() {
+        if (this.string == null) {
+            const n = Date.now();
+            if (n > warned + 60_000) {
+                console.warn("@aws-sdk/core/protocols - WARN - JsonCodec2: you have called a string method on a Uint8Array request body. " +
+                    "It has been automatically converted to string. In a future version this will throw an error.");
+                warned = n;
+            }
+            this.string = toUtf8(this);
+        }
+        return this.string;
+    }
+}
+var warned = 0;
+
+const encoder = new TextEncoder();
+const OPEN_BRACE = 0x7b;
+const CLOSE_BRACE = 0x7d;
+const OPEN_BRACKET = 0x5b;
+const CLOSE_BRACKET = 0x5d;
+const QUOTE = 0x22;
+const COLON = 0x3a;
+const COMMA = 0x2c;
+const BACKSLASH = 0x5c;
+const TRUE = new Uint8Array([0x74, 0x72, 0x75, 0x65]);
+const FALSE = new Uint8Array([0x66, 0x61, 0x6c, 0x73, 0x65]);
+const NULL = new Uint8Array([0x6e, 0x75, 0x6c, 0x6c]);
+const ESCAPE_TABLE = new Array(128).fill(null);
+ESCAPE_TABLE[0x08] = "b";
+ESCAPE_TABLE[0x09] = "t";
+ESCAPE_TABLE[0x0a] = "n";
+ESCAPE_TABLE[0x0c] = "f";
+ESCAPE_TABLE[0x0d] = "r";
+ESCAPE_TABLE[0x22] = '"';
+ESCAPE_TABLE[0x5c] = "\\";
+for (let i = 0; i < 0x20; i++) {
+    if (ESCAPE_TABLE[i] === null) {
+        ESCAPE_TABLE[i] = "u00" + i.toString(16).padStart(2, "0");
+    }
+}
+const INITIAL_BUFFER_SIZE = 2048;
+function alloc(size) {
+    return JsonBytesStringAdapter.allocUnsafe(size);
+}
+class JsonShapeSerializer2 extends SerdeContextConfig {
+    settings;
+    json;
+    i = 0;
+    rootSchema;
+    rawValue;
+    passthrough = false;
+    constructor(settings) {
+        super();
+        this.settings = settings;
+        this.json = alloc(INITIAL_BUFFER_SIZE);
+    }
+    write(schema, value) {
+        this.i = 0;
+        this.rawValue = value;
+        this.rootSchema = NormalizedSchema.of(schema);
+        this.passthrough = this.rootSchema.isBlobSchema() || this.rootSchema.isStringSchema();
+        if (!this.passthrough) {
+            this.writeValue(this.rootSchema, value, undefined);
+        }
+    }
+    writeDiscriminatedDocument(schema, value) {
+        this.i = 0;
+        this.rootSchema = NormalizedSchema.of(schema);
+        const ns = this.rootSchema;
+        if (ns.isStructSchema() && value != null && typeof value === "object") {
+            this.writeValue(ns, value, undefined);
+            const prefix = `"__type":"${ns.getName(true) ?? "Unknown"}",`;
+            const z = prefix.length;
+            this.ensure(z);
+            this.json.copyWithin(1 + z, 1, this.i);
+            encoder.encodeInto(prefix, this.json.subarray(1));
+            this.i += z;
+        }
+        else {
+            this.writeValue(ns, value, undefined);
+        }
+    }
+    flush() {
+        this.rootSchema = undefined;
+        const finalPosition = this.i;
+        this.i = 0;
+        const raw = this.rawValue;
+        this.rawValue = undefined;
+        if (finalPosition === 0) {
+            return raw;
+        }
+        const result = this.json.subarray(0, finalPosition);
+        this.json = alloc(INITIAL_BUFFER_SIZE);
+        return result;
+    }
+    ensure(byteCount) {
+        const { i, json } = this;
+        if (i + byteCount > json.length) {
+            let newSize = json.length * 2;
+            while (newSize < i + byteCount) {
+                newSize *= 2;
+            }
+            const next = alloc(newSize);
+            next.set(this.json);
+            this.json = next;
+        }
+    }
+    writeAscii(s) {
+        const z = s.length;
+        this.ensure(z);
+        let { i, json } = this;
+        for (let j = 0; j < z; ++j) {
+            json[i] = s.charCodeAt(j);
+            i += 1;
+        }
+        this.i = i;
+    }
+    writeAsciiQuoted(s) {
+        const z = s.length;
+        this.ensure(z + 4);
+        let { json, i } = this;
+        json[i++] = QUOTE;
+        for (let j = 0; j < z; ++j) {
+            json[i++] = s.charCodeAt(j);
+        }
+        json[i++] = QUOTE;
+        this.i = i;
+    }
+    writeJsonString(s) {
+        this.ensure(s.length * 3 + 2);
+        this.json[this.i++] = QUOTE;
+        const z = s.length;
+        for (let j = 0; j < z; ++j) {
+            const c = s.charCodeAt(j);
+            if (c > 0x22 && c < 0x5c) {
+                this.json[this.i++] = c;
+            }
+            else if (c < 0x80) {
+                const esc = ESCAPE_TABLE[c];
+                if (esc !== null) {
+                    this.ensure(esc.length + 1);
+                    this.json[this.i++] = BACKSLASH;
+                    for (let k = 0; k < esc.length; k++) {
+                        this.json[this.i++] = esc.charCodeAt(k);
+                    }
+                }
+                else {
+                    this.json[this.i++] = c;
+                }
+            }
+            else if (c >= 0xd800 && c <= 0xdbff) {
+                const next = j + 1 < z ? s.charCodeAt(j + 1) : 0;
+                if (next >= 0xdc00 && next <= 0xdfff) {
+                    this.ensure(4);
+                    const { written } = encoder.encodeInto(s.substring(j, j + 2), this.json.subarray(this.i));
+                    this.i += written;
+                    ++j;
+                }
+                else {
+                    this.ensure(6);
+                    this.writeUnicodeEscape(c);
+                }
+            }
+            else if (c >= 0xdc00 && c <= 0xdfff) {
+                this.ensure(6);
+                this.writeUnicodeEscape(c);
+            }
+            else {
+                let { i, json } = this;
+                if (c < 0x800) {
+                    json[i++] = 0xc0 | (c >> 6);
+                    json[i++] = 0x80 | (c & 0x3f);
+                }
+                else {
+                    json[i++] = 0xe0 | (c >> 12);
+                    json[i++] = 0x80 | ((c >> 6) & 0x3f);
+                    json[i++] = 0x80 | (c & 0x3f);
+                }
+                this.i = i;
+            }
+        }
+        this.json[this.i++] = QUOTE;
+    }
+    writeUnicodeEscape(code) {
+        let { json, i } = this;
+        json[i++] = BACKSLASH;
+        json[i++] = 0x75;
+        const hex = code.toString(16).padStart(4, "0");
+        for (let j = 0; j < 4; ++j) {
+            json[i++] = hex.charCodeAt(j);
+        }
+        this.i = i;
+    }
+    static B64 = (() => {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        const table = new Uint8Array(64);
+        for (let i = 0; i < 64; ++i) {
+            table[i] = chars.charCodeAt(i);
+        }
+        return table;
+    })();
+    writeBase64(data) {
+        const b64Len = Math.ceil(data.length / 3) * 4;
+        this.ensure(b64Len + 2);
+        const json = this.json;
+        const B64 = JsonShapeSerializer2.B64;
+        let i = this.i;
+        json[i++] = QUOTE;
+        const len = data.length;
+        const remainder = len % 3;
+        const mainLen = len - remainder;
+        for (let j = 0; j < mainLen; j += 3) {
+            const a = data[j];
+            const b = data[j + 1];
+            const c = data[j + 2];
+            json[i++] = B64[a >> 2];
+            json[i++] = B64[((a & 0x03) << 4) | (b >> 4)];
+            json[i++] = B64[((b & 0x0f) << 2) | (c >> 6)];
+            json[i++] = B64[c & 0x3f];
+        }
+        if (remainder === 2) {
+            const a = data[mainLen];
+            const b = data[mainLen + 1];
+            json[i++] = B64[a >> 2];
+            json[i++] = B64[((a & 0x03) << 4) | (b >> 4)];
+            json[i++] = B64[(b & 0x0f) << 2];
+            json[i++] = 0x3d;
+        }
+        else if (remainder === 1) {
+            const a = data[mainLen];
+            json[i++] = B64[a >> 2];
+            json[i++] = B64[(a & 0x03) << 4];
+            json[i++] = 0x3d;
+            json[i++] = 0x3d;
+        }
+        json[i++] = QUOTE;
+        this.i = i;
+    }
+    writeValue(schema, value, container) {
+        if (value == null) {
+            if (container?.isStructSchema()) {
+                if (value === undefined) {
+                    const ns = NormalizedSchema.of(schema);
+                    if (ns.isIdempotencyToken()) {
+                        this.writeAsciiQuoted(generateIdempotencyToken());
+                        return;
+                    }
+                }
+                return;
+            }
+            this.ensure(4);
+            this.json.set(NULL, this.i);
+            this.i += 4;
+            return;
+        }
+        const ns = NormalizedSchema.of(schema);
+        const isObject = typeof value === "object";
+        if (ns.isStringSchema()) {
+            const mediaType = ns.getMergedTraits().mediaType;
+            if (mediaType) {
+                const isJson = mediaType === "application/json" || mediaType.endsWith("+json");
+                if (isJson) {
+                    this.writeJsonString(LazyJsonString.from(value).toString());
+                    return;
+                }
+            }
+        }
+        if (this.settings.bigNumberAsString && value != null && (ns.isBigIntegerSchema() || ns.isBigDecimalSchema())) {
+            const asString = value instanceof NumericValue ? value.string : String(value);
+            this.writeAsciiQuoted(asString);
+            return;
+        }
+        if (isObject) {
+            if (ns.isStructSchema()) {
+                this.writeStruct(ns, value);
+                return;
+            }
+            if (Array.isArray(value) && (ns.isListSchema() || ns.isDocumentSchema())) {
+                this.writeList(ns, value, ns.isDocumentSchema());
+                return;
+            }
+            if (ns.isMapSchema()) {
+                this.writeMap(ns, value, false);
+                return;
+            }
+            if (value instanceof Uint8Array && (ns.isBlobSchema() || ns.isDocumentSchema())) {
+                this.writeBase64(value);
+                return;
+            }
+            if (value instanceof Date && (ns.isTimestampSchema() || ns.isDocumentSchema())) {
+                this.writeTimestamp(ns, value);
+                return;
+            }
+            if (value instanceof NumericValue) {
+                this.writeAscii(value.string);
+                return;
+            }
+            if (ns.isDocumentSchema()) {
+                if (Array.isArray(value)) {
+                    this.writeList(ns, value, true);
+                }
+                else {
+                    this.writeMap(ns, value, true);
+                }
+                return;
+            }
+            const json = JSON.stringify(value);
+            this.writeAscii(json);
+            return;
+        }
+        if (typeof value === "string") {
+            if (ns.isBlobSchema()) {
+                const b64 = (this.serdeContext?.base64Encoder ?? toBase64)(value);
+                this.writeAsciiQuoted(b64);
+                return;
+            }
+            this.writeJsonString(value);
+            return;
+        }
+        if (typeof value === "number") {
+            if (Math.abs(value) === Infinity || Number.isNaN(value)) {
+                this.writeAsciiQuoted(String(value));
+                return;
+            }
+            const numStr = String(value);
+            this.writeAscii(numStr);
+            return;
+        }
+        if (typeof value === "boolean") {
+            this.ensure(5);
+            let { i, json } = this;
+            if (value) {
+                json.set(TRUE, i);
+                i += 4;
+            }
+            else {
+                json.set(FALSE, i);
+                i += 5;
+            }
+            this.i = i;
+            return;
+        }
+        if (typeof value === "bigint") {
+            this.writeAscii(value.toString());
+            return;
+        }
+        this.writeAscii(String(value));
+    }
+    writeStruct(ns, value) {
+        this.ensure(2);
+        this.json[this.i++] = OPEN_BRACE;
+        let wroteAny = false;
+        const hasType = typeof value.__type === "string";
+        let writtenKeys;
+        if (hasType) {
+            writtenKeys = new Set();
+        }
+        for (const [memberName, memberSchema] of ns.structIterator()) {
+            const item = value[memberName];
+            if (item == null && !memberSchema.isIdempotencyToken()) {
+                continue;
+            }
+            if (wroteAny) {
+                this.ensure(1);
+                this.json[this.i++] = COMMA;
+            }
+            wroteAny = true;
+            const targetKey = this.settings.jsonName ? (memberSchema.getMergedTraits().jsonName ?? memberName) : memberName;
+            if (writtenKeys) {
+                writtenKeys.add(memberName);
+                writtenKeys.add(targetKey);
+            }
+            this.writeAsciiQuoted(targetKey);
+            this.json[this.i++] = COLON;
+            this.writeValue(memberSchema, item, ns);
+        }
+        if (!wroteAny && ns.isUnionSchema()) {
+            const { $unknown } = value;
+            if (Array.isArray($unknown)) {
+                const [k, v] = $unknown;
+                this.writeAsciiQuoted(k);
+                this.ensure(1);
+                this.json[this.i++] = COLON;
+                this.writeValue(15, v, ns);
+            }
+        }
+        else if (hasType) {
+            for (const k in value) {
+                if (writtenKeys.has(k)) {
+                    continue;
+                }
+                writtenKeys.add(k);
+                const v = value[k];
+                if (wroteAny) {
+                    this.ensure(1);
+                    this.json[this.i++] = COMMA;
+                }
+                wroteAny = true;
+                this.writeAsciiQuoted(k);
+                this.ensure(1);
+                this.json[this.i++] = COLON;
+                this.writeValue(15, v, undefined);
+            }
+        }
+        this.ensure(1);
+        this.json[this.i++] = CLOSE_BRACE;
+    }
+    writeList(ns, value, isDocument) {
+        const sparse = !!ns.getMergedTraits().sparse;
+        const valueSchema = ns.getValueSchema();
+        if (!isDocument) {
+            if (valueSchema.isStringSchema() || valueSchema.isNumericSchema() || valueSchema.isBooleanSchema()) {
+                let hasSpecials = false;
+                for (let i = 0; i < value.length; ++i) {
+                    const v = value[i];
+                    if (Number.isNaN(v) || v === Infinity || v === -Infinity || (v == null && !sparse)) {
+                        hasSpecials = true;
+                        break;
+                    }
+                }
+                let json;
+                if (!hasSpecials) {
+                    json = JSON.stringify(value);
+                }
+                else {
+                    const out = [];
+                    for (let i = 0; i < value.length; ++i) {
+                        const v = value[i];
+                        if (v == null && !sparse)
+                            continue;
+                        if (Number.isNaN(v) || v === Infinity || v === -Infinity) {
+                            out.push(String(v));
+                        }
+                        else {
+                            out.push(v);
+                        }
+                    }
+                    json = JSON.stringify(out);
+                }
+                this.ensure(json.length * 3);
+                this.i += encoder.encodeInto(json, this.json.subarray(this.i)).written;
+                return;
+            }
+        }
+        this.ensure(2);
+        this.json[this.i++] = OPEN_BRACKET;
+        let wroteFirstItem = false;
+        for (let i = 0; i < value.length; ++i) {
+            const item = value[i];
+            if (isDocument ? item === undefined : item == null && !sparse) {
+                continue;
+            }
+            if (wroteFirstItem) {
+                this.ensure(1);
+                this.json[this.i++] = COMMA;
+            }
+            this.writeValue(valueSchema, item, undefined);
+            wroteFirstItem = true;
+        }
+        this.ensure(1);
+        this.json[this.i++] = CLOSE_BRACKET;
+    }
+    writeMap(ns, value, isDocument) {
+        const sparse = !!ns.getMergedTraits().sparse;
+        const valueSchema = ns.getValueSchema();
+        if (!isDocument) {
+            if (valueSchema.isStringSchema() || valueSchema.isNumericSchema() || valueSchema.isBooleanSchema()) {
+                let modifications;
+                for (const k in value) {
+                    if (!hasOwn(value, k))
+                        continue;
+                    const v = value[k];
+                    if (Number.isNaN(v) || v === Infinity || v === -Infinity) {
+                        (modifications ??= {})[k] = v;
+                        value[k] = String(v);
+                    }
+                    else if (v === null && !sparse) {
+                        (modifications ??= {})[k] = null;
+                        value[k] = undefined;
+                    }
+                }
+                const json = JSON.stringify(value);
+                if (modifications) {
+                    Object.assign(value, modifications);
+                }
+                this.ensure(json.length * 3);
+                this.i += encoder.encodeInto(json, this.json.subarray(this.i)).written;
+                return;
+            }
+        }
+        this.ensure(2);
+        this.json[this.i++] = OPEN_BRACE;
+        let first = true;
+        for (const k in value) {
+            if (!hasOwn(value, k))
+                continue;
+            const v = value[k];
+            if (isDocument ? v === undefined : v == null && !sparse) {
+                continue;
+            }
+            if (!first) {
+                this.ensure(1);
+                this.json[this.i++] = COMMA;
+            }
+            first = false;
+            this.writeJsonString(k);
+            this.ensure(1);
+            this.json[this.i++] = COLON;
+            this.writeValue(valueSchema, v, undefined);
+        }
+        this.ensure(1);
+        this.json[this.i++] = CLOSE_BRACE;
+    }
+    writeTimestamp(ns, value) {
+        const format = determineTimestampFormat(ns, this.settings);
+        switch (format) {
+            case 5: {
+                const iso = value.toISOString().replace(".000Z", "Z");
+                this.writeAsciiQuoted(iso);
+                return;
+            }
+            case 6: {
+                this.writeAsciiQuoted(dateToUtcString(value));
+                return;
+            }
+            case 7: {
+                const epochSecs = String(value.getTime() / 1000);
+                this.writeAscii(epochSecs);
+                return;
+            }
+            default: {
+                const epochSecs = String(value.getTime() / 1000);
+                this.writeAscii(epochSecs);
+                return;
+            }
+        }
+    }
+}
+
+class JsonCodec2 extends SerdeContextConfig {
+    settings;
+    constructor(settings) {
+        super();
+        this.settings = settings;
+    }
+    createSerializer() {
+        const serializer = new JsonShapeSerializer2(this.settings);
+        serializer.setSerdeContext(this.serdeContext);
+        return serializer;
+    }
+    createDeserializer() {
+        const deserializer = new JsonShapeDeserializer2(this.settings);
+        deserializer.setSerdeContext(this.serdeContext);
+        return deserializer;
+    }
+}
+
+class SmithyRpcV2JsonProtocol extends RpcProtocol {
+    codec = new JsonCodec2({
+        timestampFormat: {
+            useTrait: false,
+            default: 7,
+        },
+        jsonName: false,
+        bigNumberAsString: true,
+    });
+    serializer = this.codec.createSerializer();
+    deserializer = this.codec.createDeserializer();
+    constructor({ defaultNamespace, errorTypeRegistries, }) {
+        super({ defaultNamespace, errorTypeRegistries });
+    }
+    getShapeId() {
+        return "smithy.protocols#rpcv2Json";
+    }
+    getPayloadCodec() {
+        return this.codec;
+    }
+    async serializeRequest(operationSchema, input, context) {
+        const request = await super.serializeRequest(operationSchema, input, context);
+        Object.assign(request.headers, {
+            "content-type": this.getDefaultContentType(),
+            "smithy-protocol": "rpc-v2-json",
+            accept: this.getDefaultContentType(),
+        });
+        if (deref(operationSchema.input) === "unit") {
+            delete request.body;
+            delete request.headers["content-type"];
+        }
+        else if (!request.body) {
+            request.body = "{}";
+        }
+        const { service, operation } = getSmithyContext(context);
+        const path = `/service/${service}/operation/${operation}`;
+        if (request.path.endsWith("/")) {
+            request.path += path.slice(1);
+        }
+        else {
+            request.path += path;
+        }
+        return request;
+    }
+    async deserializeResponse(operationSchema, context, response) {
+        return super.deserializeResponse(operationSchema, context, response);
+    }
+    async handleError(operationSchema, context, response, dataObject, metadata) {
+        const errorName = loadSmithyRpcV2JsonErrorCode(response, dataObject) ?? "Unknown";
+        const errorMetadata = {
+            $metadata: metadata,
+            $fault: response.statusCode <= 500 ? "client" : "server",
+        };
+        let namespace = this.options.defaultNamespace;
+        if (errorName.includes("#")) {
+            [namespace] = errorName.split("#");
+        }
+        const registry = this.compositeErrorRegistry;
+        const nsRegistry = TypeRegistry.for(namespace);
+        registry.copyFrom(nsRegistry);
+        let errorSchema;
+        try {
+            errorSchema = registry.getSchema(errorName);
+        }
+        catch (ignored) {
+            if (dataObject.Message) {
+                dataObject.message = dataObject.Message;
+            }
+            const syntheticRegistry = TypeRegistry.for("smithy.ts.sdk.synthetic." + namespace);
+            registry.copyFrom(syntheticRegistry);
+            const baseExceptionSchema = registry.getBaseException();
+            if (baseExceptionSchema) {
+                const ErrorCtor = registry.getErrorCtor(baseExceptionSchema);
+                throw Object.assign(new ErrorCtor({ name: errorName }), errorMetadata, dataObject);
+            }
+            throw Object.assign(new Error(errorName), errorMetadata, dataObject);
+        }
+        const ns = NormalizedSchema.of(errorSchema);
+        const ErrorCtor = registry.getErrorCtor(errorSchema);
+        const message = dataObject.message ?? dataObject.Message ?? "Unknown";
+        const exception = new ErrorCtor({});
+        const output = {};
+        const errorDeserializer = this.codec.createDeserializer();
+        for (const [name, member] of ns.structIterator()) {
+            if (dataObject[name] != null) {
+                output[name] = errorDeserializer.readObject(member, dataObject[name]);
+            }
+        }
+        throw Object.assign(exception, errorMetadata, {
+            $fault: ns.getMergedTraits().error,
+            message,
+        }, output);
+    }
+    getDefaultContentType() {
+        return "application/json";
+    }
+}
+
+class JsonShapeDeserializer extends SerdeContextConfig {
+    settings;
+    constructor(settings) {
+        super();
+        this.settings = settings;
+    }
+    async read(schema, data) {
+        const reviver = needsReviver(schema) ? jsonReviver : undefined;
+        return this._read(schema, typeof data === "string" ? JSON.parse(data, reviver) : await parseJsonBody(data, this.serdeContext, schema));
+    }
+    readObject(schema, data) {
+        return this._read(schema, data);
+    }
+    _read(schema, value) {
+        const isObject = value !== null && typeof value === "object";
+        const ns = NormalizedSchema.of(schema);
+        if (isObject) {
+            if (ns.isStructSchema()) {
+                const record = value;
+                const union = ns.isUnionSchema();
+                const out = {};
+                let nameMap = void 0;
+                const { jsonName } = this.settings;
+                if (jsonName) {
+                    nameMap = {};
+                }
+                let unionSerde;
+                if (union) {
+                    unionSerde = new UnionSerde(record, out);
+                }
+                for (const [memberName, memberSchema] of ns.structIterator()) {
+                    let fromKey = memberName;
+                    if (jsonName) {
+                        fromKey = memberSchema.getMergedTraits().jsonName ?? fromKey;
+                        nameMap[fromKey] = memberName;
+                    }
+                    if (union) {
+                        unionSerde.mark(fromKey);
+                    }
+                    if (record[fromKey] != null) {
+                        out[memberName] = this._read(memberSchema, record[fromKey]);
+                    }
+                }
+                if (union) {
+                    unionSerde.writeUnknown();
+                }
+                else if (typeof record.__type === "string") {
+                    for (const k in record) {
+                        if (!hasOwn(record, k))
+                            continue;
+                        const v = record[k];
+                        const t = jsonName ? (nameMap[k] ?? k) : k;
+                        if (!(t in out)) {
+                            out[t] = v;
+                        }
+                    }
+                }
+                return out;
+            }
+            if (Array.isArray(value) && ns.isListSchema()) {
+                const listMember = ns.getValueSchema();
+                const out = [];
+                for (const item of value) {
+                    out.push(this._read(listMember, item));
+                }
+                return out;
+            }
+            if (ns.isMapSchema()) {
+                const mapMember = ns.getValueSchema();
+                const out = {};
+                for (const _k in value) {
+                    if (!hasOwn(value, _k))
+                        continue;
+                    if (_k === "__proto__") {
+                        writeKey(out);
+                    }
+                    out[_k] = this._read(mapMember, value[_k]);
+                }
+                return out;
+            }
+        }
+        if (ns.isBlobSchema() && typeof value === "string") {
+            return fromBase64(value);
+        }
+        const mediaType = ns.getMergedTraits().mediaType;
+        if (ns.isStringSchema() && typeof value === "string" && mediaType) {
+            const isJson = mediaType === "application/json" || mediaType.endsWith("+json");
+            if (isJson) {
+                return LazyJsonString.from(value);
+            }
+            return value;
+        }
+        if (ns.isTimestampSchema() && value != null) {
+            const format = determineTimestampFormat(ns, this.settings);
+            switch (format) {
+                case 5:
+                    return parseRfc3339DateTimeWithOffset(value);
+                case 6:
+                    return parseRfc7231DateTime(value);
+                case 7:
+                    return parseEpochTimestamp(value);
+                default:
+                    console.warn("Missing timestamp format, parsing value with Date constructor:", value);
+                    return new Date(value);
+            }
+        }
+        if (ns.isBigIntegerSchema() && (typeof value === "number" || typeof value === "string")) {
+            return BigInt(value);
+        }
+        if (ns.isBigDecimalSchema() && value != undefined) {
+            if (value instanceof NumericValue) {
+                return value;
+            }
+            const untyped = value;
+            if (untyped.type === "bigDecimal" && "string" in untyped) {
+                return new NumericValue(untyped.string, untyped.type);
+            }
+            return new NumericValue(String(value), "bigDecimal");
+        }
+        if (ns.isNumericSchema() && typeof value === "string") {
+            switch (value) {
+                case "Infinity":
+                    return Infinity;
+                case "-Infinity":
+                    return -Infinity;
+                case "NaN":
+                    return NaN;
+            }
+            return value;
+        }
+        if (ns.isDocumentSchema()) {
+            if (isObject) {
+                const out = Array.isArray(value) ? [] : {};
+                for (const k in value) {
+                    if (!hasOwn(value, k))
+                        continue;
+                    if (k === "__proto__") {
+                        writeKey(out);
+                    }
+                    const v = value[k];
+                    if (v instanceof NumericValue) {
+                        out[k] = v;
+                    }
+                    else {
+                        out[k] = this._read(ns, v);
+                    }
+                }
+                return out;
+            }
+            else {
+                return structuredClone(value);
+            }
+        }
+        return value;
+    }
+}
+
+const NUMERIC_CONTROL_CHAR = String.fromCharCode(925);
+class JsonReplacer {
+    values = new Map();
+    counter = 0;
+    stage = 0;
+    createReplacer() {
+        if (this.stage === 1) {
+            throw new Error("@aws-sdk/core/protocols - JsonReplacer already created.");
+        }
+        if (this.stage === 2) {
+            throw new Error("@aws-sdk/core/protocols - JsonReplacer exhausted.");
+        }
+        this.stage = 1;
+        return (key, value) => {
+            if (value instanceof NumericValue) {
+                const v = `${NUMERIC_CONTROL_CHAR + "nv" + this.counter++}_` + value.string;
+                this.values.set(`"${v}"`, value.string);
+                return v;
+            }
+            if (typeof value === "bigint") {
+                const s = value.toString();
+                const v = `${NUMERIC_CONTROL_CHAR + "b" + this.counter++}_` + s;
+                this.values.set(`"${v}"`, s);
+                return v;
+            }
+            return value;
+        };
+    }
+    replaceInJson(json) {
+        if (this.stage === 0) {
+            throw new Error("@aws-sdk/core/protocols - JsonReplacer not created yet.");
+        }
+        if (this.stage === 2) {
+            throw new Error("@aws-sdk/core/protocols - JsonReplacer exhausted.");
+        }
+        this.stage = 2;
+        if (this.counter === 0) {
+            return json;
+        }
+        for (const [key, value] of this.values) {
+            json = json.replace(key, value);
+        }
+        return json;
+    }
+}
+
+class JsonShapeSerializer extends SerdeContextConfig {
+    settings;
+    buffer;
+    useReplacer = false;
+    rootSchema;
+    constructor(settings) {
+        super();
+        this.settings = settings;
+    }
+    write(schema, value) {
+        this.rootSchema = NormalizedSchema.of(schema);
+        this.buffer = this._write(this.rootSchema, value);
+    }
+    flush() {
+        const { rootSchema, useReplacer } = this;
+        this.rootSchema = undefined;
+        this.useReplacer = false;
+        if (rootSchema?.isStructSchema() || rootSchema?.isDocumentSchema()) {
+            if (!useReplacer) {
+                return JSON.stringify(this.buffer);
+            }
+            const replacer = new JsonReplacer();
+            return replacer.replaceInJson(JSON.stringify(this.buffer, replacer.createReplacer(), 0));
+        }
+        return this.buffer;
+    }
+    writeDiscriminatedDocument(schema, value) {
+        this.write(schema, value);
+        if (typeof this.buffer === "object") {
+            this.buffer.__type = NormalizedSchema.of(schema).getName(true);
+        }
+    }
+    _write(schema, value, container) {
+        const isObject = value !== null && typeof value === "object";
+        const ns = NormalizedSchema.of(schema);
+        if (isObject) {
+            if (ns.isStructSchema()) {
+                const record = value;
+                const out = {};
+                const { jsonName } = this.settings;
+                let nameMap = void 0;
+                if (jsonName) {
+                    nameMap = {};
+                }
+                let outCount = 0;
+                for (const [memberName, memberSchema] of ns.structIterator()) {
+                    const serializableValue = this._write(memberSchema, record[memberName], ns);
+                    if (serializableValue !== undefined) {
+                        let targetKey = memberName;
+                        if (jsonName) {
+                            targetKey = memberSchema.getMergedTraits().jsonName ?? memberName;
+                            nameMap[memberName] = targetKey;
+                        }
+                        out[targetKey] = serializableValue;
+                        outCount++;
+                    }
+                }
+                if (ns.isUnionSchema() && outCount === 0) {
+                    const { $unknown } = record;
+                    if (Array.isArray($unknown)) {
+                        const [k, v] = $unknown;
+                        if (k === "__proto__") {
+                            writeKey(out);
+                        }
+                        out[k] = this._write(15, v);
+                    }
+                }
+                else if (typeof record.__type === "string") {
+                    for (const k in record) {
+                        if (!hasOwn(record, k))
+                            continue;
+                        const v = record[k];
+                        const targetKey = jsonName ? (nameMap[k] ?? k) : k;
+                        if (!(targetKey in out)) {
+                            out[targetKey] = this._write(15, v);
+                        }
+                    }
+                }
+                return out;
+            }
+            if (Array.isArray(value) && ns.isListSchema()) {
+                const listMember = ns.getValueSchema();
+                const out = [];
+                const sparse = !!ns.getMergedTraits().sparse;
+                for (const item of value) {
+                    if (sparse || item != null) {
+                        out.push(this._write(listMember, item));
+                    }
+                }
+                return out;
+            }
+            if (ns.isMapSchema()) {
+                const mapMember = ns.getValueSchema();
+                const out = {};
+                const sparse = !!ns.getMergedTraits().sparse;
+                for (const _k in value) {
+                    if (!hasOwn(value, _k))
+                        continue;
+                    const _v = value[_k];
+                    if (sparse || _v != null) {
+                        if (_k === "__proto__") {
+                            writeKey(out);
+                        }
+                        out[_k] = this._write(mapMember, _v);
+                    }
+                }
+                return out;
+            }
+            if (value instanceof Uint8Array && ns.isBlobSchema()) {
+                if (ns === this.rootSchema) {
+                    return value;
+                }
+                return (this.serdeContext?.base64Encoder ?? toBase64)(value);
+            }
+            if (value instanceof Date && (ns.isTimestampSchema() || ns.isDocumentSchema())) {
+                const format = determineTimestampFormat(ns, this.settings);
+                switch (format) {
+                    case 5:
+                        return value.toISOString().replace(".000Z", "Z");
+                    case 6:
+                        return dateToUtcString(value);
+                    case 7:
+                        return value.getTime() / 1000;
+                    default:
+                        console.warn("Missing timestamp format, using epoch seconds", value);
+                        return value.getTime() / 1000;
+                }
+            }
+            if (value instanceof NumericValue) {
+                this.useReplacer = true;
+            }
+        }
+        if (value === null && container?.isStructSchema()) {
+            return void 0;
+        }
+        if (ns.isStringSchema()) {
+            if (typeof value === "undefined" && ns.isIdempotencyToken()) {
+                return generateIdempotencyToken();
+            }
+            const mediaType = ns.getMergedTraits().mediaType;
+            if (value != null && mediaType) {
+                const isJson = mediaType === "application/json" || mediaType.endsWith("+json");
+                if (isJson) {
+                    return LazyJsonString.from(value);
+                }
+            }
+            return value;
+        }
+        if (typeof value === "number") {
+            if (Math.abs(value) === Infinity || isNaN(value)) {
+                return String(value);
+            }
+            return value;
+        }
+        if (typeof value === "string" && ns.isBlobSchema()) {
+            if (ns === this.rootSchema) {
+                return value;
+            }
+            return (this.serdeContext?.base64Encoder ?? toBase64)(value);
+        }
+        if (typeof value === "bigint") {
+            this.useReplacer = true;
+        }
+        if (ns.isDocumentSchema()) {
+            if (isObject) {
+                if (value instanceof Uint8Array) {
+                    return (this.serdeContext?.base64Encoder ?? toBase64)(value);
+                }
+                const out = Array.isArray(value) ? [] : {};
+                for (const k in value) {
+                    if (!hasOwn(value, k))
+                        continue;
+                    const v = value[k];
+                    if (k === "__proto__") {
+                        writeKey(out);
+                    }
+                    if (v instanceof NumericValue) {
+                        this.useReplacer = true;
+                        out[k] = v;
+                    }
+                    else {
+                        out[k] = this._write(ns, v);
+                    }
+                }
+                return out;
+            }
+            else {
+                return structuredClone(value);
+            }
+        }
+        return value;
+    }
+}
+
+class JsonCodec extends SerdeContextConfig {
+    settings;
+    constructor(settings) {
+        super();
+        this.settings = settings;
+    }
+    createSerializer() {
+        const serializer = new JsonShapeSerializer(this.settings);
+        serializer.setSerdeContext(this.serdeContext);
+        return serializer;
+    }
+    createDeserializer() {
+        const deserializer = new JsonShapeDeserializer(this.settings);
+        deserializer.setSerdeContext(this.serdeContext);
+        return deserializer;
+    }
+}
+
 exports.Field = Field;
 exports.Fields = Fields;
 exports.FromStringShapeDeserializer = FromStringShapeDeserializer;
@@ -34304,9 +34644,16 @@ exports.HttpBindingProtocol = HttpBindingProtocol;
 exports.HttpInterceptingShapeDeserializer = HttpInterceptingShapeDeserializer;
 exports.HttpInterceptingShapeSerializer = HttpInterceptingShapeSerializer;
 exports.HttpProtocol = HttpProtocol;
+exports.JsonCodec = JsonCodec;
+exports.JsonCodec2 = JsonCodec2;
+exports.JsonShapeDeserializer = JsonShapeDeserializer;
+exports.JsonShapeDeserializer2 = JsonShapeDeserializer2;
+exports.JsonShapeSerializer = JsonShapeSerializer;
+exports.JsonShapeSerializer2 = JsonShapeSerializer2;
 exports.RequestBuilder = RequestBuilder;
 exports.RpcProtocol = RpcProtocol;
 exports.SerdeContext = SerdeContext;
+exports.SmithyRpcV2JsonProtocol = SmithyRpcV2JsonProtocol;
 exports.ToStringShapeSerializer = ToStringShapeSerializer;
 exports.buildQueryString = buildQueryString;
 exports.collectBody = collectBody;
@@ -34318,6 +34665,11 @@ exports.escapeUriPath = escapeUriPath;
 exports.extendedEncodeURIComponent = extendedEncodeURIComponent;
 exports.getContentLengthPlugin = getContentLengthPlugin;
 exports.getHttpHandlerExtensionConfiguration = getHttpHandlerExtensionConfiguration;
+exports.loadJsonRpcErrorCode = loadJsonRpcErrorCode;
+exports.loadRestJsonErrorCode = loadRestJsonErrorCode;
+exports.loadSmithyRpcV2JsonErrorCode = loadSmithyRpcV2JsonErrorCode;
+exports.parseJsonBody = parseJsonBody;
+exports.parseJsonErrorBody = parseJsonErrorBody;
 exports.requestBuilder = requestBuilder;
 exports.resolveHttpHandlerRuntimeConfig = resolveHttpHandlerRuntimeConfig;
 exports.resolvedPath = resolvedPath;
@@ -34387,16 +34739,17 @@ const isBrowserNetworkError = (error) => {
 const isThrottlingError = (error) => error.$metadata?.httpStatusCode === 429 ||
     THROTTLING_ERROR_CODES.includes(error.name) ||
     error.$retryable?.throttling == true;
-const isTransientError = (error, depth = 0) => isRetryableByTrait(error) ||
-    isClockSkewCorrectedError(error) ||
-    (error.name === "InvalidSignatureException" && error.message?.includes("Signature expired")) ||
-    TRANSIENT_ERROR_CODES.includes(error.name) ||
-    NODEJS_TIMEOUT_ERROR_CODES.includes(error?.code || "") ||
-    NODEJS_NETWORK_ERROR_CODES.includes(error?.code || "") ||
-    TRANSIENT_ERROR_STATUS_CODES.includes(error.$metadata?.httpStatusCode || 0) ||
-    isBrowserNetworkError(error) ||
-    isNodeJsHttp2TransientError(error) ||
-    (error.cause !== undefined && depth <= 10 && isTransientError(error.cause, depth + 1));
+const isTransientError = (error, depth = 0) => error?.name !== "AbortError" &&
+    (isRetryableByTrait(error) ||
+        isClockSkewCorrectedError(error) ||
+        (error.name === "InvalidSignatureException" && error.message?.includes("Signature expired")) ||
+        TRANSIENT_ERROR_CODES.includes(error.name) ||
+        NODEJS_TIMEOUT_ERROR_CODES.includes(error?.code || "") ||
+        NODEJS_NETWORK_ERROR_CODES.includes(error?.code || "") ||
+        TRANSIENT_ERROR_STATUS_CODES.includes(error.$metadata?.httpStatusCode || 0) ||
+        isBrowserNetworkError(error) ||
+        isNodeJsHttp2TransientError(error) ||
+        (error.cause !== undefined && depth <= 10 && isTransientError(error.cause, depth + 1)));
 const isServerError = (error) => {
     if (error.$metadata?.httpStatusCode !== undefined) {
         const statusCode = error.$metadata.httpStatusCode;
@@ -35763,12 +36116,12 @@ class TypeRegistry {
         this.namespace = namespace;
         this.schemas = schemas;
         this.exceptions = exceptions;
+        if (!TypeRegistry.registries.has(namespace)) {
+            TypeRegistry.registries.set(namespace, this);
+        }
     }
     static for(namespace) {
-        if (!TypeRegistry.registries.has(namespace)) {
-            TypeRegistry.registries.set(namespace, new TypeRegistry(namespace));
-        }
-        return TypeRegistry.registries.get(namespace);
+        return TypeRegistry.registries.get(namespace) ?? new TypeRegistry(namespace);
     }
     copyFrom(other) {
         const { schemas, exceptions } = this;
@@ -35786,7 +36139,9 @@ class TypeRegistry {
     register(shapeId, schema) {
         const qualifiedName = this.normalizeShapeId(shapeId);
         for (const r of [this, TypeRegistry.for(qualifiedName.split("#")[0])]) {
-            r.schemas.set(qualifiedName, schema);
+            if (!r.schemas.has(qualifiedName)) {
+                r.schemas.set(qualifiedName, schema);
+            }
         }
     }
     getSchema(shapeId) {
@@ -35811,9 +36166,15 @@ class TypeRegistry {
     registerError(es, ctor) {
         const $error = es;
         const ns = $error[1];
+        const qualifiedName = ns + "#" + $error[2];
+        if (!ctor.hasOwnProperty?.("shapeId")) {
+            ctor.shapeId = qualifiedName;
+        }
         for (const r of [this, TypeRegistry.for(ns)]) {
-            r.schemas.set(ns + "#" + $error[2], $error);
-            r.exceptions.set($error, ctor);
+            if (!r.schemas.has(qualifiedName) && !r.exceptions.has($error)) {
+                r.schemas.set(qualifiedName, $error);
+                r.exceptions.set($error, ctor);
+            }
         }
     }
     getErrorCtor(es) {
@@ -37244,6 +37605,8 @@ const getAwsChunkedEncodingStream$1 = (readableStream, options) => {
         checksumLocationName !== undefined &&
         streamHasher !== undefined;
     const digest = checksumRequired ? streamHasher(checksumAlgorithmFn, readableStream) : undefined;
+    Promise.resolve(digest).catch(() => {
+    });
     const reader = readableStream.getReader();
     return new ReadableStream({
         async pull(controller) {
@@ -37276,8 +37639,12 @@ function getAwsChunkedEncodingStream(stream, options) {
         checksumLocationName !== undefined &&
         streamHasher !== undefined;
     const digest = checksumRequired ? streamHasher(checksumAlgorithmFn, readable) : undefined;
+    Promise.resolve(digest).catch(() => {
+    });
     const awsChunkedEncodingStream = new Readable({
-        read: () => { },
+        read() {
+            readable.resume();
+        },
     });
     readable.on("data", (data) => {
         const length = bodyLengthChecker(data) || 0;
@@ -37286,16 +37653,27 @@ function getAwsChunkedEncodingStream(stream, options) {
         }
         awsChunkedEncodingStream.push(`${length.toString(16)}\r\n`);
         awsChunkedEncodingStream.push(data);
-        awsChunkedEncodingStream.push("\r\n");
-    });
-    readable.on("end", async () => {
-        awsChunkedEncodingStream.push(`0\r\n`);
-        if (checksumRequired) {
-            const checksum = base64Encoder(await digest);
-            awsChunkedEncodingStream.push(`${checksumLocationName}:${checksum}\r\n`);
-            awsChunkedEncodingStream.push(`\r\n`);
+        if (!awsChunkedEncodingStream.push("\r\n")) {
+            readable.pause();
         }
-        awsChunkedEncodingStream.push(null);
+    });
+    readable.on("error", (err) => {
+        awsChunkedEncodingStream.destroy(err);
+    });
+    readable.pause();
+    readable.on("end", async () => {
+        try {
+            awsChunkedEncodingStream.push(`0\r\n`);
+            if (checksumRequired) {
+                const checksum = base64Encoder(await digest);
+                awsChunkedEncodingStream.push(`${checksumLocationName}:${checksum}\r\n`);
+                awsChunkedEncodingStream.push(`\r\n`);
+            }
+            awsChunkedEncodingStream.push(null);
+        }
+        catch (err) {
+            awsChunkedEncodingStream.destroy(err);
+        }
     });
     return awsChunkedEncodingStream;
 }
@@ -39425,7 +39803,10 @@ const getCanonicalHeaders = ({ headers }, unsignableHeaders, signableHeaders) =>
                 continue;
             }
         }
-        canonical[canonicalHeaderName] = headers[headerName].trim().replace(/\s+/g, " ");
+        canonical[canonicalHeaderName] = headers[headerName]
+            .replace(/[\r\n]/g, " ")
+            .replace(/[ \t]+/g, " ")
+            .replace(/^ | $/g, "");
     }
     return canonical;
 };
@@ -40029,488 +40410,10 @@ exports.Agent = Agent;
 
 /***/ }),
 
-/***/ 9380:
-/***/ ((module) => {
-
-
-module.exports = balanced;
-function balanced(a, b, str) {
-  if (a instanceof RegExp) a = maybeMatch(a, str);
-  if (b instanceof RegExp) b = maybeMatch(b, str);
-
-  var r = range(a, b, str);
-
-  return r && {
-    start: r[0],
-    end: r[1],
-    pre: str.slice(0, r[0]),
-    body: str.slice(r[0] + a.length, r[1]),
-    post: str.slice(r[1] + b.length)
-  };
-}
-
-function maybeMatch(reg, str) {
-  var m = str.match(reg);
-  return m ? m[0] : null;
-}
-
-balanced.range = range;
-function range(a, b, str) {
-  var begs, beg, left, right, result;
-  var ai = str.indexOf(a);
-  var bi = str.indexOf(b, ai + 1);
-  var i = ai;
-
-  if (ai >= 0 && bi > 0) {
-    if(a===b) {
-      return [ai, bi];
-    }
-    begs = [];
-    left = str.length;
-
-    while (i >= 0 && !result) {
-      if (i == ai) {
-        begs.push(i);
-        ai = str.indexOf(a, i + 1);
-      } else if (begs.length == 1) {
-        result = [ begs.pop(), bi ];
-      } else {
-        beg = begs.pop();
-        if (beg < left) {
-          left = beg;
-          right = bi;
-        }
-
-        bi = str.indexOf(b, i + 1);
-      }
-
-      i = ai < bi && ai >= 0 ? ai : bi;
-    }
-
-    if (begs.length) {
-      result = [ left, right ];
-    }
-  }
-
-  return result;
-}
-
-
-/***/ }),
-
 /***/ 9449:
 /***/ (function(module) {
 
 !function(e,t){ true?module.exports=t():0}(this,(function(){return function(e){var t={};function r(i){if(t[i])return t[i].exports;var n=t[i]={i:i,l:!1,exports:{}};return e[i].call(n.exports,n,n.exports,r),n.l=!0,n.exports}return r.m=e,r.c=t,r.d=function(e,t,i){r.o(e,t)||Object.defineProperty(e,t,{enumerable:!0,get:i})},r.r=function(e){"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(e,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(e,"__esModule",{value:!0})},r.t=function(e,t){if(1&t&&(e=r(e)),8&t)return e;if(4&t&&"object"==typeof e&&e&&e.__esModule)return e;var i=Object.create(null);if(r.r(i),Object.defineProperty(i,"default",{enumerable:!0,value:e}),2&t&&"string"!=typeof e)for(var n in e)r.d(i,n,function(t){return e[t]}.bind(null,n));return i},r.n=function(e){var t=e&&e.__esModule?function(){return e.default}:function(){return e};return r.d(t,"a",t),t},r.o=function(e,t){return Object.prototype.hasOwnProperty.call(e,t)},r.p="",r(r.s=90)}({17:function(e,t,r){"use strict";t.__esModule=!0,t.default=void 0;var i=r(18),n=function(){function e(){}return e.getFirstMatch=function(e,t){var r=t.match(e);return r&&r.length>0&&r[1]||""},e.getSecondMatch=function(e,t){var r=t.match(e);return r&&r.length>1&&r[2]||""},e.matchAndReturnConst=function(e,t,r){if(e.test(t))return r},e.getWindowsVersionName=function(e){switch(e){case"NT":return"NT";case"XP":return"XP";case"NT 5.0":return"2000";case"NT 5.1":return"XP";case"NT 5.2":return"2003";case"NT 6.0":return"Vista";case"NT 6.1":return"7";case"NT 6.2":return"8";case"NT 6.3":return"8.1";case"NT 10.0":return"10";default:return}},e.getMacOSVersionName=function(e){var t=e.split(".").splice(0,2).map((function(e){return parseInt(e,10)||0}));t.push(0);var r=t[0],i=t[1];if(10===r)switch(i){case 5:return"Leopard";case 6:return"Snow Leopard";case 7:return"Lion";case 8:return"Mountain Lion";case 9:return"Mavericks";case 10:return"Yosemite";case 11:return"El Capitan";case 12:return"Sierra";case 13:return"High Sierra";case 14:return"Mojave";case 15:return"Catalina";default:return}switch(r){case 11:return"Big Sur";case 12:return"Monterey";case 13:return"Ventura";case 14:return"Sonoma";case 15:return"Sequoia";default:return}},e.getAndroidVersionName=function(e){var t=e.split(".").splice(0,2).map((function(e){return parseInt(e,10)||0}));if(t.push(0),!(1===t[0]&&t[1]<5))return 1===t[0]&&t[1]<6?"Cupcake":1===t[0]&&t[1]>=6?"Donut":2===t[0]&&t[1]<2?"Eclair":2===t[0]&&2===t[1]?"Froyo":2===t[0]&&t[1]>2?"Gingerbread":3===t[0]?"Honeycomb":4===t[0]&&t[1]<1?"Ice Cream Sandwich":4===t[0]&&t[1]<4?"Jelly Bean":4===t[0]&&t[1]>=4?"KitKat":5===t[0]?"Lollipop":6===t[0]?"Marshmallow":7===t[0]?"Nougat":8===t[0]?"Oreo":9===t[0]?"Pie":void 0},e.getVersionPrecision=function(e){return e.split(".").length},e.compareVersions=function(t,r,i){void 0===i&&(i=!1);var n=e.getVersionPrecision(t),a=e.getVersionPrecision(r),o=Math.max(n,a),s=0,u=e.map([t,r],(function(t){var r=o-e.getVersionPrecision(t),i=t+new Array(r+1).join(".0");return e.map(i.split("."),(function(e){return new Array(20-e.length).join("0")+e})).reverse()}));for(i&&(s=o-Math.min(n,a)),o-=1;o>=s;){if(u[0][o]>u[1][o])return 1;if(u[0][o]===u[1][o]){if(o===s)return 0;o-=1}else if(u[0][o]<u[1][o])return-1}},e.map=function(e,t){var r,i=[];if(Array.prototype.map)return Array.prototype.map.call(e,t);for(r=0;r<e.length;r+=1)i.push(t(e[r]));return i},e.find=function(e,t){var r,i;if(Array.prototype.find)return Array.prototype.find.call(e,t);for(r=0,i=e.length;r<i;r+=1){var n=e[r];if(t(n,r))return n}},e.assign=function(e){for(var t,r,i=e,n=arguments.length,a=new Array(n>1?n-1:0),o=1;o<n;o++)a[o-1]=arguments[o];if(Object.assign)return Object.assign.apply(Object,[e].concat(a));var s=function(){var e=a[t];"object"==typeof e&&null!==e&&Object.keys(e).forEach((function(t){i[t]=e[t]}))};for(t=0,r=a.length;t<r;t+=1)s();return e},e.getBrowserAlias=function(e){return i.BROWSER_ALIASES_MAP[e]},e.getBrowserTypeByAlias=function(e){return i.BROWSER_MAP[e]||""},e}();t.default=n,e.exports=t.default},18:function(e,t,r){"use strict";t.__esModule=!0,t.ENGINE_MAP=t.OS_MAP=t.PLATFORMS_MAP=t.BROWSER_MAP=t.BROWSER_ALIASES_MAP=void 0;t.BROWSER_ALIASES_MAP={AmazonBot:"amazonbot","Amazon Silk":"amazon_silk","Android Browser":"android",BaiduSpider:"baiduspider",Bada:"bada",BingCrawler:"bingcrawler",Brave:"brave",BlackBerry:"blackberry","ChatGPT-User":"chatgpt_user",Chrome:"chrome",ClaudeBot:"claudebot",Chromium:"chromium",Diffbot:"diffbot",DuckDuckBot:"duckduckbot",DuckDuckGo:"duckduckgo",Electron:"electron",Epiphany:"epiphany",FacebookExternalHit:"facebookexternalhit",Firefox:"firefox",Focus:"focus",Generic:"generic","Google Search":"google_search",Googlebot:"googlebot",GPTBot:"gptbot","Internet Explorer":"ie",InternetArchiveCrawler:"internetarchivecrawler","K-Meleon":"k_meleon",LibreWolf:"librewolf",Linespider:"linespider",Maxthon:"maxthon","Meta-ExternalAds":"meta_externalads","Meta-ExternalAgent":"meta_externalagent","Meta-ExternalFetcher":"meta_externalfetcher","Meta-WebIndexer":"meta_webindexer","Microsoft Edge":"edge","MZ Browser":"mz","NAVER Whale Browser":"naver","OAI-SearchBot":"oai_searchbot",Omgilibot:"omgilibot",Opera:"opera","Opera Coast":"opera_coast","Pale Moon":"pale_moon",PerplexityBot:"perplexitybot","Perplexity-User":"perplexity_user",PhantomJS:"phantomjs",PingdomBot:"pingdombot",Puffin:"puffin",QQ:"qq",QQLite:"qqlite",QupZilla:"qupzilla",Roku:"roku",Safari:"safari",Sailfish:"sailfish","Samsung Internet for Android":"samsung_internet",SlackBot:"slackbot",SeaMonkey:"seamonkey",Sleipnir:"sleipnir","Sogou Browser":"sogou",Swing:"swing",Tizen:"tizen","UC Browser":"uc",Vivaldi:"vivaldi","WebOS Browser":"webos",WeChat:"wechat",YahooSlurp:"yahooslurp","Yandex Browser":"yandex",YandexBot:"yandexbot",YouBot:"youbot"};t.BROWSER_MAP={amazonbot:"AmazonBot",amazon_silk:"Amazon Silk",android:"Android Browser",baiduspider:"BaiduSpider",bada:"Bada",bingcrawler:"BingCrawler",blackberry:"BlackBerry",brave:"Brave",chatgpt_user:"ChatGPT-User",chrome:"Chrome",claudebot:"ClaudeBot",chromium:"Chromium",diffbot:"Diffbot",duckduckbot:"DuckDuckBot",duckduckgo:"DuckDuckGo",edge:"Microsoft Edge",electron:"Electron",epiphany:"Epiphany",facebookexternalhit:"FacebookExternalHit",firefox:"Firefox",focus:"Focus",generic:"Generic",google_search:"Google Search",googlebot:"Googlebot",gptbot:"GPTBot",ie:"Internet Explorer",internetarchivecrawler:"InternetArchiveCrawler",k_meleon:"K-Meleon",librewolf:"LibreWolf",linespider:"Linespider",maxthon:"Maxthon",meta_externalads:"Meta-ExternalAds",meta_externalagent:"Meta-ExternalAgent",meta_externalfetcher:"Meta-ExternalFetcher",meta_webindexer:"Meta-WebIndexer",mz:"MZ Browser",naver:"NAVER Whale Browser",oai_searchbot:"OAI-SearchBot",omgilibot:"Omgilibot",opera:"Opera",opera_coast:"Opera Coast",pale_moon:"Pale Moon",perplexitybot:"PerplexityBot",perplexity_user:"Perplexity-User",phantomjs:"PhantomJS",pingdombot:"PingdomBot",puffin:"Puffin",qq:"QQ Browser",qqlite:"QQ Browser Lite",qupzilla:"QupZilla",roku:"Roku",safari:"Safari",sailfish:"Sailfish",samsung_internet:"Samsung Internet for Android",seamonkey:"SeaMonkey",slackbot:"SlackBot",sleipnir:"Sleipnir",sogou:"Sogou Browser",swing:"Swing",tizen:"Tizen",uc:"UC Browser",vivaldi:"Vivaldi",webos:"WebOS Browser",wechat:"WeChat",yahooslurp:"YahooSlurp",yandex:"Yandex Browser",yandexbot:"YandexBot",youbot:"YouBot"};t.PLATFORMS_MAP={bot:"bot",desktop:"desktop",mobile:"mobile",tablet:"tablet",tv:"tv"};t.OS_MAP={Android:"Android",Bada:"Bada",BlackBerry:"BlackBerry",ChromeOS:"Chrome OS",HarmonyOS:"HarmonyOS",iOS:"iOS",Linux:"Linux",MacOS:"macOS",PlayStation4:"PlayStation 4",Roku:"Roku",Tizen:"Tizen",WebOS:"WebOS",Windows:"Windows",WindowsPhone:"Windows Phone"};t.ENGINE_MAP={Blink:"Blink",EdgeHTML:"EdgeHTML",Gecko:"Gecko",Presto:"Presto",Trident:"Trident",WebKit:"WebKit"}},90:function(e,t,r){"use strict";t.__esModule=!0,t.default=void 0;var i,n=(i=r(91))&&i.__esModule?i:{default:i},a=r(18);function o(e,t){for(var r=0;r<t.length;r++){var i=t[r];i.enumerable=i.enumerable||!1,i.configurable=!0,"value"in i&&(i.writable=!0),Object.defineProperty(e,i.key,i)}}var s=function(){function e(){}var t,r,i;return e.getParser=function(e,t,r){if(void 0===t&&(t=!1),void 0===r&&(r=null),"string"!=typeof e)throw new Error("UserAgent should be a string");return new n.default(e,t,r)},e.parse=function(e,t){return void 0===t&&(t=null),new n.default(e,t).getResult()},t=e,i=[{key:"BROWSER_MAP",get:function(){return a.BROWSER_MAP}},{key:"ENGINE_MAP",get:function(){return a.ENGINE_MAP}},{key:"OS_MAP",get:function(){return a.OS_MAP}},{key:"PLATFORMS_MAP",get:function(){return a.PLATFORMS_MAP}}],(r=null)&&o(t.prototype,r),i&&o(t,i),e}();t.default=s,e.exports=t.default},91:function(e,t,r){"use strict";t.__esModule=!0,t.default=void 0;var i=u(r(92)),n=u(r(93)),a=u(r(94)),o=u(r(95)),s=u(r(17));function u(e){return e&&e.__esModule?e:{default:e}}var d=function(){function e(e,t,r){if(void 0===t&&(t=!1),void 0===r&&(r=null),null==e||""===e)throw new Error("UserAgent parameter can't be empty");this._ua=e;var i=!1;"boolean"==typeof t?(i=t,this._hints=r):this._hints=null!=t&&"object"==typeof t?t:null,this.parsedResult={},!0!==i&&this.parse()}var t=e.prototype;return t.getHints=function(){return this._hints},t.hasBrand=function(e){if(!this._hints||!Array.isArray(this._hints.brands))return!1;var t=e.toLowerCase();return this._hints.brands.some((function(e){return e.brand&&e.brand.toLowerCase()===t}))},t.getBrandVersion=function(e){if(this._hints&&Array.isArray(this._hints.brands)){var t=e.toLowerCase(),r=this._hints.brands.find((function(e){return e.brand&&e.brand.toLowerCase()===t}));return r?r.version:void 0}},t.getUA=function(){return this._ua},t.test=function(e){return e.test(this._ua)},t.parseBrowser=function(){var e=this;this.parsedResult.browser={};var t=s.default.find(i.default,(function(t){if("function"==typeof t.test)return t.test(e);if(Array.isArray(t.test))return t.test.some((function(t){return e.test(t)}));throw new Error("Browser's test function is not valid")}));return t&&(this.parsedResult.browser=t.describe(this.getUA(),this)),this.parsedResult.browser},t.getBrowser=function(){return this.parsedResult.browser?this.parsedResult.browser:this.parseBrowser()},t.getBrowserName=function(e){return e?String(this.getBrowser().name).toLowerCase()||"":this.getBrowser().name||""},t.getBrowserVersion=function(){return this.getBrowser().version},t.getOS=function(){return this.parsedResult.os?this.parsedResult.os:this.parseOS()},t.parseOS=function(){var e=this;this.parsedResult.os={};var t=s.default.find(n.default,(function(t){if("function"==typeof t.test)return t.test(e);if(Array.isArray(t.test))return t.test.some((function(t){return e.test(t)}));throw new Error("Browser's test function is not valid")}));return t&&(this.parsedResult.os=t.describe(this.getUA())),this.parsedResult.os},t.getOSName=function(e){var t=this.getOS().name;return e?String(t).toLowerCase()||"":t||""},t.getOSVersion=function(){return this.getOS().version},t.getPlatform=function(){return this.parsedResult.platform?this.parsedResult.platform:this.parsePlatform()},t.getPlatformType=function(e){void 0===e&&(e=!1);var t=this.getPlatform().type;return e?String(t).toLowerCase()||"":t||""},t.parsePlatform=function(){var e=this;this.parsedResult.platform={};var t=s.default.find(a.default,(function(t){if("function"==typeof t.test)return t.test(e);if(Array.isArray(t.test))return t.test.some((function(t){return e.test(t)}));throw new Error("Browser's test function is not valid")}));return t&&(this.parsedResult.platform=t.describe(this.getUA())),this.parsedResult.platform},t.getEngine=function(){return this.parsedResult.engine?this.parsedResult.engine:this.parseEngine()},t.getEngineName=function(e){return e?String(this.getEngine().name).toLowerCase()||"":this.getEngine().name||""},t.parseEngine=function(){var e=this;this.parsedResult.engine={};var t=s.default.find(o.default,(function(t){if("function"==typeof t.test)return t.test(e);if(Array.isArray(t.test))return t.test.some((function(t){return e.test(t)}));throw new Error("Browser's test function is not valid")}));return t&&(this.parsedResult.engine=t.describe(this.getUA())),this.parsedResult.engine},t.parse=function(){return this.parseBrowser(),this.parseOS(),this.parsePlatform(),this.parseEngine(),this},t.getResult=function(){return s.default.assign({},this.parsedResult)},t.satisfies=function(e){var t=this,r={},i=0,n={},a=0;if(Object.keys(e).forEach((function(t){var o=e[t];"string"==typeof o?(n[t]=o,a+=1):"object"==typeof o&&(r[t]=o,i+=1)})),i>0){var o=Object.keys(r),u=s.default.find(o,(function(e){return t.isOS(e)}));if(u){var d=this.satisfies(r[u]);if(void 0!==d)return d}var c=s.default.find(o,(function(e){return t.isPlatform(e)}));if(c){var f=this.satisfies(r[c]);if(void 0!==f)return f}}if(a>0){var l=Object.keys(n),b=s.default.find(l,(function(e){return t.isBrowser(e,!0)}));if(void 0!==b)return this.compareVersion(n[b])}},t.isBrowser=function(e,t){void 0===t&&(t=!1);var r=this.getBrowserName().toLowerCase(),i=e.toLowerCase(),n=s.default.getBrowserTypeByAlias(i);return t&&n&&(i=n.toLowerCase()),i===r},t.compareVersion=function(e){var t=[0],r=e,i=!1,n=this.getBrowserVersion();if("string"==typeof n)return">"===e[0]||"<"===e[0]?(r=e.substr(1),"="===e[1]?(i=!0,r=e.substr(2)):t=[],">"===e[0]?t.push(1):t.push(-1)):"="===e[0]?r=e.substr(1):"~"===e[0]&&(i=!0,r=e.substr(1)),t.indexOf(s.default.compareVersions(n,r,i))>-1},t.isOS=function(e){return this.getOSName(!0)===String(e).toLowerCase()},t.isPlatform=function(e){return this.getPlatformType(!0)===String(e).toLowerCase()},t.isEngine=function(e){return this.getEngineName(!0)===String(e).toLowerCase()},t.is=function(e,t){return void 0===t&&(t=!1),this.isBrowser(e,t)||this.isOS(e)||this.isPlatform(e)},t.some=function(e){var t=this;return void 0===e&&(e=[]),e.some((function(e){return t.is(e)}))},e}();t.default=d,e.exports=t.default},92:function(e,t,r){"use strict";t.__esModule=!0,t.default=void 0;var i,n=(i=r(17))&&i.__esModule?i:{default:i};var a=/version\/(\d+(\.?_?\d+)+)/i,o=[{test:[/gptbot/i],describe:function(e){var t={name:"GPTBot"},r=n.default.getFirstMatch(/gptbot\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/chatgpt-user/i],describe:function(e){var t={name:"ChatGPT-User"},r=n.default.getFirstMatch(/chatgpt-user\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/oai-searchbot/i],describe:function(e){var t={name:"OAI-SearchBot"},r=n.default.getFirstMatch(/oai-searchbot\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/claudebot/i,/claude-web/i,/claude-user/i,/claude-searchbot/i],describe:function(e){var t={name:"ClaudeBot"},r=n.default.getFirstMatch(/(?:claudebot|claude-web|claude-user|claude-searchbot)\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/omgilibot/i,/webzio-extended/i],describe:function(e){var t={name:"Omgilibot"},r=n.default.getFirstMatch(/(?:omgilibot|webzio-extended)\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/diffbot/i],describe:function(e){var t={name:"Diffbot"},r=n.default.getFirstMatch(/diffbot\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/perplexitybot/i],describe:function(e){var t={name:"PerplexityBot"},r=n.default.getFirstMatch(/perplexitybot\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/perplexity-user/i],describe:function(e){var t={name:"Perplexity-User"},r=n.default.getFirstMatch(/perplexity-user\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/youbot/i],describe:function(e){var t={name:"YouBot"},r=n.default.getFirstMatch(/youbot\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/meta-webindexer/i],describe:function(e){var t={name:"Meta-WebIndexer"},r=n.default.getFirstMatch(/meta-webindexer\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/meta-externalads/i],describe:function(e){var t={name:"Meta-ExternalAds"},r=n.default.getFirstMatch(/meta-externalads\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/meta-externalagent/i],describe:function(e){var t={name:"Meta-ExternalAgent"},r=n.default.getFirstMatch(/meta-externalagent\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/meta-externalfetcher/i],describe:function(e){var t={name:"Meta-ExternalFetcher"},r=n.default.getFirstMatch(/meta-externalfetcher\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/googlebot/i],describe:function(e){var t={name:"Googlebot"},r=n.default.getFirstMatch(/googlebot\/(\d+(\.\d+))/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/linespider/i],describe:function(e){var t={name:"Linespider"},r=n.default.getFirstMatch(/(?:linespider)(?:-[-\w]+)?[\s/](\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/amazonbot/i],describe:function(e){var t={name:"AmazonBot"},r=n.default.getFirstMatch(/amazonbot\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/bingbot/i],describe:function(e){var t={name:"BingCrawler"},r=n.default.getFirstMatch(/bingbot\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/baiduspider/i],describe:function(e){var t={name:"BaiduSpider"},r=n.default.getFirstMatch(/baiduspider\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/duckduckbot/i],describe:function(e){var t={name:"DuckDuckBot"},r=n.default.getFirstMatch(/duckduckbot\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/ia_archiver/i],describe:function(e){var t={name:"InternetArchiveCrawler"},r=n.default.getFirstMatch(/ia_archiver\/(\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/facebookexternalhit/i,/facebookcatalog/i],describe:function(){return{name:"FacebookExternalHit"}}},{test:[/slackbot/i,/slack-imgProxy/i],describe:function(e){var t={name:"SlackBot"},r=n.default.getFirstMatch(/(?:slackbot|slack-imgproxy)(?:-[-\w]+)?[\s/](\d+(\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/yahoo!?[\s/]*slurp/i],describe:function(){return{name:"YahooSlurp"}}},{test:[/yandexbot/i,/yandexmobilebot/i],describe:function(){return{name:"YandexBot"}}},{test:[/pingdom/i],describe:function(){return{name:"PingdomBot"}}},{test:[/opera/i],describe:function(e){var t={name:"Opera"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/(?:opera)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/opr\/|opios/i],describe:function(e){var t={name:"Opera"},r=n.default.getFirstMatch(/(?:opr|opios)[\s/](\S+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/SamsungBrowser/i],describe:function(e){var t={name:"Samsung Internet for Android"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/(?:SamsungBrowser)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/Whale/i],describe:function(e){var t={name:"NAVER Whale Browser"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/(?:whale)[\s/](\d+(?:\.\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/PaleMoon/i],describe:function(e){var t={name:"Pale Moon"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/(?:PaleMoon)[\s/](\d+(?:\.\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/MZBrowser/i],describe:function(e){var t={name:"MZ Browser"},r=n.default.getFirstMatch(/(?:MZBrowser)[\s/](\d+(?:\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/focus/i],describe:function(e){var t={name:"Focus"},r=n.default.getFirstMatch(/(?:focus)[\s/](\d+(?:\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/swing/i],describe:function(e){var t={name:"Swing"},r=n.default.getFirstMatch(/(?:swing)[\s/](\d+(?:\.\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/coast/i],describe:function(e){var t={name:"Opera Coast"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/(?:coast)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/opt\/\d+(?:.?_?\d+)+/i],describe:function(e){var t={name:"Opera Touch"},r=n.default.getFirstMatch(/(?:opt)[\s/](\d+(\.?_?\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/yabrowser/i],describe:function(e){var t={name:"Yandex Browser"},r=n.default.getFirstMatch(/(?:yabrowser)[\s/](\d+(\.?_?\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/ucbrowser/i],describe:function(e){var t={name:"UC Browser"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/(?:ucbrowser)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/Maxthon|mxios/i],describe:function(e){var t={name:"Maxthon"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/(?:Maxthon|mxios)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/epiphany/i],describe:function(e){var t={name:"Epiphany"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/(?:epiphany)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/puffin/i],describe:function(e){var t={name:"Puffin"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/(?:puffin)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/sleipnir/i],describe:function(e){var t={name:"Sleipnir"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/(?:sleipnir)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/k-meleon/i],describe:function(e){var t={name:"K-Meleon"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/(?:k-meleon)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/micromessenger/i],describe:function(e){var t={name:"WeChat"},r=n.default.getFirstMatch(/(?:micromessenger)[\s/](\d+(\.?_?\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/qqbrowser/i],describe:function(e){var t={name:/qqbrowserlite/i.test(e)?"QQ Browser Lite":"QQ Browser"},r=n.default.getFirstMatch(/(?:qqbrowserlite|qqbrowser)[/](\d+(\.?_?\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/msie|trident/i],describe:function(e){var t={name:"Internet Explorer"},r=n.default.getFirstMatch(/(?:msie |rv:)(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/\sedg\//i],describe:function(e){var t={name:"Microsoft Edge"},r=n.default.getFirstMatch(/\sedg\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/edg([ea]|ios)/i],describe:function(e){var t={name:"Microsoft Edge"},r=n.default.getSecondMatch(/edg([ea]|ios)\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/vivaldi/i],describe:function(e){var t={name:"Vivaldi"},r=n.default.getFirstMatch(/vivaldi\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/seamonkey/i],describe:function(e){var t={name:"SeaMonkey"},r=n.default.getFirstMatch(/seamonkey\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/sailfish/i],describe:function(e){var t={name:"Sailfish"},r=n.default.getFirstMatch(/sailfish\s?browser\/(\d+(\.\d+)?)/i,e);return r&&(t.version=r),t}},{test:[/silk/i],describe:function(e){var t={name:"Amazon Silk"},r=n.default.getFirstMatch(/silk\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/phantom/i],describe:function(e){var t={name:"PhantomJS"},r=n.default.getFirstMatch(/phantomjs\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/slimerjs/i],describe:function(e){var t={name:"SlimerJS"},r=n.default.getFirstMatch(/slimerjs\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/blackberry|\bbb\d+/i,/rim\stablet/i],describe:function(e){var t={name:"BlackBerry"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/blackberry[\d]+\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/(web|hpw)[o0]s/i],describe:function(e){var t={name:"WebOS Browser"},r=n.default.getFirstMatch(a,e)||n.default.getFirstMatch(/w(?:eb)?[o0]sbrowser\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/bada/i],describe:function(e){var t={name:"Bada"},r=n.default.getFirstMatch(/dolfin\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/tizen/i],describe:function(e){var t={name:"Tizen"},r=n.default.getFirstMatch(/(?:tizen\s?)?browser\/(\d+(\.?_?\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/qupzilla/i],describe:function(e){var t={name:"QupZilla"},r=n.default.getFirstMatch(/(?:qupzilla)[\s/](\d+(\.?_?\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/librewolf/i],describe:function(e){var t={name:"LibreWolf"},r=n.default.getFirstMatch(/(?:librewolf)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/firefox|iceweasel|fxios/i],describe:function(e){var t={name:"Firefox"},r=n.default.getFirstMatch(/(?:firefox|iceweasel|fxios)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/electron/i],describe:function(e){var t={name:"Electron"},r=n.default.getFirstMatch(/(?:electron)\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/sogoumobilebrowser/i,/metasr/i,/se 2\.[x]/i],describe:function(e){var t={name:"Sogou Browser"},r=n.default.getFirstMatch(/(?:sogoumobilebrowser)[\s/](\d+(\.?_?\d+)+)/i,e),i=n.default.getFirstMatch(/(?:chrome|crios|crmo)\/(\d+(\.?_?\d+)+)/i,e),a=n.default.getFirstMatch(/se ([\d.]+)x/i,e),o=r||i||a;return o&&(t.version=o),t}},{test:[/MiuiBrowser/i],describe:function(e){var t={name:"Miui"},r=n.default.getFirstMatch(/(?:MiuiBrowser)[\s/](\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:function(e){return!!e.hasBrand("DuckDuckGo")||e.test(/\sDdg\/[\d.]+$/i)},describe:function(e,t){var r={name:"DuckDuckGo"};if(t){var i=t.getBrandVersion("DuckDuckGo");if(i)return r.version=i,r}var a=n.default.getFirstMatch(/\sDdg\/([\d.]+)$/i,e);return a&&(r.version=a),r}},{test:function(e){return e.hasBrand("Brave")},describe:function(e,t){var r={name:"Brave"};if(t){var i=t.getBrandVersion("Brave");if(i)return r.version=i,r}return r}},{test:[/chromium/i],describe:function(e){var t={name:"Chromium"},r=n.default.getFirstMatch(/(?:chromium)[\s/](\d+(\.?_?\d+)+)/i,e)||n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/chrome|crios|crmo/i],describe:function(e){var t={name:"Chrome"},r=n.default.getFirstMatch(/(?:chrome|crios|crmo)\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/GSA/i],describe:function(e){var t={name:"Google Search"},r=n.default.getFirstMatch(/(?:GSA)\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:function(e){var t=!e.test(/like android/i),r=e.test(/android/i);return t&&r},describe:function(e){var t={name:"Android Browser"},r=n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/playstation 4/i],describe:function(e){var t={name:"PlayStation 4"},r=n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/safari|applewebkit/i],describe:function(e){var t={name:"Safari"},r=n.default.getFirstMatch(a,e);return r&&(t.version=r),t}},{test:[/.*/i],describe:function(e){var t=-1!==e.search("\\(")?/^(.*)\/(.*)[ \t]\((.*)/:/^(.*)\/(.*) /;return{name:n.default.getFirstMatch(t,e),version:n.default.getSecondMatch(t,e)}}}];t.default=o,e.exports=t.default},93:function(e,t,r){"use strict";t.__esModule=!0,t.default=void 0;var i,n=(i=r(17))&&i.__esModule?i:{default:i},a=r(18);var o=[{test:[/Roku\/DVP/],describe:function(e){var t=n.default.getFirstMatch(/Roku\/DVP-(\d+\.\d+)/i,e);return{name:a.OS_MAP.Roku,version:t}}},{test:[/windows phone/i],describe:function(e){var t=n.default.getFirstMatch(/windows phone (?:os)?\s?(\d+(\.\d+)*)/i,e);return{name:a.OS_MAP.WindowsPhone,version:t}}},{test:[/windows /i],describe:function(e){var t=n.default.getFirstMatch(/Windows ((NT|XP)( \d\d?.\d)?)/i,e),r=n.default.getWindowsVersionName(t);return{name:a.OS_MAP.Windows,version:t,versionName:r}}},{test:[/Macintosh(.*?) FxiOS(.*?)\//],describe:function(e){var t={name:a.OS_MAP.iOS},r=n.default.getSecondMatch(/(Version\/)(\d[\d.]+)/,e);return r&&(t.version=r),t}},{test:[/macintosh/i],describe:function(e){var t=n.default.getFirstMatch(/mac os x (\d+(\.?_?\d+)+)/i,e).replace(/[_\s]/g,"."),r=n.default.getMacOSVersionName(t),i={name:a.OS_MAP.MacOS,version:t};return r&&(i.versionName=r),i}},{test:[/(ipod|iphone|ipad)/i],describe:function(e){var t=n.default.getFirstMatch(/os (\d+([_\s]\d+)*) like mac os x/i,e).replace(/[_\s]/g,".");return{name:a.OS_MAP.iOS,version:t}}},{test:[/OpenHarmony/i],describe:function(e){var t=n.default.getFirstMatch(/OpenHarmony\s+(\d+(\.\d+)*)/i,e);return{name:a.OS_MAP.HarmonyOS,version:t}}},{test:function(e){var t=!e.test(/like android/i),r=e.test(/android/i);return t&&r},describe:function(e){var t=n.default.getFirstMatch(/android[\s/-](\d+(\.\d+)*)/i,e),r=n.default.getAndroidVersionName(t),i={name:a.OS_MAP.Android,version:t};return r&&(i.versionName=r),i}},{test:[/(web|hpw)[o0]s/i],describe:function(e){var t=n.default.getFirstMatch(/(?:web|hpw)[o0]s\/(\d+(\.\d+)*)/i,e),r={name:a.OS_MAP.WebOS};return t&&t.length&&(r.version=t),r}},{test:[/blackberry|\bbb\d+/i,/rim\stablet/i],describe:function(e){var t=n.default.getFirstMatch(/rim\stablet\sos\s(\d+(\.\d+)*)/i,e)||n.default.getFirstMatch(/blackberry\d+\/(\d+([_\s]\d+)*)/i,e)||n.default.getFirstMatch(/\bbb(\d+)/i,e);return{name:a.OS_MAP.BlackBerry,version:t}}},{test:[/bada/i],describe:function(e){var t=n.default.getFirstMatch(/bada\/(\d+(\.\d+)*)/i,e);return{name:a.OS_MAP.Bada,version:t}}},{test:[/tizen/i],describe:function(e){var t=n.default.getFirstMatch(/tizen[/\s](\d+(\.\d+)*)/i,e);return{name:a.OS_MAP.Tizen,version:t}}},{test:[/linux/i],describe:function(){return{name:a.OS_MAP.Linux}}},{test:[/CrOS/],describe:function(){return{name:a.OS_MAP.ChromeOS}}},{test:[/PlayStation 4/],describe:function(e){var t=n.default.getFirstMatch(/PlayStation 4[/\s](\d+(\.\d+)*)/i,e);return{name:a.OS_MAP.PlayStation4,version:t}}}];t.default=o,e.exports=t.default},94:function(e,t,r){"use strict";t.__esModule=!0,t.default=void 0;var i,n=(i=r(17))&&i.__esModule?i:{default:i},a=r(18);var o=[{test:[/googlebot/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Google"}}},{test:[/linespider/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Line"}}},{test:[/amazonbot/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Amazon"}}},{test:[/gptbot/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"OpenAI"}}},{test:[/chatgpt-user/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"OpenAI"}}},{test:[/oai-searchbot/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"OpenAI"}}},{test:[/baiduspider/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Baidu"}}},{test:[/bingbot/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Bing"}}},{test:[/duckduckbot/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"DuckDuckGo"}}},{test:[/claudebot/i,/claude-web/i,/claude-user/i,/claude-searchbot/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Anthropic"}}},{test:[/omgilibot/i,/webzio-extended/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Webz.io"}}},{test:[/diffbot/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Diffbot"}}},{test:[/perplexitybot/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Perplexity AI"}}},{test:[/perplexity-user/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Perplexity AI"}}},{test:[/youbot/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"You.com"}}},{test:[/ia_archiver/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Internet Archive"}}},{test:[/meta-webindexer/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Meta"}}},{test:[/meta-externalads/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Meta"}}},{test:[/meta-externalagent/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Meta"}}},{test:[/meta-externalfetcher/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Meta"}}},{test:[/facebookexternalhit/i,/facebookcatalog/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Meta"}}},{test:[/slackbot/i,/slack-imgProxy/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Slack"}}},{test:[/yahoo/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Yahoo"}}},{test:[/yandexbot/i,/yandexmobilebot/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Yandex"}}},{test:[/pingdom/i],describe:function(){return{type:a.PLATFORMS_MAP.bot,vendor:"Pingdom"}}},{test:[/huawei/i],describe:function(e){var t=n.default.getFirstMatch(/(can-l01)/i,e)&&"Nova",r={type:a.PLATFORMS_MAP.mobile,vendor:"Huawei"};return t&&(r.model=t),r}},{test:[/nexus\s*(?:7|8|9|10).*/i],describe:function(){return{type:a.PLATFORMS_MAP.tablet,vendor:"Nexus"}}},{test:[/ipad/i],describe:function(){return{type:a.PLATFORMS_MAP.tablet,vendor:"Apple",model:"iPad"}}},{test:[/Macintosh(.*?) FxiOS(.*?)\//],describe:function(){return{type:a.PLATFORMS_MAP.tablet,vendor:"Apple",model:"iPad"}}},{test:[/kftt build/i],describe:function(){return{type:a.PLATFORMS_MAP.tablet,vendor:"Amazon",model:"Kindle Fire HD 7"}}},{test:[/silk/i],describe:function(){return{type:a.PLATFORMS_MAP.tablet,vendor:"Amazon"}}},{test:[/tablet(?! pc)/i],describe:function(){return{type:a.PLATFORMS_MAP.tablet}}},{test:function(e){var t=e.test(/ipod|iphone/i),r=e.test(/like (ipod|iphone)/i);return t&&!r},describe:function(e){var t=n.default.getFirstMatch(/(ipod|iphone)/i,e);return{type:a.PLATFORMS_MAP.mobile,vendor:"Apple",model:t}}},{test:[/nexus\s*[0-6].*/i,/galaxy nexus/i],describe:function(){return{type:a.PLATFORMS_MAP.mobile,vendor:"Nexus"}}},{test:[/Nokia/i],describe:function(e){var t=n.default.getFirstMatch(/Nokia\s+([0-9]+(\.[0-9]+)?)/i,e),r={type:a.PLATFORMS_MAP.mobile,vendor:"Nokia"};return t&&(r.model=t),r}},{test:[/[^-]mobi/i],describe:function(){return{type:a.PLATFORMS_MAP.mobile}}},{test:function(e){return"blackberry"===e.getBrowserName(!0)},describe:function(){return{type:a.PLATFORMS_MAP.mobile,vendor:"BlackBerry"}}},{test:function(e){return"bada"===e.getBrowserName(!0)},describe:function(){return{type:a.PLATFORMS_MAP.mobile}}},{test:function(e){return"windows phone"===e.getBrowserName()},describe:function(){return{type:a.PLATFORMS_MAP.mobile,vendor:"Microsoft"}}},{test:function(e){var t=Number(String(e.getOSVersion()).split(".")[0]);return"android"===e.getOSName(!0)&&t>=3},describe:function(){return{type:a.PLATFORMS_MAP.tablet}}},{test:function(e){return"android"===e.getOSName(!0)},describe:function(){return{type:a.PLATFORMS_MAP.mobile}}},{test:[/smart-?tv|smarttv/i],describe:function(){return{type:a.PLATFORMS_MAP.tv}}},{test:[/netcast/i],describe:function(){return{type:a.PLATFORMS_MAP.tv}}},{test:function(e){return"macos"===e.getOSName(!0)},describe:function(){return{type:a.PLATFORMS_MAP.desktop,vendor:"Apple"}}},{test:function(e){return"windows"===e.getOSName(!0)},describe:function(){return{type:a.PLATFORMS_MAP.desktop}}},{test:function(e){return"linux"===e.getOSName(!0)},describe:function(){return{type:a.PLATFORMS_MAP.desktop}}},{test:function(e){return"playstation 4"===e.getOSName(!0)},describe:function(){return{type:a.PLATFORMS_MAP.tv}}},{test:function(e){return"roku"===e.getOSName(!0)},describe:function(){return{type:a.PLATFORMS_MAP.tv}}}];t.default=o,e.exports=t.default},95:function(e,t,r){"use strict";t.__esModule=!0,t.default=void 0;var i,n=(i=r(17))&&i.__esModule?i:{default:i},a=r(18);var o=[{test:function(e){return"microsoft edge"===e.getBrowserName(!0)},describe:function(e){if(/\sedg\//i.test(e))return{name:a.ENGINE_MAP.Blink};var t=n.default.getFirstMatch(/edge\/(\d+(\.?_?\d+)+)/i,e);return{name:a.ENGINE_MAP.EdgeHTML,version:t}}},{test:[/trident/i],describe:function(e){var t={name:a.ENGINE_MAP.Trident},r=n.default.getFirstMatch(/trident\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:function(e){return e.test(/presto/i)},describe:function(e){var t={name:a.ENGINE_MAP.Presto},r=n.default.getFirstMatch(/presto\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:function(e){var t=e.test(/gecko/i),r=e.test(/like gecko/i);return t&&!r},describe:function(e){var t={name:a.ENGINE_MAP.Gecko},r=n.default.getFirstMatch(/gecko\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}},{test:[/(apple)?webkit\/537\.36/i],describe:function(){return{name:a.ENGINE_MAP.Blink}}},{test:[/(apple)?webkit/i],describe:function(e){var t={name:a.ENGINE_MAP.WebKit},r=n.default.getFirstMatch(/webkit\/(\d+(\.?_?\d+)+)/i,e);return r&&(t.version=r),t}}];t.default=o,e.exports=t.default}})}));
-
-/***/ }),
-
-/***/ 4691:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-var concatMap = __nccwpck_require__(7087);
-var balanced = __nccwpck_require__(9380);
-
-module.exports = expandTop;
-
-var escSlash = '\0SLASH'+Math.random()+'\0';
-var escOpen = '\0OPEN'+Math.random()+'\0';
-var escClose = '\0CLOSE'+Math.random()+'\0';
-var escComma = '\0COMMA'+Math.random()+'\0';
-var escPeriod = '\0PERIOD'+Math.random()+'\0';
-
-var EXPANSION_MAX = 100000
-
-// `EXPANSION_MAX` caps the *number* of expansions, but not their length. An
-// input like `'{a,b}'.repeat(1500)` stays under that count - its output is
-// truncated to 100k results - while making every result ~1500 characters
-// long. The result set, and the intermediate arrays built while combining
-// brace sets, then grow large enough to exhaust memory and crash the process
-// (CVE-2026-14257). `EXPANSION_MAX_LENGTH` bounds the total number of
-// characters the accumulator may hold at any point, so memory stays flat no
-// matter how many brace groups are chained. The limit sits well above any
-// realistic expansion (100k results hitting `EXPANSION_MAX` measure ~1M
-// characters) so legitimate input is unaffected.
-var EXPANSION_MAX_LENGTH = 4000000
-
-function numeric(str) {
-  return parseInt(str, 10) == str
-    ? parseInt(str, 10)
-    : str.charCodeAt(0);
-}
-
-function escapeBraces(str) {
-  return str.split('\\\\').join(escSlash)
-            .split('\\{').join(escOpen)
-            .split('\\}').join(escClose)
-            .split('\\,').join(escComma)
-            .split('\\.').join(escPeriod);
-}
-
-function unescapeBraces(str) {
-  return str.split(escSlash).join('\\')
-            .split(escOpen).join('{')
-            .split(escClose).join('}')
-            .split(escComma).join(',')
-            .split(escPeriod).join('.');
-}
-
-
-// Basically just str.split(","), but handling cases
-// where we have nested braced sections, which should be
-// treated as individual members, like {a,{b,c},d}
-function parseCommaParts(str) {
-  if (!str)
-    return [''];
-
-  var parts = [];
-  var m = balanced('{', '}', str);
-
-  if (!m)
-    return str.split(',');
-
-  var pre = m.pre;
-  var body = m.body;
-  var post = m.post;
-  var p = pre.split(',');
-
-  p[p.length-1] += '{' + body + '}';
-  var postParts = parseCommaParts(post);
-  if (post.length) {
-    p[p.length-1] += postParts.shift();
-    p.push.apply(p, postParts);
-  }
-
-  parts.push.apply(parts, p);
-
-  return parts;
-}
-
-function expandTop(str, options) {
-  if (!str)
-    return [];
-
-  options = options || {};
-  var max = options.max == null ? EXPANSION_MAX : options.max;
-  var maxLength = options.maxLength == null ? EXPANSION_MAX_LENGTH : options.maxLength;
-
-  // I don't know why Bash 4.3 does this, but it does.
-  // Anything starting with {} will have the first two bytes preserved
-  // but *only* at the top level, so {},a}b will not expand to anything,
-  // but a{},b}c will be expanded to [a}c,abc].
-  // One could argue that this is a bug in Bash, but since the goal of
-  // this module is to match Bash's rules, we escape a leading {}
-  if (str.substr(0, 2) === '{}') {
-    str = '\\{\\}' + str.substr(2);
-  }
-
-  return expand(escapeBraces(str), max, maxLength, true).map(unescapeBraces);
-}
-
-function identity(e) {
-  return e;
-}
-
-function embrace(str) {
-  return '{' + str + '}';
-}
-function isPadded(el) {
-  return /^-?0\d/.test(el);
-}
-
-function lte(i, y) {
-  return i <= y;
-}
-function gte(i, y) {
-  return i >= y;
-}
-
-// Build `{ acc[a] + pre + values[v] }` for every combination, capping the
-// number of results at `max` and the total number of characters at `maxLength`.
-// This is the one place output grows, so bounding it here keeps the single
-// accumulator - and therefore memory - flat regardless of how many brace groups
-// are combined (CVE-2026-14257).
-//
-// `base[a]` is the length of the part of `acc[a]` that predates the current
-// empty-drop baseline (see `expand`). The matching baselines for the results
-// are appended to `outBase`, which the caller carries forward alongside them.
-function combine(
-  acc,
-  base,
-  pre,
-  values,
-  max,
-  maxLength,
-  dropEmpties,
-  outBase
-) {
-  var out = []
-  var length = 0
-  for (var a = 0; a < acc.length; a++) {
-    for (var v = 0; v < values.length; v++) {
-      if (out.length >= max) return out
-      var expansion = acc[a] + pre + values[v]
-      // Bash drops empty results at the top level. Skip them before they count
-      // against `max`, so `max` bounds the number of *kept* results. "Empty"
-      // means "adds nothing past the baseline", not "empty overall".
-      if (dropEmpties && expansion.length === base[a]) continue
-      if (length + expansion.length > maxLength) return out
-      out.push(expansion)
-      outBase.push(base[a])
-      length += expansion.length
-    }
-  }
-  return out
-}
-
-// The expansion values of a single numeric (`1..5`) or alphabetic (`a..e..2`)
-// sequence body.
-function expandSequence(
-  body,
-  isAlphaSequence,
-  max,
-  maxLength
-) {
-  var n = body.split(/\.\./)
-  var N = []
-  // A sequence body always splits into two or three parts, but the compiler
-  // can't know that.
-  /* c8 ignore start */
-  if (n[0] === undefined || n[1] === undefined) {
-    return N
-  }
-  /* c8 ignore stop */
-  var x = numeric(n[0])
-  var y = numeric(n[1])
-  var width = Math.max(n[0].length, n[1].length)
-  var incr =
-    n.length === 3 && n[2] !== undefined ?
-      Math.max(Math.abs(numeric(n[2])), 1)
-    : 1
-  var test = lte
-  var reverse = y < x
-  if (reverse) {
-    incr *= -1
-    test = gte
-  }
-  var pad = n.some(isPadded)
-
-  var length = 0
-  for (var i = x; test(i, y) && N.length < max; i += incr) {
-    var c
-    if (isAlphaSequence) {
-      c = String.fromCharCode(i)
-      if (c === '\\') {
-        c = ''
-      }
-    } else {
-      c = String(i)
-      if (pad) {
-        var need = width - c.length
-        if (need > 0) {
-          var z = new Array(need + 1).join('0')
-          if (i < 0) {
-            c = '-' + z + c.slice(1)
-          } else {
-            c = z + c
-          }
-        }
-      }
-    }
-    if (length + c.length > maxLength) break
-    N.push(c)
-    length += c.length
-  }
-  return N
-}
-
-function expand(
-  str,
-  max,
-  maxLength,
-  isTop
-) {
-  // Consume the string's top-level brace groups left to right, threading a
-  // running set of combined prefixes (`acc`). Expanding the tail iteratively -
-  // rather than recursing on `m.post` once per group - keeps the native stack
-  // depth constant, so deeply chained input (`'{a,b}'.repeat(3000)`) can no
-  // longer overflow the stack, and leaves a single accumulator whose size
-  // `maxLength` bounds directly (CVE-2026-14257).
-  var acc = ['']
-
-  // Bash drops empty results, but only when the *first* group of the run is a
-  // comma set - a sequence like `{a..\}` may legitimately yield ''. The drop
-  // is on the final strings, so it is applied to whichever `combine` produces
-  // them (the one with no brace set left in the tail).
-  //
-  // The old implementation recursed on `m.post`, so the drop tested only the
-  // expansion of the current call's substring. The `{a},b}` rewrite below turns
-  // `isTop` back on part-way through a string, starting a fresh such run, so
-  // the drop must ignore whatever `acc` already holds from earlier groups.
-  // `accBase[a]` records how much of `acc[a]` predates the current run;
-  // `combine` treats an expansion as empty when it adds nothing past that.
-  var accBase = [0]
-  var dropEmpties = false
-  var firstGroup = true
-  var nextBase
-
-  for (;;) {
-    var m = balanced('{', '}', str);
-
-    // No brace set left: the rest of the string is literal.
-    if (!m) {
-      return combine(acc, accBase, str, [''], max, maxLength, dropEmpties, [])
-    }
-
-    // no need to expand pre, since it is guaranteed to be free of brace-sets
-    var pre = m.pre;
-
-    // For compatibility reasons, `${` is not eligible for brace expansion, and
-    // on the 1.x line it suppresses expansion of the rest of the string too:
-    // the whole remainder is literal. The 2.x and 5.x lines instead keep
-    // expanding the tail, which is what bash does, but changing that here would
-    // be a breaking change for 1.x consumers. Routed through `combine` so the
-    // result is still bounded by `max` and `maxLength`.
-    if (/\$$/.test(pre)) {
-      return combine(acc, accBase, str, [''], max, maxLength, dropEmpties, [])
-    }
-
-    var isNumericSequence = /^-?\d+\.\.-?\d+(?:\.\.-?\d+)?$/.test(m.body);
-    var isAlphaSequence = /^[a-zA-Z]\.\.[a-zA-Z](?:\.\.-?\d+)?$/.test(m.body);
-    var isSequence = isNumericSequence || isAlphaSequence;
-    var isOptions = m.body.indexOf(',') >= 0;
-    if (!isSequence && !isOptions) {
-      // {a},b}
-      if (m.post.match(/,(?!,).*\}/)) {
-        str = m.pre + '{' + m.body + escClose + m.post;
-        // The rewritten string is expanded as if it were a fresh top-level one,
-        // so start a new empty-drop run: anchor the baseline at what `acc`
-        // holds now, and let the next expanding group decide whether to drop.
-        isTop = true
-        firstGroup = true
-        dropEmpties = false
-        accBase = []
-        for (var b = 0; b < acc.length; b++) {
-          accBase.push(acc[b].length)
-        }
-        continue
-      }
-      // Nothing here expands, so the whole remaining string is literal.
-      return combine(
-        acc,
-        accBase,
-        pre + '{' + m.body + '}' + m.post,
-        [''],
-        max,
-        maxLength,
-        dropEmpties,
-        []
-      )
-    }
-
-    if (firstGroup) {
-      dropEmpties = isTop && !isSequence
-      firstGroup = false
-    }
-
-    var values;
-    if (isSequence) {
-      values = expandSequence(m.body, isAlphaSequence, max, maxLength);
-    } else {
-      var n = parseCommaParts(m.body);
-      if (n.length === 1 && n[0] !== undefined) {
-        // x{{a,b}}y ==> x{a}y x{b}y
-        n = expand(n[0], max, maxLength, false).map(embrace);
-        //XXX is this necessary? Can't seem to hit it in tests.
-        /* c8 ignore start */
-        if (n.length === 1) {
-          nextBase = []
-          acc = combine(
-            acc,
-            accBase,
-            pre + n[0],
-            [''],
-            max,
-            maxLength,
-            dropEmpties && !m.post.length,
-            nextBase
-          )
-          accBase = nextBase
-          if (!m.post.length) break
-          str = m.post
-          continue
-        }
-        /* c8 ignore stop */
-      }
-
-      // Values that `combine` is going to drop as empty produce no result, so
-      // they must not count against `max` - otherwise `{a,,b}` with `max: 2`
-      // would stop at `['a', '']` and yield one result instead of two. Skipping
-      // them outright keeps `values` bounded while leaving `max` a bound on
-      // *kept* results. A value is dropped when it adds nothing past the
-      // baseline, which is what `combine` tests.
-      var dropsEmpties = dropEmpties && !m.post.length && !pre
-      for (var d = 0; dropsEmpties && d < acc.length; d++) {
-        if (acc[d].length !== accBase[d]) {
-          dropsEmpties = false
-        }
-      }
-
-      values = []
-      var valuesLength = 0
-      outer: for (var j = 0; j < n.length; j++) {
-        var expanded = expand(n[j], max, maxLength, false)
-        for (var k = 0; k < expanded.length; k++) {
-          var v = expanded[k]
-          if (dropsEmpties && !v) continue
-          if (values.length >= max || valuesLength + v.length > maxLength) {
-            break outer
-          }
-          values.push(v)
-          valuesLength += v.length
-        }
-      }
-    }
-
-    nextBase = []
-    acc = combine(
-      acc,
-      accBase,
-      pre,
-      values,
-      max,
-      maxLength,
-      dropEmpties && !m.post.length,
-      nextBase
-    )
-    accBase = nextBase
-    if (!m.post.length) break
-    str = m.post
-  }
-
-  return acc
-}
-
-
-/***/ }),
-
-/***/ 7087:
-/***/ ((module) => {
-
-module.exports = function (xs, fn) {
-    var res = [];
-    for (var i = 0; i < xs.length; i++) {
-        var x = fn(xs[i], i);
-        if (isArray(x)) res.push.apply(res, x);
-        else res.push(x);
-    }
-    return res;
-};
-
-var isArray = Array.isArray || function (xs) {
-    return Object.prototype.toString.call(xs) === '[object Array]';
-};
-
 
 /***/ }),
 
@@ -41838,1018 +41741,6 @@ function parseProxyResponse(socket) {
 }
 exports.parseProxyResponse = parseProxyResponse;
 //# sourceMappingURL=parse-proxy-response.js.map
-
-/***/ }),
-
-/***/ 3772:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-module.exports = minimatch
-minimatch.Minimatch = Minimatch
-
-var path = (function () { try { return __nccwpck_require__(6928) } catch (e) {}}()) || {
-  sep: '/'
-}
-minimatch.sep = path.sep
-
-var GLOBSTAR = minimatch.GLOBSTAR = Minimatch.GLOBSTAR = {}
-var expand = __nccwpck_require__(4691)
-
-var plTypes = {
-  '!': { open: '(?:(?!(?:', close: '))[^/]*?)'},
-  '?': { open: '(?:', close: ')?' },
-  '+': { open: '(?:', close: ')+' },
-  '*': { open: '(?:', close: ')*' },
-  '@': { open: '(?:', close: ')' }
-}
-
-// any single thing other than /
-// don't need to escape / when using new RegExp()
-var qmark = '[^/]'
-
-// * => any number of characters
-var star = qmark + '*?'
-
-// ** when dots are allowed.  Anything goes, except .. and .
-// not (^ or / followed by one or two dots followed by $ or /),
-// followed by anything, any number of times.
-var twoStarDot = '(?:(?!(?:\\\/|^)(?:\\.{1,2})($|\\\/)).)*?'
-
-// not a ^ or / followed by a dot,
-// followed by anything, any number of times.
-var twoStarNoDot = '(?:(?!(?:\\\/|^)\\.).)*?'
-
-// characters that need to be escaped in RegExp.
-var reSpecials = charSet('().*{}+?[]^$\\!')
-
-// "abc" -> { a:true, b:true, c:true }
-function charSet (s) {
-  return s.split('').reduce(function (set, c) {
-    set[c] = true
-    return set
-  }, {})
-}
-
-// normalizes slashes.
-var slashSplit = /\/+/
-
-minimatch.filter = filter
-function filter (pattern, options) {
-  options = options || {}
-  return function (p, i, list) {
-    return minimatch(p, pattern, options)
-  }
-}
-
-function ext (a, b) {
-  b = b || {}
-  var t = {}
-  Object.keys(a).forEach(function (k) {
-    t[k] = a[k]
-  })
-  Object.keys(b).forEach(function (k) {
-    t[k] = b[k]
-  })
-  return t
-}
-
-minimatch.defaults = function (def) {
-  if (!def || typeof def !== 'object' || !Object.keys(def).length) {
-    return minimatch
-  }
-
-  var orig = minimatch
-
-  var m = function minimatch (p, pattern, options) {
-    return orig(p, pattern, ext(def, options))
-  }
-
-  m.Minimatch = function Minimatch (pattern, options) {
-    return new orig.Minimatch(pattern, ext(def, options))
-  }
-  m.Minimatch.defaults = function defaults (options) {
-    return orig.defaults(ext(def, options)).Minimatch
-  }
-
-  m.filter = function filter (pattern, options) {
-    return orig.filter(pattern, ext(def, options))
-  }
-
-  m.defaults = function defaults (options) {
-    return orig.defaults(ext(def, options))
-  }
-
-  m.makeRe = function makeRe (pattern, options) {
-    return orig.makeRe(pattern, ext(def, options))
-  }
-
-  m.braceExpand = function braceExpand (pattern, options) {
-    return orig.braceExpand(pattern, ext(def, options))
-  }
-
-  m.match = function (list, pattern, options) {
-    return orig.match(list, pattern, ext(def, options))
-  }
-
-  return m
-}
-
-Minimatch.defaults = function (def) {
-  return minimatch.defaults(def).Minimatch
-}
-
-function minimatch (p, pattern, options) {
-  assertValidPattern(pattern)
-
-  if (!options) options = {}
-
-  // shortcut: comments match nothing.
-  if (!options.nocomment && pattern.charAt(0) === '#') {
-    return false
-  }
-
-  return new Minimatch(pattern, options).match(p)
-}
-
-function Minimatch (pattern, options) {
-  if (!(this instanceof Minimatch)) {
-    return new Minimatch(pattern, options)
-  }
-
-  assertValidPattern(pattern)
-
-  if (!options) options = {}
-
-  pattern = pattern.trim()
-
-  // windows support: need to use /, not \
-  if (!options.allowWindowsEscape && path.sep !== '/') {
-    pattern = pattern.split(path.sep).join('/')
-  }
-
-  this.options = options
-  this.maxGlobstarRecursion = options.maxGlobstarRecursion !== undefined
-    ? options.maxGlobstarRecursion : 200
-  this.set = []
-  this.pattern = pattern
-  this.regexp = null
-  this.negate = false
-  this.comment = false
-  this.empty = false
-  this.partial = !!options.partial
-
-  // make the set of regexps etc.
-  this.make()
-}
-
-Minimatch.prototype.debug = function () {}
-
-Minimatch.prototype.make = make
-function make () {
-  var pattern = this.pattern
-  var options = this.options
-
-  // empty patterns and comments match nothing.
-  if (!options.nocomment && pattern.charAt(0) === '#') {
-    this.comment = true
-    return
-  }
-  if (!pattern) {
-    this.empty = true
-    return
-  }
-
-  // step 1: figure out negation, etc.
-  this.parseNegate()
-
-  // step 2: expand braces
-  var set = this.globSet = this.braceExpand()
-
-  if (options.debug) this.debug = function debug() { console.error.apply(console, arguments) }
-
-  this.debug(this.pattern, set)
-
-  // step 3: now we have a set, so turn each one into a series of path-portion
-  // matching patterns.
-  // These will be regexps, except in the case of "**", which is
-  // set to the GLOBSTAR object for globstar behavior,
-  // and will not contain any / characters
-  set = this.globParts = set.map(function (s) {
-    return s.split(slashSplit)
-  })
-
-  this.debug(this.pattern, set)
-
-  // glob --> regexps
-  set = set.map(function (s, si, set) {
-    return s.map(this.parse, this)
-  }, this)
-
-  this.debug(this.pattern, set)
-
-  // filter out everything that didn't compile properly.
-  set = set.filter(function (s) {
-    return s.indexOf(false) === -1
-  })
-
-  this.debug(this.pattern, set)
-
-  this.set = set
-}
-
-Minimatch.prototype.parseNegate = parseNegate
-function parseNegate () {
-  var pattern = this.pattern
-  var negate = false
-  var options = this.options
-  var negateOffset = 0
-
-  if (options.nonegate) return
-
-  for (var i = 0, l = pattern.length
-    ; i < l && pattern.charAt(i) === '!'
-    ; i++) {
-    negate = !negate
-    negateOffset++
-  }
-
-  if (negateOffset) this.pattern = pattern.substr(negateOffset)
-  this.negate = negate
-}
-
-// Brace expansion:
-// a{b,c}d -> abd acd
-// a{b,}c -> abc ac
-// a{0..3}d -> a0d a1d a2d a3d
-// a{b,c{d,e}f}g -> abg acdfg acefg
-// a{b,c}d{e,f}g -> abdeg acdeg abdeg abdfg
-//
-// Invalid sets are not expanded.
-// a{2..}b -> a{2..}b
-// a{b}c -> a{b}c
-minimatch.braceExpand = function (pattern, options) {
-  return braceExpand(pattern, options)
-}
-
-Minimatch.prototype.braceExpand = braceExpand
-
-function braceExpand (pattern, options) {
-  if (!options) {
-    if (this instanceof Minimatch) {
-      options = this.options
-    } else {
-      options = {}
-    }
-  }
-
-  pattern = typeof pattern === 'undefined'
-    ? this.pattern : pattern
-
-  assertValidPattern(pattern)
-
-  // Thanks to Yeting Li <https://github.com/yetingli> for
-  // improving this regexp to avoid a ReDOS vulnerability.
-  if (options.nobrace || !/\{(?:(?!\{).)*\}/.test(pattern)) {
-    // shortcut. no need to expand.
-    return [pattern]
-  }
-
-  return expand(pattern)
-}
-
-var MAX_PATTERN_LENGTH = 1024 * 64
-var assertValidPattern = function (pattern) {
-  if (typeof pattern !== 'string') {
-    throw new TypeError('invalid pattern')
-  }
-
-  if (pattern.length > MAX_PATTERN_LENGTH) {
-    throw new TypeError('pattern is too long')
-  }
-}
-
-// parse a component of the expanded set.
-// At this point, no pattern may contain "/" in it
-// so we're going to return a 2d array, where each entry is the full
-// pattern, split on '/', and then turned into a regular expression.
-// A regexp is made at the end which joins each array with an
-// escaped /, and another full one which joins each regexp with |.
-//
-// Following the lead of Bash 4.1, note that "**" only has special meaning
-// when it is the *only* thing in a path portion.  Otherwise, any series
-// of * is equivalent to a single *.  Globstar behavior is enabled by
-// default, and can be disabled by setting options.noglobstar.
-Minimatch.prototype.parse = parse
-var SUBPARSE = {}
-function parse (pattern, isSub) {
-  assertValidPattern(pattern)
-
-  var options = this.options
-
-  // shortcuts
-  if (pattern === '**') {
-    if (!options.noglobstar)
-      return GLOBSTAR
-    else
-      pattern = '*'
-  }
-  if (pattern === '') return ''
-
-  var re = ''
-  var hasMagic = !!options.nocase
-  var escaping = false
-  // ? => one single character
-  var patternListStack = []
-  var negativeLists = []
-  var stateChar
-  var inClass = false
-  var reClassStart = -1
-  var classStart = -1
-  // . and .. never match anything that doesn't start with .,
-  // even when options.dot is set.
-  var patternStart = pattern.charAt(0) === '.' ? '' // anything
-  // not (start or / followed by . or .. followed by / or end)
-  : options.dot ? '(?!(?:^|\\\/)\\.{1,2}(?:$|\\\/))'
-  : '(?!\\.)'
-  var self = this
-
-  function clearStateChar () {
-    if (stateChar) {
-      // we had some state-tracking character
-      // that wasn't consumed by this pass.
-      switch (stateChar) {
-        case '*':
-          re += star
-          hasMagic = true
-        break
-        case '?':
-          re += qmark
-          hasMagic = true
-        break
-        default:
-          re += '\\' + stateChar
-        break
-      }
-      self.debug('clearStateChar %j %j', stateChar, re)
-      stateChar = false
-    }
-  }
-
-  for (var i = 0, len = pattern.length, c
-    ; (i < len) && (c = pattern.charAt(i))
-    ; i++) {
-    this.debug('%s\t%s %s %j', pattern, i, re, c)
-
-    // skip over any that are escaped.
-    if (escaping && reSpecials[c]) {
-      re += '\\' + c
-      escaping = false
-      continue
-    }
-
-    switch (c) {
-      /* istanbul ignore next */
-      case '/': {
-        // completely not allowed, even escaped.
-        // Should already be path-split by now.
-        return false
-      }
-
-      case '\\':
-        clearStateChar()
-        escaping = true
-      continue
-
-      // the various stateChar values
-      // for the "extglob" stuff.
-      case '?':
-      case '*':
-      case '+':
-      case '@':
-      case '!':
-        this.debug('%s\t%s %s %j <-- stateChar', pattern, i, re, c)
-
-        // all of those are literals inside a class, except that
-        // the glob [!a] means [^a] in regexp
-        if (inClass) {
-          this.debug('  in class')
-          if (c === '!' && i === classStart + 1) c = '^'
-          re += c
-          continue
-        }
-
-        // coalesce consecutive non-globstar * characters
-        if (c === '*' && stateChar === '*') continue
-
-        // if we already have a stateChar, then it means
-        // that there was something like ** or +? in there.
-        // Handle the stateChar, then proceed with this one.
-        self.debug('call clearStateChar %j', stateChar)
-        clearStateChar()
-        stateChar = c
-        // if extglob is disabled, then +(asdf|foo) isn't a thing.
-        // just clear the statechar *now*, rather than even diving into
-        // the patternList stuff.
-        if (options.noext) clearStateChar()
-      continue
-
-      case '(':
-        if (inClass) {
-          re += '('
-          continue
-        }
-
-        if (!stateChar) {
-          re += '\\('
-          continue
-        }
-
-        patternListStack.push({
-          type: stateChar,
-          start: i - 1,
-          reStart: re.length,
-          open: plTypes[stateChar].open,
-          close: plTypes[stateChar].close
-        })
-        // negation is (?:(?!js)[^/]*)
-        re += stateChar === '!' ? '(?:(?!(?:' : '(?:'
-        this.debug('plType %j %j', stateChar, re)
-        stateChar = false
-      continue
-
-      case ')':
-        if (inClass || !patternListStack.length) {
-          re += '\\)'
-          continue
-        }
-
-        clearStateChar()
-        hasMagic = true
-        var pl = patternListStack.pop()
-        // negation is (?:(?!js)[^/]*)
-        // The others are (?:<pattern>)<type>
-        re += pl.close
-        if (pl.type === '!') {
-          negativeLists.push(pl)
-        }
-        pl.reEnd = re.length
-      continue
-
-      case '|':
-        if (inClass || !patternListStack.length || escaping) {
-          re += '\\|'
-          escaping = false
-          continue
-        }
-
-        clearStateChar()
-        re += '|'
-      continue
-
-      // these are mostly the same in regexp and glob
-      case '[':
-        // swallow any state-tracking char before the [
-        clearStateChar()
-
-        if (inClass) {
-          re += '\\' + c
-          continue
-        }
-
-        inClass = true
-        classStart = i
-        reClassStart = re.length
-        re += c
-      continue
-
-      case ']':
-        //  a right bracket shall lose its special
-        //  meaning and represent itself in
-        //  a bracket expression if it occurs
-        //  first in the list.  -- POSIX.2 2.8.3.2
-        if (i === classStart + 1 || !inClass) {
-          re += '\\' + c
-          escaping = false
-          continue
-        }
-
-        // handle the case where we left a class open.
-        // "[z-a]" is valid, equivalent to "\[z-a\]"
-        // split where the last [ was, make sure we don't have
-        // an invalid re. if so, re-walk the contents of the
-        // would-be class to re-translate any characters that
-        // were passed through as-is
-        // TODO: It would probably be faster to determine this
-        // without a try/catch and a new RegExp, but it's tricky
-        // to do safely.  For now, this is safe and works.
-        var cs = pattern.substring(classStart + 1, i)
-        try {
-          RegExp('[' + cs + ']')
-        } catch (er) {
-          // not a valid class!
-          var sp = this.parse(cs, SUBPARSE)
-          re = re.substr(0, reClassStart) + '\\[' + sp[0] + '\\]'
-          hasMagic = hasMagic || sp[1]
-          inClass = false
-          continue
-        }
-
-        // finish up the class.
-        hasMagic = true
-        inClass = false
-        re += c
-      continue
-
-      default:
-        // swallow any state char that wasn't consumed
-        clearStateChar()
-
-        if (escaping) {
-          // no need
-          escaping = false
-        } else if (reSpecials[c]
-          && !(c === '^' && inClass)) {
-          re += '\\'
-        }
-
-        re += c
-
-    } // switch
-  } // for
-
-  // handle the case where we left a class open.
-  // "[abc" is valid, equivalent to "\[abc"
-  if (inClass) {
-    // split where the last [ was, and escape it
-    // this is a huge pita.  We now have to re-walk
-    // the contents of the would-be class to re-translate
-    // any characters that were passed through as-is
-    cs = pattern.substr(classStart + 1)
-    sp = this.parse(cs, SUBPARSE)
-    re = re.substr(0, reClassStart) + '\\[' + sp[0]
-    hasMagic = hasMagic || sp[1]
-  }
-
-  // handle the case where we had a +( thing at the *end*
-  // of the pattern.
-  // each pattern list stack adds 3 chars, and we need to go through
-  // and escape any | chars that were passed through as-is for the regexp.
-  // Go through and escape them, taking care not to double-escape any
-  // | chars that were already escaped.
-  for (pl = patternListStack.pop(); pl; pl = patternListStack.pop()) {
-    var tail = re.slice(pl.reStart + pl.open.length)
-    this.debug('setting tail', re, pl)
-    // maybe some even number of \, then maybe 1 \, followed by a |
-    tail = tail.replace(/((?:\\{2}){0,64})(\\?)\|/g, function (_, $1, $2) {
-      if (!$2) {
-        // the | isn't already escaped, so escape it.
-        $2 = '\\'
-      }
-
-      // need to escape all those slashes *again*, without escaping the
-      // one that we need for escaping the | character.  As it works out,
-      // escaping an even number of slashes can be done by simply repeating
-      // it exactly after itself.  That's why this trick works.
-      //
-      // I am sorry that you have to see this.
-      return $1 + $1 + $2 + '|'
-    })
-
-    this.debug('tail=%j\n   %s', tail, tail, pl, re)
-    var t = pl.type === '*' ? star
-      : pl.type === '?' ? qmark
-      : '\\' + pl.type
-
-    hasMagic = true
-    re = re.slice(0, pl.reStart) + t + '\\(' + tail
-  }
-
-  // handle trailing things that only matter at the very end.
-  clearStateChar()
-  if (escaping) {
-    // trailing \\
-    re += '\\\\'
-  }
-
-  // only need to apply the nodot start if the re starts with
-  // something that could conceivably capture a dot
-  var addPatternStart = false
-  switch (re.charAt(0)) {
-    case '[': case '.': case '(': addPatternStart = true
-  }
-
-  // Hack to work around lack of negative lookbehind in JS
-  // A pattern like: *.!(x).!(y|z) needs to ensure that a name
-  // like 'a.xyz.yz' doesn't match.  So, the first negative
-  // lookahead, has to look ALL the way ahead, to the end of
-  // the pattern.
-  for (var n = negativeLists.length - 1; n > -1; n--) {
-    var nl = negativeLists[n]
-
-    var nlBefore = re.slice(0, nl.reStart)
-    var nlFirst = re.slice(nl.reStart, nl.reEnd - 8)
-    var nlLast = re.slice(nl.reEnd - 8, nl.reEnd)
-    var nlAfter = re.slice(nl.reEnd)
-
-    nlLast += nlAfter
-
-    // Handle nested stuff like *(*.js|!(*.json)), where open parens
-    // mean that we should *not* include the ) in the bit that is considered
-    // "after" the negated section.
-    var openParensBefore = nlBefore.split('(').length - 1
-    var cleanAfter = nlAfter
-    for (i = 0; i < openParensBefore; i++) {
-      cleanAfter = cleanAfter.replace(/\)[+*?]?/, '')
-    }
-    nlAfter = cleanAfter
-
-    var dollar = ''
-    if (nlAfter === '' && isSub !== SUBPARSE) {
-      dollar = '$'
-    }
-    var newRe = nlBefore + nlFirst + nlAfter + dollar + nlLast
-    re = newRe
-  }
-
-  // if the re is not "" at this point, then we need to make sure
-  // it doesn't match against an empty path part.
-  // Otherwise a/* will match a/, which it should not.
-  if (re !== '' && hasMagic) {
-    re = '(?=.)' + re
-  }
-
-  if (addPatternStart) {
-    re = patternStart + re
-  }
-
-  // parsing just a piece of a larger pattern.
-  if (isSub === SUBPARSE) {
-    return [re, hasMagic]
-  }
-
-  // skip the regexp for non-magical patterns
-  // unescape anything in it, though, so that it'll be
-  // an exact match against a file etc.
-  if (!hasMagic) {
-    return globUnescape(pattern)
-  }
-
-  var flags = options.nocase ? 'i' : ''
-  try {
-    var regExp = new RegExp('^' + re + '$', flags)
-  } catch (er) /* istanbul ignore next - should be impossible */ {
-    // If it was an invalid regular expression, then it can't match
-    // anything.  This trick looks for a character after the end of
-    // the string, which is of course impossible, except in multi-line
-    // mode, but it's not a /m regex.
-    return new RegExp('$.')
-  }
-
-  regExp._glob = pattern
-  regExp._src = re
-
-  return regExp
-}
-
-minimatch.makeRe = function (pattern, options) {
-  return new Minimatch(pattern, options || {}).makeRe()
-}
-
-Minimatch.prototype.makeRe = makeRe
-function makeRe () {
-  if (this.regexp || this.regexp === false) return this.regexp
-
-  // at this point, this.set is a 2d array of partial
-  // pattern strings, or "**".
-  //
-  // It's better to use .match().  This function shouldn't
-  // be used, really, but it's pretty convenient sometimes,
-  // when you just want to work with a regex.
-  var set = this.set
-
-  if (!set.length) {
-    this.regexp = false
-    return this.regexp
-  }
-  var options = this.options
-
-  var twoStar = options.noglobstar ? star
-    : options.dot ? twoStarDot
-    : twoStarNoDot
-  var flags = options.nocase ? 'i' : ''
-
-  var re = set.map(function (pattern) {
-    return pattern.map(function (p) {
-      return (p === GLOBSTAR) ? twoStar
-      : (typeof p === 'string') ? regExpEscape(p)
-      : p._src
-    }).join('\\\/')
-  }).join('|')
-
-  // must match entire pattern
-  // ending in a * or ** will make it less strict.
-  re = '^(?:' + re + ')$'
-
-  // can match anything, as long as it's not this.
-  if (this.negate) re = '^(?!' + re + ').*$'
-
-  try {
-    this.regexp = new RegExp(re, flags)
-  } catch (ex) /* istanbul ignore next - should be impossible */ {
-    this.regexp = false
-  }
-  return this.regexp
-}
-
-minimatch.match = function (list, pattern, options) {
-  options = options || {}
-  var mm = new Minimatch(pattern, options)
-  list = list.filter(function (f) {
-    return mm.match(f)
-  })
-  if (mm.options.nonull && !list.length) {
-    list.push(pattern)
-  }
-  return list
-}
-
-Minimatch.prototype.match = function match (f, partial) {
-  if (typeof partial === 'undefined') partial = this.partial
-  this.debug('match', f, this.pattern)
-  // short-circuit in the case of busted things.
-  // comments, etc.
-  if (this.comment) return false
-  if (this.empty) return f === ''
-
-  if (f === '/' && partial) return true
-
-  var options = this.options
-
-  // windows: need to use /, not \
-  if (path.sep !== '/') {
-    f = f.split(path.sep).join('/')
-  }
-
-  // treat the test path as a set of pathparts.
-  f = f.split(slashSplit)
-  this.debug(this.pattern, 'split', f)
-
-  // just ONE of the pattern sets in this.set needs to match
-  // in order for it to be valid.  If negating, then just one
-  // match means that we have failed.
-  // Either way, return on the first hit.
-
-  var set = this.set
-  this.debug(this.pattern, 'set', set)
-
-  // Find the basename of the path by looking for the last non-empty segment
-  var filename
-  var i
-  for (i = f.length - 1; i >= 0; i--) {
-    filename = f[i]
-    if (filename) break
-  }
-
-  for (i = 0; i < set.length; i++) {
-    var pattern = set[i]
-    var file = f
-    if (options.matchBase && pattern.length === 1) {
-      file = [filename]
-    }
-    var hit = this.matchOne(file, pattern, partial)
-    if (hit) {
-      if (options.flipNegate) return true
-      return !this.negate
-    }
-  }
-
-  // didn't get any hits.  this is success if it's a negative
-  // pattern, failure otherwise.
-  if (options.flipNegate) return false
-  return this.negate
-}
-
-// set partial to true to test if, for example,
-// "/a/b" matches the start of "/*/b/*/d"
-// Partial means, if you run out of file before you run
-// out of pattern, then that's fine, as long as all
-// the parts match.
-Minimatch.prototype.matchOne = function (file, pattern, partial) {
-  if (pattern.indexOf(GLOBSTAR) !== -1) {
-    return this._matchGlobstar(file, pattern, partial, 0, 0)
-  }
-  return this._matchOne(file, pattern, partial, 0, 0)
-}
-
-Minimatch.prototype._matchGlobstar = function (file, pattern, partial, fileIndex, patternIndex) {
-  var i
-
-  // find first globstar from patternIndex
-  var firstgs = -1
-  for (i = patternIndex; i < pattern.length; i++) {
-    if (pattern[i] === GLOBSTAR) { firstgs = i; break }
-  }
-
-  // find last globstar
-  var lastgs = -1
-  for (i = pattern.length - 1; i >= 0; i--) {
-    if (pattern[i] === GLOBSTAR) { lastgs = i; break }
-  }
-
-  var head = pattern.slice(patternIndex, firstgs)
-  var body = partial ? pattern.slice(firstgs + 1) : pattern.slice(firstgs + 1, lastgs)
-  var tail = partial ? [] : pattern.slice(lastgs + 1)
-
-  // check the head
-  if (head.length) {
-    var fileHead = file.slice(fileIndex, fileIndex + head.length)
-    if (!this._matchOne(fileHead, head, partial, 0, 0)) {
-      return false
-    }
-    fileIndex += head.length
-  }
-
-  // check the tail
-  var fileTailMatch = 0
-  if (tail.length) {
-    if (tail.length + fileIndex > file.length) return false
-
-    var tailStart = file.length - tail.length
-    if (this._matchOne(file, tail, partial, tailStart, 0)) {
-      fileTailMatch = tail.length
-    } else {
-      // affordance for stuff like a/**/* matching a/b/
-      if (file[file.length - 1] !== '' ||
-          fileIndex + tail.length === file.length) {
-        return false
-      }
-      tailStart--
-      if (!this._matchOne(file, tail, partial, tailStart, 0)) {
-        return false
-      }
-      fileTailMatch = tail.length + 1
-    }
-  }
-
-  // if body is empty (single ** between head and tail)
-  if (!body.length) {
-    var sawSome = !!fileTailMatch
-    for (i = fileIndex; i < file.length - fileTailMatch; i++) {
-      var f = String(file[i])
-      sawSome = true
-      if (f === '.' || f === '..' ||
-          (!this.options.dot && f.charAt(0) === '.')) {
-        return false
-      }
-    }
-    return partial || sawSome
-  }
-
-  // split body into segments at each GLOBSTAR
-  var bodySegments = [[[], 0]]
-  var currentBody = bodySegments[0]
-  var nonGsParts = 0
-  var nonGsPartsSums = [0]
-  for (var bi = 0; bi < body.length; bi++) {
-    var b = body[bi]
-    if (b === GLOBSTAR) {
-      nonGsPartsSums.push(nonGsParts)
-      currentBody = [[], 0]
-      bodySegments.push(currentBody)
-    } else {
-      currentBody[0].push(b)
-      nonGsParts++
-    }
-  }
-
-  var idx = bodySegments.length - 1
-  var fileLength = file.length - fileTailMatch
-  for (var si = 0; si < bodySegments.length; si++) {
-    bodySegments[si][1] = fileLength -
-      (nonGsPartsSums[idx--] + bodySegments[si][0].length)
-  }
-
-  return !!this._matchGlobStarBodySections(
-    file, bodySegments, fileIndex, 0, partial, 0, !!fileTailMatch
-  )
-}
-
-// return false for "nope, not matching"
-// return null for "not matching, cannot keep trying"
-Minimatch.prototype._matchGlobStarBodySections = function (
-  file, bodySegments, fileIndex, bodyIndex, partial, globStarDepth, sawTail
-) {
-  var bs = bodySegments[bodyIndex]
-  if (!bs) {
-    // just make sure there are no bad dots
-    for (var i = fileIndex; i < file.length; i++) {
-      sawTail = true
-      var f = file[i]
-      if (f === '.' || f === '..' ||
-          (!this.options.dot && f.charAt(0) === '.')) {
-        return false
-      }
-    }
-    return sawTail
-  }
-
-  var body = bs[0]
-  var after = bs[1]
-  while (fileIndex <= after) {
-    var m = this._matchOne(
-      file.slice(0, fileIndex + body.length),
-      body,
-      partial,
-      fileIndex,
-      0
-    )
-    // if limit exceeded, no match. intentional false negative,
-    // acceptable break in correctness for security.
-    if (m && globStarDepth < this.maxGlobstarRecursion) {
-      var sub = this._matchGlobStarBodySections(
-        file, bodySegments,
-        fileIndex + body.length, bodyIndex + 1,
-        partial, globStarDepth + 1, sawTail
-      )
-      if (sub !== false) {
-        return sub
-      }
-    }
-    var f = file[fileIndex]
-    if (f === '.' || f === '..' ||
-        (!this.options.dot && f.charAt(0) === '.')) {
-      return false
-    }
-    fileIndex++
-  }
-  return partial || null
-}
-
-Minimatch.prototype._matchOne = function (file, pattern, partial, fileIndex, patternIndex) {
-  var fi, pi, fl, pl
-  for (
-    fi = fileIndex, pi = patternIndex, fl = file.length, pl = pattern.length
-    ; (fi < fl) && (pi < pl)
-    ; fi++, pi++
-  ) {
-    this.debug('matchOne loop')
-    var p = pattern[pi]
-    var f = file[fi]
-
-    this.debug(pattern, p, f)
-
-    // should be impossible.
-    // some invalid regexp stuff in the set.
-    /* istanbul ignore if */
-    if (p === false || p === GLOBSTAR) return false
-
-    // something other than **
-    // non-magic patterns just have to match exactly
-    // patterns with magic have been turned into regexps.
-    var hit
-    if (typeof p === 'string') {
-      hit = f === p
-      this.debug('string match', p, f, hit)
-    } else {
-      hit = f.match(p)
-      this.debug('pattern match', p, f, hit)
-    }
-
-    if (!hit) return false
-  }
-
-  // now either we fell off the end of the pattern, or we're done.
-  if (fi === fl && pi === pl) {
-    // ran out of pattern and filename at the same time.
-    // an exact hit!
-    return true
-  } else if (fi === fl) {
-    // ran out of file, but still had pattern left.
-    // this is ok if we're doing the match as part of
-    // a glob fs traversal.
-    return partial
-  } else /* istanbul ignore else */ if (pi === pl) {
-    // ran out of pattern, still have file left.
-    // this is only acceptable if we're on the very last
-    // empty segment of a file with a trailing slash.
-    // a/* should match a/b/
-    return (fi === fl - 1) && (file[fi] === '')
-  }
-
-  // should be unreachable.
-  /* istanbul ignore next */
-  throw new Error('wtf?')
-}
-
-// replace stuff like \* with *
-function globUnescape (s) {
-  return s.replace(/\\(.)/g, '$1')
-}
-
-function regExpEscape (s) {
-  return s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')
-}
-
 
 /***/ }),
 
@@ -71535,13 +70426,6 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("os");
 
 /***/ }),
 
-/***/ 6928:
-/***/ ((module) => {
-
-module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("path");
-
-/***/ }),
-
 /***/ 2203:
 /***/ ((module) => {
 
@@ -71641,7 +70525,7 @@ module.exports = { version: packageJson.version }
 /***/ 4012:
 /***/ ((module) => {
 
-module.exports = /*#__PURE__*/JSON.parse('{"name":"@actions/cache","version":"6.2.0","description":"Actions cache lib","keywords":["github","actions","cache"],"homepage":"https://github.com/actions/toolkit/tree/main/packages/cache","license":"MIT","type":"module","main":"lib/cache.js","types":"lib/cache.d.ts","exports":{".":{"types":"./lib/cache.d.ts","import":"./lib/cache.js"}},"directories":{"lib":"lib","test":"__tests__"},"files":["lib","!.DS_Store"],"publishConfig":{"access":"public"},"repository":{"type":"git","url":"git+https://github.com/actions/toolkit.git","directory":"packages/cache"},"scripts":{"audit-moderate":"npm install && npm audit --json --audit-level=moderate > audit.json","test":"echo \\"Error: run tests from root\\" && exit 1","tsc":"tsc && cp src/internal/shared/package-version.cjs lib/internal/shared/"},"bugs":{"url":"https://github.com/actions/toolkit/issues"},"dependencies":{"@actions/core":"^3.0.1","@actions/exec":"^3.0.0","@actions/glob":"^0.6.1","@actions/http-client":"^4.0.1","@actions/io":"^3.0.2","@azure/core-rest-pipeline":"^1.23.0","@azure/storage-blob":"^12.31.0","@protobuf-ts/runtime-rpc":"^2.11.1","semver":"^7.7.4"},"devDependencies":{"@protobuf-ts/plugin":"^2.11.1","@types/node":"^25.6.0","@types/semver":"^7.7.1","typescript":"^5.9.3"},"overrides":{"uri-js":"npm:uri-js-replace@^1.0.1","node-fetch":"^3.3.2"}}');
+module.exports = /*#__PURE__*/JSON.parse('{"name":"@actions/cache","version":"6.3.0","description":"Actions cache lib","keywords":["github","actions","cache"],"homepage":"https://github.com/actions/toolkit/tree/main/packages/cache","license":"MIT","type":"module","main":"lib/cache.js","types":"lib/cache.d.ts","exports":{".":{"types":"./lib/cache.d.ts","import":"./lib/cache.js"}},"directories":{"lib":"lib","test":"__tests__"},"files":["lib","!.DS_Store"],"publishConfig":{"access":"public"},"repository":{"type":"git","url":"git+https://github.com/actions/toolkit.git","directory":"packages/cache"},"scripts":{"audit-moderate":"npm install && npm audit --json --audit-level=moderate > audit.json","test":"echo \\"Error: run tests from root\\" && exit 1","tsc":"tsc && cp src/internal/shared/package-version.cjs lib/internal/shared/"},"bugs":{"url":"https://github.com/actions/toolkit/issues"},"dependencies":{"@actions/core":"^3.0.1","@actions/exec":"^3.0.0","@actions/glob":"^0.7.0","@actions/http-client":"^4.0.1","@actions/io":"^3.0.2","@azure/core-rest-pipeline":"~1.23.0","@azure/storage-blob":"~12.31.0","@protobuf-ts/runtime-rpc":"^2.11.1","semver":"^7.8.5"},"devDependencies":{"@protobuf-ts/plugin":"^2.11.1","@types/node":"^25.9.8","@types/semver":"^7.8.0","typescript":"^5.9.3"},"overrides":{"uri-js":"npm:uri-js-replace@^1.0.1","node-fetch":"^3.3.2"}}');
 
 /***/ })
 
@@ -72096,8 +70980,8 @@ function file_command_prepareKeyValueMessage(key, value) {
     return `${key}<<${delimiter}${external_os_.EOL}${convertedValue}${external_os_.EOL}${delimiter}`;
 }
 //# sourceMappingURL=file-command.js.map
-// EXTERNAL MODULE: external "path"
-var external_path_ = __nccwpck_require__(6928);
+;// CONCATENATED MODULE: external "path"
+const external_path_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("path");
 // EXTERNAL MODULE: external "http"
 var external_http_ = __nccwpck_require__(8611);
 var external_http_namespaceObject = /*#__PURE__*/__nccwpck_require__.t(external_http_, 2);
@@ -73466,7 +72350,7 @@ function tryGetExecutablePath(filePath, extensions) {
         if (stats && stats.isFile()) {
             if (IS_WINDOWS) {
                 // on Windows, test for valid extension
-                const upperExt = external_path_.extname(filePath).toUpperCase();
+                const upperExt = external_path_namespaceObject.extname(filePath).toUpperCase();
                 if (extensions.some(validExt => validExt.toUpperCase() === upperExt)) {
                     return filePath;
                 }
@@ -73495,11 +72379,11 @@ function tryGetExecutablePath(filePath, extensions) {
                 if (IS_WINDOWS) {
                     // preserve the case of the actual file (since an extension was appended)
                     try {
-                        const directory = external_path_.dirname(filePath);
-                        const upperName = external_path_.basename(filePath).toUpperCase();
+                        const directory = external_path_namespaceObject.dirname(filePath);
+                        const upperName = external_path_namespaceObject.basename(filePath).toUpperCase();
                         for (const actualName of yield readdir(directory)) {
                             if (upperName === actualName.toUpperCase()) {
-                                filePath = external_path_.join(directory, actualName);
+                                filePath = external_path_namespaceObject.join(directory, actualName);
                                 break;
                             }
                         }
@@ -73639,7 +72523,7 @@ function mv(source_1, dest_1) {
  */
 function rmRF(inputPath) {
     return io_awaiter(this, void 0, void 0, function* () {
-        if (ioUtil.IS_WINDOWS) {
+        if (IS_WINDOWS) {
             // Check for invalid characters
             // https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
             if (/[*"<>|]/.test(inputPath)) {
@@ -73648,7 +72532,7 @@ function rmRF(inputPath) {
         }
         try {
             // note if path does not exist, error is silent
-            yield ioUtil.rm(inputPath, {
+            yield rm(inputPath, {
                 force: true,
                 maxRetries: 3,
                 recursive: true,
@@ -73719,7 +72603,7 @@ function findInPath(tool) {
         // build the list of extensions to try
         const extensions = [];
         if (IS_WINDOWS && process.env['PATHEXT']) {
-            for (const extension of process.env['PATHEXT'].split(external_path_.delimiter)) {
+            for (const extension of process.env['PATHEXT'].split(external_path_namespaceObject.delimiter)) {
                 if (extension) {
                     extensions.push(extension);
                 }
@@ -73734,7 +72618,7 @@ function findInPath(tool) {
             return [];
         }
         // if any path separators, return empty
-        if (tool.includes(external_path_.sep)) {
+        if (tool.includes(external_path_namespaceObject.sep)) {
             return [];
         }
         // build the list of directories
@@ -73745,7 +72629,7 @@ function findInPath(tool) {
         // across platforms.
         const directories = [];
         if (process.env.PATH) {
-            for (const p of process.env.PATH.split(external_path_.delimiter)) {
+            for (const p of process.env.PATH.split(external_path_namespaceObject.delimiter)) {
                 if (p) {
                     directories.push(p);
                 }
@@ -73754,7 +72638,7 @@ function findInPath(tool) {
         // find all matches
         const matches = [];
         for (const directory of directories) {
-            const filePath = yield tryGetExecutablePath(external_path_.join(directory, tool), extensions);
+            const filePath = yield tryGetExecutablePath(external_path_namespaceObject.join(directory, tool), extensions);
             if (filePath) {
                 matches.push(filePath);
             }
@@ -74185,7 +73069,7 @@ class ToolRunner extends external_events_.EventEmitter {
                 (this.toolPath.includes('/') ||
                     (toolrunner_IS_WINDOWS && this.toolPath.includes('\\')))) {
                 // prefer options.cwd if it is specified, however options.cwd may also need to be rooted
-                this.toolPath = external_path_.resolve(process.cwd(), this.options.cwd || process.cwd(), this.toolPath);
+                this.toolPath = external_path_namespaceObject.resolve(process.cwd(), this.options.cwd || process.cwd(), this.toolPath);
             }
             // if the tool is only a file name, then resolve it from the PATH
             // otherwise verify it exists (add extension on Windows if necessary)
@@ -74941,7 +73825,7 @@ function dirname(p) {
         return p;
     }
     // Get dirname
-    let result = external_path_.dirname(p);
+    let result = external_path_namespaceObject.dirname(p);
     // Trim trailing slash for Windows UNC root, e.g. \\hello\world\
     if (internal_path_helper_IS_WINDOWS && /^\\\\[^\\]+\\[^\\]+\\$/.test(result)) {
         result = safeTrimTrailingSeparator(result);
@@ -75000,7 +73884,7 @@ function ensureAbsoluteRoot(root, itemPath) {
     }
     else {
         // Append separator
-        root += external_path_.sep;
+        root += external_path_namespaceObject.sep;
     }
     return root + itemPath;
 }
@@ -75065,11 +73949,11 @@ function safeTrimTrailingSeparator(p) {
     // Normalize separators
     p = internal_path_helper_normalizeSeparators(p);
     // No trailing slash
-    if (!p.endsWith(external_path_.sep)) {
+    if (!p.endsWith(external_path_namespaceObject.sep)) {
         return p;
     }
     // Check '/' on Linux/macOS and '\' on Windows
-    if (p === external_path_.sep) {
+    if (p === external_path_namespaceObject.sep) {
         return p;
     }
     // On Windows check if drive root. E.g. C:\
@@ -75166,8 +74050,2568 @@ function internal_pattern_helper_partialMatch(patterns, itemPath) {
     return patterns.some(x => !x.negate && x.partialMatch(itemPath));
 }
 //# sourceMappingURL=internal-pattern-helper.js.map
-// EXTERNAL MODULE: ./node_modules/minimatch/minimatch.js
-var minimatch = __nccwpck_require__(3772);
+;// CONCATENATED MODULE: ./node_modules/balanced-match/dist/esm/index.js
+const balanced = (a, b, str) => {
+    const ma = a instanceof RegExp ? maybeMatch(a, str) : a;
+    const mb = b instanceof RegExp ? maybeMatch(b, str) : b;
+    const r = ma !== null && mb != null && range(ma, mb, str);
+    return (r && {
+        start: r[0],
+        end: r[1],
+        pre: str.slice(0, r[0]),
+        body: str.slice(r[0] + ma.length, r[1]),
+        post: str.slice(r[1] + mb.length),
+    });
+};
+const maybeMatch = (reg, str) => {
+    const m = str.match(reg);
+    return m ? m[0] : null;
+};
+const range = (a, b, str) => {
+    let begs, beg, left, right = undefined, result;
+    let ai = str.indexOf(a);
+    let bi = str.indexOf(b, ai + 1);
+    let i = ai;
+    if (ai >= 0 && bi > 0) {
+        if (a === b) {
+            return [ai, bi];
+        }
+        begs = [];
+        left = str.length;
+        while (i >= 0 && !result) {
+            if (i === ai) {
+                begs.push(i);
+                ai = str.indexOf(a, i + 1);
+            }
+            else if (begs.length === 1) {
+                const r = begs.pop();
+                if (r !== undefined)
+                    result = [r, bi];
+            }
+            else {
+                beg = begs.pop();
+                if (beg !== undefined && beg < left) {
+                    left = beg;
+                    right = bi;
+                }
+                bi = str.indexOf(b, i + 1);
+            }
+            i = ai < bi && ai >= 0 ? ai : bi;
+        }
+        if (begs.length && right !== undefined) {
+            result = [left, right];
+        }
+    }
+    return result;
+};
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ./node_modules/brace-expansion/dist/esm/index.js
+
+const escSlash = '\0SLASH' + Math.random() + '\0';
+const escOpen = '\0OPEN' + Math.random() + '\0';
+const escClose = '\0CLOSE' + Math.random() + '\0';
+const escComma = '\0COMMA' + Math.random() + '\0';
+const escPeriod = '\0PERIOD' + Math.random() + '\0';
+const escSlashPattern = new RegExp(escSlash, 'g');
+const escOpenPattern = new RegExp(escOpen, 'g');
+const escClosePattern = new RegExp(escClose, 'g');
+const escCommaPattern = new RegExp(escComma, 'g');
+const escPeriodPattern = new RegExp(escPeriod, 'g');
+const slashPattern = /\\\\/g;
+const openPattern = /\\{/g;
+const closePattern = /\\}/g;
+const commaPattern = /\\,/g;
+const periodPattern = /\\\./g;
+const EXPANSION_MAX = 100_000;
+// `EXPANSION_MAX` caps the *number* of expansions, but not their length. An
+// input like `'{a,b}'.repeat(1500)` stays under that count - its output is
+// truncated to 100k results - while making every result ~1500 characters
+// long. The result set, and the intermediate arrays built while combining
+// brace sets, then grow large enough to exhaust memory and crash the process
+// (CVE-2026-14257). `EXPANSION_MAX_LENGTH` bounds the total number of
+// characters the accumulator may hold at any point, so memory stays flat no
+// matter how many brace groups are chained. The limit sits well above any
+// realistic expansion (100k results hitting `EXPANSION_MAX` measure ~1M
+// characters) so legitimate input is unaffected.
+const EXPANSION_MAX_LENGTH = 4_000_000;
+// `expand_` recurses once per level of brace *nesting* - both when expanding a
+// set's comma members and when re-wrapping a set whose body is a single part.
+// The CVE-2026-14257 fix made the *tail* iterative (recursion on `m.post`, one
+// level per chained group), which left nesting depth unbounded: about 3,100
+// levels of `{{{...a,b...}}}` - only ~6KB of input - exhausted the native stack
+// and crashed the process. `EXPANSION_MAX_DEPTH` bounds how deep the parser
+// will follow nesting. It sits far above any realistic pattern and well below
+// the depth at which the stack runs out.
+const EXPANSION_MAX_DEPTH = 1_000;
+// Bash keeps a quirk where a brace group followed by a comma set still expands
+// (`{a},b}`). The parser implements it by rewriting the string and restarting
+// the scan, absorbing one `}` per pass. `n` trailing braces therefore cost `n`
+// full passes over a string that itself grows by one `escClose` sentinel each
+// time - quadratic in `n`, with a ~26x constant from the sentinel's length.
+// 128KB of `'{a}' + '}'.repeat(n) + ',z}'` blocked the event loop for 27
+// seconds to produce two results. `EXPANSION_MAX_REWRITES` bounds how many
+// times the scan may restart. Real `{a},b}` input needs a handful.
+const EXPANSION_MAX_REWRITES = 1_000;
+function numeric(str) {
+    return !isNaN(str) ? parseInt(str, 10) : str.charCodeAt(0);
+}
+function escapeBraces(str) {
+    return str
+        .replace(slashPattern, escSlash)
+        .replace(openPattern, escOpen)
+        .replace(closePattern, escClose)
+        .replace(commaPattern, escComma)
+        .replace(periodPattern, escPeriod);
+}
+function unescapeBraces(str) {
+    return str
+        .replace(escSlashPattern, '\\')
+        .replace(escOpenPattern, '{')
+        .replace(escClosePattern, '}')
+        .replace(escCommaPattern, ',')
+        .replace(escPeriodPattern, '.');
+}
+// Like `target.push(...items)` but doesn't overflow the stack
+function pushAll(target, items) {
+    for (let i = 0; i < items.length; i++) {
+        target.push(items[i]);
+    }
+}
+/**
+ * Basically just str.split(","), but handling cases
+ * where we have nested braced sections, which should be
+ * treated as individual members, like {a,{b,c},d}
+ */
+function parseCommaParts(str) {
+    const parts = [];
+    // Walk the brace groups iteratively. Recursing on `post` once per group let a
+    // chain of them exhaust the stack - the parsing-side counterpart to
+    // the `expand_` overflow fixed for CVE-2026-14257, and not something `max` or
+    // `maxLength` can bound, since it happens before expansion.
+    //
+    // The part the next chunk continues
+    let carry = '';
+    for (;;) {
+        const m = balanced('{', '}', str);
+        if (!m) {
+            const tail = str.split(',');
+            tail[0] = carry + tail[0];
+            pushAll(parts, tail);
+            return parts;
+        }
+        const { pre, body, post } = m;
+        const p = pre.split(',');
+        p[0] = carry + p[0];
+        p[p.length - 1] += '{' + body + '}';
+        if (!post.length) {
+            pushAll(parts, p);
+            return parts;
+        }
+        carry = p.pop();
+        pushAll(parts, p);
+        str = post;
+    }
+}
+function expand(str, options = {}) {
+    if (!str) {
+        return [];
+    }
+    const { max = EXPANSION_MAX, maxLength = EXPANSION_MAX_LENGTH, maxDepth = EXPANSION_MAX_DEPTH, maxRewrites = EXPANSION_MAX_REWRITES, } = options;
+    // I don't know why Bash 4.3 does this, but it does.
+    // Anything starting with {} will have the first two bytes preserved
+    // but *only* at the top level, so {},a}b will not expand to anything,
+    // but a{},b}c will be expanded to [a}c,abc].
+    // One could argue that this is a bug in Bash, but since the goal of
+    // this module is to match Bash's rules, we escape a leading {}
+    if (str.slice(0, 2) === '{}') {
+        str = '\\{\\}' + str.slice(2);
+    }
+    return expand_(escapeBraces(str), max, maxLength, maxDepth, 0, maxRewrites, true).map(unescapeBraces);
+}
+function embrace(str) {
+    return '{' + str + '}';
+}
+function isPadded(el) {
+    return /^-?0\d/.test(el);
+}
+function lte(i, y) {
+    return i <= y;
+}
+function gte(i, y) {
+    return i >= y;
+}
+// Build `{ acc[a] + pre + values[v] }` for every combination, capping the
+// number of results at `max` and the total number of characters at `maxLength`.
+// This is the one place output grows, so bounding it here keeps the single
+// accumulator - and therefore memory - flat regardless of how many brace groups
+// are combined (CVE-2026-14257).
+function combine(acc, pre, values, max, maxLength, dropEmpties) {
+    const out = [];
+    let length = 0;
+    for (let a = 0; a < acc.length; a++) {
+        for (let v = 0; v < values.length; v++) {
+            if (out.length >= max)
+                return out;
+            const expansion = acc[a] + pre + values[v];
+            // Bash drops empty results at the top level. Skip them before they count
+            // against `max`, so `max` bounds the number of *kept* results.
+            if (dropEmpties && !expansion)
+                continue;
+            if (length + expansion.length > maxLength)
+                return out;
+            out.push(expansion);
+            length += expansion.length;
+        }
+    }
+    return out;
+}
+// The expansion values of a single numeric (`1..5`) or alphabetic (`a..e..2`)
+// sequence body.
+function expandSequence(body, isAlphaSequence, max, maxLength) {
+    const n = body.split(/\.\./);
+    const N = [];
+    // A sequence body always splits into two or three parts, but the compiler
+    // can't know that.
+    /* c8 ignore start */
+    if (n[0] === undefined || n[1] === undefined) {
+        return N;
+    }
+    /* c8 ignore stop */
+    const x = numeric(n[0]);
+    const y = numeric(n[1]);
+    const width = Math.max(n[0].length, n[1].length);
+    let incr = n.length === 3 && n[2] !== undefined ?
+        Math.max(Math.abs(numeric(n[2])), 1)
+        : 1;
+    let test = lte;
+    const reverse = y < x;
+    if (reverse) {
+        incr *= -1;
+        test = gte;
+    }
+    const pad = n.some(isPadded);
+    let length = 0;
+    for (let i = x; test(i, y) && N.length < max; i += incr) {
+        let c;
+        if (isAlphaSequence) {
+            c = String.fromCharCode(i);
+            if (c === '\\') {
+                c = '';
+            }
+        }
+        else {
+            c = String(i);
+            if (pad) {
+                const need = width - c.length;
+                if (need > 0) {
+                    const z = new Array(need + 1).join('0');
+                    if (i < 0) {
+                        c = '-' + z + c.slice(1);
+                    }
+                    else {
+                        c = z + c;
+                    }
+                }
+            }
+        }
+        if (length + c.length > maxLength)
+            break;
+        N.push(c);
+        length += c.length;
+    }
+    return N;
+}
+function expand_(str, max, maxLength, maxDepth, depth, maxRewrites, isTop) {
+    // Too deeply nested to keep following: treat the rest as literal, the same
+    // way a group that cannot expand is already handled. Truncating rather than
+    // throwing keeps `expand` total, matching `max` and `maxLength`.
+    if (depth > maxDepth) {
+        return [str];
+    }
+    // Consume the string's top-level brace groups left to right, threading a
+    // running set of combined prefixes (`acc`). Expanding the tail iteratively -
+    // rather than recursing on `m.post` once per group - keeps the native stack
+    // depth constant, so deeply chained input (`'{a,b}'.repeat(3000)`) can no
+    // longer overflow the stack, and leaves a single accumulator whose size
+    // `maxLength` bounds directly (CVE-2026-14257).
+    let acc = [''];
+    // Bash drops empty results, but only when the *first* top-level group is a
+    // comma set - a sequence like `{a..\}` may legitimately yield ''. The drop
+    // is on the final strings, so it is applied to whichever `combine` produces
+    // them (the one with no brace set left in the tail).
+    // How many times the `{a},b}` rewrite below has restarted the scan. Each pass
+    // re-reads the whole string, so leaving this unbounded is quadratic.
+    let rewrites = 0;
+    let dropEmpties = false;
+    let firstGroup = true;
+    for (;;) {
+        const m = balanced('{', '}', str);
+        // No brace set left: the rest of the string is literal.
+        if (!m) {
+            return combine(acc, str, [''], max, maxLength, dropEmpties);
+        }
+        // no need to expand pre, since it is guaranteed to be free of brace-sets
+        const pre = m.pre;
+        if (/\$$/.test(pre)) {
+            acc = combine(acc, pre + '{' + m.body + '}', [''], max, maxLength, dropEmpties && !m.post.length);
+            firstGroup = false;
+            if (!m.post.length)
+                break;
+            str = m.post;
+            continue;
+        }
+        const isNumericSequence = /^-?\d+\.\.-?\d+(?:\.\.-?\d+)?$/.test(m.body);
+        const isAlphaSequence = /^[a-zA-Z]\.\.[a-zA-Z](?:\.\.-?\d+)?$/.test(m.body);
+        const isSequence = isNumericSequence || isAlphaSequence;
+        const isOptions = m.body.indexOf(',') >= 0;
+        if (!isSequence && !isOptions) {
+            // {a},b}
+            if (rewrites < maxRewrites && m.post.match(/,(?!,).*\}/)) {
+                rewrites++;
+                str = m.pre + '{' + m.body + escClose + m.post;
+                isTop = true;
+                continue;
+            }
+            // Nothing here expands, so the whole remaining string is literal.
+            return combine(acc, pre + '{' + m.body + '}' + m.post, [''], max, maxLength, dropEmpties);
+        }
+        if (firstGroup) {
+            dropEmpties = isTop && !isSequence;
+            firstGroup = false;
+        }
+        let values;
+        if (isSequence) {
+            values = expandSequence(m.body, isAlphaSequence, max, maxLength);
+        }
+        else {
+            let n = parseCommaParts(m.body);
+            if (n.length === 1 && n[0] !== undefined) {
+                // x{{a,b}}y ==> x{a}y x{b}y
+                n = expand_(n[0], max, maxLength, maxDepth, depth + 1, maxRewrites, false).map(embrace);
+                //XXX is this necessary? Can't seem to hit it in tests.
+                /* c8 ignore start */
+                if (n.length === 1) {
+                    acc = combine(acc, pre + n[0], [''], max, maxLength, dropEmpties && !m.post.length);
+                    if (!m.post.length)
+                        break;
+                    str = m.post;
+                    continue;
+                }
+                /* c8 ignore stop */
+            }
+            // Values that `combine` is going to drop as empty produce no result, so
+            // they must not count against `max` - otherwise `{a,,b}` with `max: 2`
+            // would stop at `['a', '']` and yield one result instead of two. Skipping
+            // them outright keeps `values` bounded while leaving `max` a bound on
+            // *kept* results.
+            let dropsEmpties = dropEmpties && !m.post.length && !pre;
+            for (let d = 0; dropsEmpties && d < acc.length; d++) {
+                if (acc[d]) {
+                    dropsEmpties = false;
+                }
+            }
+            values = [];
+            let valuesLength = 0;
+            outer: for (let j = 0; j < n.length; j++) {
+                const expanded = expand_(n[j], max, maxLength, maxDepth, depth + 1, maxRewrites, false);
+                for (let k = 0; k < expanded.length; k++) {
+                    const v = expanded[k];
+                    if (dropsEmpties && !v)
+                        continue;
+                    if (values.length >= max ||
+                        valuesLength + v.length > maxLength) {
+                        break outer;
+                    }
+                    values.push(v);
+                    valuesLength += v.length;
+                }
+            }
+        }
+        acc = combine(acc, pre, values, max, maxLength, dropEmpties && !m.post.length);
+        if (!m.post.length)
+            break;
+        str = m.post;
+    }
+    return acc;
+}
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/assert-valid-pattern.js
+const MAX_PATTERN_LENGTH = 1024 * 64;
+const assertValidPattern = (pattern) => {
+    if (typeof pattern !== 'string') {
+        throw new TypeError('invalid pattern');
+    }
+    if (pattern.length > MAX_PATTERN_LENGTH) {
+        throw new TypeError('pattern is too long');
+    }
+};
+//# sourceMappingURL=assert-valid-pattern.js.map
+;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/brace-expressions.js
+// translate the various posix character classes into unicode properties
+// this works across all unicode locales
+// { <posix class>: [<translation>, /u flag required, negated]
+const posixClasses = {
+    '[:alnum:]': ['\\p{L}\\p{Nl}\\p{Nd}', true],
+    '[:alpha:]': ['\\p{L}\\p{Nl}', true],
+    '[:ascii:]': ['\\x' + '00-\\x' + '7f', false],
+    '[:blank:]': ['\\p{Zs}\\t', true],
+    '[:cntrl:]': ['\\p{Cc}', true],
+    '[:digit:]': ['\\p{Nd}', true],
+    '[:graph:]': ['\\p{Z}\\p{C}', true, true],
+    '[:lower:]': ['\\p{Ll}', true],
+    '[:print:]': ['\\p{C}', true],
+    '[:punct:]': ['\\p{P}', true],
+    '[:space:]': ['\\p{Z}\\t\\r\\n\\v\\f', true],
+    '[:upper:]': ['\\p{Lu}', true],
+    '[:word:]': ['\\p{L}\\p{Nl}\\p{Nd}\\p{Pc}', true],
+    '[:xdigit:]': ['A-Fa-f0-9', false],
+};
+// only need to escape a few things inside of brace expressions
+// escapes: [ \ ] -
+const braceEscape = (s) => s.replace(/[[\]\\-]/g, '\\$&');
+// escape all regexp magic characters
+const regexpEscape = (s) => s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+// everything has already been escaped, we just have to join
+const rangesToString = (ranges) => ranges.join('');
+// takes a glob string at a posix brace expression, and returns
+// an equivalent regular expression source, and boolean indicating
+// whether the /u flag needs to be applied, and the number of chars
+// consumed to parse the character class.
+// This also removes out of order ranges, and returns ($.) if the
+// entire class just no good.
+const parseClass = (glob, position) => {
+    const pos = position;
+    /* c8 ignore start */
+    if (glob.charAt(pos) !== '[') {
+        throw new Error('not in a brace expression');
+    }
+    /* c8 ignore stop */
+    const ranges = [];
+    const negs = [];
+    let i = pos + 1;
+    let sawStart = false;
+    let uflag = false;
+    let escaping = false;
+    let negate = false;
+    let endPos = pos;
+    let rangeStart = '';
+    WHILE: while (i < glob.length) {
+        const c = glob.charAt(i);
+        if ((c === '!' || c === '^') && i === pos + 1) {
+            negate = true;
+            i++;
+            continue;
+        }
+        if (c === ']' && sawStart && !escaping) {
+            endPos = i + 1;
+            break;
+        }
+        sawStart = true;
+        if (c === '\\') {
+            if (!escaping) {
+                escaping = true;
+                i++;
+                continue;
+            }
+            // escaped \ char, fall through and treat like normal char
+        }
+        if (c === '[' && !escaping) {
+            // either a posix class, a collation equivalent, or just a [
+            for (const [cls, [unip, u, neg]] of Object.entries(posixClasses)) {
+                if (glob.startsWith(cls, i)) {
+                    // invalid, [a-[] is fine, but not [a-[:alpha]]
+                    if (rangeStart) {
+                        return ['$.', false, glob.length - pos, true];
+                    }
+                    i += cls.length;
+                    if (neg)
+                        negs.push(unip);
+                    else
+                        ranges.push(unip);
+                    uflag = uflag || u;
+                    continue WHILE;
+                }
+            }
+        }
+        // now it's just a normal character, effectively
+        escaping = false;
+        if (rangeStart) {
+            // throw this range away if it's not valid, but others
+            // can still match.
+            if (c > rangeStart) {
+                ranges.push(braceEscape(rangeStart) + '-' + braceEscape(c));
+            }
+            else if (c === rangeStart) {
+                ranges.push(braceEscape(c));
+            }
+            rangeStart = '';
+            i++;
+            continue;
+        }
+        // now might be the start of a range.
+        // can be either c-d or c-] or c<more...>] or c] at this point
+        if (glob.startsWith('-]', i + 1)) {
+            ranges.push(braceEscape(c + '-'));
+            i += 2;
+            continue;
+        }
+        if (glob.startsWith('-', i + 1)) {
+            rangeStart = c;
+            i += 2;
+            continue;
+        }
+        // not the start of a range, just a single character
+        ranges.push(braceEscape(c));
+        i++;
+    }
+    if (endPos < i) {
+        // didn't see the end of the class, not a valid class,
+        // but might still be valid as a literal match.
+        return ['', false, 0, false];
+    }
+    // if we got no ranges and no negates, then we have a range that
+    // cannot possibly match anything, and that poisons the whole glob
+    if (!ranges.length && !negs.length) {
+        return ['$.', false, glob.length - pos, true];
+    }
+    // if we got one positive range, and it's a single character, then that's
+    // not actually a magic pattern, it's just that one literal character.
+    // we should not treat that as "magic", we should just return the literal
+    // character. [_] is a perfectly valid way to escape glob magic chars.
+    if (negs.length === 0 &&
+        ranges.length === 1 &&
+        /^\\?.$/.test(ranges[0]) &&
+        !negate) {
+        const r = ranges[0].length === 2 ? ranges[0].slice(-1) : ranges[0];
+        return [regexpEscape(r), false, endPos - pos, false];
+    }
+    const sranges = '[' + (negate ? '^' : '') + rangesToString(ranges) + ']';
+    const snegs = '[' + (negate ? '' : '^') + rangesToString(negs) + ']';
+    const comb = ranges.length && negs.length ? '(' + sranges + '|' + snegs + ')'
+        : ranges.length ? sranges
+            : snegs;
+    return [comb, uflag, endPos - pos, true];
+};
+//# sourceMappingURL=brace-expressions.js.map
+;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/unescape.js
+/**
+ * Un-escape a string that has been escaped with {@link escape}.
+ *
+ * If the {@link MinimatchOptions.windowsPathsNoEscape} option is used, then
+ * square-bracket escapes are removed, but not backslash escapes.
+ *
+ * For example, it will turn the string `'[*]'` into `*`, but it will not
+ * turn `'\\*'` into `'*'`, because `\` is a path separator in
+ * `windowsPathsNoEscape` mode.
+ *
+ * When `windowsPathsNoEscape` is not set, then both square-bracket escapes and
+ * backslash escapes are removed.
+ *
+ * Slashes (and backslashes in `windowsPathsNoEscape` mode) cannot be escaped
+ * or unescaped.
+ *
+ * When `magicalBraces` is not set, escapes of braces (`{` and `}`) will not be
+ * unescaped.
+ */
+const unescape_unescape = (s, { windowsPathsNoEscape = false, magicalBraces = true, } = {}) => {
+    if (magicalBraces) {
+        return windowsPathsNoEscape ?
+            s.replace(/\[([^/\\])\]/g, '$1')
+            : s
+                .replace(/((?!\\).|^)\[([^/\\])\]/g, '$1$2')
+                .replace(/\\([^/])/g, '$1');
+    }
+    return windowsPathsNoEscape ?
+        s.replace(/\[([^/\\{}])\]/g, '$1')
+        : s
+            .replace(/((?!\\).|^)\[([^/\\{}])\]/g, '$1$2')
+            .replace(/\\([^/{}])/g, '$1');
+};
+//# sourceMappingURL=unescape.js.map
+;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/ast.js
+// parse a single path portion
+var _a;
+
+
+const types = new Set(['!', '?', '+', '*', '@']);
+const isExtglobType = (c) => types.has(c);
+const isExtglobAST = (c) => isExtglobType(c.type);
+// Map of which extglob types can adopt the children of a nested extglob
+//
+// anything but ! can adopt a matching type:
+// +(a|+(b|c)|d) => +(a|b|c|d)
+// *(a|*(b|c)|d) => *(a|b|c|d)
+// @(a|@(b|c)|d) => @(a|b|c|d)
+// ?(a|?(b|c)|d) => ?(a|b|c|d)
+//
+// * can adopt anything, because 0 or repetition is allowed
+// *(a|?(b|c)|d) => *(a|b|c|d)
+// *(a|+(b|c)|d) => *(a|b|c|d)
+// *(a|@(b|c)|d) => *(a|b|c|d)
+//
+// + can adopt @, because 1 or repetition is allowed
+// +(a|@(b|c)|d) => +(a|b|c|d)
+//
+// + and @ CANNOT adopt *, because 0 would be allowed
+// +(a|*(b|c)|d) => would match "", on *(b|c)
+// @(a|*(b|c)|d) => would match "", on *(b|c)
+//
+// + and @ CANNOT adopt ?, because 0 would be allowed
+// +(a|?(b|c)|d) => would match "", on ?(b|c)
+// @(a|?(b|c)|d) => would match "", on ?(b|c)
+//
+// ? can adopt @, because 0 or 1 is allowed
+// ?(a|@(b|c)|d) => ?(a|b|c|d)
+//
+// ? and @ CANNOT adopt * or +, because >1 would be allowed
+// ?(a|*(b|c)|d) => would match bbb on *(b|c)
+// @(a|*(b|c)|d) => would match bbb on *(b|c)
+// ?(a|+(b|c)|d) => would match bbb on +(b|c)
+// @(a|+(b|c)|d) => would match bbb on +(b|c)
+//
+// ! CANNOT adopt ! (nothing else can either)
+// !(a|!(b|c)|d) => !(a|b|c|d) would fail to match on b (not not b|c)
+//
+// ! can adopt @
+// !(a|@(b|c)|d) => !(a|b|c|d)
+//
+// ! CANNOT adopt *
+// !(a|*(b|c)|d) => !(a|b|c|d) would match on bbb, not allowed
+//
+// ! CANNOT adopt +
+// !(a|+(b|c)|d) => !(a|b|c|d) would match on bbb, not allowed
+//
+// ! CANNOT adopt ?
+// x!(a|?(b|c)|d) => x!(a|b|c|d) would fail to match "x"
+const adoptionMap = new Map([
+    ['!', ['@']],
+    ['?', ['?', '@']],
+    ['@', ['@']],
+    ['*', ['*', '+', '?', '@']],
+    ['+', ['+', '@']],
+]);
+// nested extglobs that can be adopted in, but with the addition of
+// a blank '' element.
+const adoptionWithSpaceMap = new Map([
+    ['!', ['?']],
+    ['@', ['?']],
+    ['+', ['?', '*']],
+]);
+// union of the previous two maps
+const adoptionAnyMap = new Map([
+    ['!', ['?', '@']],
+    ['?', ['?', '@']],
+    ['@', ['?', '@']],
+    ['*', ['*', '+', '?', '@']],
+    ['+', ['+', '@', '?', '*']],
+]);
+// Extglobs that can take over their parent if they are the only child
+// the key is parent, value maps child to resulting extglob parent type
+// '@' is omitted because it's a special case. An `@` extglob with a single
+// member can always be usurped by that subpattern.
+const usurpMap = new Map([
+    ['!', new Map([['!', '@']])],
+    [
+        '?',
+        new Map([
+            ['*', '*'],
+            ['+', '*'],
+        ]),
+    ],
+    [
+        '@',
+        new Map([
+            ['!', '!'],
+            ['?', '?'],
+            ['@', '@'],
+            ['*', '*'],
+            ['+', '+'],
+        ]),
+    ],
+    [
+        '+',
+        new Map([
+            ['?', '*'],
+            ['*', '*'],
+        ]),
+    ],
+]);
+// Patterns that get prepended to bind to the start of either the
+// entire string, or just a single path portion, to prevent dots
+// and/or traversal patterns, when needed.
+// Exts don't need the ^ or / bit, because the root binds that already.
+const startNoTraversal = '(?!(?:^|/)\\.\\.?(?:$|/))';
+const startNoDot = '(?!\\.)';
+// characters that indicate a start of pattern needs the "no dots" bit,
+// because a dot *might* be matched. ( is not in the list, because in
+// the case of a child extglob, it will handle the prevention itself.
+const addPatternStart = new Set(['[', '.']);
+// cases where traversal is A-OK, no dot prevention needed
+const justDots = new Set(['..', '.']);
+const reSpecials = new Set('().*{}+?[]^$\\!');
+const regExpEscape = (s) => s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+// any single thing other than /
+const qmark = '[^/]';
+// * => any number of characters
+const star = qmark + '*?';
+// use + when we need to ensure that *something* matches, because the * is
+// the only thing in the path portion.
+const starNoEmpty = qmark + '+?';
+// remove the \ chars that we added if we end up doing a nonmagic compare
+// const deslash = (s: string) => s.replace(/\\(.)/g, '$1')
+let ID = 0;
+class AST {
+    type;
+    #root;
+    #hasMagic;
+    #uflag = false;
+    #parts = [];
+    #parent;
+    #parentIndex;
+    #negs;
+    #filledNegs = false;
+    #options;
+    #toString;
+    // set to true if it's an extglob with no children
+    // (which really means one child of '')
+    #emptyExt = false;
+    id = ++ID;
+    get depth() {
+        return (this.#parent?.depth ?? -1) + 1;
+    }
+    [Symbol.for('nodejs.util.inspect.custom')]() {
+        return {
+            '@@type': 'AST',
+            id: this.id,
+            type: this.type,
+            root: this.#root.id,
+            parent: this.#parent?.id,
+            depth: this.depth,
+            partsLength: this.#parts.length,
+            parts: this.#parts,
+        };
+    }
+    constructor(type, parent, options = {}) {
+        this.type = type;
+        // extglobs are inherently magical
+        if (type)
+            this.#hasMagic = true;
+        this.#parent = parent;
+        this.#root = this.#parent ? this.#parent.#root : this;
+        this.#options = this.#root === this ? options : this.#root.#options;
+        this.#negs = this.#root === this ? [] : this.#root.#negs;
+        if (type === '!' && !this.#root.#filledNegs)
+            this.#negs.push(this);
+        this.#parentIndex = this.#parent ? this.#parent.#parts.length : 0;
+    }
+    get hasMagic() {
+        /* c8 ignore start */
+        if (this.#hasMagic !== undefined)
+            return this.#hasMagic;
+        /* c8 ignore stop */
+        for (const p of this.#parts) {
+            if (typeof p === 'string')
+                continue;
+            if (p.type || p.hasMagic)
+                return (this.#hasMagic = true);
+        }
+        // note: will be undefined until we generate the regexp src and find out
+        return this.#hasMagic;
+    }
+    // reconstructs the pattern
+    toString() {
+        return (this.#toString !== undefined ? this.#toString
+            : !this.type ?
+                (this.#toString = this.#parts.map(p => String(p)).join(''))
+                : (this.#toString =
+                    this.type +
+                        '(' +
+                        this.#parts.map(p => String(p)).join('|') +
+                        ')'));
+    }
+    #fillNegs() {
+        /* c8 ignore start */
+        if (this !== this.#root)
+            throw new Error('should only call on root');
+        if (this.#filledNegs)
+            return this;
+        /* c8 ignore stop */
+        // call toString() once to fill this out
+        this.toString();
+        this.#filledNegs = true;
+        let n;
+        while ((n = this.#negs.pop())) {
+            if (n.type !== '!')
+                continue;
+            // walk up the tree, appending everthing that comes AFTER parentIndex
+            let p = n;
+            let pp = p.#parent;
+            while (pp) {
+                for (let i = p.#parentIndex + 1; !pp.type && i < pp.#parts.length; i++) {
+                    for (const part of n.#parts) {
+                        /* c8 ignore start */
+                        if (typeof part === 'string') {
+                            throw new Error('string part in extglob AST??');
+                        }
+                        /* c8 ignore stop */
+                        part.copyIn(pp.#parts[i]);
+                    }
+                }
+                p = pp;
+                pp = p.#parent;
+            }
+        }
+        return this;
+    }
+    push(...parts) {
+        for (const p of parts) {
+            if (p === '')
+                continue;
+            /* c8 ignore start */
+            if (typeof p !== 'string' &&
+                !(p instanceof _a && p.#parent === this)) {
+                throw new Error('invalid part: ' + p);
+            }
+            /* c8 ignore stop */
+            this.#parts.push(p);
+        }
+    }
+    toJSON() {
+        const ret = this.type === null ?
+            this.#parts
+                .slice()
+                .map(p => (typeof p === 'string' ? p : p.toJSON()))
+            : [this.type, ...this.#parts.map(p => p.toJSON())];
+        if (this.isStart() && !this.type)
+            ret.unshift([]);
+        if (this.isEnd() &&
+            (this === this.#root ||
+                (this.#root.#filledNegs && this.#parent?.type === '!'))) {
+            ret.push({});
+        }
+        return ret;
+    }
+    isStart() {
+        if (this.#root === this)
+            return true;
+        // if (this.type) return !!this.#parent?.isStart()
+        if (!this.#parent?.isStart())
+            return false;
+        if (this.#parentIndex === 0)
+            return true;
+        // if everything AHEAD of this is a negation, then it's still the "start"
+        const p = this.#parent;
+        for (let i = 0; i < this.#parentIndex; i++) {
+            const pp = p.#parts[i];
+            if (!(pp instanceof _a && pp.type === '!')) {
+                return false;
+            }
+        }
+        return true;
+    }
+    isEnd() {
+        if (this.#root === this)
+            return true;
+        if (this.#parent?.type === '!')
+            return true;
+        if (!this.#parent?.isEnd())
+            return false;
+        if (!this.type)
+            return this.#parent?.isEnd();
+        // if not root, it'll always have a parent
+        /* c8 ignore start */
+        const pl = this.#parent ? this.#parent.#parts.length : 0;
+        /* c8 ignore stop */
+        return this.#parentIndex === pl - 1;
+    }
+    copyIn(part) {
+        if (typeof part === 'string')
+            this.push(part);
+        else
+            this.push(part.clone(this));
+    }
+    clone(parent) {
+        const c = new _a(this.type, parent);
+        for (const p of this.#parts) {
+            c.copyIn(p);
+        }
+        return c;
+    }
+    static #parseAST(str, ast, pos, opt, extDepth) {
+        const maxDepth = opt.maxExtglobRecursion ?? 2;
+        let escaping = false;
+        let inBrace = false;
+        let braceStart = -1;
+        let braceNeg = false;
+        if (ast.type === null) {
+            // outside of a extglob, append until we find a start
+            let i = pos;
+            let acc = '';
+            while (i < str.length) {
+                const c = str.charAt(i++);
+                // still accumulate escapes at this point, but we do ignore
+                // starts that are escaped
+                if (escaping || c === '\\') {
+                    escaping = !escaping;
+                    acc += c;
+                    continue;
+                }
+                if (inBrace) {
+                    if (i === braceStart + 1) {
+                        if (c === '^' || c === '!') {
+                            braceNeg = true;
+                        }
+                    }
+                    else if (c === ']' && !(i === braceStart + 2 && braceNeg)) {
+                        inBrace = false;
+                    }
+                    acc += c;
+                    continue;
+                }
+                else if (c === '[') {
+                    inBrace = true;
+                    braceStart = i;
+                    braceNeg = false;
+                    acc += c;
+                    continue;
+                }
+                // we don't have to check for adoption here, because that's
+                // done at the other recursion point.
+                const doRecurse = !opt.noext &&
+                    isExtglobType(c) &&
+                    str.charAt(i) === '(' &&
+                    extDepth <= maxDepth;
+                if (doRecurse) {
+                    ast.push(acc);
+                    acc = '';
+                    const ext = new _a(c, ast);
+                    i = _a.#parseAST(str, ext, i, opt, extDepth + 1);
+                    ast.push(ext);
+                    continue;
+                }
+                acc += c;
+            }
+            ast.push(acc);
+            return i;
+        }
+        // some kind of extglob, pos is at the (
+        // find the next | or )
+        let i = pos + 1;
+        let part = new _a(null, ast);
+        const parts = [];
+        let acc = '';
+        while (i < str.length) {
+            const c = str.charAt(i++);
+            // still accumulate escapes at this point, but we do ignore
+            // starts that are escaped
+            if (escaping || c === '\\') {
+                escaping = !escaping;
+                acc += c;
+                continue;
+            }
+            if (inBrace) {
+                if (i === braceStart + 1) {
+                    if (c === '^' || c === '!') {
+                        braceNeg = true;
+                    }
+                }
+                else if (c === ']' && !(i === braceStart + 2 && braceNeg)) {
+                    inBrace = false;
+                }
+                acc += c;
+                continue;
+            }
+            else if (c === '[') {
+                inBrace = true;
+                braceStart = i;
+                braceNeg = false;
+                acc += c;
+                continue;
+            }
+            const doRecurse = !opt.noext &&
+                isExtglobType(c) &&
+                str.charAt(i) === '(' &&
+                /* c8 ignore start - the maxDepth is sufficient here */
+                (extDepth <= maxDepth || (ast && ast.#canAdoptType(c)));
+            /* c8 ignore stop */
+            if (doRecurse) {
+                const depthAdd = ast && ast.#canAdoptType(c) ? 0 : 1;
+                part.push(acc);
+                acc = '';
+                const ext = new _a(c, part);
+                part.push(ext);
+                i = _a.#parseAST(str, ext, i, opt, extDepth + depthAdd);
+                continue;
+            }
+            if (c === '|') {
+                part.push(acc);
+                acc = '';
+                parts.push(part);
+                part = new _a(null, ast);
+                continue;
+            }
+            if (c === ')') {
+                if (acc === '' && ast.#parts.length === 0) {
+                    ast.#emptyExt = true;
+                }
+                part.push(acc);
+                acc = '';
+                ast.push(...parts, part);
+                return i;
+            }
+            acc += c;
+        }
+        // unfinished extglob
+        // if we got here, it was a malformed extglob! not an extglob, but
+        // maybe something else in there.
+        ast.type = null;
+        ast.#hasMagic = undefined;
+        ast.#parts = [str.substring(pos - 1)];
+        return i;
+    }
+    #canAdoptWithSpace(child) {
+        return this.#canAdopt(child, adoptionWithSpaceMap);
+    }
+    #canAdopt(child, map = adoptionMap) {
+        if (!child ||
+            typeof child !== 'object' ||
+            child.type !== null ||
+            child.#parts.length !== 1 ||
+            this.type === null) {
+            return false;
+        }
+        const gc = child.#parts[0];
+        if (!gc || typeof gc !== 'object' || gc.type === null) {
+            return false;
+        }
+        return this.#canAdoptType(gc.type, map);
+    }
+    #canAdoptType(c, map = adoptionAnyMap) {
+        return !!map.get(this.type)?.includes(c);
+    }
+    #adoptWithSpace(child, index) {
+        const gc = child.#parts[0];
+        const blank = new _a(null, gc, this.options);
+        blank.#parts.push('');
+        gc.push(blank);
+        this.#adopt(child, index);
+    }
+    #adopt(child, index) {
+        const gc = child.#parts[0];
+        this.#parts.splice(index, 1, ...gc.#parts);
+        for (const p of gc.#parts) {
+            if (typeof p === 'object')
+                p.#parent = this;
+        }
+        this.#toString = undefined;
+    }
+    #canUsurpType(c) {
+        const m = usurpMap.get(this.type);
+        return !!m?.has(c);
+    }
+    #canUsurp(child) {
+        if (!child ||
+            typeof child !== 'object' ||
+            child.type !== null ||
+            child.#parts.length !== 1 ||
+            this.type === null ||
+            this.#parts.length !== 1) {
+            return false;
+        }
+        const gc = child.#parts[0];
+        if (!gc || typeof gc !== 'object' || gc.type === null) {
+            return false;
+        }
+        return this.#canUsurpType(gc.type);
+    }
+    #usurp(child) {
+        const m = usurpMap.get(this.type);
+        const gc = child.#parts[0];
+        const nt = m?.get(gc.type);
+        /* c8 ignore start - impossible */
+        if (!nt)
+            return false;
+        /* c8 ignore stop */
+        this.#parts = gc.#parts;
+        for (const p of this.#parts) {
+            if (typeof p === 'object') {
+                p.#parent = this;
+            }
+        }
+        this.type = nt;
+        this.#toString = undefined;
+        this.#emptyExt = false;
+    }
+    static fromGlob(pattern, options = {}) {
+        const ast = new _a(null, undefined, options);
+        _a.#parseAST(pattern, ast, 0, options, 0);
+        return ast;
+    }
+    // returns the regular expression if there's magic, or the unescaped
+    // string if not.
+    toMMPattern() {
+        // should only be called on root
+        /* c8 ignore start */
+        if (this !== this.#root)
+            return this.#root.toMMPattern();
+        /* c8 ignore stop */
+        const glob = this.toString();
+        const [re, body, hasMagic, uflag] = this.toRegExpSource();
+        // if we're in nocase mode, and not nocaseMagicOnly, then we do
+        // still need a regular expression if we have to case-insensitively
+        // match capital/lowercase characters.
+        const anyMagic = hasMagic ||
+            this.#hasMagic ||
+            (this.#options.nocase &&
+                !this.#options.nocaseMagicOnly &&
+                glob.toUpperCase() !== glob.toLowerCase());
+        if (!anyMagic) {
+            return body;
+        }
+        const flags = (this.#options.nocase ? 'i' : '') + (uflag ? 'u' : '');
+        return Object.assign(new RegExp(`^${re}$`, flags), {
+            _src: re,
+            _glob: glob,
+        });
+    }
+    get options() {
+        return this.#options;
+    }
+    // returns the string match, the regexp source, whether there's magic
+    // in the regexp (so a regular expression is required) and whether or
+    // not the uflag is needed for the regular expression (for posix classes)
+    // TODO: instead of injecting the start/end at this point, just return
+    // the BODY of the regexp, along with the start/end portions suitable
+    // for binding the start/end in either a joined full-path makeRe context
+    // (where we bind to (^|/), or a standalone matchPart context (where
+    // we bind to ^, and not /).  Otherwise slashes get duped!
+    //
+    // In part-matching mode, the start is:
+    // - if not isStart: nothing
+    // - if traversal possible, but not allowed: ^(?!\.\.?$)
+    // - if dots allowed or not possible: ^
+    // - if dots possible and not allowed: ^(?!\.)
+    // end is:
+    // - if not isEnd(): nothing
+    // - else: $
+    //
+    // In full-path matching mode, we put the slash at the START of the
+    // pattern, so start is:
+    // - if first pattern: same as part-matching mode
+    // - if not isStart(): nothing
+    // - if traversal possible, but not allowed: /(?!\.\.?(?:$|/))
+    // - if dots allowed or not possible: /
+    // - if dots possible and not allowed: /(?!\.)
+    // end is:
+    // - if last pattern, same as part-matching mode
+    // - else nothing
+    //
+    // Always put the (?:$|/) on negated tails, though, because that has to be
+    // there to bind the end of the negated pattern portion, and it's easier to
+    // just stick it in now rather than try to inject it later in the middle of
+    // the pattern.
+    //
+    // We can just always return the same end, and leave it up to the caller
+    // to know whether it's going to be used joined or in parts.
+    // And, if the start is adjusted slightly, can do the same there:
+    // - if not isStart: nothing
+    // - if traversal possible, but not allowed: (?:/|^)(?!\.\.?$)
+    // - if dots allowed or not possible: (?:/|^)
+    // - if dots possible and not allowed: (?:/|^)(?!\.)
+    //
+    // But it's better to have a simpler binding without a conditional, for
+    // performance, so probably better to return both start options.
+    //
+    // Then the caller just ignores the end if it's not the first pattern,
+    // and the start always gets applied.
+    //
+    // But that's always going to be $ if it's the ending pattern, or nothing,
+    // so the caller can just attach $ at the end of the pattern when building.
+    //
+    // So the todo is:
+    // - better detect what kind of start is needed
+    // - return both flavors of starting pattern
+    // - attach $ at the end of the pattern when creating the actual RegExp
+    //
+    // Ah, but wait, no, that all only applies to the root when the first pattern
+    // is not an extglob. If the first pattern IS an extglob, then we need all
+    // that dot prevention biz to live in the extglob portions, because eg
+    // +(*|.x*) can match .xy but not .yx.
+    //
+    // So, return the two flavors if it's #root and the first child is not an
+    // AST, otherwise leave it to the child AST to handle it, and there,
+    // use the (?:^|/) style of start binding.
+    //
+    // Even simplified further:
+    // - Since the start for a join is eg /(?!\.) and the start for a part
+    // is ^(?!\.), we can just prepend (?!\.) to the pattern (either root
+    // or start or whatever) and prepend ^ or / at the Regexp construction.
+    toRegExpSource(allowDot) {
+        const dot = allowDot ?? !!this.#options.dot;
+        if (this.#root === this) {
+            this.#flatten();
+            this.#fillNegs();
+        }
+        if (!isExtglobAST(this)) {
+            const noEmpty = this.isStart() &&
+                this.isEnd() &&
+                !this.#parts.some(s => typeof s !== 'string');
+            const src = this.#parts
+                .map(p => {
+                const [re, _, hasMagic, uflag] = typeof p === 'string' ?
+                    _a.#parseGlob(p, this.#hasMagic, noEmpty)
+                    : p.toRegExpSource(allowDot);
+                this.#hasMagic = this.#hasMagic || hasMagic;
+                this.#uflag = this.#uflag || uflag;
+                return re;
+            })
+                .join('');
+            let start = '';
+            if (this.isStart()) {
+                if (typeof this.#parts[0] === 'string') {
+                    // this is the string that will match the start of the pattern,
+                    // so we need to protect against dots and such.
+                    // '.' and '..' cannot match unless the pattern is that exactly,
+                    // even if it starts with . or dot:true is set.
+                    const dotTravAllowed = this.#parts.length === 1 && justDots.has(this.#parts[0]);
+                    if (!dotTravAllowed) {
+                        const aps = addPatternStart;
+                        // check if we have a possibility of matching . or ..,
+                        // and prevent that.
+                        const needNoTrav = 
+                        // dots are allowed, and the pattern starts with [ or .
+                        (dot && aps.has(src.charAt(0))) ||
+                            // the pattern starts with \., and then [ or .
+                            (src.startsWith('\\.') && aps.has(src.charAt(2))) ||
+                            // the pattern starts with \.\., and then [ or .
+                            (src.startsWith('\\.\\.') && aps.has(src.charAt(4)));
+                        // no need to prevent dots if it can't match a dot, or if a
+                        // sub-pattern will be preventing it anyway.
+                        const needNoDot = !dot && !allowDot && aps.has(src.charAt(0));
+                        start =
+                            needNoTrav ? startNoTraversal
+                                : needNoDot ? startNoDot
+                                    : '';
+                    }
+                }
+            }
+            // append the "end of path portion" pattern to negation tails
+            let end = '';
+            if (this.isEnd() &&
+                this.#root.#filledNegs &&
+                this.#parent?.type === '!') {
+                end = '(?:$|\\/)';
+            }
+            const final = start + src + end;
+            return [
+                final,
+                unescape_unescape(src),
+                (this.#hasMagic = !!this.#hasMagic),
+                this.#uflag,
+            ];
+        }
+        // We need to calculate the body *twice* if it's a repeat pattern
+        // at the start, once in nodot mode, then again in dot mode, so a
+        // pattern like *(?) can match 'x.y'
+        const repeated = this.type === '*' || this.type === '+';
+        // some kind of extglob
+        const start = this.type === '!' ? '(?:(?!(?:' : '(?:';
+        let body = this.#partsToRegExp(dot);
+        if (this.isStart() && this.isEnd() && !body && this.type !== '!') {
+            // invalid extglob, has to at least be *something* present, if it's
+            // the entire path portion.
+            const s = this.toString();
+            const me = this;
+            me.#parts = [s];
+            me.type = null;
+            me.#hasMagic = undefined;
+            return [s, unescape_unescape(this.toString()), false, false];
+        }
+        let bodyDotAllowed = !repeated || allowDot || dot || !startNoDot ?
+            ''
+            : this.#partsToRegExp(true);
+        if (bodyDotAllowed === body) {
+            bodyDotAllowed = '';
+        }
+        if (bodyDotAllowed) {
+            body = `(?:${body})(?:${bodyDotAllowed})*?`;
+        }
+        // an empty !() is exactly equivalent to a starNoEmpty
+        let final = '';
+        if (this.type === '!' && this.#emptyExt) {
+            final = (this.isStart() && !dot ? startNoDot : '') + starNoEmpty;
+        }
+        else {
+            const close = this.type === '!' ?
+                // !() must match something,but !(x) can match ''
+                '))' +
+                    (this.isStart() && !dot && !allowDot ? startNoDot : '') +
+                    star +
+                    ')'
+                : this.type === '@' ? ')'
+                    : this.type === '?' ? ')?'
+                        : this.type === '+' && bodyDotAllowed ? ')'
+                            : this.type === '*' && bodyDotAllowed ? `)?`
+                                : `)${this.type}`;
+            final = start + body + close;
+        }
+        return [
+            final,
+            unescape_unescape(body),
+            (this.#hasMagic = !!this.#hasMagic),
+            this.#uflag,
+        ];
+    }
+    #flatten() {
+        if (!isExtglobAST(this)) {
+            for (const p of this.#parts) {
+                if (typeof p === 'object') {
+                    p.#flatten();
+                }
+            }
+        }
+        else {
+            // do up to 10 passes to flatten as much as possible
+            let iterations = 0;
+            let done = false;
+            do {
+                done = true;
+                for (let i = 0; i < this.#parts.length; i++) {
+                    const c = this.#parts[i];
+                    if (typeof c === 'object') {
+                        c.#flatten();
+                        if (this.#canAdopt(c)) {
+                            done = false;
+                            this.#adopt(c, i);
+                        }
+                        else if (this.#canAdoptWithSpace(c)) {
+                            done = false;
+                            this.#adoptWithSpace(c, i);
+                        }
+                        else if (this.#canUsurp(c)) {
+                            done = false;
+                            this.#usurp(c);
+                        }
+                    }
+                }
+            } while (!done && ++iterations < 10);
+        }
+        this.#toString = undefined;
+    }
+    #partsToRegExp(dot) {
+        return this.#parts
+            .map(p => {
+            // extglob ASTs should only contain parent ASTs
+            /* c8 ignore start */
+            if (typeof p === 'string') {
+                throw new Error('string type in extglob ast??');
+            }
+            /* c8 ignore stop */
+            // can ignore hasMagic, because extglobs are already always magic
+            const [re, _, _hasMagic, uflag] = p.toRegExpSource(dot);
+            this.#uflag = this.#uflag || uflag;
+            return re;
+        })
+            .filter(p => !(this.isStart() && this.isEnd()) || !!p)
+            .join('|');
+    }
+    static #parseGlob(glob, hasMagic, noEmpty = false) {
+        let escaping = false;
+        let re = '';
+        let uflag = false;
+        // multiple stars that aren't globstars coalesce into one *
+        let inStar = false;
+        for (let i = 0; i < glob.length; i++) {
+            const c = glob.charAt(i);
+            if (escaping) {
+                escaping = false;
+                re += (reSpecials.has(c) ? '\\' : '') + c;
+                continue;
+            }
+            if (c === '*') {
+                if (inStar)
+                    continue;
+                inStar = true;
+                re += noEmpty && /^[*]+$/.test(glob) ? starNoEmpty : star;
+                hasMagic = true;
+                continue;
+            }
+            else {
+                inStar = false;
+            }
+            if (c === '\\') {
+                if (i === glob.length - 1) {
+                    re += '\\\\';
+                }
+                else {
+                    escaping = true;
+                }
+                continue;
+            }
+            if (c === '[') {
+                const [src, needUflag, consumed, magic] = parseClass(glob, i);
+                if (consumed) {
+                    re += src;
+                    uflag = uflag || needUflag;
+                    i += consumed - 1;
+                    hasMagic = hasMagic || magic;
+                    continue;
+                }
+            }
+            if (c === '?') {
+                re += qmark;
+                hasMagic = true;
+                continue;
+            }
+            re += regExpEscape(c);
+        }
+        return [re, unescape_unescape(glob), !!hasMagic, uflag];
+    }
+}
+_a = AST;
+//# sourceMappingURL=ast.js.map
+;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/escape.js
+/**
+ * Escape all magic characters in a glob pattern.
+ *
+ * If the {@link MinimatchOptions.windowsPathsNoEscape}
+ * option is used, then characters are escaped by wrapping in `[]`, because
+ * a magic character wrapped in a character class can only be satisfied by
+ * that exact character.  In this mode, `\` is _not_ escaped, because it is
+ * not interpreted as a magic character, but instead as a path separator.
+ *
+ * If the {@link MinimatchOptions.magicalBraces} option is used,
+ * then braces (`{` and `}`) will be escaped.
+ */
+const escape_escape = (s, { windowsPathsNoEscape = false, magicalBraces = false, } = {}) => {
+    // don't need to escape +@! because we escape the parens
+    // that make those magic, and escaping ! as [!] isn't valid,
+    // because [!]] is a valid glob class meaning not ']'.
+    if (magicalBraces) {
+        return windowsPathsNoEscape ?
+            s.replace(/[?*()[\]{}]/g, '[$&]')
+            : s.replace(/[?*()[\]\\{}]/g, '\\$&');
+    }
+    return windowsPathsNoEscape ?
+        s.replace(/[?*()[\]]/g, '[$&]')
+        : s.replace(/[?*()[\]\\]/g, '\\$&');
+};
+//# sourceMappingURL=escape.js.map
+;// CONCATENATED MODULE: ./node_modules/minimatch/dist/esm/index.js
+
+
+
+
+
+const minimatch = (p, pattern, options = {}) => {
+    assertValidPattern(pattern);
+    // shortcut: comments match nothing.
+    if (!options.nocomment && pattern.charAt(0) === '#') {
+        return false;
+    }
+    return new Minimatch(pattern, options).match(p);
+};
+// Optimized checking for the most common glob patterns.
+const starDotExtRE = /^\*+([^+@!?*[(]*)$/;
+const starDotExtTest = (ext) => (f) => !f.startsWith('.') && f.endsWith(ext);
+const starDotExtTestDot = (ext) => (f) => f.endsWith(ext);
+const starDotExtTestNocase = (ext) => {
+    ext = ext.toLowerCase();
+    return (f) => !f.startsWith('.') && f.toLowerCase().endsWith(ext);
+};
+const starDotExtTestNocaseDot = (ext) => {
+    ext = ext.toLowerCase();
+    return (f) => f.toLowerCase().endsWith(ext);
+};
+const starDotStarRE = /^\*+\.\*+$/;
+const starDotStarTest = (f) => !f.startsWith('.') && f.includes('.');
+const starDotStarTestDot = (f) => f !== '.' && f !== '..' && f.includes('.');
+const dotStarRE = /^\.\*+$/;
+const dotStarTest = (f) => f !== '.' && f !== '..' && f.startsWith('.');
+const starRE = /^\*+$/;
+const starTest = (f) => f.length !== 0 && !f.startsWith('.');
+const starTestDot = (f) => f.length !== 0 && f !== '.' && f !== '..';
+const qmarksRE = /^\?+([^+@!?*[(]*)?$/;
+const qmarksTestNocase = ([$0, ext = '']) => {
+    const noext = qmarksTestNoExt([$0]);
+    if (!ext)
+        return noext;
+    ext = ext.toLowerCase();
+    return (f) => noext(f) && f.toLowerCase().endsWith(ext);
+};
+const qmarksTestNocaseDot = ([$0, ext = '']) => {
+    const noext = qmarksTestNoExtDot([$0]);
+    if (!ext)
+        return noext;
+    ext = ext.toLowerCase();
+    return (f) => noext(f) && f.toLowerCase().endsWith(ext);
+};
+const qmarksTestDot = ([$0, ext = '']) => {
+    const noext = qmarksTestNoExtDot([$0]);
+    return !ext ? noext : (f) => noext(f) && f.endsWith(ext);
+};
+const qmarksTest = ([$0, ext = '']) => {
+    const noext = qmarksTestNoExt([$0]);
+    return !ext ? noext : (f) => noext(f) && f.endsWith(ext);
+};
+const qmarksTestNoExt = ([$0]) => {
+    const len = $0.length;
+    return (f) => f.length === len && !f.startsWith('.');
+};
+const qmarksTestNoExtDot = ([$0]) => {
+    const len = $0.length;
+    return (f) => f.length === len && f !== '.' && f !== '..';
+};
+/* c8 ignore start */
+const defaultPlatform = (typeof process === 'object' && process ?
+    (typeof process.env === 'object' &&
+        process.env &&
+        process.env.__MINIMATCH_TESTING_PLATFORM__) ||
+        process.platform
+    : 'posix');
+const esm_path = {
+    win32: { sep: '\\' },
+    posix: { sep: '/' },
+};
+/* c8 ignore stop */
+const sep = defaultPlatform === 'win32' ? esm_path.win32.sep : esm_path.posix.sep;
+minimatch.sep = sep;
+const GLOBSTAR = Symbol('globstar **');
+minimatch.GLOBSTAR = GLOBSTAR;
+// any single thing other than /
+// don't need to escape / when using new RegExp()
+const esm_qmark = '[^/]';
+// * => any number of characters
+const esm_star = esm_qmark + '*?';
+// ** when dots are allowed.  Anything goes, except .. and .
+// not (^ or / followed by one or two dots followed by $ or /),
+// followed by anything, any number of times.
+const twoStarDot = '(?:(?!(?:\\/|^)(?:\\.{1,2})($|\\/)).)*?';
+// not a ^ or / followed by a dot,
+// followed by anything, any number of times.
+const twoStarNoDot = '(?:(?!(?:\\/|^)\\.).)*?';
+const filter = (pattern, options = {}) => (p) => minimatch(p, pattern, options);
+minimatch.filter = filter;
+const ext = (a, b = {}) => Object.assign({}, a, b);
+const defaults = (def) => {
+    if (!def || typeof def !== 'object' || !Object.keys(def).length) {
+        return minimatch;
+    }
+    const orig = minimatch;
+    const m = (p, pattern, options = {}) => orig(p, pattern, ext(def, options));
+    return Object.assign(m, {
+        Minimatch: class Minimatch extends orig.Minimatch {
+            constructor(pattern, options = {}) {
+                super(pattern, ext(def, options));
+            }
+            static defaults(options) {
+                return orig.defaults(ext(def, options)).Minimatch;
+            }
+        },
+        AST: class AST extends orig.AST {
+            /* c8 ignore start */
+            constructor(type, parent, options = {}) {
+                super(type, parent, ext(def, options));
+            }
+            /* c8 ignore stop */
+            static fromGlob(pattern, options = {}) {
+                return orig.AST.fromGlob(pattern, ext(def, options));
+            }
+        },
+        unescape: (s, options = {}) => orig.unescape(s, ext(def, options)),
+        escape: (s, options = {}) => orig.escape(s, ext(def, options)),
+        filter: (pattern, options = {}) => orig.filter(pattern, ext(def, options)),
+        defaults: (options) => orig.defaults(ext(def, options)),
+        makeRe: (pattern, options = {}) => orig.makeRe(pattern, ext(def, options)),
+        braceExpand: (pattern, options = {}) => orig.braceExpand(pattern, ext(def, options)),
+        match: (list, pattern, options = {}) => orig.match(list, pattern, ext(def, options)),
+        sep: orig.sep,
+        GLOBSTAR: GLOBSTAR,
+    });
+};
+minimatch.defaults = defaults;
+// Brace expansion:
+// a{b,c}d -> abd acd
+// a{b,}c -> abc ac
+// a{0..3}d -> a0d a1d a2d a3d
+// a{b,c{d,e}f}g -> abg acdfg acefg
+// a{b,c}d{e,f}g -> abdeg acdeg abdeg abdfg
+//
+// Invalid sets are not expanded.
+// a{2..}b -> a{2..}b
+// a{b}c -> a{b}c
+const braceExpand = (pattern, options = {}) => {
+    assertValidPattern(pattern);
+    // Thanks to Yeting Li <https://github.com/yetingli> for
+    // improving this regexp to avoid a ReDOS vulnerability.
+    if (options.nobrace || !/\{(?:(?!\{).)*\}/.test(pattern)) {
+        // shortcut. no need to expand.
+        return [pattern];
+    }
+    return expand(pattern, { max: options.braceExpandMax });
+};
+minimatch.braceExpand = braceExpand;
+// parse a component of the expanded set.
+// At this point, no pattern may contain "/" in it
+// so we're going to return a 2d array, where each entry is the full
+// pattern, split on '/', and then turned into a regular expression.
+// A regexp is made at the end which joins each array with an
+// escaped /, and another full one which joins each regexp with |.
+//
+// Following the lead of Bash 4.1, note that "**" only has special meaning
+// when it is the *only* thing in a path portion.  Otherwise, any series
+// of * is equivalent to a single *.  Globstar behavior is enabled by
+// default, and can be disabled by setting options.noglobstar.
+const makeRe = (pattern, options = {}) => new Minimatch(pattern, options).makeRe();
+minimatch.makeRe = makeRe;
+const match = (list, pattern, options = {}) => {
+    const mm = new Minimatch(pattern, options);
+    list = list.filter(f => mm.match(f));
+    if (mm.options.nonull && !list.length) {
+        list.push(pattern);
+    }
+    return list;
+};
+minimatch.match = match;
+// replace stuff like \* with *
+const globMagic = /[?*]|[+@!]\(.*?\)|\[|\]/;
+const esm_regExpEscape = (s) => s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+class Minimatch {
+    options;
+    set;
+    pattern;
+    windowsPathsNoEscape;
+    nonegate;
+    negate;
+    comment;
+    empty;
+    preserveMultipleSlashes;
+    partial;
+    globSet;
+    globParts;
+    nocase;
+    isWindows;
+    platform;
+    windowsNoMagicRoot;
+    maxGlobstarRecursion;
+    regexp;
+    constructor(pattern, options = {}) {
+        assertValidPattern(pattern);
+        options = options || {};
+        this.options = options;
+        this.maxGlobstarRecursion = options.maxGlobstarRecursion ?? 200;
+        this.pattern = pattern;
+        this.platform = options.platform || defaultPlatform;
+        this.isWindows = this.platform === 'win32';
+        // avoid the annoying deprecation flag lol
+        const awe = ('allowWindow' + 'sEscape');
+        this.windowsPathsNoEscape =
+            !!options.windowsPathsNoEscape || options[awe] === false;
+        if (this.windowsPathsNoEscape) {
+            this.pattern = this.pattern.replace(/\\/g, '/');
+        }
+        this.preserveMultipleSlashes = !!options.preserveMultipleSlashes;
+        this.regexp = null;
+        this.negate = false;
+        this.nonegate = !!options.nonegate;
+        this.comment = false;
+        this.empty = false;
+        this.partial = !!options.partial;
+        this.nocase = !!this.options.nocase;
+        this.windowsNoMagicRoot =
+            options.windowsNoMagicRoot !== undefined ?
+                options.windowsNoMagicRoot
+                : !!(this.isWindows && this.nocase);
+        this.globSet = [];
+        this.globParts = [];
+        this.set = [];
+        // make the set of regexps etc.
+        this.make();
+    }
+    hasMagic() {
+        if (this.options.magicalBraces && this.set.length > 1) {
+            return true;
+        }
+        for (const pattern of this.set) {
+            for (const part of pattern) {
+                if (typeof part !== 'string')
+                    return true;
+            }
+        }
+        return false;
+    }
+    debug(..._) { }
+    make() {
+        const pattern = this.pattern;
+        const options = this.options;
+        // empty patterns and comments match nothing.
+        if (!options.nocomment && pattern.charAt(0) === '#') {
+            this.comment = true;
+            return;
+        }
+        if (!pattern) {
+            this.empty = true;
+            return;
+        }
+        // step 1: figure out negation, etc.
+        this.parseNegate();
+        // step 2: expand braces
+        this.globSet = [...new Set(this.braceExpand())];
+        if (options.debug) {
+            //oxlint-disable-next-line no-console
+            this.debug = (...args) => console.error(...args);
+        }
+        this.debug(this.pattern, this.globSet);
+        // step 3: now we have a set, so turn each one into a series of
+        // path-portion matching patterns.
+        // These will be regexps, except in the case of "**", which is
+        // set to the GLOBSTAR object for globstar behavior,
+        // and will not contain any / characters
+        //
+        // First, we preprocess to make the glob pattern sets a bit simpler
+        // and deduped.  There are some perf-killing patterns that can cause
+        // problems with a glob walk, but we can simplify them down a bit.
+        const rawGlobParts = this.globSet.map(s => this.slashSplit(s));
+        this.globParts = this.preprocess(rawGlobParts);
+        this.debug(this.pattern, this.globParts);
+        // glob --> regexps
+        let set = this.globParts.map((s, _, __) => {
+            if (this.isWindows && this.windowsNoMagicRoot) {
+                // check if it's a drive or unc path.
+                const isUNC = s[0] === '' &&
+                    s[1] === '' &&
+                    (s[2] === '?' || !globMagic.test(s[2])) &&
+                    !globMagic.test(s[3]);
+                const isDrive = /^[a-z]:/i.test(s[0]);
+                if (isUNC) {
+                    return [
+                        ...s.slice(0, 4),
+                        ...s.slice(4).map(ss => this.parse(ss)),
+                    ];
+                }
+                else if (isDrive) {
+                    return [s[0], ...s.slice(1).map(ss => this.parse(ss))];
+                }
+            }
+            return s.map(ss => this.parse(ss));
+        });
+        this.debug(this.pattern, set);
+        // filter out everything that didn't compile properly.
+        this.set = set.filter(s => s.indexOf(false) === -1);
+        // do not treat the ? in UNC paths as magic
+        if (this.isWindows) {
+            for (let i = 0; i < this.set.length; i++) {
+                const p = this.set[i];
+                if (p[0] === '' &&
+                    p[1] === '' &&
+                    this.globParts[i][2] === '?' &&
+                    typeof p[3] === 'string' &&
+                    /^[a-z]:$/i.test(p[3])) {
+                    p[2] = '?';
+                }
+            }
+        }
+        this.debug(this.pattern, this.set);
+    }
+    // various transforms to equivalent pattern sets that are
+    // faster to process in a filesystem walk.  The goal is to
+    // eliminate what we can, and push all ** patterns as far
+    // to the right as possible, even if it increases the number
+    // of patterns that we have to process.
+    preprocess(globParts) {
+        // if we're not in globstar mode, then turn ** into *
+        if (this.options.noglobstar) {
+            for (const partset of globParts) {
+                for (let j = 0; j < partset.length; j++) {
+                    if (partset[j] === '**') {
+                        partset[j] = '*';
+                    }
+                }
+            }
+        }
+        const { optimizationLevel = 1 } = this.options;
+        if (optimizationLevel >= 2) {
+            // aggressive optimization for the purpose of fs walking
+            globParts = this.firstPhasePreProcess(globParts);
+            globParts = this.secondPhasePreProcess(globParts);
+        }
+        else if (optimizationLevel >= 1) {
+            // just basic optimizations to remove some .. parts
+            globParts = this.levelOneOptimize(globParts);
+        }
+        else {
+            // just collapse multiple ** portions into one
+            globParts = this.adjascentGlobstarOptimize(globParts);
+        }
+        return globParts;
+    }
+    // just get rid of adjascent ** portions
+    adjascentGlobstarOptimize(globParts) {
+        return globParts.map(parts => {
+            let gs = -1;
+            while (-1 !== (gs = parts.indexOf('**', gs + 1))) {
+                let i = gs;
+                while (parts[i + 1] === '**') {
+                    i++;
+                }
+                if (i !== gs) {
+                    parts.splice(gs, i - gs);
+                }
+            }
+            return parts;
+        });
+    }
+    // get rid of adjascent ** and resolve .. portions
+    levelOneOptimize(globParts) {
+        return globParts.map(parts => {
+            parts = parts.reduce((set, part) => {
+                const prev = set[set.length - 1];
+                if (part === '**' && prev === '**') {
+                    return set;
+                }
+                if (part === '..') {
+                    if (prev && prev !== '..' && prev !== '.' && prev !== '**') {
+                        set.pop();
+                        return set;
+                    }
+                }
+                set.push(part);
+                return set;
+            }, []);
+            return parts.length === 0 ? [''] : parts;
+        });
+    }
+    levelTwoFileOptimize(parts) {
+        if (!Array.isArray(parts)) {
+            parts = this.slashSplit(parts);
+        }
+        let didSomething = false;
+        do {
+            didSomething = false;
+            // <pre>/<e>/<rest> -> <pre>/<rest>
+            if (!this.preserveMultipleSlashes) {
+                for (let i = 1; i < parts.length - 1; i++) {
+                    const p = parts[i];
+                    // don't squeeze out UNC patterns
+                    if (i === 1 && p === '' && parts[0] === '')
+                        continue;
+                    if (p === '.' || p === '') {
+                        didSomething = true;
+                        parts.splice(i, 1);
+                        i--;
+                    }
+                }
+                if (parts[0] === '.' &&
+                    parts.length === 2 &&
+                    (parts[1] === '.' || parts[1] === '')) {
+                    didSomething = true;
+                    parts.pop();
+                }
+            }
+            // <pre>/<p>/../<rest> -> <pre>/<rest>
+            let dd = 0;
+            while (-1 !== (dd = parts.indexOf('..', dd + 1))) {
+                const p = parts[dd - 1];
+                if (p &&
+                    p !== '.' &&
+                    p !== '..' &&
+                    p !== '**' &&
+                    !(this.isWindows && /^[a-z]:$/i.test(p))) {
+                    didSomething = true;
+                    parts.splice(dd - 1, 2);
+                    dd -= 2;
+                }
+            }
+        } while (didSomething);
+        return parts.length === 0 ? [''] : parts;
+    }
+    // First phase: single-pattern processing
+    // <pre> is 1 or more portions
+    // <rest> is 1 or more portions
+    // <p> is any portion other than ., .., '', or **
+    // <e> is . or ''
+    //
+    // **/.. is *brutal* for filesystem walking performance, because
+    // it effectively resets the recursive walk each time it occurs,
+    // and ** cannot be reduced out by a .. pattern part like a regexp
+    // or most strings (other than .., ., and '') can be.
+    //
+    // <pre>/**/../<p>/<p>/<rest> -> {<pre>/../<p>/<p>/<rest>,<pre>/**/<p>/<p>/<rest>}
+    // <pre>/<e>/<rest> -> <pre>/<rest>
+    // <pre>/<p>/../<rest> -> <pre>/<rest>
+    // **/**/<rest> -> **/<rest>
+    //
+    // **/*/<rest> -> */**/<rest> <== not valid because ** doesn't follow
+    // this WOULD be allowed if ** did follow symlinks, or * didn't
+    firstPhasePreProcess(globParts) {
+        let didSomething = false;
+        do {
+            didSomething = false;
+            // <pre>/**/../<p>/<p>/<rest> -> {<pre>/../<p>/<p>/<rest>,<pre>/**/<p>/<p>/<rest>}
+            for (let parts of globParts) {
+                let gs = -1;
+                while (-1 !== (gs = parts.indexOf('**', gs + 1))) {
+                    let gss = gs;
+                    while (parts[gss + 1] === '**') {
+                        // <pre>/**/**/<rest> -> <pre>/**/<rest>
+                        gss++;
+                    }
+                    // eg, if gs is 2 and gss is 4, that means we have 3 **
+                    // parts, and can remove 2 of them.
+                    if (gss > gs) {
+                        parts.splice(gs + 1, gss - gs);
+                    }
+                    let next = parts[gs + 1];
+                    const p = parts[gs + 2];
+                    const p2 = parts[gs + 3];
+                    if (next !== '..')
+                        continue;
+                    if (!p ||
+                        p === '.' ||
+                        p === '..' ||
+                        !p2 ||
+                        p2 === '.' ||
+                        p2 === '..') {
+                        continue;
+                    }
+                    didSomething = true;
+                    // edit parts in place, and push the new one
+                    parts.splice(gs, 1);
+                    const other = parts.slice(0);
+                    other[gs] = '**';
+                    globParts.push(other);
+                    gs--;
+                }
+                // <pre>/<e>/<rest> -> <pre>/<rest>
+                if (!this.preserveMultipleSlashes) {
+                    for (let i = 1; i < parts.length - 1; i++) {
+                        const p = parts[i];
+                        // don't squeeze out UNC patterns
+                        if (i === 1 && p === '' && parts[0] === '')
+                            continue;
+                        if (p === '.' || p === '') {
+                            didSomething = true;
+                            parts.splice(i, 1);
+                            i--;
+                        }
+                    }
+                    if (parts[0] === '.' &&
+                        parts.length === 2 &&
+                        (parts[1] === '.' || parts[1] === '')) {
+                        didSomething = true;
+                        parts.pop();
+                    }
+                }
+                // <pre>/<p>/../<rest> -> <pre>/<rest>
+                let dd = 0;
+                while (-1 !== (dd = parts.indexOf('..', dd + 1))) {
+                    const p = parts[dd - 1];
+                    if (p && p !== '.' && p !== '..' && p !== '**') {
+                        didSomething = true;
+                        const needDot = dd === 1 && parts[dd + 1] === '**';
+                        const splin = needDot ? ['.'] : [];
+                        parts.splice(dd - 1, 2, ...splin);
+                        if (parts.length === 0)
+                            parts.push('');
+                        dd -= 2;
+                    }
+                }
+            }
+        } while (didSomething);
+        return globParts;
+    }
+    // second phase: multi-pattern dedupes
+    // {<pre>/*/<rest>,<pre>/<p>/<rest>} -> <pre>/*/<rest>
+    // {<pre>/<rest>,<pre>/<rest>} -> <pre>/<rest>
+    // {<pre>/**/<rest>,<pre>/<rest>} -> <pre>/**/<rest>
+    //
+    // {<pre>/**/<rest>,<pre>/**/<p>/<rest>} -> <pre>/**/<rest>
+    // ^-- not valid because ** doens't follow symlinks
+    secondPhasePreProcess(globParts) {
+        for (let i = 0; i < globParts.length - 1; i++) {
+            for (let j = i + 1; j < globParts.length; j++) {
+                const matched = this.partsMatch(globParts[i], globParts[j], !this.preserveMultipleSlashes);
+                if (matched) {
+                    globParts[i] = [];
+                    globParts[j] = matched;
+                    break;
+                }
+            }
+        }
+        return globParts.filter(gs => gs.length);
+    }
+    partsMatch(a, b, emptyGSMatch = false) {
+        let ai = 0;
+        let bi = 0;
+        let result = [];
+        let which = '';
+        while (ai < a.length && bi < b.length) {
+            if (a[ai] === b[bi]) {
+                result.push(which === 'b' ? b[bi] : a[ai]);
+                ai++;
+                bi++;
+            }
+            else if (emptyGSMatch && a[ai] === '**' && b[bi] === a[ai + 1]) {
+                result.push(a[ai]);
+                ai++;
+            }
+            else if (emptyGSMatch && b[bi] === '**' && a[ai] === b[bi + 1]) {
+                result.push(b[bi]);
+                bi++;
+            }
+            else if (a[ai] === '*' &&
+                b[bi] &&
+                (this.options.dot || !b[bi].startsWith('.')) &&
+                b[bi] !== '**') {
+                if (which === 'b')
+                    return false;
+                which = 'a';
+                result.push(a[ai]);
+                ai++;
+                bi++;
+            }
+            else if (b[bi] === '*' &&
+                a[ai] &&
+                (this.options.dot || !a[ai].startsWith('.')) &&
+                a[ai] !== '**') {
+                if (which === 'a')
+                    return false;
+                which = 'b';
+                result.push(b[bi]);
+                ai++;
+                bi++;
+            }
+            else {
+                return false;
+            }
+        }
+        // if we fall out of the loop, it means they two are identical
+        // as long as their lengths match
+        return a.length === b.length && result;
+    }
+    parseNegate() {
+        if (this.nonegate)
+            return;
+        const pattern = this.pattern;
+        let negate = false;
+        let negateOffset = 0;
+        for (let i = 0; i < pattern.length && pattern.charAt(i) === '!'; i++) {
+            negate = !negate;
+            negateOffset++;
+        }
+        if (negateOffset)
+            this.pattern = pattern.slice(negateOffset);
+        this.negate = negate;
+    }
+    // set partial to true to test if, for example,
+    // "/a/b" matches the start of "/*/b/*/d"
+    // Partial means, if you run out of file before you run
+    // out of pattern, then that's fine, as long as all
+    // the parts match.
+    matchOne(file, pattern, partial = false) {
+        let fileStartIndex = 0;
+        let patternStartIndex = 0;
+        // UNC paths like //?/X:/... can match X:/... and vice versa
+        // Drive letters in absolute drive or unc paths are always compared
+        // case-insensitively.
+        if (this.isWindows) {
+            const fileDrive = typeof file[0] === 'string' && /^[a-z]:$/i.test(file[0]);
+            const fileUNC = !fileDrive &&
+                file[0] === '' &&
+                file[1] === '' &&
+                file[2] === '?' &&
+                /^[a-z]:$/i.test(file[3]);
+            const patternDrive = typeof pattern[0] === 'string' && /^[a-z]:$/i.test(pattern[0]);
+            const patternUNC = !patternDrive &&
+                pattern[0] === '' &&
+                pattern[1] === '' &&
+                pattern[2] === '?' &&
+                typeof pattern[3] === 'string' &&
+                /^[a-z]:$/i.test(pattern[3]);
+            const fdi = fileUNC ? 3
+                : fileDrive ? 0
+                    : undefined;
+            const pdi = patternUNC ? 3
+                : patternDrive ? 0
+                    : undefined;
+            if (typeof fdi === 'number' && typeof pdi === 'number') {
+                const [fd, pd] = [
+                    file[fdi],
+                    pattern[pdi],
+                ];
+                // start matching at the drive letter index of each
+                if (fd.toLowerCase() === pd.toLowerCase()) {
+                    pattern[pdi] = fd;
+                    patternStartIndex = pdi;
+                    fileStartIndex = fdi;
+                }
+            }
+        }
+        // resolve and reduce . and .. portions in the file as well.
+        // don't need to do the second phase, because it's only one string[]
+        const { optimizationLevel = 1 } = this.options;
+        if (optimizationLevel >= 2) {
+            file = this.levelTwoFileOptimize(file);
+        }
+        if (pattern.includes(GLOBSTAR)) {
+            return this.#matchGlobstar(file, pattern, partial, fileStartIndex, patternStartIndex);
+        }
+        return this.#matchOne(file, pattern, partial, fileStartIndex, patternStartIndex);
+    }
+    #matchGlobstar(file, pattern, partial, fileIndex, patternIndex) {
+        // split the pattern into head, tail, and middle of ** delimited parts
+        const firstgs = pattern.indexOf(GLOBSTAR, patternIndex);
+        const lastgs = pattern.lastIndexOf(GLOBSTAR);
+        // split the pattern up into globstar-delimited sections
+        // the tail has to be at the end, and the others just have
+        // to be found in order from the head.
+        const [head, body, tail] = partial ?
+            [
+                pattern.slice(patternIndex, firstgs),
+                pattern.slice(firstgs + 1),
+                [],
+            ]
+            : [
+                pattern.slice(patternIndex, firstgs),
+                pattern.slice(firstgs + 1, lastgs),
+                pattern.slice(lastgs + 1),
+            ];
+        // check the head, from the current file/pattern index.
+        if (head.length) {
+            const fileHead = file.slice(fileIndex, fileIndex + head.length);
+            if (!this.#matchOne(fileHead, head, partial, 0, 0)) {
+                return false;
+            }
+            fileIndex += head.length;
+            patternIndex += head.length;
+        }
+        // now we know the head matches!
+        // if the last portion is not empty, it MUST match the end
+        // check the tail
+        let fileTailMatch = 0;
+        if (tail.length) {
+            // if head + tail > file, then we cannot possibly match
+            if (tail.length + fileIndex > file.length)
+                return false;
+            // try to match the tail
+            let tailStart = file.length - tail.length;
+            if (this.#matchOne(file, tail, partial, tailStart, 0)) {
+                fileTailMatch = tail.length;
+            }
+            else {
+                // affordance for stuff like a/**/* matching a/b/
+                // if the last file portion is '', and there's more to the pattern
+                // then try without the '' bit.
+                if (file[file.length - 1] !== '' ||
+                    fileIndex + tail.length === file.length) {
+                    return false;
+                }
+                tailStart--;
+                if (!this.#matchOne(file, tail, partial, tailStart, 0)) {
+                    return false;
+                }
+                fileTailMatch = tail.length + 1;
+            }
+        }
+        // now we know the tail matches!
+        // the middle is zero or more portions wrapped in **, possibly
+        // containing more ** sections.
+        // so a/**/b/**/c/**/d has become **/b/**/c/**
+        // if it's empty, it means a/**/b, just verify we have no bad dots
+        // if there's no tail, so it ends on /**, then we must have *something*
+        // after the head, or it's not a matc
+        if (!body.length) {
+            let sawSome = !!fileTailMatch;
+            for (let i = fileIndex; i < file.length - fileTailMatch; i++) {
+                const f = String(file[i]);
+                sawSome = true;
+                if (f === '.' ||
+                    f === '..' ||
+                    (!this.options.dot && f.startsWith('.'))) {
+                    return false;
+                }
+            }
+            // in partial mode, we just need to get past all file parts
+            return partial || sawSome;
+        }
+        // now we know that there's one or more body sections, which can
+        // be matched anywhere from the 0 index (because the head was pruned)
+        // through to the length-fileTailMatch index.
+        // split the body up into sections, and note the minimum index it can
+        // be found at (start with the length of all previous segments)
+        // [section, before, after]
+        const bodySegments = [[[], 0]];
+        let currentBody = bodySegments[0];
+        let nonGsParts = 0;
+        const nonGsPartsSums = [0];
+        for (const b of body) {
+            if (b === GLOBSTAR) {
+                nonGsPartsSums.push(nonGsParts);
+                currentBody = [[], 0];
+                bodySegments.push(currentBody);
+            }
+            else {
+                currentBody[0].push(b);
+                nonGsParts++;
+            }
+        }
+        let i = bodySegments.length - 1;
+        const fileLength = file.length - fileTailMatch;
+        for (const b of bodySegments) {
+            b[1] = fileLength - (nonGsPartsSums[i--] + b[0].length);
+        }
+        return !!this.#matchGlobStarBodySections(file, bodySegments, fileIndex, 0, partial, 0, !!fileTailMatch);
+    }
+    // return false for "nope, not matching"
+    // return null for "not matching, cannot keep trying"
+    #matchGlobStarBodySections(file, 
+    // pattern section, last possible position for it
+    bodySegments, fileIndex, bodyIndex, partial, globStarDepth, sawTail) {
+        // take the first body segment, and walk from fileIndex to its "after"
+        // value at the end
+        // If it doesn't match at that position, we increment, until we hit
+        // that final possible position, and give up.
+        // If it does match, then advance and try to rest.
+        // If any of them fail we keep walking forward.
+        // this is still a bit recursively painful, but it's more constrained
+        // than previous implementations, because we never test something that
+        // can't possibly be a valid matching condition.
+        const bs = bodySegments[bodyIndex];
+        if (!bs) {
+            // just make sure that there's no bad dots
+            for (let i = fileIndex; i < file.length; i++) {
+                sawTail = true;
+                const f = file[i];
+                if (f === '.' ||
+                    f === '..' ||
+                    (!this.options.dot && f.startsWith('.'))) {
+                    return false;
+                }
+            }
+            return sawTail;
+        }
+        // have a non-globstar body section to test
+        const [body, after] = bs;
+        while (fileIndex <= after) {
+            const m = this.#matchOne(file.slice(0, fileIndex + body.length), body, partial, fileIndex, 0);
+            // if limit exceeded, no match. intentional false negative,
+            // acceptable break in correctness for security.
+            if (m && globStarDepth < this.maxGlobstarRecursion) {
+                // match! see if the rest match. if so, we're done!
+                const sub = this.#matchGlobStarBodySections(file, bodySegments, fileIndex + body.length, bodyIndex + 1, partial, globStarDepth + 1, sawTail);
+                if (sub !== false) {
+                    return sub;
+                }
+            }
+            const f = file[fileIndex];
+            if (f === '.' ||
+                f === '..' ||
+                (!this.options.dot && f.startsWith('.'))) {
+                return false;
+            }
+            fileIndex++;
+        }
+        // walked off. no point continuing
+        return partial || null;
+    }
+    #matchOne(file, pattern, partial, fileIndex, patternIndex) {
+        let fi;
+        let pi;
+        let pl;
+        let fl;
+        for (fi = fileIndex,
+            pi = patternIndex,
+            fl = file.length,
+            pl = pattern.length; fi < fl && pi < pl; fi++, pi++) {
+            this.debug('matchOne loop');
+            let p = pattern[pi];
+            let f = file[fi];
+            this.debug(pattern, p, f);
+            // should be impossible.
+            // some invalid regexp stuff in the set.
+            /* c8 ignore start */
+            if (p === false || p === GLOBSTAR) {
+                return false;
+            }
+            /* c8 ignore stop */
+            // something other than **
+            // non-magic patterns just have to match exactly
+            // patterns with magic have been turned into regexps.
+            let hit;
+            if (typeof p === 'string') {
+                hit = f === p;
+                this.debug('string match', p, f, hit);
+            }
+            else {
+                hit = p.test(f);
+                this.debug('pattern match', p, f, hit);
+            }
+            if (!hit)
+                return false;
+        }
+        // Note: ending in / means that we'll get a final ""
+        // at the end of the pattern.  This can only match a
+        // corresponding "" at the end of the file.
+        // If the file ends in /, then it can only match a
+        // a pattern that ends in /, unless the pattern just
+        // doesn't have any more for it. But, a/b/ should *not*
+        // match "a/b/*", even though "" matches against the
+        // [^/]*? pattern, except in partial mode, where it might
+        // simply not be reached yet.
+        // However, a/b/ should still satisfy a/*
+        // now either we fell off the end of the pattern, or we're done.
+        if (fi === fl && pi === pl) {
+            // ran out of pattern and filename at the same time.
+            // an exact hit!
+            return true;
+        }
+        else if (fi === fl) {
+            // ran out of file, but still had pattern left.
+            // this is ok if we're doing the match as part of
+            // a glob fs traversal.
+            return partial;
+        }
+        else if (pi === pl) {
+            // ran out of pattern, still have file left.
+            // this is only acceptable if we're on the very last
+            // empty segment of a file with a trailing slash.
+            // a/* should match a/b/
+            return fi === fl - 1 && file[fi] === '';
+            /* c8 ignore start */
+        }
+        else {
+            // should be unreachable.
+            throw new Error('wtf?');
+        }
+        /* c8 ignore stop */
+    }
+    braceExpand() {
+        return braceExpand(this.pattern, this.options);
+    }
+    parse(pattern) {
+        assertValidPattern(pattern);
+        const options = this.options;
+        // shortcuts
+        if (pattern === '**')
+            return GLOBSTAR;
+        if (pattern === '')
+            return '';
+        // far and away, the most common glob pattern parts are
+        // *, *.*, and *.<ext>  Add a fast check method for those.
+        let m;
+        let fastTest = null;
+        if ((m = pattern.match(starRE))) {
+            fastTest = options.dot ? starTestDot : starTest;
+        }
+        else if ((m = pattern.match(starDotExtRE))) {
+            fastTest = (options.nocase ?
+                options.dot ?
+                    starDotExtTestNocaseDot
+                    : starDotExtTestNocase
+                : options.dot ? starDotExtTestDot
+                    : starDotExtTest)(m[1]);
+        }
+        else if ((m = pattern.match(qmarksRE))) {
+            fastTest = (options.nocase ?
+                options.dot ?
+                    qmarksTestNocaseDot
+                    : qmarksTestNocase
+                : options.dot ? qmarksTestDot
+                    : qmarksTest)(m);
+        }
+        else if ((m = pattern.match(starDotStarRE))) {
+            fastTest = options.dot ? starDotStarTestDot : starDotStarTest;
+        }
+        else if ((m = pattern.match(dotStarRE))) {
+            fastTest = dotStarTest;
+        }
+        const re = AST.fromGlob(pattern, this.options).toMMPattern();
+        if (fastTest && typeof re === 'object') {
+            // Avoids overriding in frozen environments
+            Reflect.defineProperty(re, 'test', { value: fastTest });
+        }
+        return re;
+    }
+    makeRe() {
+        if (this.regexp || this.regexp === false)
+            return this.regexp;
+        // at this point, this.set is a 2d array of partial
+        // pattern strings, or "**".
+        //
+        // It's better to use .match().  This function shouldn't
+        // be used, really, but it's pretty convenient sometimes,
+        // when you just want to work with a regex.
+        const set = this.set;
+        if (!set.length) {
+            this.regexp = false;
+            return this.regexp;
+        }
+        const options = this.options;
+        const twoStar = options.noglobstar ? esm_star
+            : options.dot ? twoStarDot
+                : twoStarNoDot;
+        const flags = new Set(options.nocase ? ['i'] : []);
+        // regexpify non-globstar patterns
+        // if ** is only item, then we just do one twoStar
+        // if ** is first, and there are more, prepend (\/|twoStar\/)? to next
+        // if ** is last, append (\/twoStar|) to previous
+        // if ** is in the middle, append (\/|\/twoStar\/) to previous
+        // then filter out GLOBSTAR symbols
+        let re = set
+            .map(pattern => {
+            const pp = pattern.map(p => {
+                if (p instanceof RegExp) {
+                    for (const f of p.flags.split(''))
+                        flags.add(f);
+                }
+                return (typeof p === 'string' ? esm_regExpEscape(p)
+                    : p === GLOBSTAR ? GLOBSTAR
+                        : p._src);
+            });
+            pp.forEach((p, i) => {
+                const next = pp[i + 1];
+                const prev = pp[i - 1];
+                if (p !== GLOBSTAR || prev === GLOBSTAR) {
+                    return;
+                }
+                if (prev === undefined) {
+                    if (next !== undefined && next !== GLOBSTAR) {
+                        pp[i + 1] = '(?:\\/|' + twoStar + '\\/)?' + next;
+                    }
+                    else {
+                        pp[i] = twoStar;
+                    }
+                }
+                else if (next === undefined) {
+                    pp[i - 1] = prev + '(?:\\/|\\/' + twoStar + ')?';
+                }
+                else if (next !== GLOBSTAR) {
+                    pp[i - 1] = prev + '(?:\\/|\\/' + twoStar + '\\/)' + next;
+                    pp[i + 1] = GLOBSTAR;
+                }
+            });
+            const filtered = pp.filter(p => p !== GLOBSTAR);
+            // For partial matches, we need to make the pattern match
+            // any prefix of the full path. We do this by generating
+            // alternative patterns that match progressively longer prefixes.
+            if (this.partial && filtered.length >= 1) {
+                const prefixes = [];
+                for (let i = 1; i <= filtered.length; i++) {
+                    prefixes.push(filtered.slice(0, i).join('/'));
+                }
+                return '(?:' + prefixes.join('|') + ')';
+            }
+            return filtered.join('/');
+        })
+            .join('|');
+        // need to wrap in parens if we had more than one thing with |,
+        // otherwise only the first will be anchored to ^ and the last to $
+        const [open, close] = set.length > 1 ? ['(?:', ')'] : ['', ''];
+        // must match entire pattern
+        // ending in a * or ** will make it less strict.
+        re = '^' + open + re + close + '$';
+        // In partial mode, '/' should always match as it's a valid prefix for any pattern
+        if (this.partial) {
+            re = '^(?:\\/|' + open + re.slice(1, -1) + close + ')$';
+        }
+        // can match anything, as long as it's not this.
+        if (this.negate)
+            re = '^(?!' + re + ').+$';
+        try {
+            this.regexp = new RegExp(re, [...flags].join(''));
+            /* c8 ignore start */
+        }
+        catch {
+            // should be impossible
+            this.regexp = false;
+        }
+        /* c8 ignore stop */
+        return this.regexp;
+    }
+    slashSplit(p) {
+        // if p starts with // on windows, we preserve that
+        // so that UNC paths aren't broken.  Otherwise, any number of
+        // / characters are coalesced into one, unless
+        // preserveMultipleSlashes is set to true.
+        if (this.preserveMultipleSlashes) {
+            return p.split('/');
+        }
+        else if (this.isWindows && /^\/\/[^/]+/.test(p)) {
+            // add an extra '' for the one we lose
+            return ['', ...p.split(/\/+/)];
+        }
+        else {
+            return p.split(/\/+/);
+        }
+    }
+    match(f, partial = this.partial) {
+        this.debug('match', f, this.pattern);
+        // short-circuit in the case of busted things.
+        // comments, etc.
+        if (this.comment) {
+            return false;
+        }
+        if (this.empty) {
+            return f === '';
+        }
+        if (f === '/' && partial) {
+            return true;
+        }
+        const options = this.options;
+        // windows: need to use /, not \
+        if (this.isWindows) {
+            f = f.split('\\').join('/');
+        }
+        // treat the test path as a set of pathparts.
+        const ff = this.slashSplit(f);
+        this.debug(this.pattern, 'split', ff);
+        // just ONE of the pattern sets in this.set needs to match
+        // in order for it to be valid.  If negating, then just one
+        // match means that we have failed.
+        // Either way, return on the first hit.
+        const set = this.set;
+        this.debug(this.pattern, 'set', set);
+        // Find the basename of the path by looking for the last non-empty segment
+        let filename = ff[ff.length - 1];
+        if (!filename) {
+            for (let i = ff.length - 2; !filename && i >= 0; i--) {
+                filename = ff[i];
+            }
+        }
+        for (const pattern of set) {
+            let file = ff;
+            if (options.matchBase && pattern.length === 1) {
+                file = [filename];
+            }
+            const hit = this.matchOne(file, pattern, partial);
+            if (hit) {
+                if (options.flipNegate) {
+                    return true;
+                }
+                return !this.negate;
+            }
+        }
+        // didn't get any hits.  this is success if it's a negative
+        // pattern, failure otherwise.
+        if (options.flipNegate) {
+            return false;
+        }
+        return this.negate;
+    }
+    static defaults(def) {
+        return minimatch.defaults(def).Minimatch;
+    }
+}
+/* c8 ignore start */
+
+
+
+/* c8 ignore stop */
+minimatch.AST = AST;
+minimatch.Minimatch = Minimatch;
+minimatch.escape = escape_escape;
+minimatch.unescape = unescape_unescape;
+//# sourceMappingURL=index.js.map
 ;// CONCATENATED MODULE: ./node_modules/@actions/glob/lib/internal-path.js
 
 
@@ -75190,7 +76634,7 @@ class Path {
             itemPath = safeTrimTrailingSeparator(itemPath);
             // Not rooted
             if (!hasRoot(itemPath)) {
-                this.segments = itemPath.split(external_path_.sep);
+                this.segments = itemPath.split(external_path_namespaceObject.sep);
             }
             // Rooted
             else {
@@ -75199,7 +76643,7 @@ class Path {
                 let dir = dirname(remaining);
                 while (dir !== remaining) {
                     // Add the segment
-                    const basename = external_path_.basename(remaining);
+                    const basename = external_path_namespaceObject.basename(remaining);
                     this.segments.unshift(basename);
                     // Truncate the last segment
                     remaining = dir;
@@ -75229,7 +76673,7 @@ class Path {
                 // All other segments
                 else {
                     // Must not contain slash
-                    external_assert_(!segment.includes(external_path_.sep), `Parameter 'itemPath' contains unexpected path separators`);
+                    external_assert_(!segment.includes(external_path_namespaceObject.sep), `Parameter 'itemPath' contains unexpected path separators`);
                     this.segments.push(segment);
                 }
             }
@@ -75242,13 +76686,13 @@ class Path {
         // First segment
         let result = this.segments[0];
         // All others
-        let skipSlash = result.endsWith(external_path_.sep) || (internal_path_IS_WINDOWS && /^[A-Z]:$/i.test(result));
+        let skipSlash = result.endsWith(external_path_namespaceObject.sep) || (internal_path_IS_WINDOWS && /^[A-Z]:$/i.test(result));
         for (let i = 1; i < this.segments.length; i++) {
             if (skipSlash) {
                 skipSlash = false;
             }
             else {
-                result += external_path_.sep;
+                result += external_path_namespaceObject.sep;
             }
             result += this.segments[i];
         }
@@ -75264,7 +76708,6 @@ class Path {
 
 
 
-const { Minimatch } = minimatch;
 const internal_pattern_IS_WINDOWS = process.platform === 'win32';
 class Pattern {
     constructor(patternOrNegate, isImplicitPattern = false, segments, homedir) {
@@ -75300,7 +76743,7 @@ class Pattern {
         this.segments = new Path(pattern).segments;
         // Trailing slash indicates the pattern should only match directories, not regular files
         this.trailingSeparator = internal_path_helper_normalizeSeparators(pattern)
-            .endsWith(external_path_.sep);
+            .endsWith(external_path_namespaceObject.sep);
         pattern = safeTrimTrailingSeparator(pattern);
         // Search path (literal path prior to the first glob segment)
         let foundGlob = false;
@@ -75334,10 +76777,10 @@ class Pattern {
             // Append a trailing slash. Otherwise Minimatch will not match the directory immediately
             // preceding the globstar. For example, given the pattern `/foo/**`, Minimatch returns
             // false for `/foo` but returns true for `/foo/`. Append a trailing slash to handle that quirk.
-            if (!itemPath.endsWith(external_path_.sep) && this.isImplicitPattern === false) {
+            if (!itemPath.endsWith(external_path_namespaceObject.sep) && this.isImplicitPattern === false) {
                 // Note, this is safe because the constructor ensures the pattern has an absolute root.
                 // For example, formats like C: and C:foo on Windows are resolved to an absolute root.
-                itemPath = `${itemPath}${external_path_.sep}`;
+                itemPath = `${itemPath}${external_path_namespaceObject.sep}`;
             }
         }
         else {
@@ -75386,11 +76829,11 @@ class Pattern {
         // Normalize slashes
         pattern = internal_path_helper_normalizeSeparators(pattern);
         // Replace leading `.` segment
-        if (pattern === '.' || pattern.startsWith(`.${external_path_.sep}`)) {
+        if (pattern === '.' || pattern.startsWith(`.${external_path_namespaceObject.sep}`)) {
             pattern = Pattern.globEscape(process.cwd()) + pattern.substr(1);
         }
         // Replace leading `~` segment
-        else if (pattern === '~' || pattern.startsWith(`~${external_path_.sep}`)) {
+        else if (pattern === '~' || pattern.startsWith(`~${external_path_namespaceObject.sep}`)) {
             homedir = homedir || external_os_.homedir();
             external_assert_(homedir, 'Unable to determine HOME directory');
             external_assert_(hasAbsoluteRoot(homedir), `Expected HOME directory to be a rooted path. Actual '${homedir}'`);
@@ -75617,7 +77060,7 @@ class DefaultGlobber {
                     continue;
                 }
                 // Hidden file or directory?
-                if (options.excludeHiddenFiles && external_path_.basename(item.path).match(/^\./)) {
+                if (options.excludeHiddenFiles && external_path_namespaceObject.basename(item.path).match(/^\./)) {
                     continue;
                 }
                 // Directory
@@ -75632,7 +77075,7 @@ class DefaultGlobber {
                     }
                     // Push the child items in reverse
                     const childLevel = item.level + 1;
-                    const childItems = (yield __await(external_fs_namespaceObject.promises.readdir(item.path))).map(x => new SearchState(external_path_.join(item.path, x), childLevel));
+                    const childItems = (yield __await(external_fs_namespaceObject.promises.readdir(item.path))).map(x => new SearchState(external_path_namespaceObject.join(item.path, x), childLevel));
                     stack.push(...childItems.reverse());
                 }
                 // File
@@ -76529,9 +77972,9 @@ function createTempDirectory() {
                     baseLocation = '/home';
                 }
             }
-            tempDirectory = external_path_.join(baseLocation, 'actions', 'temp');
+            tempDirectory = external_path_namespaceObject.join(baseLocation, 'actions', 'temp');
         }
-        const dest = external_path_.join(tempDirectory, external_crypto_namespaceObject.randomUUID());
+        const dest = external_path_namespaceObject.join(tempDirectory, external_crypto_namespaceObject.randomUUID());
         yield mkdirP(dest);
         return dest;
     });
@@ -76553,8 +77996,8 @@ function resolvePaths(patterns) {
                 _c = _g.value;
                 _e = false;
                 const file = _c;
-                const relativeFile = external_path_.relative(workspace, file)
-                    .replace(new RegExp(`\\${external_path_.sep}`, 'g'), '/');
+                const relativeFile = external_path_namespaceObject.relative(workspace, file)
+                    .replace(new RegExp(`\\${external_path_namespaceObject.sep}`, 'g'), '/');
                 core_debug(`Matched: ${relativeFile}`);
                 // Paths are made relative so the tar entries are all relative to the root of the workspace.
                 if (relativeFile === '') {
@@ -77533,7 +78976,7 @@ function isObject(input) {
  * Typeguard for an error object shape (has name and message)
  * @param e - Something caught by a catch clause.
  */
-function isError(e) {
+function error_isError(e) {
     if (isObject(e)) {
         const hasName = typeof e.name === "string";
         const hasMessage = typeof e.message === "string";
@@ -77599,7 +79042,7 @@ const defaultAllowedQueryParameters = ["api-version"];
 /**
  * A utility class to sanitize objects for logging.
  */
-class Sanitizer {
+class sanitizer_Sanitizer {
     allowedHeaderNames;
     allowedQueryParameters;
     constructor({ additionalAllowedHeaderNames: allowedHeaderNames = [], additionalAllowedQueryParameters: allowedQueryParameters = [], } = {}) {
@@ -77710,7 +79153,7 @@ class Sanitizer {
 
 
 
-const errorSanitizer = new Sanitizer();
+const errorSanitizer = new sanitizer_Sanitizer();
 /**
  * A custom error type for failed pipeline requests.
  */
@@ -77791,7 +79234,7 @@ function restError_isRestError(e) {
     if (e instanceof restError_RestError) {
         return true;
     }
-    return isError(e) && e.name === "RestError";
+    return error_isError(e) && e.name === "RestError";
 }
 //# sourceMappingURL=restError.js.map
 // EXTERNAL MODULE: external "node:http"
@@ -77891,7 +79334,7 @@ class NodeHttpClient {
         let timeoutId;
         if (request.timeout > 0) {
             timeoutId = setTimeout(() => {
-                const sanitizer = new Sanitizer();
+                const sanitizer = new sanitizer_Sanitizer();
                 log_logger.info(`request to '${sanitizer.sanitizeUrl(request.url)}' timed out. canceling...`);
                 abortController.abort();
             }, request.timeout);
@@ -78184,7 +79627,7 @@ const logPolicyName = "logPolicy";
  */
 function logPolicy_logPolicy(options = {}) {
     const logger = options.logger ?? log_logger.info;
-    const sanitizer = new Sanitizer({
+    const sanitizer = new sanitizer_Sanitizer({
         additionalAllowedHeaderNames: options.additionalAllowedHeaderNames,
         additionalAllowedQueryParameters: options.additionalAllowedQueryParameters,
     });
@@ -80313,14 +81756,15 @@ function userAgentPlatform_getHeaderName() {
 async function util_userAgentPlatform_setPlatformSpecificData(map) {
     if (external_node_process_ && external_node_process_.versions) {
         const osInfo = `${external_node_os_.type()} ${external_node_os_.release()}; ${external_node_os_.arch()}`;
-        if (external_node_process_.versions.bun) {
-            map.set("Bun", `${external_node_process_.versions.bun} (${osInfo})`);
+        const versions = external_node_process_.versions;
+        if (versions.bun) {
+            map.set("Bun", `${versions.bun} (${osInfo})`);
         }
-        else if (external_node_process_.versions.deno) {
-            map.set("Deno", `${external_node_process_.versions.deno} (${osInfo})`);
+        else if (versions.deno) {
+            map.set("Deno", `${versions.deno} (${osInfo})`);
         }
-        else if (external_node_process_.versions.node) {
-            map.set("Node", `${external_node_process_.versions.node} (${osInfo})`);
+        else if (versions.node) {
+            map.set("Node", `${versions.node} (${osInfo})`);
         }
     }
 }
@@ -80328,7 +81772,7 @@ async function util_userAgentPlatform_setPlatformSpecificData(map) {
 ;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/constants.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-const esm_constants_SDK_VERSION = "1.25.0";
+const esm_constants_SDK_VERSION = "1.22.3";
 const esm_constants_DEFAULT_RETRY_POLICY_COUNT = 3;
 //# sourceMappingURL=constants.js.map
 ;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/util/userAgent.js
@@ -80389,230 +81833,6 @@ function policies_userAgentPolicy_userAgentPolicy(options = {}) {
     };
 }
 //# sourceMappingURL=userAgentPolicy.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/util/createFile.js
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
-/**
- * Create an object that implements the File interface. This object is intended to be
- * passed into RequestBodyType.formData, and is not guaranteed to work as expected in
- * other situations.
- *
- * Use this function to create a File object for use in RequestBodyType.formData in environments
- * where the global File object is unavailable.
- *
- * @param content - the content of the file as a Uint8Array in memory.
- * @param name - the name of the file.
- * @param options - optional metadata about the file, e.g. file name, file size, MIME type.
- */
-function createFile(content, name, options = {}) {
-    return createRawFile(content, name, options);
-}
-//# sourceMappingURL=createFile.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/util/file.js
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-function file_isNodeReadableStream(x) {
-    return typeof x === "object" && x !== null && "pipe" in x && typeof x.pipe === "function";
-}
-const unimplementedMethods = {
-    arrayBuffer: () => {
-        throw new Error("Not implemented");
-    },
-    bytes: () => {
-        throw new Error("Not implemented");
-    },
-    slice: () => {
-        throw new Error("Not implemented");
-    },
-    text: () => {
-        throw new Error("Not implemented");
-    },
-};
-/**
- * Private symbol used as key on objects created using createFile containing the
- * original source of the file object.
- *
- * This is used in Node to access the original Node stream without using Blob#stream, which
- * returns a web stream. This is done to avoid a couple of bugs to do with Blob#stream and
- * Readable#to/fromWeb in Node versions we support:
- * - https://github.com/nodejs/node/issues/42694 (fixed in Node 18.14)
- * - https://github.com/nodejs/node/issues/48916 (fixed in Node 20.6)
- *
- * Once these versions are no longer supported, we may be able to stop doing this.
- *
- * @internal
- */
-const rawContent = Symbol("rawContent");
-/**
- * Type guard to check if a given object is a blob-like object with a raw content property.
- */
-function hasRawContent(x) {
-    return typeof x[rawContent] === "function";
-}
-/**
- * Extract the raw content from a given blob-like object. If the input was created using createFile
- * or createFileFromStream, the exact content passed into createFile/createFileFromStream will be used.
- * For true instances of Blob and File, returns the actual blob.
- *
- * @internal
- */
-function getRawContent(blob) {
-    if (hasRawContent(blob)) {
-        return blob[rawContent]();
-    }
-    else {
-        return blob;
-    }
-}
-/**
- * @internal
- *
- * Creates a File-like object tagged with rawContent for efficient streaming access.
- * Used by the Node createFile to avoid Blob#stream() bugs.
- */
-function file_createRawFile(content, name, options = {}) {
-    return {
-        ...unimplementedMethods,
-        type: options.type ?? "",
-        lastModified: options.lastModified ?? new Date().getTime(),
-        webkitRelativePath: options.webkitRelativePath ?? "",
-        size: content.byteLength,
-        name,
-        arrayBuffer: async () => toArrayBuffer(content).buffer,
-        stream: () => new Blob([toArrayBuffer(content)]).stream(),
-        [rawContent]: () => content,
-    };
-}
-/**
- * Create an object that implements the File interface. This object is intended to be
- * passed into RequestBodyType.formData, and is not guaranteed to work as expected in
- * other situations.
- *
- * Use this function to:
- * - Create a File object for use in RequestBodyType.formData in environments where the
- *   global File object is unavailable.
- * - Create a File-like object from a readable stream without reading the stream into memory.
- *
- * @param stream - the content of the file as a callback returning a stream. When a File object made using createFile is
- *                  passed in a request's form data map, the stream will not be read into memory
- *                  and instead will be streamed when the request is made. In the event of a retry, the
- *                  stream needs to be read again, so this callback SHOULD return a fresh stream if possible.
- * @param name - the name of the file.
- * @param options - optional metadata about the file, e.g. file name, file size, MIME type.
- */
-function createFileFromStream(stream, name, options = {}) {
-    return {
-        ...unimplementedMethods,
-        type: options.type ?? "",
-        lastModified: options.lastModified ?? new Date().getTime(),
-        webkitRelativePath: options.webkitRelativePath ?? "",
-        size: options.size ?? -1,
-        name,
-        stream: () => {
-            const s = stream();
-            if (file_isNodeReadableStream(s)) {
-                throw new Error("Not supported: a Node stream was provided as input to createFileFromStream.");
-            }
-            return s;
-        },
-        [rawContent]: stream,
-    };
-}
-
-function hasArrayBuffer(source) {
-    return "resize" in source.buffer;
-}
-function toArrayBuffer(source) {
-    if (hasArrayBuffer(source)) {
-        // ArrayBuffer — return a copy if the view is a subarray of a larger buffer
-        if (source.byteOffset !== 0 || source.byteLength !== source.buffer.byteLength) {
-            return new Uint8Array(source);
-        }
-        return source;
-    }
-    // SharedArrayBuffer
-    return source.map((x) => x);
-}
-//# sourceMappingURL=file.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/policies/multipartPolicy.js
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
-
-/**
- * Name of multipart policy
- */
-const policies_multipartPolicy_multipartPolicyName = multipartPolicy_multipartPolicyName;
-/**
- * Pipeline policy for multipart requests
- */
-function policies_multipartPolicy_multipartPolicy() {
-    const tspPolicy = multipartPolicy_multipartPolicy();
-    return {
-        name: policies_multipartPolicy_multipartPolicyName,
-        sendRequest: async (request, next) => {
-            if (request.multipartBody) {
-                for (const part of request.multipartBody.parts) {
-                    if (hasRawContent(part.body)) {
-                        part.body = getRawContent(part.body);
-                    }
-                }
-            }
-            return tspPolicy.sendRequest(request, next);
-        },
-    };
-}
-//# sourceMappingURL=multipartPolicy.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/policies/decompressResponsePolicy.js
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
-/**
- * The programmatic identifier of the decompressResponsePolicy.
- */
-const decompressResponsePolicy_decompressResponsePolicyName = decompressResponsePolicyName;
-/**
- * A policy to enable response decompression according to Accept-Encoding header
- * https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
- */
-function policies_decompressResponsePolicy_decompressResponsePolicy() {
-    return decompressResponsePolicy_decompressResponsePolicy();
-}
-//# sourceMappingURL=decompressResponsePolicy.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/policies/defaultRetryPolicy.js
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
-/**
- * Name of the {@link defaultRetryPolicy}
- */
-const defaultRetryPolicy_defaultRetryPolicyName = (/* unused pure expression or super */ null && (tspDefaultRetryPolicyName));
-/**
- * A policy that retries according to three strategies:
- * - When the server sends a 429 response with a Retry-After header.
- * - When there are errors in the underlying transport layer (e.g. DNS lookup failures).
- * - Or otherwise if the outgoing request fails, it will retry with an exponentially increasing delay.
- */
-function policies_defaultRetryPolicy_defaultRetryPolicy(options = {}) {
-    return defaultRetryPolicy_defaultRetryPolicy(options);
-}
-//# sourceMappingURL=defaultRetryPolicy.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/policies/formDataPolicy.js
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
-/**
- * The programmatic identifier of the formDataPolicy.
- */
-const formDataPolicy_formDataPolicyName = (/* unused pure expression or super */ null && (tspFormDataPolicyName));
-/**
- * A policy that encodes FormData on the request into the body.
- */
-function policies_formDataPolicy_formDataPolicy() {
-    return formDataPolicy_formDataPolicy();
-}
-//# sourceMappingURL=formDataPolicy.js.map
 // EXTERNAL MODULE: external "node:crypto"
 var external_node_crypto_ = __nccwpck_require__(7598);
 ;// CONCATENATED MODULE: ./node_modules/@typespec/ts-http-runtime/dist/esm/util/sha256.js
@@ -80651,7 +81871,7 @@ async function computeSha256Hash(content, encoding) {
 
 
 //# sourceMappingURL=internal.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/core-util/node_modules/@azure/abort-controller/dist/esm/AbortError.js
+;// CONCATENATED MODULE: ./node_modules/@azure/abort-controller/dist/esm/AbortError.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 /**
@@ -80689,7 +81909,7 @@ class AbortError_AbortError extends Error {
     }
 }
 //# sourceMappingURL=AbortError.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/core-util/node_modules/@azure/abort-controller/dist/esm/index.js
+;// CONCATENATED MODULE: ./node_modules/@azure/abort-controller/dist/esm/index.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
@@ -80770,8 +81990,8 @@ function delay_delay(timeInMs, options) {
  * @param e - Something thrown from a try block
  * @returns The error message or a string of the input
  */
-function getErrorMessage(e) {
-    if (isError(e)) {
+function error_getErrorMessage(e) {
+    if (error_isError(e)) {
         return e.message;
     }
     else {
@@ -80850,7 +82070,7 @@ function esm_getRandomIntegerInclusive(min, max) {
  * @param e - Something caught by a catch clause.
  */
 function esm_isError(e) {
-    return isError(e);
+    return error_isError(e);
 }
 /**
  * Helper to determine when an input is a generic JS object.
@@ -80923,6 +82143,214 @@ function esm_stringToUint8Array(value, format) {
     return bytesEncoding_stringToUint8Array(value, format);
 }
 //# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/util/file.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+function file_isNodeReadableStream(x) {
+    return Boolean(x && typeof x["pipe"] === "function");
+}
+const unimplementedMethods = {
+    arrayBuffer: () => {
+        throw new Error("Not implemented");
+    },
+    bytes: () => {
+        throw new Error("Not implemented");
+    },
+    slice: () => {
+        throw new Error("Not implemented");
+    },
+    text: () => {
+        throw new Error("Not implemented");
+    },
+};
+/**
+ * Private symbol used as key on objects created using createFile containing the
+ * original source of the file object.
+ *
+ * This is used in Node to access the original Node stream without using Blob#stream, which
+ * returns a web stream. This is done to avoid a couple of bugs to do with Blob#stream and
+ * Readable#to/fromWeb in Node versions we support:
+ * - https://github.com/nodejs/node/issues/42694 (fixed in Node 18.14)
+ * - https://github.com/nodejs/node/issues/48916 (fixed in Node 20.6)
+ *
+ * Once these versions are no longer supported, we may be able to stop doing this.
+ *
+ * @internal
+ */
+const rawContent = Symbol("rawContent");
+/**
+ * Type guard to check if a given object is a blob-like object with a raw content property.
+ */
+function file_hasRawContent(x) {
+    return typeof x[rawContent] === "function";
+}
+/**
+ * Extract the raw content from a given blob-like object. If the input was created using createFile
+ * or createFileFromStream, the exact content passed into createFile/createFileFromStream will be used.
+ * For true instances of Blob and File, returns the actual blob.
+ *
+ * @internal
+ */
+function file_getRawContent(blob) {
+    if (file_hasRawContent(blob)) {
+        return blob[rawContent]();
+    }
+    else {
+        return blob;
+    }
+}
+/**
+ * Create an object that implements the File interface. This object is intended to be
+ * passed into RequestBodyType.formData, and is not guaranteed to work as expected in
+ * other situations.
+ *
+ * Use this function to:
+ * - Create a File object for use in RequestBodyType.formData in environments where the
+ *   global File object is unavailable.
+ * - Create a File-like object from a readable stream without reading the stream into memory.
+ *
+ * @param stream - the content of the file as a callback returning a stream. When a File object made using createFile is
+ *                  passed in a request's form data map, the stream will not be read into memory
+ *                  and instead will be streamed when the request is made. In the event of a retry, the
+ *                  stream needs to be read again, so this callback SHOULD return a fresh stream if possible.
+ * @param name - the name of the file.
+ * @param options - optional metadata about the file, e.g. file name, file size, MIME type.
+ */
+function createFileFromStream(stream, name, options = {}) {
+    return {
+        ...unimplementedMethods,
+        type: options.type ?? "",
+        lastModified: options.lastModified ?? new Date().getTime(),
+        webkitRelativePath: options.webkitRelativePath ?? "",
+        size: options.size ?? -1,
+        name,
+        stream: () => {
+            const s = stream();
+            if (file_isNodeReadableStream(s)) {
+                throw new Error("Not supported: a Node stream was provided as input to createFileFromStream.");
+            }
+            return s;
+        },
+        [rawContent]: stream,
+    };
+}
+/**
+ * Create an object that implements the File interface. This object is intended to be
+ * passed into RequestBodyType.formData, and is not guaranteed to work as expected in
+ * other situations.
+ *
+ * Use this function create a File object for use in RequestBodyType.formData in environments where the global File object is unavailable.
+ *
+ * @param content - the content of the file as a Uint8Array in memory.
+ * @param name - the name of the file.
+ * @param options - optional metadata about the file, e.g. file name, file size, MIME type.
+ */
+function createFile(content, name, options = {}) {
+    if (isNodeLike) {
+        return {
+            ...unimplementedMethods,
+            type: options.type ?? "",
+            lastModified: options.lastModified ?? new Date().getTime(),
+            webkitRelativePath: options.webkitRelativePath ?? "",
+            size: content.byteLength,
+            name,
+            arrayBuffer: async () => content.buffer,
+            stream: () => new Blob([toArrayBuffer(content)]).stream(),
+            [rawContent]: () => content,
+        };
+    }
+    else {
+        return new File([toArrayBuffer(content)], name, options);
+    }
+}
+function toArrayBuffer(source) {
+    if ("resize" in source.buffer) {
+        // ArrayBuffer
+        return source;
+    }
+    // SharedArrayBuffer
+    return source.map((x) => x);
+}
+//# sourceMappingURL=file.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/policies/multipartPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+/**
+ * Name of multipart policy
+ */
+const policies_multipartPolicy_multipartPolicyName = multipartPolicy_multipartPolicyName;
+/**
+ * Pipeline policy for multipart requests
+ */
+function policies_multipartPolicy_multipartPolicy() {
+    const tspPolicy = multipartPolicy_multipartPolicy();
+    return {
+        name: policies_multipartPolicy_multipartPolicyName,
+        sendRequest: async (request, next) => {
+            if (request.multipartBody) {
+                for (const part of request.multipartBody.parts) {
+                    if (file_hasRawContent(part.body)) {
+                        part.body = file_getRawContent(part.body);
+                    }
+                }
+            }
+            return tspPolicy.sendRequest(request, next);
+        },
+    };
+}
+//# sourceMappingURL=multipartPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/policies/decompressResponsePolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * The programmatic identifier of the decompressResponsePolicy.
+ */
+const decompressResponsePolicy_decompressResponsePolicyName = decompressResponsePolicyName;
+/**
+ * A policy to enable response decompression according to Accept-Encoding header
+ * https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
+ */
+function policies_decompressResponsePolicy_decompressResponsePolicy() {
+    return decompressResponsePolicy_decompressResponsePolicy();
+}
+//# sourceMappingURL=decompressResponsePolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/policies/defaultRetryPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * Name of the {@link defaultRetryPolicy}
+ */
+const defaultRetryPolicy_defaultRetryPolicyName = (/* unused pure expression or super */ null && (tspDefaultRetryPolicyName));
+/**
+ * A policy that retries according to three strategies:
+ * - When the server sends a 429 response with a Retry-After header.
+ * - When there are errors in the underlying transport layer (e.g. DNS lookup failures).
+ * - Or otherwise if the outgoing request fails, it will retry with an exponentially increasing delay.
+ */
+function policies_defaultRetryPolicy_defaultRetryPolicy(options = {}) {
+    return defaultRetryPolicy_defaultRetryPolicy(options);
+}
+//# sourceMappingURL=defaultRetryPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/policies/formDataPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * The programmatic identifier of the formDataPolicy.
+ */
+const formDataPolicy_formDataPolicyName = (/* unused pure expression or super */ null && (tspFormDataPolicyName));
+/**
+ * A policy that encodes FormData on the request into the body.
+ */
+function policies_formDataPolicy_formDataPolicy() {
+    return formDataPolicy_formDataPolicy();
+}
+//# sourceMappingURL=formDataPolicy.js.map
 ;// CONCATENATED MODULE: ./node_modules/@azure/core-rest-pipeline/dist/esm/policies/proxyPolicy.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
@@ -80965,7 +82393,7 @@ const setClientRequestIdPolicyName = "setClientRequestIdPolicy";
  * telemetry and tracing.
  * @param requestIdHeaderName - The name of the header to pass the request ID to.
  */
-function setClientRequestIdPolicy(requestIdHeaderName = "x-ms-client-request-id") {
+function setClientRequestIdPolicy_setClientRequestIdPolicy(requestIdHeaderName = "x-ms-client-request-id") {
     return {
         name: setClientRequestIdPolicyName,
         async sendRequest(request, next) {
@@ -81144,7 +82572,7 @@ function getInstrumenter() {
  * @param options - Options used to configure the tracing client.
  * @returns - An instance of {@link TracingClient}.
  */
-function createTracingClient(options) {
+function tracingClient_createTracingClient(options) {
     const { namespace, packageName, packageVersion } = options;
     function startSpan(name, operationOptions, spanOptions) {
         const startSpanResult = getInstrumenter().startSpan(name, {
@@ -81255,9 +82683,9 @@ const tracingPolicyName = "tracingPolicy";
  * Requests made without a parent Span will not be recorded.
  * @param options - Options to configure the telemetry logged by the tracing policy.
  */
-function tracingPolicy(options = {}) {
+function tracingPolicy_tracingPolicy(options = {}) {
     const userAgentPromise = util_userAgent_getUserAgentValue(options.userAgentPrefix);
-    const sanitizer = new Sanitizer({
+    const sanitizer = new sanitizer_Sanitizer({
         additionalAllowedQueryParameters: options.additionalAllowedQueryParameters,
     });
     const tracingClient = tryCreateTracingClient();
@@ -81295,14 +82723,14 @@ function tracingPolicy(options = {}) {
 }
 function tryCreateTracingClient() {
     try {
-        return createTracingClient({
+        return tracingClient_createTracingClient({
             namespace: "",
             packageName: "@azure/core-rest-pipeline",
             packageVersion: esm_constants_SDK_VERSION,
         });
     }
     catch (e) {
-        esm_log_logger.warning(`Error when creating the TracingClient: ${getErrorMessage(e)}`);
+        esm_log_logger.warning(`Error when creating the TracingClient: ${error_getErrorMessage(e)}`);
         return undefined;
     }
 }
@@ -81326,7 +82754,7 @@ function tryCreateSpan(tracingClient, request, spanAttributes) {
         return { span, tracingContext: updatedOptions.tracingOptions.tracingContext };
     }
     catch (e) {
-        esm_log_logger.warning(`Skipping creating a tracing span due to an error: ${getErrorMessage(e)}`);
+        esm_log_logger.warning(`Skipping creating a tracing span due to an error: ${error_getErrorMessage(e)}`);
         return undefined;
     }
 }
@@ -81342,7 +82770,7 @@ function tryProcessError(span, error) {
         span.end();
     }
     catch (e) {
-        esm_log_logger.warning(`Skipping tracing span processing due to an error: ${getErrorMessage(e)}`);
+        esm_log_logger.warning(`Skipping tracing span processing due to an error: ${error_getErrorMessage(e)}`);
     }
 }
 function tryProcessResponse(span, response) {
@@ -81363,7 +82791,7 @@ function tryProcessResponse(span, response) {
         span.end();
     }
     catch (e) {
-        esm_log_logger.warning(`Skipping tracing span processing due to an error: ${getErrorMessage(e)}`);
+        esm_log_logger.warning(`Skipping tracing span processing due to an error: ${error_getErrorMessage(e)}`);
     }
 }
 //# sourceMappingURL=tracingPolicy.js.map
@@ -81381,9 +82809,7 @@ function wrapAbortSignalLike(abortSignalLike) {
         return { abortSignal: abortSignalLike };
     }
     if (abortSignalLike.aborted) {
-        return {
-            abortSignal: AbortSignal.abort("reason" in abortSignalLike ? abortSignalLike.reason : undefined),
-        };
+        return { abortSignal: AbortSignal.abort(abortSignalLike.reason) };
     }
     const controller = new AbortController();
     let needsCleanup = true;
@@ -81394,7 +82820,7 @@ function wrapAbortSignalLike(abortSignalLike) {
         }
     }
     function listener() {
-        controller.abort("reason" in abortSignalLike ? abortSignalLike.reason : undefined);
+        controller.abort(abortSignalLike.reason);
         cleanup();
     }
     abortSignalLike.addEventListener("abort", listener);
@@ -81412,7 +82838,7 @@ const wrapAbortSignalLikePolicyName = "wrapAbortSignalLikePolicy";
  *
  * @returns - created policy
  */
-function wrapAbortSignalLikePolicy() {
+function wrapAbortSignalLikePolicy_wrapAbortSignalLikePolicy() {
     return {
         name: wrapAbortSignalLikePolicyName,
         sendRequest: async (request, next) => {
@@ -81465,16 +82891,16 @@ function esm_createPipelineFromOptions_createPipelineFromOptions(options) {
         pipeline.addPolicy(policies_proxyPolicy_proxyPolicy(options.proxyOptions));
         pipeline.addPolicy(policies_decompressResponsePolicy_decompressResponsePolicy());
     }
-    pipeline.addPolicy(wrapAbortSignalLikePolicy());
+    pipeline.addPolicy(wrapAbortSignalLikePolicy_wrapAbortSignalLikePolicy());
     pipeline.addPolicy(policies_formDataPolicy_formDataPolicy(), { beforePolicies: [policies_multipartPolicy_multipartPolicyName] });
     pipeline.addPolicy(policies_userAgentPolicy_userAgentPolicy(options.userAgentOptions));
-    pipeline.addPolicy(setClientRequestIdPolicy(options.telemetryOptions?.clientRequestIdHeaderName));
+    pipeline.addPolicy(setClientRequestIdPolicy_setClientRequestIdPolicy(options.telemetryOptions?.clientRequestIdHeaderName));
     // The multipart policy is added after policies with no phase, so that
     // policies can be added between it and formDataPolicy to modify
     // properties (e.g., making the boundary constant in recorded tests).
     pipeline.addPolicy(policies_multipartPolicy_multipartPolicy(), { afterPhase: "Deserialize" });
     pipeline.addPolicy(policies_defaultRetryPolicy_defaultRetryPolicy(options.retryOptions), { phase: "Retry" });
-    pipeline.addPolicy(tracingPolicy({ ...options.userAgentOptions, ...options.loggingOptions }), {
+    pipeline.addPolicy(tracingPolicy_tracingPolicy({ ...options.userAgentOptions, ...options.loggingOptions }), {
         afterPhase: "Retry",
     });
     if (esm_isNodeLike) {
@@ -81704,16 +83130,13 @@ function tokenCycler_createTokenCycler(credential, tokenCyclerOptions) {
          * window and not already refreshing)
          */
         get shouldRefresh() {
-            if (token === null) {
-                return true;
-            }
             if (cycler.isRefreshing) {
                 return false;
             }
-            if (token.refreshAfterTimestamp && token.refreshAfterTimestamp < Date.now()) {
+            if (token?.refreshAfterTimestamp && token.refreshAfterTimestamp < Date.now()) {
                 return true;
             }
-            return token.expiresOnTimestamp - options.refreshWindowInMs < Date.now();
+            return (token?.expiresOnTimestamp ?? 0) - options.refreshWindowInMs < Date.now();
         },
         /**
          * Produces true if the cycler MUST refresh (null or nearly-expired
@@ -81944,7 +83367,7 @@ function bearerTokenAuthenticationPolicy(options) {
                     }
                     // If we get another CAE Claim, we will handle it by default and return whatever value we receive for this
                     if (isChallengeResponse(response)) {
-                        claims = getCaeChallengeClaims(response.headers.get("WWW-Authenticate") ?? "");
+                        claims = getCaeChallengeClaims(response.headers.get("WWW-Authenticate"));
                         if (claims) {
                             let parsedClaim;
                             try {
@@ -88906,8 +90329,10 @@ function toNumber(str, options = {}) {
         return parse_int(trimmedStr, 2);
     } else if (options.octal && octRegex.test(trimmedStr)) {
         return parse_int(trimmedStr, 8);
-    } else if (!isFinite(trimmedStr)) { //Infinity
-        return handleInfinity(str, Number(trimmedStr), options);
+    } else if (!isFinite(trimmedStr)) { //Infinity or not a number
+        const num = Number(trimmedStr);
+        if (Number.isNaN(num)) return str; //not a number: always the original string
+        return handleInfinity(str, num, options); //only +/-Infinity reaches here
     } else if (trimmedStr.includes('e') || trimmedStr.includes('E')) { //eNotation
         return resolveEnotation(str, trimmedStr, options);
     } else {
@@ -88919,8 +90344,8 @@ function toNumber(str, options = {}) {
             const leadingZeros = match[2];
             let numTrimmedByZeros = trimZeros(match[3]); //complete num without leading zeros
             const decimalAdjacentToLeadingZeros = sign ? // 0., -00., 000.
-                str[leadingZeros.length + 1] === "."
-                : str[leadingZeros.length] === ".";
+                trimmedStr[leadingZeros.length + 1] === "."
+                : trimmedStr[leadingZeros.length] === ".";
 
             //trim ending zeros for floating number
             if (!options.leadingZeros //leading zeros are not allowed
@@ -88968,8 +90393,8 @@ function resolveEnotation(str, trimmedStr, options) {
         const eChar = notation[3].indexOf("e") === -1 ? "E" : "e";
         const leadingZeros = notation[2];
         const eAdjacentToLeadingZeros = sign ? // 0E.
-            str[leadingZeros.length + 1] === eChar
-            : str[leadingZeros.length] === eChar;
+            trimmedStr[leadingZeros.length + 1] === eChar
+            : trimmedStr[leadingZeros.length] === eChar;
 
         if (leadingZeros.length > 1 && eAdjacentToLeadingZeros) return str;
         else if (leadingZeros.length === 1
@@ -88978,8 +90403,7 @@ function resolveEnotation(str, trimmedStr, options) {
         } else if (leadingZeros.length > 0) {
             // Has leading zeros — only accept if leadingZeros option allows it
             if (options.leadingZeros && !eAdjacentToLeadingZeros) {
-                trimmedStr = (notation[1] || "") + notation[3];
-                return Number(trimmedStr);
+                return Number(trimmedStr); // Number() accepts leading zeros; stripping can leave a mantissa-less ".e0"
             } else return str;
         } else {
             // No leading zeros — always valid e-notation, parse it
@@ -89042,6 +90466,7 @@ function handleInfinity(str, num, options) {
             return str; // Return original string like "1e1000"
     }
 }
+
 ;// CONCATENATED MODULE: ./node_modules/fast-xml-parser/src/ignoreAttributes.js
 function ignoreAttributes_getIgnoreAttributesFn(ignoreAttributes) {
     if (typeof ignoreAttributes === 'function') {
@@ -91681,74 +93106,74 @@ const REDOS_PATTERNS = [
 // Shared suffix: optional closing quote/whitespace before the colon
 // Handles: $op: (bare), "$op": (JSON), '$op': (single-quoted)
 const SEP = /["'\s]*:/;
-const sep = '["\'\\s]*:';
+const nosql_sep = '["\'\\s]*:';
 
 const NOSQL_PATTERNS = [
   // ─── MongoDB $ operator injection ────────────────────────────────────────
   {
     id: 'nosql-where-operator',
     description: '$where — executes arbitrary JavaScript server-side in MongoDB',
-    pattern: new RegExp(`\\$where${sep}`, 'i'),
+    pattern: new RegExp(`\\$where${nosql_sep}`, 'i'),
   },
   {
     id: 'nosql-ne-operator',
     description: '$ne — "not equal" operator used to bypass equality checks',
-    pattern: new RegExp(`\\$ne${sep}`, 'i'),
+    pattern: new RegExp(`\\$ne${nosql_sep}`, 'i'),
   },
   {
     id: 'nosql-gt-operator',
     description: '$gt — "greater than" used to bypass password/value checks',
-    pattern: new RegExp(`\\$gte?${sep}`, 'i'),
+    pattern: new RegExp(`\\$gte?${nosql_sep}`, 'i'),
   },
   {
     id: 'nosql-lt-operator',
     description: '$lt / $lte — "less than" bypass variants',
-    pattern: new RegExp(`\\$lte?${sep}`, 'i'),
+    pattern: new RegExp(`\\$lte?${nosql_sep}`, 'i'),
   },
   {
     id: 'nosql-regex-operator',
     description: '$regex — can be used to extract data character by character (blind injection)',
-    pattern: new RegExp(`\\$regex${sep}`, 'i'),
+    pattern: new RegExp(`\\$regex${nosql_sep}`, 'i'),
   },
   {
     id: 'nosql-or-operator',
     description: '$or — logical OR; used to create always-true conditions',
-    pattern: new RegExp(`\\$or${sep}\\s*\\[`, 'i'),
+    pattern: new RegExp(`\\$or${nosql_sep}\\s*\\[`, 'i'),
   },
   {
     id: 'nosql-and-operator',
     description: '$and — logical AND operator injection',
-    pattern: new RegExp(`\\$and${sep}\\s*\\[`, 'i'),
+    pattern: new RegExp(`\\$and${nosql_sep}\\s*\\[`, 'i'),
   },
   {
     id: 'nosql-nor-operator',
     description: '$nor — logical NOR operator injection',
-    pattern: new RegExp(`\\$nor${sep}\\s*\\[`, 'i'),
+    pattern: new RegExp(`\\$nor${nosql_sep}\\s*\\[`, 'i'),
   },
   {
     id: 'nosql-exists-operator',
     description: '$exists — can enumerate fields to determine schema',
-    pattern: new RegExp(`\\$exists${sep}`, 'i'),
+    pattern: new RegExp(`\\$exists${nosql_sep}`, 'i'),
   },
   {
     id: 'nosql-in-operator',
     description: '$in — matches any value in a list; can enumerate values',
-    pattern: new RegExp(`\\$in${sep}\\s*\\[`, 'i'),
+    pattern: new RegExp(`\\$in${nosql_sep}\\s*\\[`, 'i'),
   },
   {
     id: 'nosql-expr-operator',
     description: '$expr — allows aggregation expressions in queries (MongoDB 3.6+)',
-    pattern: new RegExp(`\\$expr${sep}`, 'i'),
+    pattern: new RegExp(`\\$expr${nosql_sep}`, 'i'),
   },
   {
     id: 'nosql-function-operator',
     description: '$function — executes arbitrary JavaScript in MongoDB 4.4+',
-    pattern: new RegExp(`\\$function${sep}`, 'i'),
+    pattern: new RegExp(`\\$function${nosql_sep}`, 'i'),
   },
   {
     id: 'nosql-accumulator-operator',
     description: '$accumulator — custom aggregation with arbitrary JS execution',
-    pattern: new RegExp(`\\$accumulator${sep}`, 'i'),
+    pattern: new RegExp(`\\$accumulator${nosql_sep}`, 'i'),
   },
   // ─── Prototype pollution ─────────────────────────────────────────────────
   {
@@ -93190,6 +94615,7 @@ function isLeafTag(obj, options) {
   return false;
 }
 ;// CONCATENATED MODULE: ./node_modules/fast-xml-parser/src/xmlparser/XMLParser.js
+/* global Uint8Array */
 
 
 
@@ -93210,7 +94636,12 @@ class XMLParser {
      */
     parse(xmlData, validationOption) {
         if (typeof xmlData !== "string" && xmlData.toString) {
-            xmlData = xmlData.toString();
+            if (xmlData instanceof Uint8Array &&
+                !(typeof Buffer !== "undefined" && Buffer.isBuffer(xmlData))) {
+                xmlData = new TextDecoder("utf-8", { ignoreBOM: true }).decode(xmlData);
+            } else {
+                xmlData = xmlData.toString();
+            }
         } else if (typeof xmlData !== "string") {
             throw new Error("XML data is accepted in String or Bytes[] form.")
         }
@@ -93836,49 +95267,6 @@ class BufferScheduler {
     }
 }
 //# sourceMappingURL=BufferScheduler.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/abort-controller/dist/esm/AbortError.js
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-/**
- * This error is thrown when an asynchronous operation has been aborted.
- * Check for this error by testing the `name` that the name property of the
- * error matches `"AbortError"`.
- *
- * @example
- * ```ts snippet:AbortErrorSample
- * import { AbortError } from "@azure/abort-controller";
- *
- * async function doAsyncWork(options: { abortSignal: AbortSignal }): Promise<void> {
- *   if (options.abortSignal.aborted) {
- *     throw new AbortError();
- *   }
- *
- *   // do async work
- * }
- *
- * const controller = new AbortController();
- * controller.abort();
- * try {
- *   doAsyncWork({ abortSignal: controller.signal });
- * } catch (e) {
- *   if (e instanceof Error && e.name === "AbortError") {
- *     // handle abort error here.
- *   }
- * }
- * ```
- */
-class esm_AbortError_AbortError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = "AbortError";
-    }
-}
-//# sourceMappingURL=AbortError.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/abort-controller/dist/esm/index.js
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
-//# sourceMappingURL=index.js.map
 ;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/dist/esm/crc64.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
@@ -96775,7 +98163,7 @@ var SMRegion;
     SMRegion[SMRegion["SegmentContent"] = 4] = "SegmentContent";
     SMRegion[SMRegion["Completed"] = 5] = "Completed";
 })(SMRegion || (SMRegion = {}));
-class StructuredMessageEncoding {
+class StructuredMessageEncoding_StructuredMessageEncoding {
     pushData;
     contentLength;
     messageLength;
@@ -96905,7 +98293,7 @@ class StructuredMessageEncoding {
 
 function StructuredMessageEncodingStream_isNodeReadableStream(source) {
     return (source !== null &&
-        source instanceof external_node_stream_ &&
+        source instanceof Stream &&
         typeof source._read === "function" &&
         typeof source._readableState === "object" &&
         typeof source.pipe === "function");
@@ -96946,7 +98334,7 @@ async function structuredMessageEncoding(source, contentLength) {
         };
     }
     if (typeof source === "string") {
-        const s = new external_node_stream_.Readable();
+        const s = new Readable();
         s._read = () => { };
         s.push(source);
         s.push(null);
@@ -96958,7 +98346,7 @@ async function structuredMessageEncoding(source, contentLength) {
         };
     }
     if (source instanceof ArrayBuffer) {
-        const stream = external_node_stream_.Readable.from(Buffer.from(source));
+        const stream = Readable.from(Buffer.from(source));
         const encodingMessage = await new StructuredMessageEncodingStream(stream, contentLength, {});
         return {
             body: encodingMessage,
@@ -96966,7 +98354,7 @@ async function structuredMessageEncoding(source, contentLength) {
         };
     }
     if (source instanceof Buffer) {
-        const stream = external_node_stream_.Readable.from(source);
+        const stream = Readable.from(source);
         const encodingMessage = await new StructuredMessageEncodingStream(stream, contentLength, {});
         return {
             body: encodingMessage,
@@ -96974,7 +98362,7 @@ async function structuredMessageEncoding(source, contentLength) {
         };
     }
     if (ArrayBuffer.isView(source)) {
-        const stream = external_node_stream_.Readable.from(Buffer.from(source.buffer, source.byteOffset, source.byteLength));
+        const stream = Readable.from(Buffer.from(source.buffer, source.byteOffset, source.byteLength));
         const encodingMessage = await new StructuredMessageEncodingStream(stream, contentLength, {});
         return {
             body: encodingMessage,
@@ -97025,7 +98413,7 @@ class StructuredMessageEncodingStream extends external_node_stream_.Readable {
     constructor(source, contentLength, options) {
         super({ highWaterMark: options.highWaterMark });
         this.source = source;
-        this.encodingMethods = new StructuredMessageEncoding((dataToHandle) => {
+        this.encodingMethods = new StructuredMessageEncoding_StructuredMessageEncoding((dataToHandle) => {
             if (!this.push(dataToHandle)) {
                 source.pause();
             }
@@ -97052,7 +98440,7 @@ class StructuredMessageEncodingStream extends external_node_stream_.Readable {
         this.encodingMethods.sourceDataHandler(data);
     };
     sourceAbortedHandler = () => {
-        const abortError = new esm_AbortError_AbortError("The operation was aborted.");
+        const abortError = new AbortError_AbortError("The operation was aborted.");
         this.destroy(abortError);
     };
     sourceErrorOrEndHandler = (err) => {
@@ -97323,7 +98711,7 @@ class StructuredMessageDecodingStream extends external_node_stream_.Readable {
         }
     };
     sourceAbortedHandler = () => {
-        const abortError = new esm_AbortError_AbortError("The operation was aborted.");
+        const abortError = new AbortError_AbortError("The operation was aborted.");
         this.destroy(abortError);
     };
     sourceErrorOrEndHandler = (err) => {
@@ -97341,6 +98729,1298 @@ class StructuredMessageDecodingStream extends external_node_stream_.Readable {
     }
 }
 //# sourceMappingURL=StructuredMessageDecodingStream.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/pipeline.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * Creates a totally empty pipeline.
+ * Useful for testing or creating a custom one.
+ */
+function dist_esm_pipeline_createEmptyPipeline() {
+    return tspCreateEmptyPipeline();
+}
+//# sourceMappingURL=pipeline.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/log.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+const core_rest_pipeline_dist_esm_log_logger = esm_createClientLogger("core-rest-pipeline");
+//# sourceMappingURL=log.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/logPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+/**
+ * The programmatic identifier of the logPolicy.
+ */
+const policies_logPolicy_logPolicyName = (/* unused pure expression or super */ null && (tspLogPolicyName));
+/**
+ * A policy that logs all requests and responses.
+ * @param options - Options to configure logPolicy.
+ */
+function esm_policies_logPolicy_logPolicy(options = {}) {
+    return tspLogPolicy({
+        logger: coreLogger.info,
+        ...options,
+    });
+}
+//# sourceMappingURL=logPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/redirectPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * The programmatic identifier of the redirectPolicy.
+ */
+const policies_redirectPolicy_redirectPolicyName = (/* unused pure expression or super */ null && (tspRedirectPolicyName));
+/**
+ * A policy to follow Location headers from the server in order
+ * to support server-side redirection.
+ * In the browser, this policy is not used.
+ * @param options - Options to control policy behavior.
+ */
+function esm_policies_redirectPolicy_redirectPolicy(options = {}) {
+    return tspRedirectPolicy(options);
+}
+//# sourceMappingURL=redirectPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/util/userAgentPlatform.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+/**
+ * @internal
+ */
+function util_userAgentPlatform_getHeaderName() {
+    return "User-Agent";
+}
+/**
+ * @internal
+ */
+async function esm_util_userAgentPlatform_setPlatformSpecificData(map) {
+    if (process && process.versions) {
+        const osInfo = `${os.type()} ${os.release()}; ${os.arch()}`;
+        if (process.versions.bun) {
+            map.set("Bun", `${process.versions.bun} (${osInfo})`);
+        }
+        else if (process.versions.deno) {
+            map.set("Deno", `${process.versions.deno} (${osInfo})`);
+        }
+        else if (process.versions.node) {
+            map.set("Node", `${process.versions.node} (${osInfo})`);
+        }
+    }
+}
+//# sourceMappingURL=userAgentPlatform.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/util/userAgent.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+function util_userAgent_getUserAgentString(telemetryInfo) {
+    const parts = [];
+    for (const [key, value] of telemetryInfo) {
+        const token = value ? `${key}/${value}` : key;
+        parts.push(token);
+    }
+    return parts.join(" ");
+}
+/**
+ * @internal
+ */
+function util_userAgent_getUserAgentHeaderName() {
+    return util_userAgentPlatform_getHeaderName();
+}
+/**
+ * @internal
+ */
+async function esm_util_userAgent_getUserAgentValue(prefix) {
+    const runtimeInfo = new Map();
+    runtimeInfo.set("core-rest-pipeline", SDK_VERSION);
+    await setPlatformSpecificData(runtimeInfo);
+    const defaultAgent = util_userAgent_getUserAgentString(runtimeInfo);
+    const userAgentValue = prefix ? `${prefix} ${defaultAgent}` : defaultAgent;
+    return userAgentValue;
+}
+//# sourceMappingURL=userAgent.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/userAgentPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+const policies_userAgentPolicy_UserAgentHeaderName = util_userAgent_getUserAgentHeaderName();
+/**
+ * The programmatic identifier of the userAgentPolicy.
+ */
+const policies_userAgentPolicy_userAgentPolicyName = "userAgentPolicy";
+/**
+ * A policy that sets the User-Agent header (or equivalent) to reflect
+ * the library version.
+ * @param options - Options to customize the user agent value.
+ */
+function esm_policies_userAgentPolicy_userAgentPolicy(options = {}) {
+    const userAgentValue = getUserAgentValue(options.userAgentPrefix);
+    return {
+        name: policies_userAgentPolicy_userAgentPolicyName,
+        async sendRequest(request, next) {
+            if (!request.headers.has(policies_userAgentPolicy_UserAgentHeaderName)) {
+                request.headers.set(policies_userAgentPolicy_UserAgentHeaderName, await userAgentValue);
+            }
+            return next(request);
+        },
+    };
+}
+//# sourceMappingURL=userAgentPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/util/createFile.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * Create an object that implements the File interface. This object is intended to be
+ * passed into RequestBodyType.formData, and is not guaranteed to work as expected in
+ * other situations.
+ *
+ * Use this function to create a File object for use in RequestBodyType.formData in environments
+ * where the global File object is unavailable.
+ *
+ * @param content - the content of the file as a Uint8Array in memory.
+ * @param name - the name of the file.
+ * @param options - optional metadata about the file, e.g. file name, file size, MIME type.
+ */
+function createFile_createFile(content, name, options = {}) {
+    return createRawFile(content, name, options);
+}
+//# sourceMappingURL=createFile.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/util/file.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+function util_file_isNodeReadableStream(x) {
+    return typeof x === "object" && x !== null && "pipe" in x && typeof x.pipe === "function";
+}
+const file_unimplementedMethods = {
+    arrayBuffer: () => {
+        throw new Error("Not implemented");
+    },
+    bytes: () => {
+        throw new Error("Not implemented");
+    },
+    slice: () => {
+        throw new Error("Not implemented");
+    },
+    text: () => {
+        throw new Error("Not implemented");
+    },
+};
+/**
+ * Private symbol used as key on objects created using createFile containing the
+ * original source of the file object.
+ *
+ * This is used in Node to access the original Node stream without using Blob#stream, which
+ * returns a web stream. This is done to avoid a couple of bugs to do with Blob#stream and
+ * Readable#to/fromWeb in Node versions we support:
+ * - https://github.com/nodejs/node/issues/42694 (fixed in Node 18.14)
+ * - https://github.com/nodejs/node/issues/48916 (fixed in Node 20.6)
+ *
+ * Once these versions are no longer supported, we may be able to stop doing this.
+ *
+ * @internal
+ */
+const file_rawContent = Symbol("rawContent");
+/**
+ * Type guard to check if a given object is a blob-like object with a raw content property.
+ */
+function util_file_hasRawContent(x) {
+    return typeof x[file_rawContent] === "function";
+}
+/**
+ * Extract the raw content from a given blob-like object. If the input was created using createFile
+ * or createFileFromStream, the exact content passed into createFile/createFileFromStream will be used.
+ * For true instances of Blob and File, returns the actual blob.
+ *
+ * @internal
+ */
+function util_file_getRawContent(blob) {
+    if (util_file_hasRawContent(blob)) {
+        return blob[file_rawContent]();
+    }
+    else {
+        return blob;
+    }
+}
+/**
+ * @internal
+ *
+ * Creates a File-like object tagged with rawContent for efficient streaming access.
+ * Used by the Node createFile to avoid Blob#stream() bugs.
+ */
+function file_createRawFile(content, name, options = {}) {
+    return {
+        ...file_unimplementedMethods,
+        type: options.type ?? "",
+        lastModified: options.lastModified ?? new Date().getTime(),
+        webkitRelativePath: options.webkitRelativePath ?? "",
+        size: content.byteLength,
+        name,
+        arrayBuffer: async () => file_toArrayBuffer(content).buffer,
+        stream: () => new Blob([file_toArrayBuffer(content)]).stream(),
+        [file_rawContent]: () => content,
+    };
+}
+/**
+ * Create an object that implements the File interface. This object is intended to be
+ * passed into RequestBodyType.formData, and is not guaranteed to work as expected in
+ * other situations.
+ *
+ * Use this function to:
+ * - Create a File object for use in RequestBodyType.formData in environments where the
+ *   global File object is unavailable.
+ * - Create a File-like object from a readable stream without reading the stream into memory.
+ *
+ * @param stream - the content of the file as a callback returning a stream. When a File object made using createFile is
+ *                  passed in a request's form data map, the stream will not be read into memory
+ *                  and instead will be streamed when the request is made. In the event of a retry, the
+ *                  stream needs to be read again, so this callback SHOULD return a fresh stream if possible.
+ * @param name - the name of the file.
+ * @param options - optional metadata about the file, e.g. file name, file size, MIME type.
+ */
+function file_createFileFromStream(stream, name, options = {}) {
+    return {
+        ...file_unimplementedMethods,
+        type: options.type ?? "",
+        lastModified: options.lastModified ?? new Date().getTime(),
+        webkitRelativePath: options.webkitRelativePath ?? "",
+        size: options.size ?? -1,
+        name,
+        stream: () => {
+            const s = stream();
+            if (util_file_isNodeReadableStream(s)) {
+                throw new Error("Not supported: a Node stream was provided as input to createFileFromStream.");
+            }
+            return s;
+        },
+        [file_rawContent]: stream,
+    };
+}
+
+function hasArrayBuffer(source) {
+    return "resize" in source.buffer;
+}
+function file_toArrayBuffer(source) {
+    if (hasArrayBuffer(source)) {
+        // ArrayBuffer — return a copy if the view is a subarray of a larger buffer
+        if (source.byteOffset !== 0 || source.byteLength !== source.buffer.byteLength) {
+            return new Uint8Array(source);
+        }
+        return source;
+    }
+    // SharedArrayBuffer
+    return source.map((x) => x);
+}
+//# sourceMappingURL=file.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/multipartPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+/**
+ * Name of multipart policy
+ */
+const esm_policies_multipartPolicy_multipartPolicyName = (/* unused pure expression or super */ null && (tspMultipartPolicyName));
+/**
+ * Pipeline policy for multipart requests
+ */
+function esm_policies_multipartPolicy_multipartPolicy() {
+    const tspPolicy = tspMultipartPolicy();
+    return {
+        name: esm_policies_multipartPolicy_multipartPolicyName,
+        sendRequest: async (request, next) => {
+            if (request.multipartBody) {
+                for (const part of request.multipartBody.parts) {
+                    if (hasRawContent(part.body)) {
+                        part.body = getRawContent(part.body);
+                    }
+                }
+            }
+            return tspPolicy.sendRequest(request, next);
+        },
+    };
+}
+//# sourceMappingURL=multipartPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/decompressResponsePolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * The programmatic identifier of the decompressResponsePolicy.
+ */
+const policies_decompressResponsePolicy_decompressResponsePolicyName = (/* unused pure expression or super */ null && (tspDecompressResponsePolicyName));
+/**
+ * A policy to enable response decompression according to Accept-Encoding header
+ * https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
+ */
+function esm_policies_decompressResponsePolicy_decompressResponsePolicy() {
+    return tspDecompressResponsePolicy();
+}
+//# sourceMappingURL=decompressResponsePolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/defaultRetryPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * Name of the {@link defaultRetryPolicy}
+ */
+const policies_defaultRetryPolicy_defaultRetryPolicyName = (/* unused pure expression or super */ null && (tspDefaultRetryPolicyName));
+/**
+ * A policy that retries according to three strategies:
+ * - When the server sends a 429 response with a Retry-After header.
+ * - When there are errors in the underlying transport layer (e.g. DNS lookup failures).
+ * - Or otherwise if the outgoing request fails, it will retry with an exponentially increasing delay.
+ */
+function esm_policies_defaultRetryPolicy_defaultRetryPolicy(options = {}) {
+    return tspDefaultRetryPolicy(options);
+}
+//# sourceMappingURL=defaultRetryPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/formDataPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * The programmatic identifier of the formDataPolicy.
+ */
+const policies_formDataPolicy_formDataPolicyName = (/* unused pure expression or super */ null && (tspFormDataPolicyName));
+/**
+ * A policy that encodes FormData on the request into the body.
+ */
+function esm_policies_formDataPolicy_formDataPolicy() {
+    return tspFormDataPolicy();
+}
+//# sourceMappingURL=formDataPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/proxyPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * The programmatic identifier of the proxyPolicy.
+ */
+const policies_proxyPolicy_proxyPolicyName = (/* unused pure expression or super */ null && (tspProxyPolicyName));
+/**
+ * This method converts a proxy url into `ProxySettings` for use with ProxyPolicy.
+ * If no argument is given, it attempts to parse a proxy URL from the environment
+ * variables `HTTPS_PROXY` or `HTTP_PROXY`.
+ * @param proxyUrl - The url of the proxy to use. May contain authentication information.
+ * @deprecated - Internally this method is no longer necessary when setting proxy information.
+ */
+function policies_proxyPolicy_getDefaultProxySettings(proxyUrl) {
+    return tspGetDefaultProxySettings(proxyUrl);
+}
+/**
+ * A policy that allows one to apply proxy settings to all requests.
+ * If not passed static settings, they will be retrieved from the HTTPS_PROXY
+ * or HTTP_PROXY environment variables.
+ * @param proxySettings - ProxySettings to use on each request.
+ * @param options - additional settings, for example, custom NO_PROXY patterns
+ */
+function esm_policies_proxyPolicy_proxyPolicy(proxySettings, options) {
+    return tspProxyPolicy(proxySettings, options);
+}
+//# sourceMappingURL=proxyPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/agentPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * Name of the Agent Policy
+ */
+const policies_agentPolicy_agentPolicyName = (/* unused pure expression or super */ null && (tspAgentPolicyName));
+/**
+ * Gets a pipeline policy that sets http.agent
+ */
+function esm_policies_agentPolicy_agentPolicy(agent) {
+    return tspAgentPolicy(agent);
+}
+//# sourceMappingURL=agentPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/tlsPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * Name of the TLS Policy
+ */
+const policies_tlsPolicy_tlsPolicyName = (/* unused pure expression or super */ null && (tspTlsPolicyName));
+/**
+ * Gets a pipeline policy that adds the client certificate to the HttpClient agent for authentication.
+ */
+function esm_policies_tlsPolicy_tlsPolicy(tlsSettings) {
+    return tspTlsPolicy(tlsSettings);
+}
+//# sourceMappingURL=tlsPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/restError.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * A custom error type for failed pipeline requests.
+ */
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+const dist_esm_restError_RestError = restError_RestError;
+/**
+ * Typeguard for RestError
+ * @param e - Something caught by a catch clause.
+ */
+function dist_esm_restError_isRestError(e) {
+    return restError_isRestError(e);
+}
+//# sourceMappingURL=restError.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/tracingPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+
+
+
+
+
+/**
+ * The programmatic identifier of the tracingPolicy.
+ */
+const tracingPolicy_tracingPolicyName = "tracingPolicy";
+/**
+ * A simple policy to create OpenTelemetry Spans for each request made by the pipeline
+ * that has SpanOptions with a parent.
+ * Requests made without a parent Span will not be recorded.
+ * @param options - Options to configure the telemetry logged by the tracing policy.
+ */
+function policies_tracingPolicy_tracingPolicy(options = {}) {
+    const userAgentPromise = getUserAgentValue(options.userAgentPrefix);
+    const sanitizer = new Sanitizer({
+        additionalAllowedQueryParameters: options.additionalAllowedQueryParameters,
+    });
+    const tracingClient = tracingPolicy_tryCreateTracingClient();
+    return {
+        name: tracingPolicy_tracingPolicyName,
+        async sendRequest(request, next) {
+            if (!tracingClient) {
+                return next(request);
+            }
+            const userAgent = await userAgentPromise;
+            const spanAttributes = {
+                "http.url": sanitizer.sanitizeUrl(request.url),
+                "http.method": request.method,
+                "http.user_agent": userAgent,
+                requestId: request.requestId,
+            };
+            if (userAgent) {
+                spanAttributes["http.user_agent"] = userAgent;
+            }
+            const { span, tracingContext } = tracingPolicy_tryCreateSpan(tracingClient, request, spanAttributes) ?? {};
+            if (!span || !tracingContext) {
+                return next(request);
+            }
+            try {
+                const response = await tracingClient.withContext(tracingContext, next, request);
+                tracingPolicy_tryProcessResponse(span, response);
+                return response;
+            }
+            catch (err) {
+                tracingPolicy_tryProcessError(span, err);
+                throw err;
+            }
+        },
+    };
+}
+function tracingPolicy_tryCreateTracingClient() {
+    try {
+        return createTracingClient({
+            namespace: "",
+            packageName: "@azure/core-rest-pipeline",
+            packageVersion: SDK_VERSION,
+        });
+    }
+    catch (e) {
+        logger.warning(`Error when creating the TracingClient: ${getErrorMessage(e)}`);
+        return undefined;
+    }
+}
+function tracingPolicy_tryCreateSpan(tracingClient, request, spanAttributes) {
+    try {
+        // As per spec, we do not need to differentiate between HTTP and HTTPS in span name.
+        const { span, updatedOptions } = tracingClient.startSpan(`HTTP ${request.method}`, { tracingOptions: request.tracingOptions }, {
+            spanKind: "client",
+            spanAttributes,
+        });
+        // If the span is not recording, don't do any more work.
+        if (!span.isRecording()) {
+            span.end();
+            return undefined;
+        }
+        // set headers
+        const headers = tracingClient.createRequestHeaders(updatedOptions.tracingOptions.tracingContext);
+        for (const [key, value] of Object.entries(headers)) {
+            request.headers.set(key, value);
+        }
+        return { span, tracingContext: updatedOptions.tracingOptions.tracingContext };
+    }
+    catch (e) {
+        logger.warning(`Skipping creating a tracing span due to an error: ${getErrorMessage(e)}`);
+        return undefined;
+    }
+}
+function tracingPolicy_tryProcessError(span, error) {
+    try {
+        span.setStatus({
+            status: "error",
+            error: isError(error) ? error : undefined,
+        });
+        if (isRestError(error) && error.statusCode) {
+            span.setAttribute("http.status_code", error.statusCode);
+        }
+        span.end();
+    }
+    catch (e) {
+        logger.warning(`Skipping tracing span processing due to an error: ${getErrorMessage(e)}`);
+    }
+}
+function tracingPolicy_tryProcessResponse(span, response) {
+    try {
+        span.setAttribute("http.status_code", response.status);
+        const serviceRequestId = response.headers.get("x-ms-request-id");
+        if (serviceRequestId) {
+            span.setAttribute("serviceRequestId", serviceRequestId);
+        }
+        // Per semantic conventions, only set the status to error if the status code is 4xx or 5xx.
+        // Otherwise, the status MUST remain unset.
+        // https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+        if (response.status >= 400) {
+            span.setStatus({
+                status: "error",
+            });
+        }
+        span.end();
+    }
+    catch (e) {
+        logger.warning(`Skipping tracing span processing due to an error: ${getErrorMessage(e)}`);
+    }
+}
+//# sourceMappingURL=tracingPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/createPipelineFromOptions.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Create a new pipeline with a default set of customizable policies.
+ * @param options - Options to configure a custom pipeline.
+ */
+function dist_esm_createPipelineFromOptions_createPipelineFromOptions(options) {
+    const pipeline = createEmptyPipeline();
+    if (isNodeLike) {
+        if (options.agent) {
+            pipeline.addPolicy(agentPolicy(options.agent));
+        }
+        if (options.tlsOptions) {
+            pipeline.addPolicy(tlsPolicy(options.tlsOptions));
+        }
+        pipeline.addPolicy(proxyPolicy(options.proxyOptions));
+        pipeline.addPolicy(decompressResponsePolicy());
+    }
+    pipeline.addPolicy(wrapAbortSignalLikePolicy());
+    pipeline.addPolicy(formDataPolicy(), { beforePolicies: [multipartPolicyName] });
+    pipeline.addPolicy(userAgentPolicy(options.userAgentOptions));
+    pipeline.addPolicy(setClientRequestIdPolicy(options.telemetryOptions?.clientRequestIdHeaderName));
+    // The multipart policy is added after policies with no phase, so that
+    // policies can be added between it and formDataPolicy to modify
+    // properties (e.g., making the boundary constant in recorded tests).
+    pipeline.addPolicy(multipartPolicy(), { afterPhase: "Deserialize" });
+    pipeline.addPolicy(defaultRetryPolicy(options.retryOptions), { phase: "Retry" });
+    pipeline.addPolicy(tracingPolicy({ ...options.userAgentOptions, ...options.loggingOptions }), {
+        afterPhase: "Retry",
+    });
+    if (isNodeLike) {
+        // Both XHR and Fetch expect to handle redirects automatically,
+        // so only include this policy when we're in Node.
+        pipeline.addPolicy(redirectPolicy(options.redirectOptions), { afterPhase: "Retry" });
+    }
+    pipeline.addPolicy(logPolicy(options.loggingOptions), { afterPhase: "Sign" });
+    return pipeline;
+}
+//# sourceMappingURL=createPipelineFromOptions.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/util/wrapAbortSignal.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+/**
+ * Creates a native AbortSignal which reflects the state of the provided AbortSignalLike.
+ * If the AbortSignalLike is already a native AbortSignal, it is returned as is.
+ * @param abortSignalLike - The AbortSignalLike to wrap.
+ * @returns - An object containing the native AbortSignal and an optional cleanup function. The cleanup function should be called when the AbortSignal is no longer needed.
+ */
+function wrapAbortSignal_wrapAbortSignalLike(abortSignalLike) {
+    if (abortSignalLike instanceof AbortSignal) {
+        return { abortSignal: abortSignalLike };
+    }
+    if (abortSignalLike.aborted) {
+        return {
+            abortSignal: AbortSignal.abort("reason" in abortSignalLike ? abortSignalLike.reason : undefined),
+        };
+    }
+    const controller = new AbortController();
+    let needsCleanup = true;
+    function cleanup() {
+        if (needsCleanup) {
+            abortSignalLike.removeEventListener("abort", listener);
+            needsCleanup = false;
+        }
+    }
+    function listener() {
+        controller.abort("reason" in abortSignalLike ? abortSignalLike.reason : undefined);
+        cleanup();
+    }
+    abortSignalLike.addEventListener("abort", listener);
+    return { abortSignal: controller.signal, cleanup };
+}
+//# sourceMappingURL=wrapAbortSignal.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/defaultHttpClient.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+/**
+ * Create the correct HttpClient for the current environment.
+ */
+function dist_esm_defaultHttpClient_createDefaultHttpClient() {
+    const client = defaultHttpClient_createDefaultHttpClient();
+    return {
+        async sendRequest(request) {
+            // we wrap any AbortSignalLike here since the TypeSpec runtime expects a native AbortSignal.
+            // 99% of the time, this should be a no-op since a native AbortSignal is passed in.
+            const { abortSignal, cleanup } = request.abortSignal
+                ? wrapAbortSignal_wrapAbortSignalLike(request.abortSignal)
+                : {};
+            try {
+                request.abortSignal = abortSignal;
+                return await client.sendRequest(request);
+            }
+            finally {
+                cleanup?.();
+            }
+        },
+    };
+}
+//# sourceMappingURL=defaultHttpClient.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/httpHeaders.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * Creates an object that satisfies the `HttpHeaders` interface.
+ * @param rawHeaders - A simple object representing initial headers
+ */
+function dist_esm_httpHeaders_createHttpHeaders(rawHeaders) {
+    return tspCreateHttpHeaders(rawHeaders);
+}
+//# sourceMappingURL=httpHeaders.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/pipelineRequest.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * Creates a new pipeline request with the given options.
+ * This method is to allow for the easy setting of default values and not required.
+ * @param options - The options to create the request with.
+ */
+function dist_esm_pipelineRequest_createPipelineRequest(options) {
+    // Cast required due to difference between ts-http-runtime requiring AbortSignal while core-rest-pipeline allows
+    // the more generic AbortSignalLike. The wrapAbortSignalLike pipeline policy will take care of ensuring that any AbortSignalLike in the request
+    // is converted into a true AbortSignal.
+    return tspCreatePipelineRequest(options);
+}
+//# sourceMappingURL=pipelineRequest.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/exponentialRetryPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * The programmatic identifier of the exponentialRetryPolicy.
+ */
+const policies_exponentialRetryPolicy_exponentialRetryPolicyName = (/* unused pure expression or super */ null && (tspExponentialRetryPolicyName));
+/**
+ * A policy that attempts to retry requests while introducing an exponentially increasing delay.
+ * @param options - Options that configure retry logic.
+ */
+function policies_exponentialRetryPolicy_exponentialRetryPolicy(options = {}) {
+    return tspExponentialRetryPolicy(options);
+}
+//# sourceMappingURL=exponentialRetryPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/systemErrorRetryPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * Name of the {@link systemErrorRetryPolicy}
+ */
+const policies_systemErrorRetryPolicy_systemErrorRetryPolicyName = (/* unused pure expression or super */ null && (tspSystemErrorRetryPolicyName));
+/**
+ * A retry policy that specifically seeks to handle errors in the
+ * underlying transport layer (e.g. DNS lookup failures) rather than
+ * retryable error codes from the server itself.
+ * @param options - Options that customize the policy.
+ */
+function policies_systemErrorRetryPolicy_systemErrorRetryPolicy(options = {}) {
+    return tspSystemErrorRetryPolicy(options);
+}
+//# sourceMappingURL=systemErrorRetryPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/throttlingRetryPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+/**
+ * Name of the {@link throttlingRetryPolicy}
+ */
+const policies_throttlingRetryPolicy_throttlingRetryPolicyName = (/* unused pure expression or super */ null && (tspThrottlingRetryPolicyName));
+/**
+ * A policy that retries when the server sends a 429 response with a Retry-After header.
+ *
+ * To learn more, please refer to
+ * https://learn.microsoft.com/azure/azure-resource-manager/resource-manager-request-limits,
+ * https://learn.microsoft.com/azure/azure-subscription-service-limits and
+ * https://learn.microsoft.com/azure/virtual-machines/troubleshooting/troubleshooting-throttling-errors
+ *
+ * @param options - Options that configure retry logic.
+ */
+function policies_throttlingRetryPolicy_throttlingRetryPolicy(options = {}) {
+    return tspThrottlingRetryPolicy(options);
+}
+//# sourceMappingURL=throttlingRetryPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/retryPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+
+const policies_retryPolicy_retryPolicyLogger = esm_createClientLogger("core-rest-pipeline retryPolicy");
+/**
+ * retryPolicy is a generic policy to enable retrying requests when certain conditions are met
+ */
+function esm_policies_retryPolicy_retryPolicy(strategies, options = { maxRetries: DEFAULT_RETRY_POLICY_COUNT }) {
+    // Cast is required since the TSP runtime retry strategy type is slightly different
+    // very deep down (using real AbortSignal vs. AbortSignalLike in RestError).
+    // In practice the difference doesn't actually matter.
+    return tspRetryPolicy(strategies, {
+        logger: policies_retryPolicy_retryPolicyLogger,
+        ...options,
+    });
+}
+//# sourceMappingURL=retryPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/util/tokenCycler.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+// Default options for the cycler if none are provided
+const tokenCycler_DEFAULT_CYCLER_OPTIONS = {
+    forcedRefreshWindowInMs: 1000, // Force waiting for a refresh 1s before the token expires
+    retryIntervalInMs: 3000, // Allow refresh attempts every 3s
+    refreshWindowInMs: 1000 * 60 * 2, // Start refreshing 2m before expiry
+};
+/**
+ * Converts an an unreliable access token getter (which may resolve with null)
+ * into an AccessTokenGetter by retrying the unreliable getter in a regular
+ * interval.
+ *
+ * @param getAccessToken - A function that produces a promise of an access token that may fail by returning null.
+ * @param retryIntervalInMs - The time (in milliseconds) to wait between retry attempts.
+ * @param refreshTimeout - The timestamp after which the refresh attempt will fail, throwing an exception.
+ * @returns - A promise that, if it resolves, will resolve with an access token.
+ */
+async function tokenCycler_beginRefresh(getAccessToken, retryIntervalInMs, refreshTimeout) {
+    // This wrapper handles exceptions gracefully as long as we haven't exceeded
+    // the timeout.
+    async function tryGetAccessToken() {
+        if (Date.now() < refreshTimeout) {
+            try {
+                return await getAccessToken();
+            }
+            catch {
+                return null;
+            }
+        }
+        else {
+            const finalToken = await getAccessToken();
+            // Timeout is up, so throw if it's still null
+            if (finalToken === null) {
+                throw new Error("Failed to refresh access token.");
+            }
+            return finalToken;
+        }
+    }
+    let token = await tryGetAccessToken();
+    while (token === null) {
+        await delay(retryIntervalInMs);
+        token = await tryGetAccessToken();
+    }
+    return token;
+}
+/**
+ * Creates a token cycler from a credential, scopes, and optional settings.
+ *
+ * A token cycler represents a way to reliably retrieve a valid access token
+ * from a TokenCredential. It will handle initializing the token, refreshing it
+ * when it nears expiration, and synchronizes refresh attempts to avoid
+ * concurrency hazards.
+ *
+ * @param credential - the underlying TokenCredential that provides the access
+ * token
+ * @param tokenCyclerOptions - optionally override default settings for the cycler
+ *
+ * @returns - a function that reliably produces a valid access token
+ */
+function util_tokenCycler_createTokenCycler(credential, tokenCyclerOptions) {
+    let refreshWorker = null;
+    let token = null;
+    let tenantId;
+    const options = {
+        ...tokenCycler_DEFAULT_CYCLER_OPTIONS,
+        ...tokenCyclerOptions,
+    };
+    /**
+     * This little holder defines several predicates that we use to construct
+     * the rules of refreshing the token.
+     */
+    const cycler = {
+        /**
+         * Produces true if a refresh job is currently in progress.
+         */
+        get isRefreshing() {
+            return refreshWorker !== null;
+        },
+        /**
+         * Produces true if the cycler SHOULD refresh (we are within the refresh
+         * window and not already refreshing)
+         */
+        get shouldRefresh() {
+            if (token === null) {
+                return true;
+            }
+            if (cycler.isRefreshing) {
+                return false;
+            }
+            if (token.refreshAfterTimestamp && token.refreshAfterTimestamp < Date.now()) {
+                return true;
+            }
+            return token.expiresOnTimestamp - options.refreshWindowInMs < Date.now();
+        },
+        /**
+         * Produces true if the cycler MUST refresh (null or nearly-expired
+         * token).
+         */
+        get mustRefresh() {
+            return (token === null || token.expiresOnTimestamp - options.forcedRefreshWindowInMs < Date.now());
+        },
+    };
+    /**
+     * Starts a refresh job or returns the existing job if one is already
+     * running.
+     */
+    function refresh(scopes, getTokenOptions) {
+        if (!cycler.isRefreshing) {
+            // We bind `scopes` here to avoid passing it around a lot
+            const tryGetAccessToken = () => credential.getToken(scopes, getTokenOptions);
+            // Take advantage of promise chaining to insert an assignment to `token`
+            // before the refresh can be considered done.
+            refreshWorker = tokenCycler_beginRefresh(tryGetAccessToken, options.retryIntervalInMs, 
+            // If we don't have a token, then we should timeout immediately
+            token?.expiresOnTimestamp ?? Date.now())
+                .then((_token) => {
+                refreshWorker = null;
+                token = _token;
+                tenantId = getTokenOptions.tenantId;
+                return token;
+            })
+                .catch((reason) => {
+                // We also should reset the refresher if we enter a failed state.  All
+                // existing awaiters will throw, but subsequent requests will start a
+                // new retry chain.
+                refreshWorker = null;
+                token = null;
+                tenantId = undefined;
+                throw reason;
+            });
+        }
+        return refreshWorker;
+    }
+    return async (scopes, tokenOptions) => {
+        //
+        // Simple rules:
+        // - If we MUST refresh, then return the refresh task, blocking
+        //   the pipeline until a token is available.
+        // - If we SHOULD refresh, then run refresh but don't return it
+        //   (we can still use the cached token).
+        // - Return the token, since it's fine if we didn't return in
+        //   step 1.
+        //
+        const hasClaimChallenge = Boolean(tokenOptions.claims);
+        const tenantIdChanged = tenantId !== tokenOptions.tenantId;
+        if (hasClaimChallenge) {
+            // If we've received a claim, we know the existing token isn't valid
+            // We want to clear it so that that refresh worker won't use the old expiration time as a timeout
+            token = null;
+        }
+        // If the tenantId passed in token options is different to the one we have
+        // Or if we are in claim challenge and the token was rejected and a new access token need to be issued, we need to
+        // refresh the token with the new tenantId or token.
+        const mustRefresh = tenantIdChanged || hasClaimChallenge || cycler.mustRefresh;
+        if (mustRefresh) {
+            return refresh(scopes, tokenOptions);
+        }
+        if (cycler.shouldRefresh) {
+            refresh(scopes, tokenOptions);
+        }
+        return token;
+    };
+}
+//# sourceMappingURL=tokenCycler.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/bearerTokenAuthenticationPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+
+/**
+ * The programmatic identifier of the bearerTokenAuthenticationPolicy.
+ */
+const bearerTokenAuthenticationPolicy_bearerTokenAuthenticationPolicyName = "bearerTokenAuthenticationPolicy";
+/**
+ * Try to send the given request.
+ *
+ * When a response is received, returns a tuple of the response received and, if the response was received
+ * inside a thrown RestError, the RestError that was thrown.
+ *
+ * Otherwise, if an error was thrown while sending the request that did not provide an underlying response, it
+ * will be rethrown.
+ */
+async function bearerTokenAuthenticationPolicy_trySendRequest(request, next) {
+    try {
+        return [await next(request), undefined];
+    }
+    catch (e) {
+        if (isRestError(e) && e.response) {
+            return [e.response, e];
+        }
+        else {
+            throw e;
+        }
+    }
+}
+/**
+ * Default authorize request handler
+ */
+async function bearerTokenAuthenticationPolicy_defaultAuthorizeRequest(options) {
+    const { scopes, getAccessToken, request } = options;
+    // Enable CAE true by default
+    const getTokenOptions = {
+        abortSignal: request.abortSignal,
+        tracingOptions: request.tracingOptions,
+        enableCae: true,
+    };
+    const accessToken = await getAccessToken(scopes, getTokenOptions);
+    if (accessToken) {
+        options.request.headers.set("Authorization", `Bearer ${accessToken.token}`);
+    }
+}
+/**
+ * We will retrieve the challenge only if the response status code was 401,
+ * and if the response contained the header "WWW-Authenticate" with a non-empty value.
+ */
+function bearerTokenAuthenticationPolicy_isChallengeResponse(response) {
+    return response.status === 401 && response.headers.has("WWW-Authenticate");
+}
+/**
+ * Re-authorize the request for CAE challenge.
+ * The response containing the challenge is `options.response`.
+ * If this method returns true, the underlying request will be sent once again.
+ */
+async function bearerTokenAuthenticationPolicy_authorizeRequestOnCaeChallenge(onChallengeOptions, caeClaims) {
+    const { scopes } = onChallengeOptions;
+    const accessToken = await onChallengeOptions.getAccessToken(scopes, {
+        enableCae: true,
+        claims: caeClaims,
+    });
+    if (!accessToken) {
+        return false;
+    }
+    onChallengeOptions.request.headers.set("Authorization", `${accessToken.tokenType ?? "Bearer"} ${accessToken.token}`);
+    return true;
+}
+/**
+ * A policy that can request a token from a TokenCredential implementation and
+ * then apply it to the Authorization header of a request as a Bearer token.
+ */
+function bearerTokenAuthenticationPolicy_bearerTokenAuthenticationPolicy(options) {
+    const { credential, scopes, challengeCallbacks } = options;
+    const logger = options.logger || coreLogger;
+    const callbacks = {
+        authorizeRequest: challengeCallbacks?.authorizeRequest?.bind(challengeCallbacks) ?? bearerTokenAuthenticationPolicy_defaultAuthorizeRequest,
+        authorizeRequestOnChallenge: challengeCallbacks?.authorizeRequestOnChallenge?.bind(challengeCallbacks),
+    };
+    // This function encapsulates the entire process of reliably retrieving the token
+    // The options are left out of the public API until there's demand to configure this.
+    // Remember to extend `BearerTokenAuthenticationPolicyOptions` with `TokenCyclerOptions`
+    // in order to pass through the `options` object.
+    const getAccessToken = credential
+        ? createTokenCycler(credential /* , options */)
+        : () => Promise.resolve(null);
+    return {
+        name: bearerTokenAuthenticationPolicy_bearerTokenAuthenticationPolicyName,
+        /**
+         * If there's no challenge parameter:
+         * - It will try to retrieve the token using the cache, or the credential's getToken.
+         * - Then it will try the next policy with or without the retrieved token.
+         *
+         * It uses the challenge parameters to:
+         * - Skip a first attempt to get the token from the credential if there's no cached token,
+         *   since it expects the token to be retrievable only after the challenge.
+         * - Prepare the outgoing request if the `prepareRequest` method has been provided.
+         * - Send an initial request to receive the challenge if it fails.
+         * - Process a challenge if the response contains it.
+         * - Retrieve a token with the challenge information, then re-send the request.
+         */
+        async sendRequest(request, next) {
+            if (!request.url.toLowerCase().startsWith("https://")) {
+                throw new Error("Bearer token authentication is not permitted for non-TLS protected (non-https) URLs.");
+            }
+            await callbacks.authorizeRequest({
+                scopes: Array.isArray(scopes) ? scopes : [scopes],
+                request,
+                getAccessToken,
+                logger,
+            });
+            let response;
+            let error;
+            let shouldSendRequest;
+            [response, error] = await bearerTokenAuthenticationPolicy_trySendRequest(request, next);
+            if (bearerTokenAuthenticationPolicy_isChallengeResponse(response)) {
+                let claims = bearerTokenAuthenticationPolicy_getCaeChallengeClaims(response.headers.get("WWW-Authenticate"));
+                // Handle CAE by default when receive CAE claim
+                if (claims) {
+                    let parsedClaim;
+                    // Return the response immediately if claims is not a valid base64 encoded string
+                    try {
+                        parsedClaim = atob(claims);
+                    }
+                    catch (e) {
+                        logger.warning(`The WWW-Authenticate header contains "claims" that cannot be parsed. Unable to perform the Continuous Access Evaluation authentication flow. Unparsable claims: ${claims}`);
+                        return response;
+                    }
+                    shouldSendRequest = await bearerTokenAuthenticationPolicy_authorizeRequestOnCaeChallenge({
+                        scopes: Array.isArray(scopes) ? scopes : [scopes],
+                        response,
+                        request,
+                        getAccessToken,
+                        logger,
+                    }, parsedClaim);
+                    // Send updated request and handle response for RestError
+                    if (shouldSendRequest) {
+                        [response, error] = await bearerTokenAuthenticationPolicy_trySendRequest(request, next);
+                    }
+                }
+                else if (callbacks.authorizeRequestOnChallenge) {
+                    // Handle custom challenges when client provides custom callback
+                    shouldSendRequest = await callbacks.authorizeRequestOnChallenge({
+                        scopes: Array.isArray(scopes) ? scopes : [scopes],
+                        request,
+                        response,
+                        getAccessToken,
+                        logger,
+                    });
+                    // Send updated request and handle response for RestError
+                    if (shouldSendRequest) {
+                        [response, error] = await bearerTokenAuthenticationPolicy_trySendRequest(request, next);
+                    }
+                    // If we get another CAE Claim, we will handle it by default and return whatever value we receive for this
+                    if (bearerTokenAuthenticationPolicy_isChallengeResponse(response)) {
+                        claims = bearerTokenAuthenticationPolicy_getCaeChallengeClaims(response.headers.get("WWW-Authenticate") ?? "");
+                        if (claims) {
+                            let parsedClaim;
+                            try {
+                                parsedClaim = atob(claims);
+                            }
+                            catch (e) {
+                                logger.warning(`The WWW-Authenticate header contains "claims" that cannot be parsed. Unable to perform the Continuous Access Evaluation authentication flow. Unparsable claims: ${claims}`);
+                                return response;
+                            }
+                            shouldSendRequest = await bearerTokenAuthenticationPolicy_authorizeRequestOnCaeChallenge({
+                                scopes: Array.isArray(scopes) ? scopes : [scopes],
+                                response,
+                                request,
+                                getAccessToken,
+                                logger,
+                            }, parsedClaim);
+                            // Send updated request and handle response for RestError
+                            if (shouldSendRequest) {
+                                [response, error] = await bearerTokenAuthenticationPolicy_trySendRequest(request, next);
+                            }
+                        }
+                    }
+                }
+            }
+            if (error) {
+                throw error;
+            }
+            else {
+                return response;
+            }
+        },
+    };
+}
+/**
+ * Converts: `Bearer a="b", c="d", Pop e="f", g="h"`.
+ * Into: `[ { scheme: 'Bearer', params: { a: 'b', c: 'd' } }, { scheme: 'Pop', params: { e: 'f', g: 'h' } } ]`.
+ *
+ * @internal
+ */
+function bearerTokenAuthenticationPolicy_parseChallenges(challenges) {
+    // Challenge regex seperates the string to individual challenges with different schemes in the format `Scheme a="b", c=d`
+    // The challenge regex captures parameteres with either quotes values or unquoted values
+    const challengeRegex = /(\w+)\s+((?:\w+=(?:"[^"]*"|[^,]*),?\s*)+)/g;
+    // Parameter regex captures the claims group removed from the scheme in the format `a="b"` and `c="d"`
+    // CAE challenge always have quoted parameters. For more reference, https://learn.microsoft.com/entra/identity-platform/claims-challenge
+    const paramRegex = /(\w+)="([^"]*)"/g;
+    const parsedChallenges = [];
+    let match;
+    // Iterate over each challenge match
+    while ((match = challengeRegex.exec(challenges)) !== null) {
+        const scheme = match[1];
+        const paramsString = match[2];
+        const params = {};
+        let paramMatch;
+        // Iterate over each parameter match
+        while ((paramMatch = paramRegex.exec(paramsString)) !== null) {
+            params[paramMatch[1]] = paramMatch[2];
+        }
+        parsedChallenges.push({ scheme, params });
+    }
+    return parsedChallenges;
+}
+/**
+ * Parse a pipeline response and look for a CAE challenge with "Bearer" scheme
+ * Return the value in the header without parsing the challenge
+ * @internal
+ */
+function bearerTokenAuthenticationPolicy_getCaeChallengeClaims(challenges) {
+    if (!challenges) {
+        return;
+    }
+    // Find all challenges present in the header
+    const parsedChallenges = bearerTokenAuthenticationPolicy_parseChallenges(challenges);
+    return parsedChallenges.find((x) => x.scheme === "Bearer" && x.params.claims && x.params.error === "insufficient_claims")?.params.claims;
+}
+//# sourceMappingURL=bearerTokenAuthenticationPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/policies/auxiliaryAuthenticationHeaderPolicy.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+/**
+ * The programmatic identifier of the auxiliaryAuthenticationHeaderPolicy.
+ */
+const auxiliaryAuthenticationHeaderPolicy_auxiliaryAuthenticationHeaderPolicyName = "auxiliaryAuthenticationHeaderPolicy";
+const auxiliaryAuthenticationHeaderPolicy_AUTHORIZATION_AUXILIARY_HEADER = "x-ms-authorization-auxiliary";
+async function auxiliaryAuthenticationHeaderPolicy_sendAuthorizeRequest(options) {
+    const { scopes, getAccessToken, request } = options;
+    const getTokenOptions = {
+        abortSignal: request.abortSignal,
+        tracingOptions: request.tracingOptions,
+    };
+    return (await getAccessToken(scopes, getTokenOptions))?.token ?? "";
+}
+/**
+ * A policy for external tokens to `x-ms-authorization-auxiliary` header.
+ * This header will be used when creating a cross-tenant application we may need to handle authentication requests
+ * for resources that are in different tenants.
+ * You could see [ARM docs](https://learn.microsoft.com/azure/azure-resource-manager/management/authenticate-multi-tenant) for a rundown of how this feature works
+ */
+function auxiliaryAuthenticationHeaderPolicy_auxiliaryAuthenticationHeaderPolicy(options) {
+    const { credentials, scopes } = options;
+    const logger = options.logger || coreLogger;
+    const tokenCyclerMap = new WeakMap();
+    return {
+        name: auxiliaryAuthenticationHeaderPolicy_auxiliaryAuthenticationHeaderPolicyName,
+        async sendRequest(request, next) {
+            if (!request.url.toLowerCase().startsWith("https://")) {
+                throw new Error("Bearer token authentication for auxiliary header is not permitted for non-TLS protected (non-https) URLs.");
+            }
+            if (!credentials || credentials.length === 0) {
+                logger.info(`${auxiliaryAuthenticationHeaderPolicy_auxiliaryAuthenticationHeaderPolicyName} header will not be set due to empty credentials.`);
+                return next(request);
+            }
+            const tokenPromises = [];
+            for (const credential of credentials) {
+                let getAccessToken = tokenCyclerMap.get(credential);
+                if (!getAccessToken) {
+                    getAccessToken = createTokenCycler(credential);
+                    tokenCyclerMap.set(credential, getAccessToken);
+                }
+                tokenPromises.push(auxiliaryAuthenticationHeaderPolicy_sendAuthorizeRequest({
+                    scopes: Array.isArray(scopes) ? scopes : [scopes],
+                    request,
+                    getAccessToken,
+                    logger,
+                }));
+            }
+            const auxiliaryTokens = (await Promise.all(tokenPromises)).filter((token) => Boolean(token));
+            if (auxiliaryTokens.length === 0) {
+                logger.warning(`None of the auxiliary tokens are valid. ${auxiliaryAuthenticationHeaderPolicy_AUTHORIZATION_AUXILIARY_HEADER} header will not be set.`);
+                return next(request);
+            }
+            request.headers.set(auxiliaryAuthenticationHeaderPolicy_AUTHORIZATION_AUXILIARY_HEADER, auxiliaryTokens.map((token) => `Bearer ${token}`).join(", "));
+            return next(request);
+        },
+    };
+}
+//# sourceMappingURL=auxiliaryAuthenticationHeaderPolicy.js.map
+;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/node_modules/@azure/core-rest-pipeline/dist/esm/index.js
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//# sourceMappingURL=index.js.map
 ;// CONCATENATED MODULE: ./node_modules/@azure/storage-common/dist/esm/cache.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
@@ -97348,7 +100028,7 @@ class StructuredMessageDecodingStream extends external_node_stream_.Readable {
 let _defaultHttpClient;
 function cache_getCachedDefaultHttpClient() {
     if (!_defaultHttpClient) {
-        _defaultHttpClient = esm_defaultHttpClient_createDefaultHttpClient();
+        _defaultHttpClient = dist_esm_defaultHttpClient_createDefaultHttpClient();
     }
     return _defaultHttpClient;
 }
@@ -98488,7 +101168,7 @@ const DEFAULT_RETRY_OPTIONS = {
     secondaryHost: "",
     tryTimeoutInMs: undefined, // Use server side default timeout strategy
 };
-const RETRY_ABORT_ERROR = new esm_AbortError_AbortError("The operation was aborted.");
+const RETRY_ABORT_ERROR = new AbortError_AbortError("The operation was aborted.");
 /**
  * Retry policy with exponential retry and linear retry implemented.
  */
@@ -98790,7 +101470,7 @@ const retriableErrors = [
     "EPIPE",
     "REQUEST_SEND_ERROR",
 ];
-const StorageRetryPolicyV2_RETRY_ABORT_ERROR = new esm_AbortError_AbortError("The operation was aborted.");
+const StorageRetryPolicyV2_RETRY_ABORT_ERROR = new AbortError_AbortError("The operation was aborted.");
 /**
  * Retry policy with exponential retry and linear retry implemented.
  */
@@ -98898,12 +101578,12 @@ function storageRetryPolicy(options = {}) {
                     secondaryHas404 = secondaryHas404 || (!isPrimaryRetry && response.status === 404);
                 }
                 catch (e) {
-                    if (esm_restError_isRestError(e)) {
+                    if (dist_esm_restError_isRestError(e)) {
                         storage_common_dist_esm_log_logger.error(`RetryPolicy: Caught error, message: ${e.message}, code: ${e.code}`);
                         error = e;
                     }
                     else {
-                        storage_common_dist_esm_log_logger.error(`RetryPolicy: Caught error, message: ${getErrorMessage(e)}`);
+                        storage_common_dist_esm_log_logger.error(`RetryPolicy: Caught error, message: ${error_getErrorMessage(e)}`);
                         throw e;
                     }
                 }
@@ -98916,7 +101596,7 @@ function storageRetryPolicy(options = {}) {
             if (response) {
                 return response;
             }
-            throw error ?? new esm_restError_RestError("RetryPolicy failed without known error.");
+            throw error ?? new dist_esm_restError_RestError("RetryPolicy failed without known error.");
         },
     };
 }
@@ -99180,8 +101860,8 @@ class UserDelegationKeyCredential {
 ;// CONCATENATED MODULE: ./node_modules/@azure/storage-blob/dist/esm/utils/constants.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-const esm_utils_constants_SDK_VERSION = "12.33.0";
-const SERVICE_VERSION = "2026-06-06";
+const esm_utils_constants_SDK_VERSION = "12.31.0";
+const SERVICE_VERSION = "2026-02-06";
 const BLOCK_BLOB_MAX_UPLOAD_BLOB_BYTES = 256 * 1024 * 1024; // 256MB
 const BLOCK_BLOB_MAX_STAGE_BLOCK_BYTES = 4000 * 1024 * 1024; // 4000MB
 const BLOCK_BLOB_MAX_BLOCKS = 50000;
@@ -99835,8 +102515,8 @@ var KnownStorageErrorCode;
     KnownStorageErrorCode["FeatureVersionMismatch"] = "FeatureVersionMismatch";
     /** IncrementalCopyBlobMismatch */
     KnownStorageErrorCode["IncrementalCopyBlobMismatch"] = "IncrementalCopyBlobMismatch";
-    /** IncrementalCopyOfEarlierSnapshotNotAllowed */
-    KnownStorageErrorCode["IncrementalCopyOfEarlierSnapshotNotAllowed"] = "IncrementalCopyOfEarlierSnapshotNotAllowed";
+    /** IncrementalCopyOfEarlierVersionSnapshotNotAllowed */
+    KnownStorageErrorCode["IncrementalCopyOfEarlierVersionSnapshotNotAllowed"] = "IncrementalCopyOfEarlierVersionSnapshotNotAllowed";
     /** IncrementalCopySourceMustBeSnapshot */
     KnownStorageErrorCode["IncrementalCopySourceMustBeSnapshot"] = "IncrementalCopySourceMustBeSnapshot";
     /** InfiniteLeaseDurationRequired */
@@ -100566,13 +103246,6 @@ const KeyInfo = {
                     name: "String",
                 },
             },
-            delegatedUserTid: {
-                serializedName: "DelegatedUserTid",
-                xmlName: "DelegatedUserTid",
-                type: {
-                    name: "String",
-                },
-            },
         },
     },
 };
@@ -100626,13 +103299,6 @@ const UserDelegationKey = {
                 serializedName: "SignedVersion",
                 required: true,
                 xmlName: "SignedVersion",
-                type: {
-                    name: "String",
-                },
-            },
-            signedDelegatedUserTenantId: {
-                serializedName: "SignedDelegatedUserTid",
-                xmlName: "SignedDelegatedUserTid",
                 type: {
                     name: "String",
                 },
@@ -101264,7 +103930,6 @@ const BlobPropertiesInternal = {
                         "Cool",
                         "Archive",
                         "Cold",
-                        "Smart",
                     ],
                 },
             },
@@ -101284,32 +103949,6 @@ const BlobPropertiesInternal = {
                         "rehydrate-pending-to-hot",
                         "rehydrate-pending-to-cool",
                         "rehydrate-pending-to-cold",
-                        "rehydrate-pending-to-smart",
-                    ],
-                },
-            },
-            smartAccessTier: {
-                serializedName: "SmartAccessTier",
-                xmlName: "SmartAccessTier",
-                type: {
-                    name: "Enum",
-                    allowedValues: [
-                        "P4",
-                        "P6",
-                        "P10",
-                        "P15",
-                        "P20",
-                        "P30",
-                        "P40",
-                        "P50",
-                        "P60",
-                        "P70",
-                        "P80",
-                        "Hot",
-                        "Cool",
-                        "Archive",
-                        "Cold",
-                        "Smart",
                     ],
                 },
             },
@@ -102291,9 +104930,6 @@ const ServiceGetAccountInfoHeaders = {
                         "Standard_RAGRS",
                         "Standard_ZRS",
                         "Premium_LRS",
-                        "Standard_GZRS",
-                        "Premium_ZRS",
-                        "Standard_RAGZRS",
                     ],
                 },
             },
@@ -103745,9 +106381,6 @@ const ContainerGetAccountInfoHeaders = {
                         "Standard_RAGRS",
                         "Standard_ZRS",
                         "Premium_LRS",
-                        "Standard_GZRS",
-                        "Premium_ZRS",
-                        "Standard_RAGZRS",
                     ],
                 },
             },
@@ -104114,20 +106747,6 @@ const BlobDownloadHeaders = {
                     name: "Boolean",
                 },
             },
-            structuredBodyType: {
-                serializedName: "x-ms-structured-body",
-                xmlName: "x-ms-structured-body",
-                type: {
-                    name: "String",
-                },
-            },
-            structuredContentLength: {
-                serializedName: "x-ms-structured-content-length",
-                xmlName: "x-ms-structured-content-length",
-                type: {
-                    name: "Number",
-                },
-            },
             errorCode: {
                 serializedName: "x-ms-error-code",
                 xmlName: "x-ms-error-code",
@@ -104453,13 +107072,6 @@ const BlobGetPropertiesHeaders = {
                 xmlName: "x-ms-access-tier-change-time",
                 type: {
                     name: "DateTimeRfc1123",
-                },
-            },
-            smartAccessTier: {
-                serializedName: "x-ms-smart-access-tier",
-                xmlName: "x-ms-smart-access-tier",
-                type: {
-                    name: "String",
                 },
             },
             versionId: {
@@ -105968,9 +108580,6 @@ const BlobGetAccountInfoHeaders = {
                         "Standard_RAGRS",
                         "Standard_ZRS",
                         "Premium_LRS",
-                        "Standard_GZRS",
-                        "Premium_ZRS",
-                        "Standard_RAGZRS",
                     ],
                 },
             },
@@ -106605,13 +109214,6 @@ const PageBlobUploadPagesHeaders = {
             encryptionScope: {
                 serializedName: "x-ms-encryption-scope",
                 xmlName: "x-ms-encryption-scope",
-                type: {
-                    name: "String",
-                },
-            },
-            structuredBodyType: {
-                serializedName: "x-ms-structured-body",
-                xmlName: "x-ms-structured-body",
                 type: {
                     name: "String",
                 },
@@ -107479,13 +110081,6 @@ const AppendBlobAppendBlockHeaders = {
                     name: "String",
                 },
             },
-            structuredBodyType: {
-                serializedName: "x-ms-structured-body",
-                xmlName: "x-ms-structured-body",
-                type: {
-                    name: "String",
-                },
-            },
             errorCode: {
                 serializedName: "x-ms-error-code",
                 xmlName: "x-ms-error-code",
@@ -107799,13 +110394,6 @@ const BlockBlobUploadHeaders = {
                     name: "String",
                 },
             },
-            structuredBodyType: {
-                serializedName: "x-ms-structured-body",
-                xmlName: "x-ms-structured-body",
-                type: {
-                    name: "String",
-                },
-            },
             errorCode: {
                 serializedName: "x-ms-error-code",
                 xmlName: "x-ms-error-code",
@@ -108020,13 +110608,6 @@ const BlockBlobStageBlockHeaders = {
             encryptionScope: {
                 serializedName: "x-ms-encryption-scope",
                 xmlName: "x-ms-encryption-scope",
-                type: {
-                    name: "String",
-                },
-            },
-            structuredBodyType: {
-                serializedName: "x-ms-structured-body",
-                xmlName: "x-ms-structured-body",
                 type: {
                     name: "String",
                 },
@@ -108456,7 +111037,7 @@ const timeoutInSeconds = {
 const version = {
     parameterPath: "version",
     mapper: {
-        defaultValue: "2026-06-06",
+        defaultValue: "2026-02-06",
         isConstant: true,
         serializedName: "x-ms-version",
         type: {
@@ -109032,7 +111613,7 @@ const versionId = {
         },
     },
 };
-const range = {
+const parameters_range = {
     parameterPath: ["options", "range"],
     mapper: {
         serializedName: "x-ms-range",
@@ -109059,16 +111640,6 @@ const rangeGetContentCRC64 = {
         xmlName: "x-ms-range-get-content-crc64",
         type: {
             name: "Boolean",
-        },
-    },
-};
-const structuredBodyType = {
-    parameterPath: ["options", "structuredBodyType"],
-    mapper: {
-        serializedName: "x-ms-structured-body",
-        xmlName: "x-ms-structured-body",
-        type: {
-            name: "String",
         },
     },
 };
@@ -109150,26 +111721,6 @@ const blobDeleteType = {
         xmlName: "deletetype",
         type: {
             name: "String",
-        },
-    },
-};
-const accessTierIfModifiedSince = {
-    parameterPath: ["options", "accessTierIfModifiedSince"],
-    mapper: {
-        serializedName: "x-ms-access-tier-if-modified-since",
-        xmlName: "x-ms-access-tier-if-modified-since",
-        type: {
-            name: "DateTimeRfc1123",
-        },
-    },
-};
-const accessTierIfUnmodifiedSince = {
-    parameterPath: ["options", "accessTierIfUnmodifiedSince"],
-    mapper: {
-        serializedName: "x-ms-access-tier-if-unmodified-since",
-        xmlName: "x-ms-access-tier-if-unmodified-since",
-        type: {
-            name: "DateTimeRfc1123",
         },
     },
 };
@@ -109363,7 +111914,6 @@ const tier = {
                 "Cool",
                 "Archive",
                 "Cold",
-                "Smart",
             ],
         },
     },
@@ -109602,7 +112152,6 @@ const tier1 = {
                 "Cool",
                 "Archive",
                 "Cold",
-                "Smart",
             ],
         },
     },
@@ -109831,16 +112380,6 @@ const ifSequenceNumberEqualTo = {
         },
     },
 };
-const structuredContentLength = {
-    parameterPath: ["options", "structuredContentLength"],
-    mapper: {
-        serializedName: "x-ms-structured-content-length",
-        xmlName: "x-ms-structured-content-length",
-        type: {
-            name: "Number",
-        },
-    },
-};
 const pageWrite1 = {
     parameterPath: "pageWrite",
     mapper: {
@@ -109890,36 +112429,6 @@ const range1 = {
         serializedName: "x-ms-range",
         required: true,
         xmlName: "x-ms-range",
-        type: {
-            name: "String",
-        },
-    },
-};
-const sourceEncryptionKey = {
-    parameterPath: ["options", "sourceCpkInfo", "sourceEncryptionKey"],
-    mapper: {
-        serializedName: "x-ms-source-encryption-key",
-        xmlName: "x-ms-source-encryption-key",
-        type: {
-            name: "String",
-        },
-    },
-};
-const sourceEncryptionKeySha256 = {
-    parameterPath: ["options", "sourceCpkInfo", "sourceEncryptionKeySha256"],
-    mapper: {
-        serializedName: "x-ms-source-encryption-key-sha256",
-        xmlName: "x-ms-source-encryption-key-sha256",
-        type: {
-            name: "String",
-        },
-    },
-};
-const sourceEncryptionAlgorithm = {
-    parameterPath: ["options", "sourceCpkInfo", "sourceEncryptionAlgorithm"],
-    mapper: {
-        serializedName: "x-ms-source-encryption-algorithm",
-        xmlName: "x-ms-source-encryption-algorithm",
         type: {
             name: "String",
         },
@@ -111433,10 +113942,9 @@ const downloadOperationSpec = {
         leaseId,
         ifModifiedSince,
         ifUnmodifiedSince,
-        range,
+        parameters_range,
         rangeGetContentMD5,
         rangeGetContentCRC64,
-        structuredBodyType,
         encryptionKey,
         encryptionKeySha256,
         encryptionAlgorithm,
@@ -111512,8 +114020,6 @@ const blob_deleteOperationSpec = {
         ifNoneMatch,
         ifTags,
         deleteSnapshots,
-        accessTierIfModifiedSince,
-        accessTierIfUnmodifiedSince,
     ],
     isXML: true,
     serializer: blob_xmlSerializer,
@@ -112379,8 +114885,7 @@ const uploadPagesOperationSpec = {
         leaseId,
         ifModifiedSince,
         ifUnmodifiedSince,
-        range,
-        structuredBodyType,
+        parameters_range,
         encryptionKey,
         encryptionKeySha256,
         encryptionAlgorithm,
@@ -112396,7 +114901,6 @@ const uploadPagesOperationSpec = {
         ifSequenceNumberLessThanOrEqualTo,
         ifSequenceNumberLessThan,
         ifSequenceNumberEqualTo,
-        structuredContentLength,
     ],
     isXML: true,
     contentType: "application/xml; charset=utf-8",
@@ -112425,7 +114929,7 @@ const clearPagesOperationSpec = {
         leaseId,
         ifModifiedSince,
         ifUnmodifiedSince,
-        range,
+        parameters_range,
         encryptionKey,
         encryptionKeySha256,
         encryptionAlgorithm,
@@ -112485,9 +114989,6 @@ const uploadPagesFromURLOperationSpec = {
         sourceRange,
         sourceContentCrc64,
         range1,
-        sourceEncryptionKey,
-        sourceEncryptionKeySha256,
-        sourceEncryptionAlgorithm,
     ],
     isXML: true,
     serializer: pageBlob_xmlSerializer,
@@ -112520,7 +115021,7 @@ const getPageRangesOperationSpec = {
         leaseId,
         ifModifiedSince,
         ifUnmodifiedSince,
-        range,
+        parameters_range,
         ifMatch,
         ifNoneMatch,
         ifTags,
@@ -112557,7 +115058,7 @@ const getPageRangesDiffOperationSpec = {
         leaseId,
         ifModifiedSince,
         ifUnmodifiedSince,
-        range,
+        parameters_range,
         ifMatch,
         ifNoneMatch,
         ifTags,
@@ -112788,7 +115289,6 @@ const appendBlockOperationSpec = {
         leaseId,
         ifModifiedSince,
         ifUnmodifiedSince,
-        structuredBodyType,
         encryptionKey,
         encryptionKeySha256,
         encryptionAlgorithm,
@@ -112800,7 +115300,6 @@ const appendBlockOperationSpec = {
         transactionalContentCrc64,
         contentType1,
         accept2,
-        structuredContentLength,
         maxSize,
         appendPosition,
     ],
@@ -112848,9 +115347,6 @@ const appendBlockFromUrlOperationSpec = {
         transactionalContentMD5,
         sourceUrl,
         sourceContentCrc64,
-        sourceEncryptionKey,
-        sourceEncryptionKeySha256,
-        sourceEncryptionAlgorithm,
         maxSize,
         appendPosition,
         sourceRange1,
@@ -113011,7 +115507,6 @@ const uploadOperationSpec = {
         leaseId,
         ifModifiedSince,
         ifUnmodifiedSince,
-        structuredBodyType,
         encryptionKey,
         encryptionKeySha256,
         encryptionAlgorithm,
@@ -113034,7 +115529,6 @@ const uploadOperationSpec = {
         transactionalContentCrc64,
         contentType1,
         accept2,
-        structuredContentLength,
         blobType2,
     ],
     isXML: true,
@@ -113091,9 +115585,6 @@ const putBlobFromUrlOperationSpec = {
         copySourceTags,
         fileRequestIntent,
         transactionalContentMD5,
-        sourceEncryptionKey,
-        sourceEncryptionKeySha256,
-        sourceEncryptionAlgorithm,
         blobType2,
         copySourceBlobProperties,
     ],
@@ -113124,7 +115615,6 @@ const stageBlockOperationSpec = {
         requestId,
         contentLength,
         leaseId,
-        structuredBodyType,
         encryptionKey,
         encryptionKeySha256,
         encryptionAlgorithm,
@@ -113133,7 +115623,6 @@ const stageBlockOperationSpec = {
         transactionalContentCrc64,
         contentType1,
         accept2,
-        structuredContentLength,
     ],
     isXML: true,
     contentType: "application/xml; charset=utf-8",
@@ -113177,9 +115666,6 @@ const stageBlockFromURLOperationSpec = {
         fileRequestIntent,
         sourceUrl,
         sourceContentCrc64,
-        sourceEncryptionKey,
-        sourceEncryptionKeySha256,
-        sourceEncryptionAlgorithm,
         sourceRange1,
     ],
     isXML: true,
@@ -113311,7 +115797,7 @@ class StorageClient extends ExtendedServiceClient {
         const defaults = {
             requestContentType: "application/json; charset=utf-8",
         };
-        const packageDetails = `azsdk-js-azure-storage-blob/12.33.0`;
+        const packageDetails = `azsdk-js-azure-storage-blob/12.30.0`;
         const userAgentPrefix = options.userAgentOptions && options.userAgentOptions.userAgentPrefix
             ? `${options.userAgentOptions.userAgentPrefix} ${packageDetails}`
             : `${packageDetails}`;
@@ -113327,7 +115813,7 @@ class StorageClient extends ExtendedServiceClient {
         // Parameter assignments
         this.url = url;
         // Assigning values to Constant parameters
-        this.version = options.version || "2026-06-06";
+        this.version = options.version || "2026-02-06";
         this.service = new ServiceImpl(this);
         this.container = new ContainerImpl(this);
         this.blob = new BlobImpl(this);
@@ -113379,14 +115865,6 @@ class StorageContextClient extends StorageClient {
 
 
 
-
-const accountNameSuffixes = [
-    "-secondary-ipv6",
-    "-secondary-dualstack",
-    "-ipv6",
-    "-dualstack",
-    "-secondary",
-];
 /**
  * Reserved URL characters must be properly escaped for Storage services like Blob or File.
  *
@@ -113863,15 +116341,7 @@ function utils_common_getAccountNameFromUrl(url) {
     try {
         if (parsedUrl.hostname.split(".")[1] === "blob") {
             // `${defaultEndpointsProtocol}://${accountName}.blob.${endpointSuffix}`;
-            // `${defaultEndpointsProtocol}://${accountName}-suffix.blob.${endpointSuffix}`;
             accountName = parsedUrl.hostname.split(".")[0];
-            for (let i = 0; i < accountNameSuffixes.length; ++i) {
-                const suffix = accountNameSuffixes[i];
-                if (accountName.endsWith(suffix)) {
-                    accountName = accountName.substring(0, accountName.length - suffix.length);
-                    break;
-                }
-            }
         }
         else if (utils_common_isIpEndpointStyle(parsedUrl)) {
             // IPv4/IPv6 address hosts... Example - http://192.0.0.10:10001/devstoreaccount1/
@@ -114158,31 +116628,6 @@ function utils_common_assertResponse(response) {
     }
     throw new TypeError(`Unexpected response object ${response}`);
 }
-async function setUploadChecksumParameters(body, contentLength, parameters, uploadOptions, configContentChecksumAlgorithm) {
-    let contentChecksumAlgorithm = uploadOptions.contentChecksumAlgorithm ?? configContentChecksumAlgorithm;
-    if (contentChecksumAlgorithm === undefined) {
-        contentChecksumAlgorithm = "Customized";
-    }
-    if (contentChecksumAlgorithm === "Auto") {
-        contentChecksumAlgorithm = "StorageCrc64";
-    }
-    let bodyInfo = undefined;
-    if (contentChecksumAlgorithm === "Customized") {
-        parameters.transactionalContentMD5 = uploadOptions.transactionalContentMD5;
-        parameters.transactionalContentCrc64 = uploadOptions.transactionalContentCrc64;
-    }
-    else if (contentChecksumAlgorithm === "StorageCrc64") {
-        await StorageCRC64Calculator.init();
-        bodyInfo = await structuredMessageEncoding(body, contentLength);
-        parameters.structuredBodyType = "XSM/1.0; properties=crc64";
-        parameters.structuredContentLength = contentLength;
-    }
-    return {
-        body: contentChecksumAlgorithm === "StorageCrc64" ? bodyInfo.body : body,
-        contentLength: contentChecksumAlgorithm === "StorageCrc64" ? bodyInfo.encodedContentLength : contentLength,
-        contentChecksumAlgorithm: contentChecksumAlgorithm,
-    };
-}
 //# sourceMappingURL=utils.common.js.map
 ;// CONCATENATED MODULE: ./node_modules/@azure/storage-blob/dist/esm/StorageClient.js
 // Copyright (c) Microsoft Corporation.
@@ -114246,7 +116691,7 @@ class StorageClient_StorageClient {
  * Creates a span using the global tracer.
  * @internal
  */
-const tracingClient = createTracingClient({
+const tracingClient = tracingClient_createTracingClient({
     packageName: "@azure/storage-blob",
     packageVersion: esm_utils_constants_SDK_VERSION,
     namespace: "Microsoft.Storage",
@@ -114821,11 +117266,6 @@ class SASQueryParameters {
      */
     signedVersion;
     /**
-     * The delegated user tenant id in Azure AD.
-     * Property of user delegation key.
-     */
-    signedDelegatedUserTid;
-    /**
      * Authorized AAD Object ID in GUID format. The AAD Object ID of a user authorized by the owner of the User Delegation Key
      * to perform the action granted by the SAS. The Azure Storage service will ensure that the owner of the user delegation key
      * has the required permissions before granting access but no additional permission check for the user specified in
@@ -114837,18 +117277,6 @@ class SASQueryParameters {
      * This is only used for User Delegation SAS.
      */
     correlationId;
-    /**
-     * Keys for request headers required in the SAS token
-     */
-    requestHeaderKeys;
-    /**
-     * Keys for request query parameters required in the SAS token
-     */
-    requestQueryParameterKeys;
-    /** To indicate the depth of the virtual blob directory specified
-     * in the canonicalizedresource field of the string-to-sign.
-     */
-    directoryDepth;
     /**
      * Optional. IP range allowed for this SAS.
      *
@@ -114863,7 +117291,7 @@ class SASQueryParameters {
         }
         return undefined;
     }
-    constructor(version, signature, permissionsOrOptions, services, resourceTypes, protocol, startsOn, expiresOn, ipRange, identifier, resource, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, userDelegationKey, preauthorizedAgentObjectId, correlationId, encryptionScope, delegatedUserObjectId, requestHeaderKeys, requestQueryParameterKeys, directoryDepth) {
+    constructor(version, signature, permissionsOrOptions, services, resourceTypes, protocol, startsOn, expiresOn, ipRange, identifier, resource, cacheControl, contentDisposition, contentEncoding, contentLanguage, contentType, userDelegationKey, preauthorizedAgentObjectId, correlationId, encryptionScope, delegatedUserObjectId) {
         this.version = version;
         this.signature = signature;
         if (permissionsOrOptions !== undefined && typeof permissionsOrOptions !== "string") {
@@ -114884,9 +117312,6 @@ class SASQueryParameters {
             this.contentEncoding = permissionsOrOptions.contentEncoding;
             this.contentLanguage = permissionsOrOptions.contentLanguage;
             this.contentType = permissionsOrOptions.contentType;
-            this.requestHeaderKeys = permissionsOrOptions.requestHeaderKeys;
-            this.requestQueryParameterKeys = permissionsOrOptions.requestQueryParameterKeys;
-            this.directoryDepth = permissionsOrOptions.directoryDepth;
             if (permissionsOrOptions.userDelegationKey) {
                 this.signedOid = permissionsOrOptions.userDelegationKey.signedObjectId;
                 this.signedTenantId = permissionsOrOptions.userDelegationKey.signedTenantId;
@@ -114894,8 +117319,6 @@ class SASQueryParameters {
                 this.signedExpiresOn = permissionsOrOptions.userDelegationKey.signedExpiresOn;
                 this.signedService = permissionsOrOptions.userDelegationKey.signedService;
                 this.signedVersion = permissionsOrOptions.userDelegationKey.signedVersion;
-                this.signedDelegatedUserTid =
-                    permissionsOrOptions.userDelegationKey.signedDelegatedUserTenantId;
                 this.preauthorizedAgentObjectId = permissionsOrOptions.preauthorizedAgentObjectId;
                 this.correlationId = permissionsOrOptions.correlationId;
             }
@@ -114917,9 +117340,6 @@ class SASQueryParameters {
             this.contentEncoding = contentEncoding;
             this.contentLanguage = contentLanguage;
             this.contentType = contentType;
-            this.requestHeaderKeys = requestHeaderKeys;
-            this.requestQueryParameterKeys = requestQueryParameterKeys;
-            this.directoryDepth = directoryDepth;
             if (userDelegationKey) {
                 this.signedOid = userDelegationKey.signedObjectId;
                 this.signedTenantId = userDelegationKey.signedTenantId;
@@ -114927,7 +117347,6 @@ class SASQueryParameters {
                 this.signedExpiresOn = userDelegationKey.signedExpiresOn;
                 this.signedService = userDelegationKey.signedService;
                 this.signedVersion = userDelegationKey.signedVersion;
-                this.signedDelegatedUserTid = userDelegationKey.signedDelegatedUserTenantId;
                 this.preauthorizedAgentObjectId = preauthorizedAgentObjectId;
                 this.correlationId = correlationId;
             }
@@ -114956,6 +117375,7 @@ class SASQueryParameters {
             "skv", // Signed key version
             "sr",
             "sp",
+            "sig",
             "rscc",
             "rscd",
             "rsce",
@@ -114963,12 +117383,7 @@ class SASQueryParameters {
             "rsct",
             "saoid",
             "scid",
-            "sdd",
             "sduoid", // Signed key user delegation object ID
-            "skdutid", // Signed key user delegation tenant ID
-            "srh", // Request Headers
-            "srq", // Request QueryParameters
-            "sig",
         ];
         const queries = [];
         for (const param of params) {
@@ -115018,9 +117433,6 @@ class SASQueryParameters {
                 case "skv": // Signed key version
                     this.tryAppendQueryParameter(queries, param, this.signedVersion);
                     break;
-                case "skdutid":
-                    this.tryAppendQueryParameter(queries, param, this.signedDelegatedUserTid);
-                    break;
                 case "sr":
                     this.tryAppendQueryParameter(queries, param, this.resource);
                     break;
@@ -115053,15 +117465,6 @@ class SASQueryParameters {
                     break;
                 case "sduoid":
                     this.tryAppendQueryParameter(queries, param, this.delegatedUserObjectId);
-                    break;
-                case "srh": // Request headers
-                    this.tryAppendQueryParameter(queries, param, this.requestHeaderKeys);
-                    break;
-                case "srq": // Request headers
-                    this.tryAppendQueryParameter(queries, param, this.requestQueryParameterKeys);
-                    break;
-                case "sdd": // Directory depth
-                    this.tryAppendQueryParameter(queries, param, this.directoryDepth !== undefined ? this.directoryDepth.toString() : "");
                     break;
             }
         }
@@ -115118,10 +117521,7 @@ function generateBlobSASQueryParametersInternal(blobSASSignatureValues, sharedKe
             return generateBlobSASQueryParameters20201206(blobSASSignatureValues, sharedKeyCredential);
         }
         else {
-            if (version >= "2026-04-06") {
-                return generateBlobSASQueryParametersUDK20260406(blobSASSignatureValues, userDelegationKeyCredential);
-            }
-            else if (version >= "2025-07-05") {
+            if (version >= "2025-07-05") {
                 return generateBlobSASQueryParametersUDK20250705(blobSASSignatureValues, userDelegationKeyCredential);
             }
             else {
@@ -115134,13 +117534,7 @@ function generateBlobSASQueryParametersInternal(blobSASSignatureValues, sharedKe
     // https://learn.microsoft.com/rest/api/storageservices/constructing-a-service-sas#constructing-the-signature-string
     if (version >= "2018-11-09") {
         if (sharedKeyCredential !== undefined) {
-            // Version 2020-02-10 delegation SAS signature construction supports blob name as a virtual directory.
-            if (version >= "2020-02-10") {
-                return generateBlobSASQueryParameters20200210(blobSASSignatureValues, sharedKeyCredential);
-            }
-            else {
-                return generateBlobSASQueryParameters20181109(blobSASSignatureValues, sharedKeyCredential);
-            }
+            return generateBlobSASQueryParameters20181109(blobSASSignatureValues, sharedKeyCredential);
         }
         else {
             // Version 2020-02-10 delegation SAS signature construction includes preauthorizedAgentObjectId, agentObjectId, correlationId.
@@ -115298,85 +117692,6 @@ function generateBlobSASQueryParameters20181109(blobSASSignatureValues, sharedKe
 }
 /**
  * ONLY AVAILABLE IN NODE.JS RUNTIME.
- * IMPLEMENTATION FOR API VERSION FROM 2020-02-10.
- *
- * Creates an instance of SASQueryParameters.
- *
- * Only accepts required settings needed to create a SAS. For optional settings please
- * set corresponding properties directly, such as permissions, startsOn and identifier.
- *
- * WARNING: When identifier is not provided, permissions and expiresOn are required.
- * You MUST assign value to identifier or expiresOn & permissions manually if you initial with
- * this constructor.
- *
- * @param blobSASSignatureValues -
- * @param sharedKeyCredential -
- */
-function generateBlobSASQueryParameters20200210(blobSASSignatureValues, sharedKeyCredential) {
-    blobSASSignatureValues = SASSignatureValuesSanityCheckAndAutofill(blobSASSignatureValues);
-    if (!blobSASSignatureValues.identifier &&
-        !(blobSASSignatureValues.permissions && blobSASSignatureValues.expiresOn)) {
-        throw new RangeError("Must provide 'permissions' and 'expiresOn' for Blob SAS generation when 'identifier' is not provided.");
-    }
-    let resource = "c";
-    let timestamp = blobSASSignatureValues.snapshotTime;
-    let directoryDepth = undefined;
-    if (blobSASSignatureValues.blobName) {
-        if (blobSASSignatureValues.isDirectory === true) {
-            resource = "d";
-            directoryDepth = trimBlobName(blobSASSignatureValues.blobName).split("/").length;
-        }
-        else {
-            resource = "b";
-            if (blobSASSignatureValues.snapshotTime) {
-                resource = "bs";
-            }
-            else if (blobSASSignatureValues.versionId) {
-                resource = "bv";
-                timestamp = blobSASSignatureValues.versionId;
-            }
-        }
-    }
-    // Calling parse and toString guarantees the proper ordering and throws on invalid characters.
-    let verifiedPermissions;
-    if (blobSASSignatureValues.permissions) {
-        if (blobSASSignatureValues.blobName) {
-            verifiedPermissions = BlobSASPermissions.parse(blobSASSignatureValues.permissions.toString()).toString();
-        }
-        else {
-            verifiedPermissions = ContainerSASPermissions.parse(blobSASSignatureValues.permissions.toString()).toString();
-        }
-    }
-    // Signature is generated on the un-url-encoded values.
-    const stringToSign = [
-        verifiedPermissions ? verifiedPermissions : "",
-        blobSASSignatureValues.startsOn
-            ? utils_common_truncatedISO8061Date(blobSASSignatureValues.startsOn, false)
-            : "",
-        blobSASSignatureValues.expiresOn
-            ? utils_common_truncatedISO8061Date(blobSASSignatureValues.expiresOn, false)
-            : "",
-        getCanonicalName(sharedKeyCredential.accountName, blobSASSignatureValues.containerName, blobSASSignatureValues.blobName),
-        blobSASSignatureValues.identifier,
-        blobSASSignatureValues.ipRange ? ipRangeToString(blobSASSignatureValues.ipRange) : "",
-        blobSASSignatureValues.protocol ? blobSASSignatureValues.protocol : "",
-        blobSASSignatureValues.version,
-        resource,
-        timestamp,
-        blobSASSignatureValues.cacheControl ? blobSASSignatureValues.cacheControl : "",
-        blobSASSignatureValues.contentDisposition ? blobSASSignatureValues.contentDisposition : "",
-        blobSASSignatureValues.contentEncoding ? blobSASSignatureValues.contentEncoding : "",
-        blobSASSignatureValues.contentLanguage ? blobSASSignatureValues.contentLanguage : "",
-        blobSASSignatureValues.contentType ? blobSASSignatureValues.contentType : "",
-    ].join("\n");
-    const signature = sharedKeyCredential.computeHMACSHA256(stringToSign);
-    return {
-        sasQueryParameters: new SASQueryParameters(blobSASSignatureValues.version, signature, verifiedPermissions, undefined, undefined, blobSASSignatureValues.protocol, blobSASSignatureValues.startsOn, blobSASSignatureValues.expiresOn, blobSASSignatureValues.ipRange, blobSASSignatureValues.identifier, resource, blobSASSignatureValues.cacheControl, blobSASSignatureValues.contentDisposition, blobSASSignatureValues.contentEncoding, blobSASSignatureValues.contentLanguage, blobSASSignatureValues.contentType, undefined, undefined, undefined, undefined, undefined, undefined, undefined, directoryDepth),
-        stringToSign: stringToSign,
-    };
-}
-/**
- * ONLY AVAILABLE IN NODE.JS RUNTIME.
  * IMPLEMENTATION FOR API VERSION FROM 2020-12-06.
  *
  * Creates an instance of SASQueryParameters.
@@ -115399,21 +117714,14 @@ function generateBlobSASQueryParameters20201206(blobSASSignatureValues, sharedKe
     }
     let resource = "c";
     let timestamp = blobSASSignatureValues.snapshotTime;
-    let directoryDepth = undefined;
     if (blobSASSignatureValues.blobName) {
-        if (blobSASSignatureValues.isDirectory === true) {
-            resource = "d";
-            directoryDepth = trimBlobName(blobSASSignatureValues.blobName).split("/").length;
+        resource = "b";
+        if (blobSASSignatureValues.snapshotTime) {
+            resource = "bs";
         }
-        else {
-            resource = "b";
-            if (blobSASSignatureValues.snapshotTime) {
-                resource = "bs";
-            }
-            else if (blobSASSignatureValues.versionId) {
-                resource = "bv";
-                timestamp = blobSASSignatureValues.versionId;
-            }
+        else if (blobSASSignatureValues.versionId) {
+            resource = "bv";
+            timestamp = blobSASSignatureValues.versionId;
         }
     }
     // Calling parse and toString guarantees the proper ordering and throws on invalid characters.
@@ -115451,7 +117759,7 @@ function generateBlobSASQueryParameters20201206(blobSASSignatureValues, sharedKe
     ].join("\n");
     const signature = sharedKeyCredential.computeHMACSHA256(stringToSign);
     return {
-        sasQueryParameters: new SASQueryParameters(blobSASSignatureValues.version, signature, verifiedPermissions, undefined, undefined, blobSASSignatureValues.protocol, blobSASSignatureValues.startsOn, blobSASSignatureValues.expiresOn, blobSASSignatureValues.ipRange, blobSASSignatureValues.identifier, resource, blobSASSignatureValues.cacheControl, blobSASSignatureValues.contentDisposition, blobSASSignatureValues.contentEncoding, blobSASSignatureValues.contentLanguage, blobSASSignatureValues.contentType, undefined, undefined, undefined, blobSASSignatureValues.encryptionScope, undefined, undefined, undefined, directoryDepth),
+        sasQueryParameters: new SASQueryParameters(blobSASSignatureValues.version, signature, verifiedPermissions, undefined, undefined, blobSASSignatureValues.protocol, blobSASSignatureValues.startsOn, blobSASSignatureValues.expiresOn, blobSASSignatureValues.ipRange, blobSASSignatureValues.identifier, resource, blobSASSignatureValues.cacheControl, blobSASSignatureValues.contentDisposition, blobSASSignatureValues.contentEncoding, blobSASSignatureValues.contentLanguage, blobSASSignatureValues.contentType, undefined, undefined, undefined, blobSASSignatureValues.encryptionScope),
         stringToSign: stringToSign,
     };
 }
@@ -115556,21 +117864,14 @@ function generateBlobSASQueryParametersUDK20200210(blobSASSignatureValues, userD
     }
     let resource = "c";
     let timestamp = blobSASSignatureValues.snapshotTime;
-    let directoryDepth = undefined;
     if (blobSASSignatureValues.blobName) {
-        if (blobSASSignatureValues.isDirectory === true) {
-            resource = "d";
-            directoryDepth = trimBlobName(blobSASSignatureValues.blobName).split("/").length;
+        resource = "b";
+        if (blobSASSignatureValues.snapshotTime) {
+            resource = "bs";
         }
-        else {
-            resource = "b";
-            if (blobSASSignatureValues.snapshotTime) {
-                resource = "bs";
-            }
-            else if (blobSASSignatureValues.versionId) {
-                resource = "bv";
-                timestamp = blobSASSignatureValues.versionId;
-            }
+        else if (blobSASSignatureValues.versionId) {
+            resource = "bv";
+            timestamp = blobSASSignatureValues.versionId;
         }
     }
     // Calling parse and toString guarantees the proper ordering and throws on invalid characters.
@@ -115619,7 +117920,7 @@ function generateBlobSASQueryParametersUDK20200210(blobSASSignatureValues, userD
     ].join("\n");
     const signature = userDelegationKeyCredential.computeHMACSHA256(stringToSign);
     return {
-        sasQueryParameters: new SASQueryParameters(blobSASSignatureValues.version, signature, verifiedPermissions, undefined, undefined, blobSASSignatureValues.protocol, blobSASSignatureValues.startsOn, blobSASSignatureValues.expiresOn, blobSASSignatureValues.ipRange, blobSASSignatureValues.identifier, resource, blobSASSignatureValues.cacheControl, blobSASSignatureValues.contentDisposition, blobSASSignatureValues.contentEncoding, blobSASSignatureValues.contentLanguage, blobSASSignatureValues.contentType, userDelegationKeyCredential.userDelegationKey, blobSASSignatureValues.preauthorizedAgentObjectId, blobSASSignatureValues.correlationId, undefined, undefined, undefined, undefined, directoryDepth),
+        sasQueryParameters: new SASQueryParameters(blobSASSignatureValues.version, signature, verifiedPermissions, undefined, undefined, blobSASSignatureValues.protocol, blobSASSignatureValues.startsOn, blobSASSignatureValues.expiresOn, blobSASSignatureValues.ipRange, blobSASSignatureValues.identifier, resource, blobSASSignatureValues.cacheControl, blobSASSignatureValues.contentDisposition, blobSASSignatureValues.contentEncoding, blobSASSignatureValues.contentLanguage, blobSASSignatureValues.contentType, userDelegationKeyCredential.userDelegationKey, blobSASSignatureValues.preauthorizedAgentObjectId, blobSASSignatureValues.correlationId),
         stringToSign: stringToSign,
     };
 }
@@ -115645,21 +117946,14 @@ function generateBlobSASQueryParametersUDK20201206(blobSASSignatureValues, userD
     }
     let resource = "c";
     let timestamp = blobSASSignatureValues.snapshotTime;
-    let directoryDepth = undefined;
     if (blobSASSignatureValues.blobName) {
-        if (blobSASSignatureValues.isDirectory === true) {
-            resource = "d";
-            directoryDepth = trimBlobName(blobSASSignatureValues.blobName).split("/").length;
+        resource = "b";
+        if (blobSASSignatureValues.snapshotTime) {
+            resource = "bs";
         }
-        else {
-            resource = "b";
-            if (blobSASSignatureValues.snapshotTime) {
-                resource = "bs";
-            }
-            else if (blobSASSignatureValues.versionId) {
-                resource = "bv";
-                timestamp = blobSASSignatureValues.versionId;
-            }
+        else if (blobSASSignatureValues.versionId) {
+            resource = "bv";
+            timestamp = blobSASSignatureValues.versionId;
         }
     }
     // Calling parse and toString guarantees the proper ordering and throws on invalid characters.
@@ -115709,7 +118003,7 @@ function generateBlobSASQueryParametersUDK20201206(blobSASSignatureValues, userD
     ].join("\n");
     const signature = userDelegationKeyCredential.computeHMACSHA256(stringToSign);
     return {
-        sasQueryParameters: new SASQueryParameters(blobSASSignatureValues.version, signature, verifiedPermissions, undefined, undefined, blobSASSignatureValues.protocol, blobSASSignatureValues.startsOn, blobSASSignatureValues.expiresOn, blobSASSignatureValues.ipRange, blobSASSignatureValues.identifier, resource, blobSASSignatureValues.cacheControl, blobSASSignatureValues.contentDisposition, blobSASSignatureValues.contentEncoding, blobSASSignatureValues.contentLanguage, blobSASSignatureValues.contentType, userDelegationKeyCredential.userDelegationKey, blobSASSignatureValues.preauthorizedAgentObjectId, blobSASSignatureValues.correlationId, blobSASSignatureValues.encryptionScope, undefined, undefined, undefined, directoryDepth),
+        sasQueryParameters: new SASQueryParameters(blobSASSignatureValues.version, signature, verifiedPermissions, undefined, undefined, blobSASSignatureValues.protocol, blobSASSignatureValues.startsOn, blobSASSignatureValues.expiresOn, blobSASSignatureValues.ipRange, blobSASSignatureValues.identifier, resource, blobSASSignatureValues.cacheControl, blobSASSignatureValues.contentDisposition, blobSASSignatureValues.contentEncoding, blobSASSignatureValues.contentLanguage, blobSASSignatureValues.contentType, userDelegationKeyCredential.userDelegationKey, blobSASSignatureValues.preauthorizedAgentObjectId, blobSASSignatureValues.correlationId, blobSASSignatureValues.encryptionScope),
         stringToSign: stringToSign,
     };
 }
@@ -115735,21 +118029,14 @@ function generateBlobSASQueryParametersUDK20250705(blobSASSignatureValues, userD
     }
     let resource = "c";
     let timestamp = blobSASSignatureValues.snapshotTime;
-    let directoryDepth = undefined;
     if (blobSASSignatureValues.blobName) {
-        if (blobSASSignatureValues.isDirectory === true) {
-            resource = "d";
-            directoryDepth = trimBlobName(blobSASSignatureValues.blobName).split("/").length;
+        resource = "b";
+        if (blobSASSignatureValues.snapshotTime) {
+            resource = "bs";
         }
-        else {
-            resource = "b";
-            if (blobSASSignatureValues.snapshotTime) {
-                resource = "bs";
-            }
-            else if (blobSASSignatureValues.versionId) {
-                resource = "bv";
-                timestamp = blobSASSignatureValues.versionId;
-            }
+        else if (blobSASSignatureValues.versionId) {
+            resource = "bv";
+            timestamp = blobSASSignatureValues.versionId;
         }
     }
     // Calling parse and toString guarantees the proper ordering and throws on invalid characters.
@@ -115785,7 +118072,7 @@ function generateBlobSASQueryParametersUDK20250705(blobSASSignatureValues, userD
         blobSASSignatureValues.preauthorizedAgentObjectId,
         undefined, // agentObjectId
         blobSASSignatureValues.correlationId,
-        userDelegationKeyCredential.userDelegationKey.signedDelegatedUserTenantId, // SignedKeyDelegatedUserTenantId, will be added in a future release.
+        undefined, // SignedKeyDelegatedUserTenantId, will be added in a future release.
         blobSASSignatureValues.delegatedUserObjectId,
         blobSASSignatureValues.ipRange ? ipRangeToString(blobSASSignatureValues.ipRange) : "",
         blobSASSignatureValues.protocol ? blobSASSignatureValues.protocol : "",
@@ -115801,144 +118088,9 @@ function generateBlobSASQueryParametersUDK20250705(blobSASSignatureValues, userD
     ].join("\n");
     const signature = userDelegationKeyCredential.computeHMACSHA256(stringToSign);
     return {
-        sasQueryParameters: new SASQueryParameters(blobSASSignatureValues.version, signature, verifiedPermissions, undefined, undefined, blobSASSignatureValues.protocol, blobSASSignatureValues.startsOn, blobSASSignatureValues.expiresOn, blobSASSignatureValues.ipRange, blobSASSignatureValues.identifier, resource, blobSASSignatureValues.cacheControl, blobSASSignatureValues.contentDisposition, blobSASSignatureValues.contentEncoding, blobSASSignatureValues.contentLanguage, blobSASSignatureValues.contentType, userDelegationKeyCredential.userDelegationKey, blobSASSignatureValues.preauthorizedAgentObjectId, blobSASSignatureValues.correlationId, blobSASSignatureValues.encryptionScope, blobSASSignatureValues.delegatedUserObjectId, undefined, undefined, directoryDepth),
+        sasQueryParameters: new SASQueryParameters(blobSASSignatureValues.version, signature, verifiedPermissions, undefined, undefined, blobSASSignatureValues.protocol, blobSASSignatureValues.startsOn, blobSASSignatureValues.expiresOn, blobSASSignatureValues.ipRange, blobSASSignatureValues.identifier, resource, blobSASSignatureValues.cacheControl, blobSASSignatureValues.contentDisposition, blobSASSignatureValues.contentEncoding, blobSASSignatureValues.contentLanguage, blobSASSignatureValues.contentType, userDelegationKeyCredential.userDelegationKey, blobSASSignatureValues.preauthorizedAgentObjectId, blobSASSignatureValues.correlationId, blobSASSignatureValues.encryptionScope, blobSASSignatureValues.delegatedUserObjectId),
         stringToSign: stringToSign,
     };
-}
-/**
- * ONLY AVAILABLE IN NODE.JS RUNTIME.
- * IMPLEMENTATION FOR API VERSION FROM 2020-12-06.
- *
- * Creates an instance of SASQueryParameters.
- *
- * Only accepts required settings needed to create a SAS. For optional settings please
- * set corresponding properties directly, such as permissions, startsOn.
- *
- * WARNING: identifier will be ignored, permissions and expiresOn are required.
- *
- * @param blobSASSignatureValues -
- * @param userDelegationKeyCredential -
- */
-function generateBlobSASQueryParametersUDK20260406(blobSASSignatureValues, userDelegationKeyCredential) {
-    blobSASSignatureValues = SASSignatureValuesSanityCheckAndAutofill(blobSASSignatureValues);
-    // Stored access policies are not supported for a user delegation SAS.
-    if (!blobSASSignatureValues.permissions || !blobSASSignatureValues.expiresOn) {
-        throw new RangeError("Must provide 'permissions' and 'expiresOn' for Blob SAS generation when generating user delegation SAS.");
-    }
-    let resource = "c";
-    let timestamp = blobSASSignatureValues.snapshotTime;
-    let directoryDepth = undefined;
-    if (blobSASSignatureValues.blobName) {
-        if (blobSASSignatureValues.isDirectory === true) {
-            resource = "d";
-            directoryDepth = trimBlobName(blobSASSignatureValues.blobName).split("/").length;
-        }
-        else {
-            resource = "b";
-            if (blobSASSignatureValues.snapshotTime) {
-                resource = "bs";
-            }
-            else if (blobSASSignatureValues.versionId) {
-                resource = "bv";
-                timestamp = blobSASSignatureValues.versionId;
-            }
-        }
-    }
-    // Calling parse and toString guarantees the proper ordering and throws on invalid characters.
-    let verifiedPermissions;
-    if (blobSASSignatureValues.permissions) {
-        if (blobSASSignatureValues.blobName) {
-            verifiedPermissions = BlobSASPermissions.parse(blobSASSignatureValues.permissions.toString()).toString();
-        }
-        else {
-            verifiedPermissions = ContainerSASPermissions.parse(blobSASSignatureValues.permissions.toString()).toString();
-        }
-    }
-    // Signature is generated on the un-url-encoded values.
-    const stringToSign = [
-        verifiedPermissions ? verifiedPermissions : "",
-        blobSASSignatureValues.startsOn
-            ? utils_common_truncatedISO8061Date(blobSASSignatureValues.startsOn, false)
-            : "",
-        blobSASSignatureValues.expiresOn
-            ? utils_common_truncatedISO8061Date(blobSASSignatureValues.expiresOn, false)
-            : "",
-        getCanonicalName(userDelegationKeyCredential.accountName, blobSASSignatureValues.containerName, blobSASSignatureValues.blobName),
-        userDelegationKeyCredential.userDelegationKey.signedObjectId,
-        userDelegationKeyCredential.userDelegationKey.signedTenantId,
-        userDelegationKeyCredential.userDelegationKey.signedStartsOn
-            ? utils_common_truncatedISO8061Date(userDelegationKeyCredential.userDelegationKey.signedStartsOn, false)
-            : "",
-        userDelegationKeyCredential.userDelegationKey.signedExpiresOn
-            ? utils_common_truncatedISO8061Date(userDelegationKeyCredential.userDelegationKey.signedExpiresOn, false)
-            : "",
-        userDelegationKeyCredential.userDelegationKey.signedService,
-        userDelegationKeyCredential.userDelegationKey.signedVersion,
-        blobSASSignatureValues.preauthorizedAgentObjectId,
-        undefined, // agentObjectId
-        blobSASSignatureValues.correlationId,
-        userDelegationKeyCredential.userDelegationKey.signedDelegatedUserTenantId, // SignedKeyDelegatedUserTenantId, will be added in a future release.
-        blobSASSignatureValues.delegatedUserObjectId,
-        blobSASSignatureValues.ipRange ? ipRangeToString(blobSASSignatureValues.ipRange) : "",
-        blobSASSignatureValues.protocol ? blobSASSignatureValues.protocol : "",
-        blobSASSignatureValues.version,
-        resource,
-        timestamp,
-        blobSASSignatureValues.encryptionScope,
-        formatRequestHeadersForSasSigning(blobSASSignatureValues.requestHeaders),
-        formatRequestQueryParametersForSasSigning(blobSASSignatureValues.requestQueryParameters),
-        blobSASSignatureValues.cacheControl,
-        blobSASSignatureValues.contentDisposition,
-        blobSASSignatureValues.contentEncoding,
-        blobSASSignatureValues.contentLanguage,
-        blobSASSignatureValues.contentType,
-    ].join("\n");
-    const signature = userDelegationKeyCredential.computeHMACSHA256(stringToSign);
-    return {
-        sasQueryParameters: new SASQueryParameters(blobSASSignatureValues.version, signature, verifiedPermissions, undefined, undefined, blobSASSignatureValues.protocol, blobSASSignatureValues.startsOn, blobSASSignatureValues.expiresOn, blobSASSignatureValues.ipRange, blobSASSignatureValues.identifier, resource, blobSASSignatureValues.cacheControl, blobSASSignatureValues.contentDisposition, blobSASSignatureValues.contentEncoding, blobSASSignatureValues.contentLanguage, blobSASSignatureValues.contentType, userDelegationKeyCredential.userDelegationKey, blobSASSignatureValues.preauthorizedAgentObjectId, blobSASSignatureValues.correlationId, blobSASSignatureValues.encryptionScope, blobSASSignatureValues.delegatedUserObjectId, getKeysOfRequestHeaders(blobSASSignatureValues.requestHeaders), getKeysOfRequestHeaders(blobSASSignatureValues.requestQueryParameters), directoryDepth),
-        stringToSign: stringToSign,
-    };
-}
-function formatRequestHeadersForSasSigning(requestHeaders) {
-    if (requestHeaders === undefined) {
-        return undefined;
-    }
-    let canonicalValue = "";
-    Object.keys(requestHeaders).forEach(function (key) {
-        // key: the name of the object key
-        // index: the ordinal position of the key within the object
-        canonicalValue = canonicalValue + key + ":" + requestHeaders[key] + "\n";
-    });
-    return canonicalValue;
-}
-function formatRequestQueryParametersForSasSigning(queryParameters) {
-    if (queryParameters === undefined) {
-        return undefined;
-    }
-    let canonicalValue = "";
-    Object.keys(queryParameters).forEach(function (key) {
-        // key: the name of the object key
-        // index: the ordinal position of the key within the object
-        canonicalValue = canonicalValue + "\n" + key + ":" + queryParameters[key];
-    });
-    return canonicalValue;
-}
-function getKeysOfRequestHeaders(requestHeaders) {
-    if (requestHeaders === undefined) {
-        return undefined;
-    }
-    let requestKeys = "";
-    let index = 0;
-    Object.keys(requestHeaders).forEach(function (key) {
-        // key: the name of the object key
-        // index: the ordinal position of the key within the object
-        if (index !== 0) {
-            requestKeys = requestKeys + ",";
-        }
-        requestKeys = requestKeys + key;
-        ++index;
-    });
-    return requestKeys;
 }
 function getCanonicalName(accountName, containerName, blobName) {
     // Container: "/blob/account/containerName"
@@ -116002,16 +118154,6 @@ function SASSignatureValuesSanityCheckAndAutofill(blobSASSignatureValues) {
     }
     blobSASSignatureValues.version = version;
     return blobSASSignatureValues;
-}
-function trimBlobName(blobName) {
-    let internalName = blobName;
-    while (internalName.startsWith("/")) {
-        internalName = internalName.substring(1);
-    }
-    while (internalName.endsWith("/")) {
-        internalName = internalName.substring(0, internalName.length - 1);
-    }
-    return internalName;
 }
 //# sourceMappingURL=BlobSASSignatureValues.js.map
 ;// CONCATENATED MODULE: ./node_modules/@azure/storage-blob/dist/esm/BlobLeaseClient.js
@@ -116216,49 +118358,6 @@ class BlobLeaseClient {
     }
 }
 //# sourceMappingURL=BlobLeaseClient.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/storage-blob/node_modules/@azure/abort-controller/dist/esm/AbortError.js
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-/**
- * This error is thrown when an asynchronous operation has been aborted.
- * Check for this error by testing the `name` that the name property of the
- * error matches `"AbortError"`.
- *
- * @example
- * ```ts snippet:AbortErrorSample
- * import { AbortError } from "@azure/abort-controller";
- *
- * async function doAsyncWork(options: { abortSignal: AbortSignal }): Promise<void> {
- *   if (options.abortSignal.aborted) {
- *     throw new AbortError();
- *   }
- *
- *   // do async work
- * }
- *
- * const controller = new AbortController();
- * controller.abort();
- * try {
- *   doAsyncWork({ abortSignal: controller.signal });
- * } catch (e) {
- *   if (e instanceof Error && e.name === "AbortError") {
- *     // handle abort error here.
- *   }
- * }
- * ```
- */
-class dist_esm_AbortError_AbortError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = "AbortError";
-    }
-}
-//# sourceMappingURL=AbortError.js.map
-;// CONCATENATED MODULE: ./node_modules/@azure/storage-blob/node_modules/@azure/abort-controller/dist/esm/index.js
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
-//# sourceMappingURL=index.js.map
 ;// CONCATENATED MODULE: ./node_modules/@azure/storage-blob/dist/esm/utils/RetriableReadableStream.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
@@ -116338,7 +118437,7 @@ class RetriableReadableStream extends external_node_stream_.Readable {
         }
     };
     sourceAbortedHandler = () => {
-        const abortError = new dist_esm_AbortError_AbortError("The operation was aborted.");
+        const abortError = new AbortError_AbortError("The operation was aborted.");
         this.destroy(abortError);
     };
     sourceErrorOrEndHandler = (err) => {
@@ -116356,7 +118455,6 @@ class RetriableReadableStream extends external_node_stream_.Readable {
             this.push(null);
         }
         else if (this.offset <= this.end) {
-            // TODO if error is CRC64 not match, directly throw out the error.
             // console.log(
             //   `retries: ${this.retries}, max retries: ${this.maxRetries}`
             // );
@@ -116391,7 +118489,6 @@ class RetriableReadableStream extends external_node_stream_.Readable {
 ;// CONCATENATED MODULE: ./node_modules/@azure/storage-blob/dist/esm/BlobDownloadResponse.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-
 
 
 /**
@@ -116812,9 +118909,6 @@ class BlobDownloadResponse {
     get legalHold() {
         return this.originalResponse.legalHold;
     }
-    get structuredBodyType() {
-        return this.originalResponse.structuredBodyType;
-    }
     /**
      * The response body as a browser Blob.
      * Always undefined in node.js.
@@ -116854,10 +118948,7 @@ class BlobDownloadResponse {
      */
     constructor(originalResponse, getter, offset, count, options = {}) {
         this.originalResponse = originalResponse;
-        const streamBody = this.originalResponse.structuredBodyType === undefined
-            ? this.originalResponse.readableStreamBody
-            : structuredMessageDecodingStream(this.originalResponse.readableStreamBody, options);
-        this.blobDownloadStream = new RetriableReadableStream(streamBody, getter, offset, count, options);
+        this.blobDownloadStream = new RetriableReadableStream(this.originalResponse.readableStreamBody, getter, offset, count, options);
     }
 }
 //# sourceMappingURL=BlobDownloadResponse.js.map
@@ -117341,7 +119432,7 @@ var external_buffer_ = __nccwpck_require__(181);
 
 
 
-const ABORT_ERROR = new dist_esm_AbortError_AbortError("Reading from the avro stream was aborted.");
+const ABORT_ERROR = new AbortError_AbortError("Reading from the avro stream was aborted.");
 class AvroReadableFromStream extends AvroReadable {
     _position;
     _readable;
@@ -119601,30 +121692,22 @@ async function streamToBuffer(stream, buffer, offset, end, encoding) {
     return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error(`The operation cannot be completed in timeout.`)), REQUEST_TIMEOUT);
         stream.on("readable", () => {
-            // Already filled the requested amount; ignore any further `readable` events.
             if (pos >= count) {
                 clearTimeout(timeout);
                 resolve();
                 return;
             }
-            // Drain all currently-buffered chunks. Required since Node.js v26, where
-            // `stream.read()` returns one buffered chunk at a time instead of the
-            // concatenation of all queued data (see nodejs/node#60441).
-            let chunk;
-            while ((chunk = stream.read()) !== null) {
-                if (typeof chunk === "string") {
-                    chunk = Buffer.from(chunk, encoding);
-                }
-                // How much data needed in this chunk
-                const chunkLength = pos + chunk.length > count ? count - pos : chunk.length;
-                buffer.fill(chunk.slice(0, chunkLength), offset + pos, offset + pos + chunkLength);
-                pos += chunkLength;
-                if (pos >= count) {
-                    clearTimeout(timeout);
-                    resolve();
-                    return;
-                }
+            let chunk = stream.read();
+            if (!chunk) {
+                return;
             }
+            if (typeof chunk === "string") {
+                chunk = Buffer.from(chunk, encoding);
+            }
+            // How much data needed in this chunk
+            const chunkLength = pos + chunk.length > count ? count - pos : chunk.length;
+            buffer.fill(chunk.slice(0, chunkLength), offset + pos, offset + pos + chunkLength);
+            pos += chunkLength;
         });
         stream.on("end", () => {
             clearTimeout(timeout);
@@ -119653,21 +121736,19 @@ async function streamToBuffer2(stream, buffer, encoding) {
     const bufferSize = buffer.length;
     return new Promise((resolve, reject) => {
         stream.on("readable", () => {
-            // Drain all currently-buffered chunks. Required since Node.js v26, where
-            // `stream.read()` returns one buffered chunk at a time instead of the
-            // concatenation of all queued data (see nodejs/node#60441).
-            let chunk;
-            while ((chunk = stream.read()) !== null) {
-                if (typeof chunk === "string") {
-                    chunk = Buffer.from(chunk, encoding);
-                }
-                if (pos + chunk.length > bufferSize) {
-                    reject(new Error(`Stream exceeds buffer size. Buffer size: ${bufferSize}`));
-                    return;
-                }
-                buffer.fill(chunk, pos, pos + chunk.length);
-                pos += chunk.length;
+            let chunk = stream.read();
+            if (!chunk) {
+                return;
             }
+            if (typeof chunk === "string") {
+                chunk = Buffer.from(chunk, encoding);
+            }
+            if (pos + chunk.length > bufferSize) {
+                reject(new Error(`Stream exceeds buffer size. Buffer size: ${bufferSize}`));
+                return;
+            }
+            buffer.fill(chunk, pos, pos + chunk.length);
+            pos += chunk.length;
         });
         stream.on("end", () => {
             resolve(pos);
@@ -119761,10 +121842,6 @@ class BlobClient extends StorageClient_StorageClient {
     _versionId;
     _snapshot;
     /**
-     * Config used in creating blob client instances.
-     */
-    blobClientConfig;
-    /**
      * The name of the blob.
      */
     get name() {
@@ -119787,7 +121864,6 @@ class BlobClient extends StorageClient_StorageClient {
             // (url: string, pipeline: Pipeline)
             url = urlOrConnectionString;
             pipeline = credentialOrPipelineOrContainerName;
-            options = blobNameOrOptions;
         }
         else if ((esm_isNodeLike && credentialOrPipelineOrContainerName instanceof StorageSharedKeyCredential) ||
             credentialOrPipelineOrContainerName instanceof AnonymousCredential ||
@@ -119848,7 +121924,6 @@ class BlobClient extends StorageClient_StorageClient {
         this.blobContext = this.storageClientContext.blob;
         this._snapshot = utils_common_getURLParameter(this.url, utils_constants_URLConstants.Parameters.SNAPSHOT);
         this._versionId = utils_common_getURLParameter(this.url, utils_constants_URLConstants.Parameters.VERSIONID);
-        this.blobClientConfig = options;
     }
     /**
      * Creates a new BlobClient object identical to the source but with the specified snapshot timestamp.
@@ -119858,7 +121933,7 @@ class BlobClient extends StorageClient_StorageClient {
      * @returns A new BlobClient object identical to the source but with the specified snapshot timestamp
      */
     withSnapshot(snapshot) {
-        return new BlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.SNAPSHOT, snapshot.length === 0 ? undefined : snapshot), this.pipeline, this.blobClientConfig);
+        return new BlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.SNAPSHOT, snapshot.length === 0 ? undefined : snapshot), this.pipeline);
     }
     /**
      * Creates a new BlobClient object pointing to a version of this blob.
@@ -119868,28 +121943,28 @@ class BlobClient extends StorageClient_StorageClient {
      * @returns A new BlobClient object pointing to the version of this blob.
      */
     withVersion(versionId) {
-        return new BlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.VERSIONID, versionId.length === 0 ? undefined : versionId), this.pipeline, this.blobClientConfig);
+        return new BlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.VERSIONID, versionId.length === 0 ? undefined : versionId), this.pipeline);
     }
     /**
      * Creates a AppendBlobClient object.
      *
      */
     getAppendBlobClient() {
-        return new AppendBlobClient(this.url, this.pipeline, this.blobClientConfig);
+        return new AppendBlobClient(this.url, this.pipeline);
     }
     /**
      * Creates a BlockBlobClient object.
      *
      */
     getBlockBlobClient() {
-        return new BlockBlobClient(this.url, this.pipeline, this.blobClientConfig);
+        return new BlockBlobClient(this.url, this.pipeline);
     }
     /**
      * Creates a PageBlobClient object.
      *
      */
     getPageBlobClient() {
-        return new PageBlobClient(this.url, this.pipeline, this.blobClientConfig);
+        return new PageBlobClient(this.url, this.pipeline);
     }
     /**
      * Reads or downloads a blob from the system, including its metadata and properties.
@@ -119910,7 +121985,6 @@ class BlobClient extends StorageClient_StorageClient {
      * ```ts snippet:ReadmeSampleDownloadBlob_Node
      * import { BlobServiceClient } from "@azure/storage-blob";
      * import { DefaultAzureCredential } from "@azure/identity";
-     * import { buffer } from "node:stream/consumers";
      *
      * const account = "<account>";
      * const blobServiceClient = new BlobServiceClient(
@@ -119927,10 +122001,22 @@ class BlobClient extends StorageClient_StorageClient {
      * // In Node.js, get downloaded data by accessing downloadBlockBlobResponse.readableStreamBody
      * const downloadBlockBlobResponse = await blobClient.download();
      * if (downloadBlockBlobResponse.readableStreamBody) {
-     *   // Download the raw bytes of the blob. Use `text` from "node:stream/consumers"
-     *   // instead if you want to read the content as a string directly.
-     *   const downloaded = await buffer(downloadBlockBlobResponse.readableStreamBody);
-     *   console.log(`Downloaded blob content: ${downloaded.toString()}`);
+     *   const downloaded = await streamToString(downloadBlockBlobResponse.readableStreamBody);
+     *   console.log(`Downloaded blob content: ${downloaded}`);
+     * }
+     *
+     * async function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
+     *   const result = await new Promise<Buffer<ArrayBuffer>>((resolve, reject) => {
+     *     const chunks: Buffer[] = [];
+     *     stream.on("data", (data) => {
+     *       chunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
+     *     });
+     *     stream.on("end", () => {
+     *       resolve(Buffer.concat(chunks));
+     *     });
+     *     stream.on("error", reject);
+     *   });
+     *   return result.toString();
      * }
      * ```
      *
@@ -119966,16 +122052,6 @@ class BlobClient extends StorageClient_StorageClient {
         options.conditions = options.conditions || {};
         ensureCpkIfSpecified(options.customerProvidedKey, this.isHttps);
         return tracingClient.withSpan("BlobClient-download", options, async (updatedOptions) => {
-            let contentChecksumAlgorithm = options.contentChecksumAlgorithm ?? this.blobClientConfig?.downloadContentChecksumAlgorithm;
-            if (contentChecksumAlgorithm === undefined) {
-                contentChecksumAlgorithm = "Customized";
-            }
-            else if (contentChecksumAlgorithm === "Auto") {
-                contentChecksumAlgorithm = "StorageCrc64";
-            }
-            if (contentChecksumAlgorithm === "StorageCrc64") {
-                await StorageCRC64Calculator.init();
-            }
             const res = utils_common_assertResponse((await this.blobContext.download({
                 abortSignal: options.abortSignal,
                 leaseAccessConditions: options.conditions,
@@ -119992,7 +122068,6 @@ class BlobClient extends StorageClient_StorageClient {
                 snapshot: options.snapshot,
                 cpkInfo: options.customerProvidedKey,
                 tracingOptions: updatedOptions.tracingOptions,
-                structuredBodyType: contentChecksumAlgorithm === "StorageCrc64" ? "XSM/1.0; properties=crc64" : undefined,
             })));
             const wrappedRes = {
                 ...res,
@@ -120002,9 +122077,6 @@ class BlobClient extends StorageClient_StorageClient {
             };
             // Return browser response immediately
             if (!esm_isNodeLike) {
-                if (contentChecksumAlgorithm === "StorageCrc64") {
-                    wrappedRes.blobBody = structuredMessageDecodingBrowser(await wrappedRes.blobBody);
-                }
                 return wrappedRes;
             }
             // We support retrying when download stream unexpected ends in Node.js runtime
@@ -120019,16 +122091,9 @@ class BlobClient extends StorageClient_StorageClient {
             if (res.contentLength === undefined) {
                 throw new RangeError(`File download response doesn't contain valid content length header`);
             }
-            if (contentChecksumAlgorithm === "StorageCrc64" &&
-                res.structuredContentLength === undefined) {
-                throw new RangeError(`Unexpected structured content length`);
-            }
             if (!res.etag) {
                 throw new RangeError(`File download response doesn't contain valid etag header`);
             }
-            const expectedContentLength = contentChecksumAlgorithm === "StorageCrc64"
-                ? res.structuredContentLength
-                : res.contentLength;
             return new BlobDownloadResponse(wrappedRes, async (start) => {
                 const updatedDownloadOptions = {
                     leaseAccessConditions: options.conditions,
@@ -120040,14 +122105,13 @@ class BlobClient extends StorageClient_StorageClient {
                         ifTags: options.conditions?.tagConditions,
                     },
                     range: rangeToString({
-                        count: offset + expectedContentLength - start,
+                        count: offset + res.contentLength - start,
                         offset: start,
                     }),
                     rangeGetContentMD5: options.rangeGetContentMD5,
                     rangeGetContentCRC64: options.rangeGetContentCrc64,
                     snapshot: options.snapshot,
                     cpkInfo: options.customerProvidedKey,
-                    structuredBodyType: contentChecksumAlgorithm === "StorageCrc64" ? "XSM/1.0; properties=crc64" : undefined,
                 };
                 // Debug purpose only
                 // console.log(
@@ -120055,17 +122119,11 @@ class BlobClient extends StorageClient_StorageClient {
                 //     updatedOptions.range
                 //   }, options: ${JSON.stringify(updatedOptions)}`
                 // );
-                const resBody = (await this.blobContext.download({
+                return (await this.blobContext.download({
                     abortSignal: options.abortSignal,
                     ...updatedDownloadOptions,
                 })).readableStreamBody;
-                if (contentChecksumAlgorithm === "StorageCrc64") {
-                    return structuredMessageDecodingStream(resBody, {});
-                }
-                else {
-                    return resBody;
-                }
-            }, offset, expectedContentLength, {
+            }, offset, res.contentLength, {
                 maxRetryRequests: options.maxRetryRequests,
                 onProgress: options.onProgress,
             });
@@ -120162,8 +122220,6 @@ class BlobClient extends StorageClient_StorageClient {
                     ifTags: options.conditions?.tagConditions,
                 },
                 tracingOptions: updatedOptions.tracingOptions,
-                accessTierIfModifiedSince: options.conditions?.accessTierIfModifiedSince,
-                accessTierIfUnmodifiedSince: options.conditions?.accessTierIfUnmodifiedSince,
             }));
         });
     }
@@ -120600,7 +122656,6 @@ class BlobClient extends StorageClient_StorageClient {
                         conditions: options.conditions,
                         maxRetryRequests: options.maxRetryRequestsPerBlock,
                         customerProvidedKey: options.customerProvidedKey,
-                        contentChecksumAlgorithm: options.contentChecksumAlgorithm,
                         tracingOptions: updatedOptions.tracingOptions,
                     });
                     const stream = response.readableStreamBody;
@@ -120912,7 +122967,6 @@ class AppendBlobClient extends BlobClient {
             // (url: string, pipeline: Pipeline)
             url = urlOrConnectionString;
             pipeline = credentialOrPipelineOrContainerName;
-            options = blobNameOrOptions;
         }
         else if ((esm_isNodeLike && credentialOrPipelineOrContainerName instanceof StorageSharedKeyCredential) ||
             credentialOrPipelineOrContainerName instanceof AnonymousCredential ||
@@ -120926,7 +122980,6 @@ class AppendBlobClient extends BlobClient {
             typeof credentialOrPipelineOrContainerName !== "string") {
             // (url: string, credential?: StorageSharedKeyCredential | AnonymousCredential | TokenCredential, options?: StoragePipelineOptions)
             url = urlOrConnectionString;
-            options = blobNameOrOptions;
             // The second parameter is undefined. Use anonymous credential.
             pipeline = newPipeline(new AnonymousCredential(), options);
         }
@@ -120967,7 +123020,6 @@ class AppendBlobClient extends BlobClient {
         }
         super(url, pipeline);
         this.appendBlobContext = this.storageClientContext.appendBlob;
-        this.blobClientConfig = options;
     }
     /**
      * Creates a new AppendBlobClient object identical to the source but with the
@@ -120978,7 +123030,7 @@ class AppendBlobClient extends BlobClient {
      * @returns A new AppendBlobClient object identical to the source but with the specified snapshot timestamp.
      */
     withSnapshot(snapshot) {
-        return new AppendBlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.SNAPSHOT, snapshot.length === 0 ? undefined : snapshot), this.pipeline, this.blobClientConfig);
+        return new AppendBlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.SNAPSHOT, snapshot.length === 0 ? undefined : snapshot), this.pipeline);
     }
     /**
      * Creates a 0-length append blob. Call AppendBlock to append data to an append blob.
@@ -121124,7 +123176,7 @@ class AppendBlobClient extends BlobClient {
         options.conditions = options.conditions || {};
         ensureCpkIfSpecified(options.customerProvidedKey, this.isHttps);
         return tracingClient.withSpan("AppendBlobClient-appendBlock", options, async (updatedOptions) => {
-            const parameters = {
+            return utils_common_assertResponse(await this.appendBlobContext.appendBlock(contentLength, body, {
                 abortSignal: options.abortSignal,
                 appendPositionAccessConditions: options.conditions,
                 leaseAccessConditions: options.conditions,
@@ -121135,12 +123187,12 @@ class AppendBlobClient extends BlobClient {
                 requestOptions: {
                     onUploadProgress: options.onProgress,
                 },
+                transactionalContentMD5: options.transactionalContentMD5,
+                transactionalContentCrc64: options.transactionalContentCrc64,
                 cpkInfo: options.customerProvidedKey,
                 encryptionScope: options.encryptionScope,
                 tracingOptions: updatedOptions.tracingOptions,
-            };
-            const uploadBodyParameters = await setUploadChecksumParameters(body, contentLength, parameters, options, this.blobClientConfig?.uploadContentChecksumAlgorithm);
-            return utils_common_assertResponse(await this.appendBlobContext.appendBlock(uploadBodyParameters.contentLength, uploadBodyParameters.body, parameters));
+            }));
         });
     }
     /**
@@ -121184,11 +123236,6 @@ class AppendBlobClient extends BlobClient {
                 encryptionScope: options.encryptionScope,
                 fileRequestIntent: options.sourceShareTokenIntent,
                 tracingOptions: updatedOptions.tracingOptions,
-                sourceCpkInfo: {
-                    sourceEncryptionKey: options.sourceCustomerProvidedKey?.encryptionKey,
-                    sourceEncryptionAlgorithm: options.sourceCustomerProvidedKey?.encryptionAlgorithm,
-                    sourceEncryptionKeySha256: options.sourceCustomerProvidedKey?.encryptionKeySha256,
-                },
             }));
         });
     }
@@ -121221,7 +123268,6 @@ class BlockBlobClient extends BlobClient {
             // (url: string, pipeline: Pipeline)
             url = urlOrConnectionString;
             pipeline = credentialOrPipelineOrContainerName;
-            options = blobNameOrOptions;
         }
         else if ((esm_isNodeLike && credentialOrPipelineOrContainerName instanceof StorageSharedKeyCredential) ||
             credentialOrPipelineOrContainerName instanceof AnonymousCredential ||
@@ -121279,7 +123325,6 @@ class BlockBlobClient extends BlobClient {
         super(url, pipeline);
         this.blockBlobContext = this.storageClientContext.blockBlob;
         this._blobContext = this.storageClientContext.blob;
-        this.blobClientConfig = options;
     }
     /**
      * Creates a new BlockBlobClient object identical to the source but with the
@@ -121290,7 +123335,7 @@ class BlockBlobClient extends BlobClient {
      * @returns A new BlockBlobClient object identical to the source but with the specified snapshot timestamp.
      */
     withSnapshot(snapshot) {
-        return new BlockBlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.SNAPSHOT, snapshot.length === 0 ? undefined : snapshot), this.pipeline, this.blobClientConfig);
+        return new BlockBlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.SNAPSHOT, snapshot.length === 0 ? undefined : snapshot), this.pipeline);
     }
     /**
      * ONLY AVAILABLE IN NODE.JS RUNTIME.
@@ -121302,7 +123347,6 @@ class BlockBlobClient extends BlobClient {
      * ```ts snippet:ClientsQuery
      * import { BlobServiceClient } from "@azure/storage-blob";
      * import { DefaultAzureCredential } from "@azure/identity";
-     * import { buffer } from "node:stream/consumers";
      *
      * const account = "<account>";
      * const blobServiceClient = new BlobServiceClient(
@@ -121318,10 +123362,22 @@ class BlockBlobClient extends BlobClient {
      * // Query and convert a blob to a string
      * const queryBlockBlobResponse = await blockBlobClient.query("select from BlobStorage");
      * if (queryBlockBlobResponse.readableStreamBody) {
-     *   // Read the response bytes. Use `text` from "node:stream/consumers" instead
-     *   // if you want the response as a string directly.
-     *   const downloadedBuffer = await buffer(queryBlockBlobResponse.readableStreamBody);
-     *   console.log(`Query blob content: ${downloadedBuffer.toString()}`);
+     *   const downloadedBuffer = await streamToBuffer(queryBlockBlobResponse.readableStreamBody);
+     *   const downloaded = downloadedBuffer.toString();
+     *   console.log(`Query blob content: ${downloaded}`);
+     * }
+     *
+     * async function streamToBuffer(readableStream: NodeJS.ReadableStream): Promise<Buffer> {
+     *   return new Promise((resolve, reject) => {
+     *     const chunks: Buffer[] = [];
+     *     readableStream.on("data", (data) => {
+     *       chunks.push(data instanceof Buffer ? data : Buffer.from(data));
+     *     });
+     *     readableStream.on("end", () => {
+     *       resolve(Buffer.concat(chunks));
+     *     });
+     *     readableStream.on("error", reject);
+     *   });
      * }
      * ```
      *
@@ -121402,7 +123458,7 @@ class BlockBlobClient extends BlobClient {
         options.conditions = options.conditions || {};
         ensureCpkIfSpecified(options.customerProvidedKey, this.isHttps);
         return tracingClient.withSpan("BlockBlobClient-upload", options, async (updatedOptions) => {
-            const parameters = {
+            return utils_common_assertResponse(await this.blockBlobContext.upload(contentLength, body, {
                 abortSignal: options.abortSignal,
                 blobHttpHeaders: options.blobHTTPHeaders,
                 leaseAccessConditions: options.conditions,
@@ -121422,9 +123478,7 @@ class BlockBlobClient extends BlobClient {
                 tier: toAccessTier(options.tier),
                 blobTagsString: toBlobTagsString(options.tags),
                 tracingOptions: updatedOptions.tracingOptions,
-            };
-            const uploadBodyParameters = await setUploadChecksumParameters(body, contentLength, parameters, options, this.blobClientConfig?.uploadContentChecksumAlgorithm);
-            return utils_common_assertResponse(await this.blockBlobContext.upload(uploadBodyParameters.contentLength, uploadBodyParameters.body, parameters));
+            }));
         });
     }
     /**
@@ -121471,11 +123525,6 @@ class BlockBlobClient extends BlobClient {
                 copySourceTags: options.copySourceTags,
                 fileRequestIntent: options.sourceShareTokenIntent,
                 tracingOptions: updatedOptions.tracingOptions,
-                sourceCpkInfo: {
-                    sourceEncryptionKey: options.sourceCustomerProvidedKey?.encryptionKey,
-                    sourceEncryptionAlgorithm: options.sourceCustomerProvidedKey?.encryptionAlgorithm,
-                    sourceEncryptionKeySha256: options.sourceCustomerProvidedKey?.encryptionKeySha256,
-                },
             }));
         });
     }
@@ -121493,18 +123542,18 @@ class BlockBlobClient extends BlobClient {
     async stageBlock(blockId, body, contentLength, options = {}) {
         ensureCpkIfSpecified(options.customerProvidedKey, this.isHttps);
         return tracingClient.withSpan("BlockBlobClient-stageBlock", options, async (updatedOptions) => {
-            const parameters = {
+            return utils_common_assertResponse(await this.blockBlobContext.stageBlock(blockId, contentLength, body, {
                 abortSignal: options.abortSignal,
                 leaseAccessConditions: options.conditions,
                 requestOptions: {
                     onUploadProgress: options.onProgress,
                 },
+                transactionalContentMD5: options.transactionalContentMD5,
+                transactionalContentCrc64: options.transactionalContentCrc64,
                 cpkInfo: options.customerProvidedKey,
                 encryptionScope: options.encryptionScope,
                 tracingOptions: updatedOptions.tracingOptions,
-            };
-            const uploadBodyParameters = await setUploadChecksumParameters(body, contentLength, parameters, options, this.blobClientConfig?.uploadContentChecksumAlgorithm);
-            return utils_common_assertResponse(await this.blockBlobContext.stageBlock(blockId, uploadBodyParameters.contentLength, uploadBodyParameters.body, parameters));
+            }));
         });
     }
     /**
@@ -121542,11 +123591,6 @@ class BlockBlobClient extends BlobClient {
                 copySourceAuthorization: utils_common_httpAuthorizationToString(options.sourceAuthorization),
                 fileRequestIntent: options.sourceShareTokenIntent,
                 tracingOptions: updatedOptions.tracingOptions,
-                sourceCpkInfo: {
-                    sourceEncryptionKey: options.sourceCustomerProvidedKey?.encryptionKey,
-                    sourceEncryptionAlgorithm: options.sourceCustomerProvidedKey?.encryptionAlgorithm,
-                    sourceEncryptionKeySha256: options.sourceCustomerProvidedKey?.encryptionKeySha256,
-                },
             }));
         });
     }
@@ -121745,7 +123789,6 @@ class BlockBlobClient extends BlobClient {
                         conditions: options.conditions,
                         encryptionScope: options.encryptionScope,
                         tracingOptions: updatedOptions.tracingOptions,
-                        contentChecksumAlgorithm: options.contentChecksumAlgorithm,
                     });
                     // Update progress after block is successfully uploaded to server, in case of block trying
                     // TODO: Hook with convenience layer progress event in finer level
@@ -121826,7 +123869,6 @@ class BlockBlobClient extends BlobClient {
                     conditions: options.conditions,
                     encryptionScope: options.encryptionScope,
                     tracingOptions: updatedOptions.tracingOptions,
-                    contentChecksumAlgorithm: options.contentChecksumAlgorithm,
                 });
                 // Update progress after block is successfully uploaded to server, in case of block trying
                 transferProgress += length;
@@ -121868,7 +123910,6 @@ class PageBlobClient extends BlobClient {
             // (url: string, pipeline: Pipeline)
             url = urlOrConnectionString;
             pipeline = credentialOrPipelineOrContainerName;
-            options = blobNameOrOptions;
         }
         else if ((esm_isNodeLike && credentialOrPipelineOrContainerName instanceof StorageSharedKeyCredential) ||
             credentialOrPipelineOrContainerName instanceof AnonymousCredential ||
@@ -121883,7 +123924,6 @@ class PageBlobClient extends BlobClient {
             // (url: string, credential?: StorageSharedKeyCredential | AnonymousCredential | TokenCredential, options?: StoragePipelineOptions)
             // The second parameter is undefined. Use anonymous credential.
             url = urlOrConnectionString;
-            options = blobNameOrOptions;
             pipeline = newPipeline(new AnonymousCredential(), options);
         }
         else if (credentialOrPipelineOrContainerName &&
@@ -121923,7 +123963,6 @@ class PageBlobClient extends BlobClient {
         }
         super(url, pipeline);
         this.pageBlobContext = this.storageClientContext.pageBlob;
-        this.blobClientConfig = options;
     }
     /**
      * Creates a new PageBlobClient object identical to the source but with the
@@ -121934,7 +123973,7 @@ class PageBlobClient extends BlobClient {
      * @returns A new PageBlobClient object identical to the source but with the specified snapshot timestamp.
      */
     withSnapshot(snapshot) {
-        return new PageBlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.SNAPSHOT, snapshot.length === 0 ? undefined : snapshot), this.pipeline, this.blobClientConfig);
+        return new PageBlobClient(utils_common_setURLParameter(this.url, utils_constants_URLConstants.Parameters.SNAPSHOT, snapshot.length === 0 ? undefined : snapshot), this.pipeline);
     }
     /**
      * Creates a page blob of the specified length. Call uploadPages to upload data
@@ -122020,7 +124059,7 @@ class PageBlobClient extends BlobClient {
         options.conditions = options.conditions || {};
         ensureCpkIfSpecified(options.customerProvidedKey, this.isHttps);
         return tracingClient.withSpan("PageBlobClient-uploadPages", options, async (updatedOptions) => {
-            const parameters = {
+            return utils_common_assertResponse(await this.pageBlobContext.uploadPages(count, body, {
                 abortSignal: options.abortSignal,
                 leaseAccessConditions: options.conditions,
                 modifiedAccessConditions: {
@@ -122032,12 +124071,12 @@ class PageBlobClient extends BlobClient {
                 },
                 range: rangeToString({ offset, count }),
                 sequenceNumberAccessConditions: options.conditions,
+                transactionalContentMD5: options.transactionalContentMD5,
+                transactionalContentCrc64: options.transactionalContentCrc64,
                 cpkInfo: options.customerProvidedKey,
                 encryptionScope: options.encryptionScope,
                 tracingOptions: updatedOptions.tracingOptions,
-            };
-            const uploadBodyParameters = await setUploadChecksumParameters(body, count, parameters, options, this.blobClientConfig?.uploadContentChecksumAlgorithm);
-            return utils_common_assertResponse(await this.pageBlobContext.uploadPages(uploadBodyParameters.contentLength, uploadBodyParameters.body, parameters));
+            }));
         });
     }
     /**
@@ -122077,11 +124116,6 @@ class PageBlobClient extends BlobClient {
                 copySourceAuthorization: utils_common_httpAuthorizationToString(options.sourceAuthorization),
                 fileRequestIntent: options.sourceShareTokenIntent,
                 tracingOptions: updatedOptions.tracingOptions,
-                sourceCpkInfo: {
-                    sourceEncryptionKey: options.sourceCustomerProvidedKey?.encryptionKey,
-                    sourceEncryptionAlgorithm: options.sourceCustomerProvidedKey?.encryptionAlgorithm,
-                    sourceEncryptionKeySha256: options.sourceCustomerProvidedKey?.encryptionKeySha256,
-                },
             }));
         });
     }
@@ -123311,7 +125345,6 @@ class ContainerClient extends StorageClient_StorageClient {
      */
     containerContext;
     _containerName;
-    blobClientConfig;
     /**
      * The name of the container.
      */
@@ -123326,7 +125359,7 @@ class ContainerClient extends StorageClient_StorageClient {
         let url;
         options = options || {};
         if (isPipelineLike(credentialOrPipelineOrContainerName)) {
-            // (url: string, pipeline: Pipeline, options?: BlobClientConfig)
+            // (url: string, pipeline: Pipeline)
             url = urlOrConnectionString;
             pipeline = credentialOrPipelineOrContainerName;
         }
@@ -123379,7 +125412,6 @@ class ContainerClient extends StorageClient_StorageClient {
         super(url, pipeline);
         this._containerName = this.getContainerNameFromUrl();
         this.containerContext = this.storageClientContext.container;
-        this.blobClientConfig = options;
     }
     /**
      * Creates a new container under the specified account. If the container with
@@ -123478,7 +125510,7 @@ class ContainerClient extends StorageClient_StorageClient {
      * @returns A new BlobClient object for the given blob name.
      */
     getBlobClient(blobName) {
-        return new BlobClient(utils_common_appendToURLPath(this.url, utils_common_EscapePath(blobName)), this.pipeline, this.blobClientConfig);
+        return new BlobClient(utils_common_appendToURLPath(this.url, utils_common_EscapePath(blobName)), this.pipeline);
     }
     /**
      * Creates an {@link AppendBlobClient}
@@ -123486,7 +125518,7 @@ class ContainerClient extends StorageClient_StorageClient {
      * @param blobName - An append blob name
      */
     getAppendBlobClient(blobName) {
-        return new AppendBlobClient(utils_common_appendToURLPath(this.url, utils_common_EscapePath(blobName)), this.pipeline, this.blobClientConfig);
+        return new AppendBlobClient(utils_common_appendToURLPath(this.url, utils_common_EscapePath(blobName)), this.pipeline);
     }
     /**
      * Creates a {@link BlockBlobClient}
@@ -123516,7 +125548,7 @@ class ContainerClient extends StorageClient_StorageClient {
      * ```
      */
     getBlockBlobClient(blobName) {
-        return new BlockBlobClient(utils_common_appendToURLPath(this.url, utils_common_EscapePath(blobName)), this.pipeline, this.blobClientConfig);
+        return new BlockBlobClient(utils_common_appendToURLPath(this.url, utils_common_EscapePath(blobName)), this.pipeline);
     }
     /**
      * Creates a {@link PageBlobClient}
@@ -123524,7 +125556,7 @@ class ContainerClient extends StorageClient_StorageClient {
      * @param blobName - A page blob name
      */
     getPageBlobClient(blobName) {
-        return new PageBlobClient(utils_common_appendToURLPath(this.url, utils_common_EscapePath(blobName)), this.pipeline, this.blobClientConfig);
+        return new PageBlobClient(utils_common_appendToURLPath(this.url, utils_common_EscapePath(blobName)), this.pipeline);
     }
     /**
      * Returns all user-defined metadata and system properties for the specified
@@ -125077,13 +127109,6 @@ function generateAccountSASQueryParametersInternal(accountSASSignatureValues, sh
 
 
 
-function isBlobGetUserDelegationKeyParameters(parameter) {
-    if (!parameter || typeof parameter !== "object") {
-        return false;
-    }
-    const castParameter = parameter;
-    return castParameter.expiresOn instanceof Date;
-}
 /**
  * A BlobServiceClient represents a Client to the Azure Storage Blob service allowing you
  * to manipulate blob containers.
@@ -125093,7 +127118,6 @@ class BlobServiceClient extends StorageClient_StorageClient {
      * serviceContext provided by protocol layer.
      */
     serviceContext;
-    blobClientConfig;
     /**
      *
      * Creates an instance of BlobServiceClient from connection string.
@@ -125127,7 +127151,7 @@ class BlobServiceClient extends StorageClient_StorageClient {
         }
         else if (extractedCreds.kind === "SASConnString") {
             const pipeline = newPipeline(new AnonymousCredential(), options);
-            return new BlobServiceClient(extractedCreds.url + "?" + extractedCreds.accountSas, pipeline, options);
+            return new BlobServiceClient(extractedCreds.url + "?" + extractedCreds.accountSas, pipeline);
         }
         else {
             throw new Error("Connection string must be either an Account connection string or a SAS connection string");
@@ -125137,7 +127161,6 @@ class BlobServiceClient extends StorageClient_StorageClient {
     // Legacy, no fix for eslint error without breaking. Disable it for this interface.
     /* eslint-disable-next-line @azure/azure-sdk/ts-naming-options*/
     options) {
-        options = options ?? {};
         let pipeline;
         if (isPipelineLike(credentialOrPipeline)) {
             pipeline = credentialOrPipeline;
@@ -125153,7 +127176,6 @@ class BlobServiceClient extends StorageClient_StorageClient {
         }
         super(url, pipeline);
         this.serviceContext = this.storageClientContext.service;
-        this.blobClientConfig = options;
     }
     /**
      * Creates a {@link ContainerClient} object
@@ -125177,7 +127199,7 @@ class BlobServiceClient extends StorageClient_StorageClient {
      * ```
      */
     getContainerClient(containerName) {
-        return new ContainerClient(utils_common_appendToURLPath(this.url, encodeURIComponent(containerName)), this.pipeline, this.blobClientConfig);
+        return new ContainerClient(utils_common_appendToURLPath(this.url, encodeURIComponent(containerName)), this.pipeline);
     }
     /**
      * Create a Blob container. @see https://learn.microsoft.com/rest/api/storageservices/create-container
@@ -125661,25 +127683,24 @@ class BlobServiceClient extends StorageClient_StorageClient {
             },
         };
     }
-    async getUserDelegationKey(startsOnOrParam, expiresOnOrOption, options = {}) {
-        let startsOn = startsOnOrParam;
-        let expiresOn = expiresOnOrOption;
-        let userDelegationTid = undefined;
-        let getUserDelegationKeyOptions = options;
-        if (isBlobGetUserDelegationKeyParameters(startsOnOrParam)) {
-            startsOn = startsOnOrParam.startsOn;
-            expiresOn = startsOnOrParam.expiresOn;
-            userDelegationTid = startsOnOrParam.delegatedUserTenantId;
-            getUserDelegationKeyOptions = expiresOnOrOption;
-            getUserDelegationKeyOptions = getUserDelegationKeyOptions ?? {};
-        }
-        return tracingClient.withSpan("BlobServiceClient-getUserDelegationKey", getUserDelegationKeyOptions, async (updatedOptions) => {
+    /**
+     * ONLY AVAILABLE WHEN USING BEARER TOKEN AUTHENTICATION (TokenCredential).
+     *
+     * Retrieves a user delegation key for the Blob service. This is only a valid operation when using
+     * bearer token authentication.
+     *
+     * @see https://learn.microsoft.com/rest/api/storageservices/get-user-delegation-key
+     *
+     * @param startsOn -      The start time for the user delegation SAS. Must be within 7 days of the current time
+     * @param expiresOn -     The end time for the user delegation SAS. Must be within 7 days of the current time
+     */
+    async getUserDelegationKey(startsOn, expiresOn, options = {}) {
+        return tracingClient.withSpan("BlobServiceClient-getUserDelegationKey", options, async (updatedOptions) => {
             const response = utils_common_assertResponse(await this.serviceContext.getUserDelegationKey({
                 startsOn: utils_common_truncatedISO8061Date(startsOn, false),
                 expiresOn: utils_common_truncatedISO8061Date(expiresOn, false),
-                delegatedUserTid: userDelegationTid,
             }, {
-                abortSignal: getUserDelegationKeyOptions.abortSignal,
+                abortSignal: options.abortSignal,
                 tracingOptions: updatedOptions.tracingOptions,
             }));
             const userDelegationKey = {
@@ -125689,7 +127710,6 @@ class BlobServiceClient extends StorageClient_StorageClient {
                 signedExpiresOn: new Date(response.signedExpiresOn),
                 signedService: response.signedService,
                 signedVersion: response.signedVersion,
-                signedDelegatedUserTenantId: response.signedDelegatedUserTenantId,
                 value: response.value,
             };
             const res = {
@@ -125789,6 +127809,7 @@ var generatedModels_KnownEncryptionAlgorithmType;
 ;// CONCATENATED MODULE: ./node_modules/@azure/storage-blob/dist/esm/index.js
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
+
 
 
 
@@ -127708,6 +129729,7 @@ var tar_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argu
 
 
 
+
 const tar_IS_WINDOWS = process.platform === 'win32';
 // Returns tar path and type: BSD or GNU
 function getTarPath() {
@@ -127764,19 +129786,21 @@ function getTarArgs(tarPath_1, compressionMethod_1, type_1) {
             case 'create':
                 args.push('--posix', '-cf', BSD_TAR_ZSTD
                     ? tarFile
-                    : cacheFileName.replace(new RegExp(`\\${external_path_.sep}`, 'g'), '/'), '--exclude', BSD_TAR_ZSTD
+                    : cacheFileName.replace(new RegExp(`\\${external_path_namespaceObject.sep}`, 'g'), '/'), '--exclude', BSD_TAR_ZSTD
                     ? tarFile
-                    : cacheFileName.replace(new RegExp(`\\${external_path_.sep}`, 'g'), '/'), '-P', '-C', workingDirectory.replace(new RegExp(`\\${external_path_.sep}`, 'g'), '/'), '--files-from', ManifestFilename);
+                    : cacheFileName.replace(new RegExp(`\\${external_path_namespaceObject.sep}`, 'g'), '/'), '-P', '-C', workingDirectory.replace(new RegExp(`\\${external_path_namespaceObject.sep}`, 'g'), '/'), '--files-from', ManifestFilename);
                 break;
             case 'extract':
                 args.push('-xf', BSD_TAR_ZSTD
                     ? tarFile
-                    : archivePath.replace(new RegExp(`\\${external_path_.sep}`, 'g'), '/'), '-P', '-C', workingDirectory.replace(new RegExp(`\\${external_path_.sep}`, 'g'), '/'));
+                    : archivePath.replace(new RegExp(`\\${external_path_namespaceObject.sep}`, 'g'), '/'), '-P', '-C', BSD_TAR_ZSTD
+                    ? quoteAbsolutePath(workingDirectory)
+                    : workingDirectory.replace(new RegExp(`\\${external_path_namespaceObject.sep}`, 'g'), '/'));
                 break;
             case 'list':
                 args.push('-tf', BSD_TAR_ZSTD
                     ? tarFile
-                    : archivePath.replace(new RegExp(`\\${external_path_.sep}`, 'g'), '/'), '-P');
+                    : archivePath.replace(new RegExp(`\\${external_path_namespaceObject.sep}`, 'g'), '/'), '-P');
                 break;
         }
         // Platform specific args
@@ -127811,15 +129835,18 @@ function getCommands(compressionMethod_1, type_1) {
         else {
             args = [[...tarArgs].join(' '), [...compressionArgs].join(' ')];
         }
-        if (BSD_TAR_ZSTD) {
-            return args;
-        }
-        return [args.join(' ')];
+        return {
+            commands: BSD_TAR_ZSTD ? args : [args.join(' ')],
+            requiresTempDirectory: BSD_TAR_ZSTD && type !== 'create'
+        };
     });
 }
 function getWorkingDirectory() {
     var _a;
     return (_a = process.env['GITHUB_WORKSPACE']) !== null && _a !== void 0 ? _a : process.cwd();
+}
+function quoteAbsolutePath(filePath) {
+    return `"${external_path_namespaceObject.resolve(filePath).replace(new RegExp(`\\${external_path_namespaceObject.sep}`, 'g'), '/')}"`;
 }
 // Common function for extractTar and listTar to get the compression method
 function getDecompressionProgram(tarPath, compressionMethod, archivePath) {
@@ -127837,7 +129864,7 @@ function getDecompressionProgram(tarPath, compressionMethod, archivePath) {
                     ? [
                         'zstd -d --long=30 --force -o',
                         TarFilename,
-                        archivePath.replace(new RegExp(`\\${external_path_.sep}`, 'g'), '/')
+                        quoteAbsolutePath(archivePath)
                     ]
                     : [
                         '--use-compress-program',
@@ -127845,11 +129872,7 @@ function getDecompressionProgram(tarPath, compressionMethod, archivePath) {
                     ];
             case CompressionMethod.ZstdWithoutLong:
                 return BSD_TAR_ZSTD
-                    ? [
-                        'zstd -d --force -o',
-                        TarFilename,
-                        archivePath.replace(new RegExp(`\\${external_path_.sep}`, 'g'), '/')
-                    ]
+                    ? ['zstd -d --force -o', TarFilename, quoteAbsolutePath(archivePath)]
                     : ['--use-compress-program', tar_IS_WINDOWS ? '"zstd -d"' : 'unzstd'];
             default:
                 return ['-z'];
@@ -127873,7 +129896,7 @@ function getCompressionProgram(tarPath, compressionMethod) {
                 return BSD_TAR_ZSTD
                     ? [
                         'zstd -T0 --long=30 --force -o',
-                        cacheFileName.replace(new RegExp(`\\${external_path_.sep}`, 'g'), '/'),
+                        cacheFileName.replace(new RegExp(`\\${external_path_namespaceObject.sep}`, 'g'), '/'),
                         TarFilename
                     ]
                     : [
@@ -127884,7 +129907,7 @@ function getCompressionProgram(tarPath, compressionMethod) {
                 return BSD_TAR_ZSTD
                     ? [
                         'zstd -T0 --force -o',
-                        cacheFileName.replace(new RegExp(`\\${external_path_.sep}`, 'g'), '/'),
+                        cacheFileName.replace(new RegExp(`\\${external_path_namespaceObject.sep}`, 'g'), '/'),
                         TarFilename
                     ]
                     : ['--use-compress-program', tar_IS_WINDOWS ? '"zstd -T0"' : 'zstdmt'];
@@ -127909,11 +129932,34 @@ function execCommands(commands, cwd) {
         }
     });
 }
+function execReadCommands(archivePath, compressionMethod, type) {
+    return tar_awaiter(this, void 0, void 0, function* () {
+        const { commands, requiresTempDirectory } = yield getCommands(compressionMethod, type, archivePath);
+        // The Windows BSD-tar fallback decompresses into cache.tar before reading
+        // it. Isolate that intermediate for each list/extract operation, including
+        // debug listings during saves.
+        const tempDirectory = requiresTempDirectory
+            ? yield createTempDirectory()
+            : undefined;
+        try {
+            yield execCommands(commands, tempDirectory);
+        }
+        finally {
+            if (tempDirectory) {
+                try {
+                    yield rmRF(tempDirectory);
+                }
+                catch (error) {
+                    core_debug(`Failed to delete temporary tar directory: ${error}`);
+                }
+            }
+        }
+    });
+}
 // List the contents of a tar
 function listTar(archivePath, compressionMethod) {
     return tar_awaiter(this, void 0, void 0, function* () {
-        const commands = yield getCommands(compressionMethod, 'list', archivePath);
-        yield execCommands(commands);
+        yield execReadCommands(archivePath, compressionMethod, 'list');
     });
 }
 // Extract a tar
@@ -127922,16 +129968,15 @@ function extractTar(archivePath, compressionMethod) {
         // Create directory to extract tar into
         const workingDirectory = getWorkingDirectory();
         yield mkdirP(workingDirectory);
-        const commands = yield getCommands(compressionMethod, 'extract', archivePath);
-        yield execCommands(commands);
+        yield execReadCommands(archivePath, compressionMethod, 'extract');
     });
 }
 // Create a tar
 function createTar(archiveFolder, sourceDirectories, compressionMethod) {
     return tar_awaiter(this, void 0, void 0, function* () {
         // Write source directories to manifest.txt to avoid command length limits
-        (0,external_fs_namespaceObject.writeFileSync)(external_path_.join(archiveFolder, ManifestFilename), sourceDirectories.join('\n'));
-        const commands = yield getCommands(compressionMethod, 'create');
+        (0,external_fs_namespaceObject.writeFileSync)(external_path_namespaceObject.join(archiveFolder, ManifestFilename), sourceDirectories.join('\n'));
+        const { commands } = yield getCommands(compressionMethod, 'create');
         yield execCommands(commands, archiveFolder);
     });
 }
@@ -128136,7 +130181,7 @@ function restoreCacheV1(paths_1, primaryKey_1, restoreKeys_1, options_1) {
                 info('Lookup only - skipping download');
                 return cacheEntry.cacheKey;
             }
-            archivePath = external_path_.join(yield createTempDirectory(), getCacheFileName(compressionMethod));
+            archivePath = external_path_namespaceObject.join(yield createTempDirectory(), getCacheFileName(compressionMethod));
             core_debug(`Archive Path: ${archivePath}`);
             // Download the cache from the cache entry
             yield downloadCache(cacheEntry.archiveLocation, archivePath, options);
@@ -128244,7 +130289,7 @@ function restoreCacheV2(paths_1, primaryKey_1, restoreKeys_1, options_1) {
                 info('Lookup only - skipping download');
                 return response.matchedKey;
             }
-            archivePath = external_path_.join(yield createTempDirectory(), getCacheFileName(compressionMethod));
+            archivePath = external_path_namespaceObject.join(yield createTempDirectory(), getCacheFileName(compressionMethod));
             core_debug(`Archive path: ${archivePath}`);
             core_debug(`Starting download of archive to: ${archivePath}`);
             yield downloadCache(response.signedDownloadUrl, archivePath, options);
@@ -128341,7 +130386,7 @@ function saveCacheV1(paths_1, key_1, options_1) {
             throw new Error(`Path Validation Error: Path(s) specified in the action for caching do(es) not exist, hence no cache is being saved.`);
         }
         const archiveFolder = yield createTempDirectory();
-        const archivePath = external_path_.join(archiveFolder, getCacheFileName(compressionMethod));
+        const archivePath = external_path_namespaceObject.join(archiveFolder, getCacheFileName(compressionMethod));
         core_debug(`Archive Path: ${archivePath}`);
         try {
             yield createTar(archiveFolder, cachePaths, compressionMethod);
@@ -128444,7 +130489,7 @@ function saveCacheV2(paths_1, key_1, options_1) {
             throw new Error(`Path Validation Error: Path(s) specified in the action for caching do(es) not exist, hence no cache is being saved.`);
         }
         const archiveFolder = yield createTempDirectory();
-        const archivePath = external_path_.join(archiveFolder, getCacheFileName(compressionMethod));
+        const archivePath = external_path_namespaceObject.join(archiveFolder, getCacheFileName(compressionMethod));
         core_debug(`Archive Path: ${archivePath}`);
         try {
             yield createTar(archiveFolder, cachePaths, compressionMethod);
