@@ -8,6 +8,10 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-21
+
+No breaking changes. This release only updates dependencies.
+
 ### Changed
 
 - **Dependency update to `@actions/cache` 6.3.0.** This version fixes a race on Windows runners.
@@ -280,7 +284,8 @@ Initial pre-release.
 - zstd compression with a gzip fallback, chunked multipart uploads and retries.
 - `restore` and `save` sub-actions.
 
-[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.2.0...v1.3.0
