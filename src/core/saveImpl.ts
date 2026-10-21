@@ -2,14 +2,14 @@ import * as core from '@actions/core';
 import { getWorkspace } from '../archive/paths';
 import { Outputs, State } from '../constants';
 import { NullStateProvider, StateProvider, type IStateProvider } from '../state';
+import { isAccessDeniedError } from '../storage/errors';
 import { isValidEvent } from '../utils/inputUtils';
+import { getCacheMode, isCacheWritable } from './cacheMode';
 import { readCacheConfig, type CacheConfig } from './config';
 import { existsInGitHub, saveToGitHub } from './githubTier';
 import { emitMetrics, type StepMetrics } from './metrics';
 import { toError, type S3ObjectInfo } from './outcomes';
 import { applyPreset, readPreset } from './presets';
-import { isAccessDeniedError } from '../storage/retry';
-import { getCacheMode, isCacheWritable } from './cacheMode';
 import { buildS3Tier, saveToS3, type S3Tier } from './s3Tier';
 import { writeSaveSummary } from './summary';
 
@@ -329,6 +329,7 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
         `Cache save skipped: ACTIONS_CACHE_MODE is '${cacheMode}', which does not permit writes.`
       );
       core.setOutput(Outputs.CacheSavedSources, 'none');
+      core.setOutput(Outputs.CacheSaveDurationMs, String(Date.now() - start));
       skip(`ACTIONS_CACHE_MODE=${cacheMode}`);
       await writeSaveSummary({
         jobSummary: config.jobSummary,

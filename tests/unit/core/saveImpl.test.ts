@@ -14,6 +14,9 @@ const mockSetFailed = jest.fn<(message: string) => void>(() => {
 });
 const mockWarning = jest.fn<(message: string) => void>();
 const mockInfo = jest.fn<(message: string) => void>();
+const mockSetOutput = jest.fn<(name: string, value: string) => void>((name, value) => {
+  outputs.set(name, value);
+});
 const mockBuildS3Tier =
   jest.fn<
     (
@@ -45,9 +48,7 @@ const mockSaveToGitHub =
 
 jest.unstable_mockModule('@actions/core', () => ({
   getInput: (name: string) => inputs.get(name) ?? '',
-  setOutput: (name: string, value: string) => {
-    outputs.set(name, value);
-  },
+  setOutput: mockSetOutput,
   setFailed: mockSetFailed,
   info: mockInfo,
   warning: mockWarning,
@@ -536,6 +537,13 @@ describe('saveImpl', () => {
         );
         expect(outputs.get('cache-saved-sources')).toBe('none');
         expect(outputs.get('cache-bytes')).toBe('0');
+        expect(outputs.get('cache-transfer-duration-ms')).toBe('0');
+        expect(outputs.get('cache-save-duration-ms')).toMatch(/^\d+$/);
+        expect(mockSetOutput).toHaveBeenCalledWith('cache-save-duration-ms', '0');
+        expect(mockSetOutput).toHaveBeenLastCalledWith(
+          'cache-save-duration-ms',
+          expect.stringMatching(/^\d+$/)
+        );
         expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
         expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
           expect.objectContaining({
@@ -636,6 +644,21 @@ describe('saveImpl', () => {
       expect(mockWarning).toHaveBeenCalledWith(
         `Failed to save cache to S3: Access Denied. ${hint}`
       );
+    });
+
+    it('adds no hint to a 403 SignatureDoesNotMatch, because the credentials are wrong', async () => {
+      mockSaveToS3.mockResolvedValue({
+        kind: 'error',
+        error: Object.assign(new Error('The request signature we calculated does not match'), {
+          name: 'SignatureDoesNotMatch',
+          $metadata: { httpStatusCode: 403 },
+        }),
+      });
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(
+        'Failed to save cache to S3: The request signature we calculated does not match'
+      );
+      expect(mockSetFailed).not.toHaveBeenCalled();
     });
 
     it('adds no hint to other errors', async () => {

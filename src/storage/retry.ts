@@ -56,28 +56,6 @@ export function isRetryableError(err: unknown): boolean {
 }
 
 /**
- * True when S3 refused the request for the credentials: an HTTP 403 or an `AccessDenied` error
- * name. The check follows the `cause` chain, because some callers wrap the SDK error.
- */
-export function isAccessDeniedError(err: unknown): boolean {
-  for (let current = err, depth = 0; depth < 5; depth++) {
-    if (typeof current !== 'object' || current === null) {
-      return false;
-    }
-    const error = current as {
-      name?: string;
-      cause?: unknown;
-      $metadata?: { httpStatusCode?: number };
-    };
-    if (error.$metadata?.httpStatusCode === 403 || error.name === 'AccessDenied') {
-      return true;
-    }
-    current = error.cause;
-  }
-  return false;
-}
-
-/**
  * True only for network and stream failures the SDK has not retried itself. Errors that passed
  * through the SDK carry `$metadata` (an HTTP status or an attempt count) and already used every
  * attempt the client allows, so retrying the whole stream again would multiply the requests.
