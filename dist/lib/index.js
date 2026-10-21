@@ -79640,10 +79640,11 @@ async function listArchiveObjects(client, bucket, prefix, groupOf, pageSize = 10
 /**
  * Lists the incomplete multipart uploads under `prefix` that `isCandidate` accepts and that were
  * initiated before `cutoff`, following the key and upload-id markers. An upload with no
- * `Initiated` time is skipped, because its age is unknown.
+ * `Initiated` time is skipped, because its age is unknown, and `withoutAge` counts these uploads.
  */
 async function listStaleUploads(client, bucket, prefix, isCandidate, cutoff) {
     const uploads = [];
+    let withoutAge = 0;
     let keyMarker;
     let uploadIdMarker;
     do {
@@ -79654,18 +79655,20 @@ async function listStaleUploads(client, bucket, prefix, isCandidate, cutoff) {
             UploadIdMarker: uploadIdMarker,
         }));
         for (const upload of page.Uploads ?? []) {
-            if (upload.Key &&
-                upload.UploadId &&
-                upload.Initiated &&
-                upload.Initiated < cutoff &&
-                isCandidate(upload.Key)) {
+            if (!upload.Key || !upload.UploadId || !isCandidate(upload.Key)) {
+                continue;
+            }
+            if (!upload.Initiated) {
+                withoutAge += 1;
+            }
+            else if (upload.Initiated < cutoff) {
                 uploads.push({ key: upload.Key, uploadId: upload.UploadId, initiated: upload.Initiated });
             }
         }
         keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
         uploadIdMarker = page.IsTruncated ? page.NextUploadIdMarker : undefined;
     } while (keyMarker !== undefined || uploadIdMarker !== undefined);
-    return uploads;
+    return { stale: uploads, withoutAge };
 }
 /**
  * Aborts the stale incomplete uploads, or only lists them when `dryRun` is set, and returns how
@@ -79678,7 +79681,12 @@ async function abortStaleUploads(client, bucket, prefix, isCandidate, options) {
     const cutoff = new Date(now.getTime() - olderThanHours * HOUR_MS);
     let stale;
     try {
-        stale = await listStaleUploads(client, bucket, prefix, isCandidate, cutoff);
+        const listed = await listStaleUploads(client, bucket, prefix, isCandidate, cutoff);
+        stale = listed.stale;
+        if (listed.withoutAge > 0) {
+            // SeaweedFS lists uploads without an Initiated time, so this rule cannot work there.
+            core_warning(`Skipped ${listed.withoutAge} incomplete upload(s): the server lists them without an initiation time, so their age is unknown and they are not aborted. SeaweedFS is one such server.`);
+        }
     }
     catch (err) {
         const error = toError(err);
@@ -132677,7 +132685,7 @@ function isAccessDeniedError(err) {
 
 
 
-const ACCESS_DENIED_HINT = 'The credentials cannot write to the bucket. Set read-only: true to skip the save and silence this message.';
+const ACCESS_DENIED_HINT = 'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save and silence this message.';
 /** The S3 save error message, with a hint about read-only when S3 denied the write. */
 function s3SaveError(error) {
     if (!isAccessDeniedError(error)) {
