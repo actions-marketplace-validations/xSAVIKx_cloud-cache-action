@@ -55,7 +55,7 @@ preset and the resolved paths.
 | `pnpm`   | `~/.local/share/pnpm/store`                                  | `~/Library/pnpm/store`                                           | `~\AppData\Local\pnpm\store`                                          | `**/pnpm-lock.yaml`                                                                                                                                              |
 | `bun`    | `~/.bun/install/cache`                                       | `~/.bun/install/cache`                                           | `~\.bun\install\cache`                                                | `**/bun.lock`, `**/bun.lockb`                                                                                                                                    |
 | `pip`    | `~/.cache/pip`                                               | `~/Library/Caches/pip`                                           | `~\AppData\Local\pip\Cache`                                           | `**/requirements.txt`                                                                                                                                            |
-| `poetry` | `~/.cache/pypoetry` without `virtualenvs`                    | `~/Library/Caches/pypoetry` without `virtualenvs`                | `~\AppData\Local\pypoetry\Cache` without `virtualenvs`                | `**/poetry.lock`                                                                                                                                                 |
+| `poetry` | `~/.cache/pypoetry/cache`, `~/.cache/pypoetry/artifacts` | `~/Library/Caches/pypoetry/cache`, `~/Library/Caches/pypoetry/artifacts` | `~\AppData\Local\pypoetry\Cache\cache`, `~\AppData\Local\pypoetry\Cache\artifacts` | `**/poetry.lock` |
 | `uv`     | `~/.cache/uv`                                                | `~/.cache/uv`                                                    | `~\AppData\Local\uv\cache`                                            | `**/*requirements*.txt`, `**/*requirements*.in`, `**/*constraints*.txt`, `**/*constraints*.in`, `**/pyproject.toml`, `**/uv.lock`, `**/*.py.lock`                |
 | `gradle` | `~/.gradle/caches`, `~/.gradle/wrapper`                      | `~/.gradle/caches`, `~/.gradle/wrapper`                          | `~\.gradle\caches`, `~\.gradle\wrapper`                               | `**/*.gradle*`, `**/gradle.properties`, `**/gradle-wrapper.properties`, `buildSrc/**/Versions.kt`, `buildSrc/**/Dependencies.kt`, `gradle/*.versions.toml`, `**/versions.properties` |
 | `maven`  | `~/.m2/repository`                                           | `~/.m2/repository`                                               | `~\.m2\repository`                                                    | `**/pom.xml`, `**/.mvn/wrapper/maven-wrapper.properties`, `**/.mvn/extensions.xml`                                                                               |
@@ -76,19 +76,33 @@ that changes it.
   later use `%LocalAppData%`. The globs follow `actions/setup-node` and the actions/cache
   examples. `actions/setup-node` also hashes `yarn.lock` for npm. This action does not, because
   `yarn` has its own preset.
-- **`yarn`**: the Yarn 1 cache folder per OS (the output of `yarn cache dir`), the Yarn 2 and
-  later global cache (`enableGlobalCache` is `true` by default, below `globalFolder`), and the
-  Yarn 2 and later project cache (`cacheFolder`, `./.yarn/cache`). The glob follows
-  `actions/setup-node` and the actions/cache examples.
+- **`yarn`**: three directories.
+  - The Yarn 1 cache folder per OS, which `yarn cache dir` prints. The Yarn 1 docs do not give
+    the path. The source is `getCacheDir` in `src/util/user-dirs.js` of the Yarn 1 repository:
+    `~/.cache/yarn` on Linux, `~/Library/Caches/Yarn` on macOS, and
+    `%LOCALAPPDATA%\Yarn\Cache` on Windows.
+  - The Yarn 2 and later global cache. The yarnrc docs say that `enableGlobalCache` is `true` by
+    default and that the cache is then in `globalFolder`. `Configuration.ts` of Yarn 2 and later
+    sets the cache to `${globalFolder}/cache`. The docs give `${HOME}/.yarn/berry` for
+    `globalFolder`. On Windows, `getDefaultGlobalFolder` in `folderUtils.ts` uses
+    `%LOCALAPPDATA%\Yarn\Berry`.
+  - The Yarn 2 and later project cache (`cacheFolder`, `./.yarn/cache`).
+
+  The glob follows `actions/setup-node` and the actions/cache examples.
 - **`pnpm`**: the pnpm `storeDir` setting, when `PNPM_HOME` and `XDG_DATA_HOME` are not set. The
   glob follows `actions/setup-node`.
 - **`bun`**: the Bun install cache documentation and the actions/cache examples. The examples give
   `~\.bun` for Windows. That directory also holds the Bun binary, so this action caches only the
   install cache below it.
 - **`pip`**: the actions/cache examples for pip, per OS. The glob follows `actions/setup-python`.
-- **`poetry`**: the Poetry `cache-dir` setting. The glob follows `actions/setup-python`. The
-  `virtualenvs` directory below the cache directory holds environments for one Python version,
-  and the key does not contain the Python version, so the preset excludes it.
+- **`poetry`**: the Poetry `cache-dir` setting gives the directory. The Poetry docs do not name
+  its children. Poetry's `src/poetry/config/config.py` puts the repository cache in
+  `{cache-dir}/cache/repositories` and the artifact cache in `{cache-dir}/artifacts`. The preset
+  caches these two directories. It does not cache `{cache-dir}/virtualenvs`, which holds
+  environments for one Python version, because the key does not contain the Python version. A
+  `!` line cannot do this: when an include pattern matches a directory, `tar` archives the full
+  directory (see [Paths and Exclusions](./getting-started.md#paths-and-exclusions)). The glob
+  follows `actions/setup-python`.
 - **`uv`**: the uv cache directory: `$HOME/.cache/uv` on Linux and macOS (uv uses the XDG
   directories on both), `%LOCALAPPDATA%\uv\cache` on Windows. The globs are the
   `cache-dependency-glob` default of `astral-sh/setup-uv`.
@@ -119,6 +133,20 @@ The action does not run the package manager to find its cache directory. `action
 runs `npm config get cache`, but this action uses the static default above. When you move the
 cache, for example with `npm_config_cache`, `PIP_CACHE_DIR`, `GOMODCACHE` or a `.yarnrc.yml`
 setting, set `path` to the directory you use. The preset still gives the key and the restore keys.
+
+### GitHub-hosted Windows runners
+
+The runner image can change the default directory of a tool. Two reports are not measured here:
+
+- The Windows image can set the npm cache to another directory, reported as `C:\npm\cache`.
+- pnpm can put its store at the root of the workspace drive, for example `D:\.pnpm-store`, when
+  the home directory is on a different drive. pnpm does this because hard links do not work
+  across drives.
+
+In both cases the preset path does not exist. The save then logs
+`Path Validation Error: Path(s) specified in the action for caching do(es) not exist, hence no cache is being saved.`
+When you see this message, run `npm config get cache` or `pnpm store path` in the job and set
+`path` to the directory that it prints.
 
 ## Explicit inputs win
 

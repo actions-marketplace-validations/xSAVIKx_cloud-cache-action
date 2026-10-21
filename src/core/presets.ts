@@ -55,8 +55,10 @@ export const PRESETS: Record<PresetName, PresetDefinition> = {
     },
     lockfiles: ['**/package-lock.json', '**/npm-shrinkwrap.json', NODE_MODULES],
   },
-  // Yarn 1 cache folder per OS, the Yarn 2+ global cache (enableGlobalCache, the default since
-  // Yarn 4) and the Yarn 2+ project cache (cacheFolder ./.yarn/cache).
+  // The Yarn 1 cache folder per OS (getCacheDir in yarn src/util/user-dirs.js), the Yarn 2+
+  // global cache (`${globalFolder}/cache` when enableGlobalCache is true, the default; globalFolder
+  // from getDefaultGlobalFolder in berry folderUtils.ts) and the Yarn 2+ project cache
+  // (cacheFolder ./.yarn/cache).
   yarn: {
     paths: {
       Linux: ['~/.cache/yarn', '~/.yarn/berry/cache', '.yarn/cache'],
@@ -92,15 +94,17 @@ export const PRESETS: Record<PresetName, PresetDefinition> = {
     },
     lockfiles: ['**/requirements.txt'],
   },
-  // Poetry docs (configuration, cache-dir). The virtualenvs below the cache directory hold
-  // installed environments for one Python version, so the preset does not cache them.
+  // Poetry docs (configuration, cache-dir) give the directory. Poetry's config.py puts the
+  // package caches in its `cache` and `artifacts` children. The preset lists them and leaves out
+  // `virtualenvs`, which holds environments for one Python version. A `!` line cannot leave out a
+  // child of a matched directory, because tar archives the whole directory.
   poetry: {
     paths: {
-      Linux: ['~/.cache/pypoetry', '!~/.cache/pypoetry/virtualenvs'],
-      macOS: ['~/Library/Caches/pypoetry', '!~/Library/Caches/pypoetry/virtualenvs'],
+      Linux: ['~/.cache/pypoetry/cache', '~/.cache/pypoetry/artifacts'],
+      macOS: ['~/Library/Caches/pypoetry/cache', '~/Library/Caches/pypoetry/artifacts'],
       Windows: [
-        '~\\AppData\\Local\\pypoetry\\Cache',
-        '!~\\AppData\\Local\\pypoetry\\Cache\\virtualenvs',
+        '~\\AppData\\Local\\pypoetry\\Cache\\cache',
+        '~\\AppData\\Local\\pypoetry\\Cache\\artifacts',
       ],
     },
     lockfiles: ['**/poetry.lock'],

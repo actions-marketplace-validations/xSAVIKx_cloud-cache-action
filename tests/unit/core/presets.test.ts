@@ -2,7 +2,7 @@ import { jest } from '@jest/globals';
 import { createHash } from 'node:crypto';
 import { Inputs } from '../../../src/constants';
 import type { CacheConfig } from '../../../src/core/config';
-import { makeTempDir, removeDir, writeFiles } from '../../support/tempTree';
+import { isWindows, makeTempDir, removeDir, setEnv, writeFiles } from '../../support/tempTree';
 
 const inputs = new Map<string, string>();
 const mockInfo = jest.fn<(message: string) => void>();
@@ -17,6 +17,7 @@ jest.unstable_mockModule('@actions/core', () => ({
 const { PRESET_NAMES, PRESETS, applyPreset, readPreset, runnerOs } = await import(
   '../../../src/core/presets'
 );
+const { resolveCachePaths } = await import('../../../src/archive/paths');
 
 type Os = 'Linux' | 'macOS' | 'Windows';
 
@@ -60,13 +61,14 @@ const EXPECTED_PATHS: Record<string, Record<Os, string[]>> = {
     Windows: ['~\\AppData\\Local\\pip\\Cache'],
   },
   poetry: {
-    Linux: ['~/.cache/pypoetry', '!~/.cache/pypoetry/virtualenvs'],
-    macOS: ['~/Library/Caches/pypoetry', '!~/Library/Caches/pypoetry/virtualenvs'],
+    Linux: ['~/.cache/pypoetry/cache', '~/.cache/pypoetry/artifacts'],
+    macOS: ['~/Library/Caches/pypoetry/cache', '~/Library/Caches/pypoetry/artifacts'],
     Windows: [
-      '~\\AppData\\Local\\pypoetry\\Cache',
-      '!~\\AppData\\Local\\pypoetry\\Cache\\virtualenvs',
+      '~\\AppData\\Local\\pypoetry\\Cache\\cache',
+      '~\\AppData\\Local\\pypoetry\\Cache\\artifacts',
     ],
   },
+
   uv: {
     Linux: ['~/.cache/uv'],
     macOS: ['~/.cache/uv'],
@@ -232,6 +234,33 @@ describe('applyPreset', () => {
         `Preset "go" found no lockfile to hash in ${workspace}. It looked for: **/go.sum.`
       );
     } finally {
+      removeDir(workspace);
+    }
+  });
+});
+
+describe('preset paths in the archive', () => {
+  const itPosix = isWindows ? it.skip : it;
+
+  itPosix('poetry archives the package caches and not the virtualenvs', async () => {
+    const home = makeTempDir('preset-home');
+    const workspace = makeTempDir('preset-ws');
+    const restoreEnv = setEnv({ HOME: home });
+    try {
+      writeFiles(home, {
+        '.cache/pypoetry/cache/repositories/PyPI/_http/a': 'http',
+        '.cache/pypoetry/artifacts/ab/cd/pkg.whl': 'wheel',
+        '.cache/pypoetry/virtualenvs/app-py3.12/pyvenv.cfg': 'venv',
+      });
+      const { entries } = await resolveCachePaths(PRESETS.poetry.paths.Linux, workspace);
+      expect(entries).toHaveLength(2);
+      expect(entries.some((e) => e.endsWith('.cache/pypoetry/cache'))).toBe(true);
+      expect(entries.some((e) => e.endsWith('.cache/pypoetry/artifacts'))).toBe(true);
+      expect(entries.filter((e) => e.includes('virtualenvs'))).toEqual([]);
+      expect(entries.filter((e) => e.endsWith('.cache/pypoetry'))).toEqual([]);
+    } finally {
+      restoreEnv();
+      removeDir(home);
       removeDir(workspace);
     }
   });
