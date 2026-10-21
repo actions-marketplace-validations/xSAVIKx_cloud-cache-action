@@ -8,6 +8,11 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+### Changed
+
+- **Dependency update to `@actions/cache` 6.3.0.** This version fixes a race on Windows runners.
+  Concurrent restores no longer fight over the tar scratch file.
+
 ## [1.5.0] - 2026-09-22
 
 No breaking changes, and nothing changes for an existing workflow: this release only adds a
