@@ -8,6 +8,7 @@ import { existsInGitHub, saveToGitHub } from './githubTier';
 import { emitMetrics, type StepMetrics } from './metrics';
 import { toError, type S3ObjectInfo } from './outcomes';
 import { applyPreset, readPreset } from './presets';
+import { getCacheMode, isCacheWritable } from './cacheMode';
 import { buildS3Tier, saveToS3, type S3Tier } from './s3Tier';
 import { writeSaveSummary } from './summary';
 
@@ -303,6 +304,26 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
     if (config.paths.length === 0) {
       core.warning('No paths specified to cache. Set path, or set preset. Skipping save.');
       skip('no paths');
+      return;
+    }
+    // @actions/cache skips the GitHub tier itself in these modes. Skip both tiers here, so the
+    // S3 tier obeys the same mode and the step reports one skip. A skip never fails the step.
+    const cacheMode = getCacheMode();
+    if (!isCacheWritable(cacheMode)) {
+      core.info(
+        `Cache save skipped: ACTIONS_CACHE_MODE is '${cacheMode}', which does not permit writes.`
+      );
+      core.setOutput(Outputs.CacheSavedSources, 'none');
+      skip(`ACTIONS_CACHE_MODE=${cacheMode}`);
+      await writeSaveSummary({
+        jobSummary: config.jobSummary,
+        key: config.primaryKey,
+        savedTo: [],
+        durationMs: Date.now() - start,
+        preset: config.preset,
+        paths: config.paths,
+        skipped: `ACTIONS_CACHE_MODE is ${cacheMode}`,
+      });
       return;
     }
 

@@ -163,6 +163,41 @@ describe('writeRestoreSummary / writeSaveSummary', () => {
     expect(content).toContain('none');
   });
 
+  it('shows a restore that the cache mode skipped as skipped, with the reason', async () => {
+    await writeRestoreSummary({
+      jobSummary: true,
+      primaryKey: 'Linux-npm-abc',
+      cacheHit: false,
+      source: 'none',
+      durationMs: 10,
+      skipped: 'ACTIONS_CACHE_MODE is none',
+    });
+
+    const content = fs.readFileSync(summaryFile, 'utf8');
+    expect(content).toContain('<td>skipped</td>');
+    expect(content).not.toContain('<td>false</td>');
+    expect(content).toContain('<p>Skipped: ACTIONS_CACHE_MODE is none</p>');
+  });
+
+  it('shows a save that the cache mode skipped as skipped, with the reason', async () => {
+    await writeSaveSummary({
+      jobSummary: true,
+      key: 'Linux-npm-abc',
+      savedTo: [],
+      durationMs: 10,
+      skipped: 'ACTIONS_CACHE_MODE is read',
+    });
+
+    const content = fs.readFileSync(summaryFile, 'utf8');
+    expect(content).toContain('<td>skipped</td>');
+    expect(content).toContain('<p>Skipped: ACTIONS_CACHE_MODE is read</p>');
+  });
+
+  it('adds no skipped line when the step was not skipped', async () => {
+    await writeSaveSummary({ jobSummary: true, key: 'k', savedTo: [], durationMs: 10 });
+    expect(fs.readFileSync(summaryFile, 'utf8')).not.toContain('Skipped');
+  });
+
   it('writes nothing when job-summary is false', async () => {
     await writeRestoreSummary({
       jobSummary: false,

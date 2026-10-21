@@ -511,6 +511,122 @@ describe('restoreImpl', () => {
     expect(mockEmitMetrics.mock.calls[0][1]).toBe('metrics.jsonl');
   });
 
+  describe('ACTIONS_CACHE_MODE', () => {
+    let restoreEnv: () => void = () => {};
+
+    afterEach(() => {
+      restoreEnv();
+      restoreEnv = () => {};
+    });
+
+    const useMode = (mode: string | undefined): void => {
+      restoreEnv = setEnv({ ACTIONS_CACHE_MODE: mode });
+    };
+
+    it.each(['none', 'write-only', ' NONE ', 'Write-Only'])(
+      'skips the restore on both tiers when the mode is %p',
+      async (mode) => {
+        useMode(mode);
+        inputs.set(Inputs.DualCache, 'true');
+        inputs.set(Inputs.MetricsFile, 'metrics.jsonl');
+
+        await expect(restoreImpl(state, false)).resolves.toBeUndefined();
+
+        const effective = mode.trim().toLowerCase();
+        expect(mockBuildS3Tier).not.toHaveBeenCalled();
+        expect(mockRestoreFromS3).not.toHaveBeenCalled();
+        expect(mockRestoreFromGitHub).not.toHaveBeenCalled();
+        expect(mockSetFailed).not.toHaveBeenCalled();
+        expect(mockWarning).not.toHaveBeenCalled();
+        expect(mockCoreInfo).toHaveBeenCalledWith(
+          `Cache restore skipped: ACTIONS_CACHE_MODE is '${effective}', which does not permit reads.`
+        );
+        expect(outputs.get('cache-hit')).toBe('false');
+        expect(outputs.get('cache-hit-source')).toBe('none');
+        expect(outputs.get('cache-primary-key')).toBe('Linux-npm-abc');
+        expect(outputs.get('cache-bytes')).toBe('0');
+        expect(state.values.get(State.CacheHitSource)).toBe('none');
+        expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
+        expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+          expect.objectContaining({
+            step: 'restore',
+            outcome: 'skipped',
+            source: 'none',
+            bytes: 0,
+            extra: { reason: `ACTIONS_CACHE_MODE=${effective}` },
+          })
+        );
+        expect(mockWriteRestoreSummary).toHaveBeenCalledWith(
+          expect.objectContaining({
+            cacheHit: false,
+            source: 'none',
+            skipped: `ACTIONS_CACHE_MODE is ${effective}`,
+          })
+        );
+      }
+    );
+
+    it.each([undefined, '', 'read', 'write', 'READ', 'readonly', 'off'])(
+      'restores as usual when the mode is %p',
+      async (mode) => {
+        useMode(mode);
+        mockRestoreFromS3.mockResolvedValue(s3Hit('Linux-npm-abc', true));
+
+        await expect(restoreImpl(state, false)).resolves.toBe('Linux-npm-abc');
+
+        expect(mockRestoreFromS3).toHaveBeenCalled();
+        expect(mockCoreInfo).not.toHaveBeenCalledWith(
+          expect.stringContaining('ACTIONS_CACHE_MODE')
+        );
+      }
+    );
+
+    it('does not fail a skipped restore in strict dual-cache mode', async () => {
+      useMode('none');
+      inputs.set(Inputs.DualCache, 'true');
+      inputs.set(Inputs.DualCacheStrict, 'true');
+
+      await restoreImpl(state, false);
+
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(mockRestoreFromS3).not.toHaveBeenCalled();
+      expect(mockRestoreFromGitHub).not.toHaveBeenCalled();
+    });
+
+    it('fails a skipped restore when fail-on-cache-miss is set, as actions/cache does', async () => {
+      useMode('write-only');
+      inputs.set(Inputs.FailOnCacheMiss, 'true');
+
+      await restoreImpl(state, false);
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        'Failed to restore cache entry. Exiting as fail-on-cache-miss is set. Input key: Linux-npm-abc'
+      );
+      expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
+      expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ outcome: 'skipped' })
+      );
+    });
+
+    it('skips the restore in write-only mode also when read-only is set', async () => {
+      useMode('write-only');
+      inputs.set(Inputs.ReadOnly, 'true');
+
+      await restoreImpl(state, false);
+
+      expect(mockRestoreFromS3).not.toHaveBeenCalled();
+    });
+
+    it('restores in read mode when read-only is set', async () => {
+      useMode('read');
+      inputs.set(Inputs.ReadOnly, 'true');
+
+      await restoreImpl(state, false);
+
+      expect(mockRestoreFromS3).toHaveBeenCalled();
+    });
+  });
+
   it('runs the wrappers without exiting when earlyExit is false', async () => {
     await expect(runRestore(false)).resolves.toBeUndefined();
     await expect(runRestoreOnly(false)).resolves.toBeUndefined();

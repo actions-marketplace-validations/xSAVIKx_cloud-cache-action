@@ -3,6 +3,7 @@ import { getWorkspace } from '../archive/paths';
 import { Outputs, State } from '../constants';
 import { NullStateProvider, StateProvider, type IStateProvider } from '../state';
 import { isValidEvent } from '../utils/inputUtils';
+import { getCacheMode, isCacheReadable } from './cacheMode';
 import { persistCacheConfig, readCacheConfig, type CacheConfig } from './config';
 import { buildExplainReport, renderExplain, writeExplainSummary } from './explain';
 import { restoreFromGitHub } from './githubTier';
@@ -134,6 +135,46 @@ export async function restoreImpl(
     core.setOutput(Outputs.CacheRestoreDurationMs, '0');
     core.setOutput(Outputs.CacheTransferDurationMs, '0');
     core.setOutput(Outputs.CacheBytes, '0');
+
+    // @actions/cache skips the GitHub tier itself in these modes. Skip both tiers here, so the
+    // S3 tier obeys the same mode and the step reports one skip.
+    const cacheMode = getCacheMode();
+    if (!isCacheReadable(cacheMode)) {
+      core.info(
+        `Cache restore skipped: ACTIONS_CACHE_MODE is '${cacheMode}', which does not permit reads.`
+      );
+      stateProvider.setState(State.CacheHitSource, 'none');
+      core.setOutput(Outputs.CacheRestoreDurationMs, String(Date.now() - start));
+      report({
+        step: 'restore',
+        key: config.primaryKey,
+        source: 'none',
+        bytes: 0,
+        transferDurationMs: 0,
+        downloadParts: 0,
+        outcome: 'skipped',
+        extra: { reason: `ACTIONS_CACHE_MODE=${cacheMode}` },
+      });
+      await writeRestoreSummary({
+        jobSummary: config.jobSummary,
+        primaryKey: config.primaryKey,
+        matchedKey: undefined,
+        cacheHit: false,
+        source: 'none',
+        size: undefined,
+        durationMs: Date.now() - start,
+        preset: config.preset,
+        paths: config.paths,
+        skipped: `ACTIONS_CACHE_MODE is ${cacheMode}`,
+      });
+      // The toolkit returns no key for a skipped restore, so actions/cache treats it as a miss.
+      if (config.failOnCacheMiss) {
+        throw new Error(
+          `Failed to restore cache entry. Exiting as fail-on-cache-miss is set. Input key: ${config.primaryKey}`
+        );
+      }
+      return undefined;
+    }
 
     const s3 = await setUpS3(config, stateProvider);
     provider = s3?.storage.providerConfig.provider;
