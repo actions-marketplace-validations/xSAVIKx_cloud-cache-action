@@ -120,6 +120,13 @@ points at the latest `v1.x.y` release.
     restore that cannot read the tags now warns instead of logging a debug line, because the only
     other symptom is an integrity check that silently stops running.
 
+- **One shared bundle in `dist/`.** `dist/` held six ncc bundles that each contained the same
+  SDK code. Now ncc builds one bundle, `dist/lib/index.js`, from `src/main.ts`. Each action entry
+  (`dist/restore`, `dist/save`, `dist/restore-only`, `dist/save-only`, `dist/prune` and
+  `dist/inspect`) is a small file that imports this bundle and calls the function of its action.
+  The `action.yml` paths do not change. `dist/` is now 4.9 MB instead of 24 MB, and
+  `npm run build` takes about 50 seconds instead of about 245 seconds.
+
 ### Fixed
 
 - A dual-cache save where `path` matches nothing now skips both tiers with the reason

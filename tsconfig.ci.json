@@ -4,6 +4,6 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["tests/ci/**/*", "tests/support/**/*"],
+  "include": ["tests/ci/**/*", "tests/support/**/*", "scripts/**/*"],
   "exclude": ["node_modules", "dist", "docs"]
 }
