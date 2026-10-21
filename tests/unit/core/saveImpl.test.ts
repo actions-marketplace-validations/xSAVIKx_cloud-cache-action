@@ -607,7 +607,7 @@ describe('saveImpl', () => {
 
   describe('access denied on the S3 save', () => {
     const hint =
-      'The credentials cannot write to the bucket. Set read-only: true to skip the save and silence this message.';
+      'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save and silence this message.';
     const denied = (): SaveOutcome => ({
       kind: 'error',
       error: Object.assign(new Error('Access Denied'), {

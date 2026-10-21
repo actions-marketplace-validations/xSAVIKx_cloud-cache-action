@@ -127,7 +127,7 @@ A skip logs one info line and does not fail the step, also in strict dual-cache 
 
 An S3-only job on one of those low-trust triggers can stop saving after the upgrade. To save from such a job again, set `cache-mode: write` on the job. Only do this when the job cannot run untrusted code.
 
-When the storage refuses an S3 save with `AccessDenied` (or a `403` that is not a credential error), the step warns that the credentials cannot write to the bucket and that `read-only: true` skips the save. The job does not fail, except in strict dual-cache mode.
+When the storage refuses an S3 save with `AccessDenied` (or a `403` that is not a credential error), the step warns that the credentials may not be allowed to write to the bucket and that `read-only: true` skips the save. The job does not fail, except in strict dual-cache mode.
 
 ---
 

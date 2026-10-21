@@ -28,7 +28,7 @@ interface SaveResult {
 }
 
 const ACCESS_DENIED_HINT =
-  'The credentials cannot write to the bucket. Set read-only: true to skip the save and silence this message.';
+  'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save and silence this message.';
 
 /** The S3 save error message, with a hint about read-only when S3 denied the write. */
 function s3SaveError(error: Error): Error {

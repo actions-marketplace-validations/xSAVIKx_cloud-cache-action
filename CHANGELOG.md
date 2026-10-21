@@ -81,9 +81,9 @@ points at the latest `v1.x.y` release.
   `pull_request` event is not affected. To save from such a job again, set `cache-mode: write` on
   the job. Only do this when the job cannot run untrusted code.
 
-- **An S3 save that the storage refuses with `AccessDenied` now tells you why.** The
-  warning adds: "The credentials cannot write to the bucket. Set read-only: true to skip the save
-  and silence this message." A `403` for wrong credentials (`InvalidAccessKeyId`,
+- **An S3 save that the storage refuses with `AccessDenied` now gives a hint.** The warning
+  adds: "The credentials may not be allowed to write to the bucket. Set read-only: true to skip
+  the save and silence this message." A `403` for wrong credentials (`InvalidAccessKeyId`,
   `SignatureDoesNotMatch`, `RequestTimeTooSkewed`, `ExpiredToken`, `InvalidToken`,
   `TokenRefreshRequired`) does not get the hint. The step still only warns. Strict dual-cache mode still fails the
   step, as for every other save error, and the failure message has the same hint.
