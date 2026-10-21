@@ -8,6 +8,7 @@ import { existsInGitHub, saveToGitHub } from './githubTier';
 import { emitMetrics, type StepMetrics } from './metrics';
 import { toError, type S3ObjectInfo } from './outcomes';
 import { applyPreset, readPreset } from './presets';
+import { isAccessDeniedError } from '../storage/retry';
 import { getCacheMode, isCacheWritable } from './cacheMode';
 import { buildS3Tier, saveToS3, type S3Tier } from './s3Tier';
 import { writeSaveSummary } from './summary';
@@ -24,6 +25,18 @@ interface SaveResult {
   outcome: Extract<StepMetrics['outcome'], 'saved' | 'exists' | 'skipped' | 'error'>;
   /** A tier error that was warned away rather than thrown, when nothing was saved. */
   error?: string;
+}
+
+const ACCESS_DENIED_HINT =
+  'The credentials cannot write to the bucket. Set read-only: true to skip the save and silence this message.';
+
+/** The S3 save error message, with a hint about read-only when S3 denied the write. */
+function s3SaveError(error: Error): Error {
+  if (!isAccessDeniedError(error)) {
+    return error;
+  }
+  const message = error.message.replace(/\.$/, '');
+  return new Error(`${message}. ${ACCESS_DENIED_HINT}`, { cause: error });
 }
 
 function reportS3(info: S3ObjectInfo | undefined): void {
@@ -87,10 +100,12 @@ async function saveSingleTier(
       case 'skipped':
         core.setOutput(Outputs.CacheSavedSources, 'none');
         return { sources: [], outcome: 'skipped' };
-      case 'error':
-        core.warning(`Failed to save cache to S3: ${outcome.error.message}`);
-        warnedError = outcome.error.message;
+      case 'error': {
+        const error = s3SaveError(outcome.error);
+        core.warning(`Failed to save cache to S3: ${error.message}`);
+        warnedError = error.message;
         break;
+      }
       default: {
         const unreachable: never = outcome;
         throw new Error(`Unhandled save outcome: ${JSON.stringify(unreachable)}`);
@@ -177,7 +192,7 @@ async function saveBothTiers(
       case 'skipped':
         break;
       case 'error':
-        tierFailed('S3', outcome.error);
+        tierFailed('S3', s3SaveError(outcome.error));
         break;
       default: {
         const unreachable: never = outcome;

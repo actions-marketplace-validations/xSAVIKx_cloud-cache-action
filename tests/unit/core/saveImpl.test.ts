@@ -597,6 +597,71 @@ describe('saveImpl', () => {
     );
   });
 
+  describe('access denied on the S3 save', () => {
+    const hint =
+      'The credentials cannot write to the bucket. Set read-only: true to skip the save and silence this message.';
+    const denied = (): SaveOutcome => ({
+      kind: 'error',
+      error: Object.assign(new Error('Access Denied'), {
+        name: 'AccessDenied',
+        $metadata: { httpStatusCode: 403 },
+      }),
+    });
+
+    it('warns with the read-only hint and does not fail the step', async () => {
+      mockSaveToS3.mockResolvedValue(denied());
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(
+        `Failed to save cache to S3: Access Denied. ${hint}`
+      );
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(outputs.get('cache-saved-sources')).toBe('none');
+    });
+
+    it('adds the hint for a bare 403 status', async () => {
+      mockSaveToS3.mockResolvedValue({
+        kind: 'error',
+        error: Object.assign(new Error('Forbidden'), { $metadata: { httpStatusCode: 403 } }),
+      });
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(`Failed to save cache to S3: Forbidden. ${hint}`);
+    });
+
+    it('does not double the full stop when the S3 message ends with one', async () => {
+      mockSaveToS3.mockResolvedValue({
+        kind: 'error',
+        error: Object.assign(new Error('Access Denied.'), { name: 'AccessDenied' }),
+      });
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(
+        `Failed to save cache to S3: Access Denied. ${hint}`
+      );
+    });
+
+    it('adds no hint to other errors', async () => {
+      mockSaveToS3.mockResolvedValue(failure('SlowDown'));
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith('Failed to save cache to S3: SlowDown');
+    });
+
+    it('warns with the hint and saves to GitHub in non-strict dual-cache mode', async () => {
+      inputs.set(Inputs.DualCache, 'true');
+      mockSaveToS3.mockResolvedValue(denied());
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(`Dual-cache S3 save error: Access Denied. ${hint}`);
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(outputs.get('cache-saved-sources')).toBe('github');
+    });
+
+    it('still fails the step, with the hint, in strict dual-cache mode', async () => {
+      inputs.set(Inputs.DualCache, 'true');
+      inputs.set(Inputs.DualCacheStrict, 'true');
+      mockSaveToS3.mockResolvedValue(denied());
+      await saveImpl(state);
+      expect(mockSetFailed).toHaveBeenCalledWith(`Saving to S3 failed: Access Denied. ${hint}`);
+    });
+  });
+
   it('runs the wrappers without exiting when earlyExit is false', async () => {
     await expect(runSave(false)).resolves.toBeUndefined();
     await expect(runSaveOnly(false)).resolves.toBeUndefined();

@@ -2,7 +2,7 @@ import { jest } from '@jest/globals';
 
 jest.unstable_mockModule('@actions/core', () => ({ info: jest.fn() }));
 
-const { isRetryableError, isRetryableStreamError, withRetry } = await import(
+const { isAccessDeniedError, isRetryableError, isRetryableStreamError, withRetry } = await import(
   '../../../src/storage/retry'
 );
 
@@ -121,5 +121,30 @@ describe('withRetry', () => {
     await expect(
       withRetry(operation, { retries: 1, ...fast, shouldRetry: () => true })
     ).resolves.toBe('ok');
+  });
+});
+
+describe('isAccessDeniedError', () => {
+  it('matches an HTTP 403 and the AccessDenied error name', () => {
+    expect(isAccessDeniedError(httpError(403))).toBe(true);
+    expect(isAccessDeniedError(namedError('AccessDenied'))).toBe(true);
+    expect(isAccessDeniedError(httpError(403, 'AccessDenied'))).toBe(true);
+  });
+
+  it('matches an access-denied error that another error wraps as its cause', () => {
+    const wrapped = new Error('upload failed', { cause: httpError(403, 'AccessDenied') });
+    expect(isAccessDeniedError(wrapped)).toBe(true);
+  });
+
+  it.each([
+    httpError(404, 'NoSuchKey'),
+    httpError(401),
+    httpError(503, 'SlowDown'),
+    namedError('InvalidAccessKeyId'),
+    new Error('Access Denied'),
+    'AccessDenied',
+    undefined,
+  ])('does not match %p', (err) => {
+    expect(isAccessDeniedError(err)).toBe(false);
   });
 });
