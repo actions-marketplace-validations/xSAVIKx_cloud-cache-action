@@ -39,20 +39,26 @@ points at the latest `v1.x.y` release.
   Cloud Storage, MinIO and RustFS. The AWS and MinIO provider pages now link to it.
 
 - **`keep-latest` and `max-total-size` prune inputs.** `keep-latest` keeps the N most recently
-  modified archives of each ref, even when they are older than `older-than-days`. `max-total-size`
-  is a budget in bytes: after the other rules, prune deletes the oldest remaining archives in the
-  scope until the total fits. `older-than-days` is now optional, but the step fails when none of
-  the three inputs is set. Each log line names the rule that selected the archive.
+  modified archives of each ref, even when they are older than `older-than-days`. Alone, it
+  deletes every other archive of the ref. `max-total-size` is a budget in bytes: after the other
+  rules, prune deletes the oldest remaining archives in the scope until the total fits.
+  `older-than-days` is now optional, but the step fails when none of the four rule inputs
+  (`older-than-days`, `keep-latest`, `max-total-size` and `abort-uploads-older-than-hours`) is
+  set. Each log line names the rule that selected the archive.
   `max-total-size: 0` is allowed. It deletes every archive that `keep-latest` does not protect.
   See the [Pruning](./guide/pruning.md) guide.
 
 - **`abort-uploads-older-than-hours` prune input.** A save that stops in the middle of a multipart
-  upload leaves an incomplete upload that uses storage on providers with no lifecycle rule (Garage,
-  SeaweedFS and some MinIO set-ups). Prune now lists the incomplete uploads in its scope and
-  aborts each one that started more than this many hours ago. `dry-run` lists them and aborts
-  none. The input counts as a prune rule on its own: with only this input set, prune aborts
-  uploads and deletes no archive. A provider that cannot list uploads gives a warning, not a
-  failure. The new `aborted-uploads` output and the `abortedUploads` metrics field give the count.
+  upload leaves an incomplete upload that uses storage on providers with no lifecycle rule. Prune
+  now lists the incomplete uploads in its scope and aborts each one that started more than this
+  many hours ago. Set the limit above the duration of your longest save, because prune aborts a
+  save in progress that is older than the limit. `dry-run` lists them and aborts none. The input
+  counts as a prune rule on its own: with only this input set, prune aborts uploads and deletes no
+  archive. A provider that cannot list uploads gives a warning, not a failure. Measured on the CI
+  servers: RustFS 1.0.0 and Garage 2.4.1 list the uploads with their start time, and prune aborts
+  them. SeaweedFS 4.46 lists them without a start time, so prune aborts none and logs a warning
+  with the count. MinIO lists no upload for a prefix that is not a full object key, so prune finds
+  none. The new `aborted-uploads` output and the `abortedUploads` metrics field give the count.
   See the [Pruning](./guide/pruning.md) guide.
 
 - **`compression-level` input.** Set the zstd (1–19) or gzip (1–9) level a save uses. Unset keeps
@@ -72,7 +78,7 @@ points at the latest `v1.x.y` release.
 
 ### Changed
 
-- **S3-only jobs on low-trust triggers no longer save by default.** The S3 tier now obeys
+- **Behaviour change: S3-only jobs on low-trust triggers no longer save by default.** The S3 tier now obeys
   `ACTIONS_CACHE_MODE`. GitHub sets it from the `cache-mode` workflow key, which is generally
   available since 2026-09-10. When the workflow does not set the key, the
   [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) gives a default of `read` for low-trust triggers, such as

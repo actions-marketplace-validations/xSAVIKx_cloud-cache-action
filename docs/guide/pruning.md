@@ -44,9 +44,9 @@ Set at least one of `older-than-days`, `keep-latest`, `max-total-size` and `abor
 | ---------------------------------- | :------: | :------------------------: | ---------------------------------------------------------------------------- |
 | `bucket`                           | **Yes**  |             —              | Name of the S3 bucket                                                        |
 | `older-than-days`                  |    No    |             —              | Delete cache archives whose last-modified time is older than this many days |
-| `keep-latest`                      |    No    |             —              | Positive integer. In each ref, never delete the N most recently modified archives |
+| `keep-latest`                      |    No    |             —              | Positive integer. In each ref, never delete the N most recently modified archives. Alone, it deletes every other archive of the ref |
 | `max-total-size`                   |    No    |             —              | Total size budget in bytes (a plain integer). Delete the oldest archives until the total fits |
-| `abort-uploads-older-than-hours`   |    No    |             —              | Positive integer. Abort incomplete multipart uploads in the prune scope that started more than this many hours ago. Deletes no archive |
+| `abort-uploads-older-than-hours`   |    No    |             —              | Positive integer. Abort incomplete multipart uploads in the prune scope that started more than this many hours ago. Deletes no archive. Set it above the duration of your longest save. Has no effect on SeaweedFS and MinIO (see below) |
 | `ref`                               |    No    |     _(every ref)_          | Prune only caches under this full Git ref (`refs/heads/main`); empty means every ref |
 | `dry-run`                           |    No    |          `false`           | List cache archives that would be pruned without deleting anything          |
 | `endpoint`                         |    No    |          Auto/AWS          | Custom S3-compatible endpoint URL                                           |
@@ -133,14 +133,29 @@ incomplete uploads and deletes no archive. Each rule is optional, and at least o
   The value is a plain integer in bytes: `10GB` or `5G` is not accepted. `0` is accepted and
   deletes every archive that `keep-latest` does not protect.
 - **`abort-uploads-older-than-hours`**: a save that stops in the middle of a multipart upload
-  leaves an incomplete upload, which uses storage until someone aborts it. Some providers (Garage,
-  SeaweedFS and some MinIO set-ups) have no lifecycle rule for this. Prune lists the incomplete
+  leaves an incomplete upload, which uses storage until someone aborts it. On a provider with no
+  lifecycle rule for incomplete uploads, nothing else removes it. Prune lists the incomplete
   uploads under the same scope as the archives, with the same key match. It aborts each upload
   that started more than this many hours ago. `dry-run` lists the uploads and aborts none. This
   rule alone is a valid prune: it aborts uploads and deletes no archive. If the provider cannot
   list uploads (for example, it answers `NotImplemented`), prune logs a warning and goes on. An
   upload that finished before prune aborted it is ignored. Any other abort error gives a warning
-  for that upload and does not fail the step.
+  for that upload and does not fail the step. Set the limit above the duration of your longest
+  save: prune aborts an upload that is still in progress when it is older than the limit, and that
+  save then fails. The minimum is 1 hour.
+
+  This rule works only when the provider lists the uploads under a prefix, with their start time.
+  The behaviour below was measured on 2026-10-21 with the servers of the CI suite:
+
+  | Server              | What `ListMultipartUploads` returns                         | Result                                     |
+  | ------------------- | ----------------------------------------------------------- | ------------------------------------------ |
+  | RustFS 1.0.0        | The uploads under the prefix, with the `Initiated` time     | Prune aborts the stale uploads             |
+  | Garage 2.4.1        | The uploads under the prefix, with the `Initiated` time     | Prune aborts the stale uploads             |
+  | SeaweedFS 4.46      | The uploads under the prefix, with no `Initiated` time      | Prune aborts none and warns with the count |
+  | MinIO (2026-03-30)  | No upload, unless the prefix is a full object key           | Prune finds no upload and aborts none      |
+
+  On SeaweedFS and MinIO, use a lifecycle rule of the server if it has one (for MinIO,
+  `mc ilm rule add --abort-incomplete-multipart-upload-days`). Other providers were not measured.
 
 "Each ref" is the ref segment of your `s3-key-pattern`. When the pattern has no `${ref}` (or
 `scoped-to-ref` is `false`), prune treats the whole scope as one group, so `keep-latest: 5` keeps the

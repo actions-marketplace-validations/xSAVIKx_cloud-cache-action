@@ -108,3 +108,4 @@ Once running:
 
 - **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
 - **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
+- **Incomplete uploads**: SeaweedFS 4.46 lists incomplete multipart uploads without an `Initiated` time (measured on 2026-10-21). The `prune` input `abort-uploads-older-than-hours` therefore cannot find their age, aborts none, and logs a warning with the count. See [Pruning](../guide/pruning.md).
