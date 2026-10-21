@@ -112,6 +112,19 @@ Because `cloud-cache-action` maintains 1:1 input and output parity, you simply c
 
 All existing features (`lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `read-only`) continue to work identically. `save-always` is not supported: use `cloud-cache-action/save` with `if: always()` instead.
 
+### `ACTIONS_CACHE_MODE` and denied writes
+
+The action obeys `ACTIONS_CACHE_MODE` in the S3 tier, with the same rules as `@actions/cache` 6.2.0:
+
+- `none` skips the restore and the save.
+- `read` skips the save.
+- `write-only` skips the restore.
+- `write`, an unset variable and an unknown value change nothing.
+
+A skip logs one info line and does not fail the step, also in strict dual-cache mode. A skipped restore is a cache miss: `cache-hit` is `false`, and `fail-on-cache-miss: true` fails the step.
+
+When the storage refuses an S3 save with `403` or `AccessDenied`, the step warns that the credentials cannot write to the bucket and that `read-only: true` skips the save. The job does not fail, except in strict dual-cache mode.
+
 ---
 
 ## Manual Migration from `tespkg/actions-cache`

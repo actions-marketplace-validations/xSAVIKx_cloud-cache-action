@@ -714,6 +714,25 @@ inputs writes the same object as v1.2 did. Every addition is opt-in:
   `cloud-cache-sha256` after the upload, so streamed archives are integrity-checked on restore like
   file-mode ones. See [Streaming Archives](#streaming-archives-experimental).
 
+## Parity with actions/cache
+
+The action takes the inputs and gives the outputs of `actions/cache`. See [Features](#features) for the list. This section gives the behaviour that has no input.
+
+**`ACTIONS_CACHE_MODE`.** `@actions/cache` 6.2.0 and later read this environment variable, and this action applies the same rules to the S3 tier:
+
+| `ACTIONS_CACHE_MODE`                      | Restore | Save    |
+| ----------------------------------------- | ------- | ------- |
+| `none`                                    | skipped | skipped |
+| `read`                                    | runs    | skipped |
+| `write-only`                              | skipped | runs    |
+| `write`, not set, or any other value      | runs    | runs    |
+
+The action trims the value and ignores its case. A skip logs one info line that names the variable, and the metrics line and the job summary show the step as `skipped` with the reason. A skip does not fail the step, also with `dual-cache-strict: true`. A skipped restore sets `cache-hit` to `false`. With `fail-on-cache-miss: true`, a skipped restore fails the step, as in `actions/cache`. `read-only: true` skips the save in every mode.
+
+**Write denied.** When the storage refuses an S3 save with `403` or `AccessDenied`, the step logs a warning that the credentials cannot write to the bucket, and that `read-only: true` skips the save. The job does not fail. With `dual-cache-strict: true`, the step fails, as for every other save error. For jobs that must not write, such as pull requests, see the read-only pattern in the [Security guide](https://xsavikx.github.io/cloud-cache-action/guide/security.html).
+
+**`save-always`.** The action does not support this deprecated input. See [Saving after failed steps](#saving-after-failed-steps).
+
 ## Saving after failed steps
 
 The post step only runs when the job succeeds. To save a cache even when a later step fails, use the separate actions with `if: always()`:

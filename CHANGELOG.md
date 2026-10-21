@@ -20,6 +20,17 @@ points at the latest `v1.x.y` release.
   and the paths that the restore step resolved. The main action and the `restore` and `save`
   sub-actions take the input. See the [Cache Presets](./guide/presets.md) guide.
 
+- **`ACTIONS_CACHE_MODE` support.** The S3 tier now obeys the `ACTIONS_CACHE_MODE` environment
+  variable in the same way as `@actions/cache` 6.2.0 does for GitHub Actions Cache. `none` skips
+  the restore and the save. `read` skips the save. `write-only` skips the restore. `write`, an
+  unset variable and an unknown value change nothing. The action trims the value and ignores its
+  case, as the toolkit does. A skip logs one info line that names the variable. The metrics line
+  and the job summary show the step as skipped, with the reason. A skip never fails the step, also
+  in strict dual-cache mode. A skipped restore sets `cache-hit` to `false`, and
+  `fail-on-cache-miss: true` then fails the step, as in `actions/cache`. `read-only: true` still
+  skips the save in every mode. See
+  [Parity with actions/cache](https://github.com/xSAVIKx/cloud-cache-action#parity-with-actionscache).
+
 - **Security guide.** A new [Security](./guide/security.md) page explains the cache trust boundary
   and what the action does and does not protect. It covers fork pull requests, `pull_request_target`
   and the read-only credential pattern. It lists each S3 call and the feature that sends it, and it
@@ -59,6 +70,11 @@ points at the latest `v1.x.y` release.
   report is unchanged.
 
 ### Changed
+
+- **An S3 save that the storage refuses with `403` or `AccessDenied` now tells you why.** The
+  warning adds: "The credentials cannot write to the bucket. Set read-only: true to skip the save
+  and silence this message." The step still only warns. Strict dual-cache mode still fails the
+  step, as for every other save error, and the failure message has the same hint.
 
 - **`path` and `key` are optional in the manifests.** The main action and the `restore` and
   `save` manifests now declare `path` and `key` with `required: false`, because a `preset` can

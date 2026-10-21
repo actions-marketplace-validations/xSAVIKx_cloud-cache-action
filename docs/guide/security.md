@@ -61,6 +61,10 @@ restores the cache and never saves. Only a trusted job on the default branch sav
 save even if a step changes the workflow. Use both. A trusted job on the default branch uses the
 read-write key and saves.
 
+If you give a job the read-only key and do not set `read-only: true`, the save gets `403` or
+`AccessDenied`. The step then logs a warning that names `read-only: true`, and the job does not
+fail. In strict dual-cache mode, the step fails.
+
 ## Which S3 calls the action makes
 
 The table lists every S3 call in the code. Each row names the policy action and the feature that
