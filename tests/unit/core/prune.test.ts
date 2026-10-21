@@ -754,6 +754,43 @@ describe('pruneCaches stale multipart uploads', () => {
     expect(mockInfo).toHaveBeenCalledWith('Aborted 1 incomplete upload(s).');
   });
 
+  it('warns with the count of the archive uploads it skips because they have no Initiated time', async () => {
+    s3Mock.on(ListMultipartUploadsCommand).resolves({
+      Uploads: [
+        upload(MAIN_KEY('a'), undefined),
+        upload(MAIN_KEY('b'), undefined),
+        upload(MAIN_KEY('old'), hoursAgo(30)),
+        // Not a cache archive key: it is not counted.
+        upload('octo/app/refs%2Fheads%2Fmain/k/v1/notes.txt', undefined),
+      ],
+      IsTruncated: false,
+    });
+
+    const result = await pruneCaches(
+      { storage, template: templateFor() },
+      { abortUploadsOlderThanHours: 24, ref: MAIN, dryRun: false, now: NOW }
+    );
+
+    expect(result.abortedUploads).toBe(1);
+    expect(mockWarning).toHaveBeenCalledTimes(1);
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining('Skipped 2 incomplete upload(s)')
+    );
+    expect(mockWarning).toHaveBeenCalledWith(expect.stringContaining('SeaweedFS'));
+  });
+
+  it('gives no skip warning when every listed upload has an Initiated time', async () => {
+    s3Mock.on(ListMultipartUploadsCommand).resolves({
+      Uploads: [upload(MAIN_KEY('old'), hoursAgo(30))],
+      IsTruncated: false,
+    });
+    await pruneCaches(
+      { storage, template: templateFor() },
+      { abortUploadsOlderThanHours: 24, ref: MAIN, dryRun: false, now: NOW }
+    );
+    expect(mockWarning).not.toHaveBeenCalled();
+  });
+
   it('follows the key and upload id markers across pages', async () => {
     s3Mock
       .on(ListMultipartUploadsCommand)

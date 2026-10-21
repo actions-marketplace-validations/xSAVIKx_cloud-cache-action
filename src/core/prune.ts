@@ -113,7 +113,7 @@ interface StaleUpload {
 /**
  * Lists the incomplete multipart uploads under `prefix` that `isCandidate` accepts and that were
  * initiated before `cutoff`, following the key and upload-id markers. An upload with no
- * `Initiated` time is skipped, because its age is unknown.
+ * `Initiated` time is skipped, because its age is unknown, and `withoutAge` counts these uploads.
  */
 async function listStaleUploads(
   client: S3Client,
@@ -121,8 +121,9 @@ async function listStaleUploads(
   prefix: string,
   isCandidate: (key: string) => boolean,
   cutoff: Date
-): Promise<StaleUpload[]> {
+): Promise<{ stale: StaleUpload[]; withoutAge: number }> {
   const uploads: StaleUpload[] = [];
+  let withoutAge = 0;
   let keyMarker: string | undefined;
   let uploadIdMarker: string | undefined;
   do {
@@ -135,20 +136,19 @@ async function listStaleUploads(
       })
     );
     for (const upload of page.Uploads ?? []) {
-      if (
-        upload.Key &&
-        upload.UploadId &&
-        upload.Initiated &&
-        upload.Initiated < cutoff &&
-        isCandidate(upload.Key)
-      ) {
+      if (!upload.Key || !upload.UploadId || !isCandidate(upload.Key)) {
+        continue;
+      }
+      if (!upload.Initiated) {
+        withoutAge += 1;
+      } else if (upload.Initiated < cutoff) {
         uploads.push({ key: upload.Key, uploadId: upload.UploadId, initiated: upload.Initiated });
       }
     }
     keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
     uploadIdMarker = page.IsTruncated ? page.NextUploadIdMarker : undefined;
   } while (keyMarker !== undefined || uploadIdMarker !== undefined);
-  return uploads;
+  return { stale: uploads, withoutAge };
 }
 
 /**
@@ -168,7 +168,14 @@ async function abortStaleUploads(
   const cutoff = new Date(now.getTime() - olderThanHours * HOUR_MS);
   let stale: StaleUpload[];
   try {
-    stale = await listStaleUploads(client, bucket, prefix, isCandidate, cutoff);
+    const listed = await listStaleUploads(client, bucket, prefix, isCandidate, cutoff);
+    stale = listed.stale;
+    if (listed.withoutAge > 0) {
+      // SeaweedFS lists uploads without an Initiated time, so this rule cannot work there.
+      core.warning(
+        `Skipped ${listed.withoutAge} incomplete upload(s): the server lists them without an initiation time, so their age is unknown and they are not aborted. SeaweedFS is one such server.`
+      );
+    }
   } catch (err) {
     const error = toError(err);
     core.warning(
