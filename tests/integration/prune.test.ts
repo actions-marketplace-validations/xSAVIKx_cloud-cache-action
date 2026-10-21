@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
@@ -17,7 +18,27 @@ import { MemoryState } from '../support/memoryState';
 import { createTestS3Client, getTestS3Config, prepareTestBucket } from '../support/s3Server';
 import { makeTempDir, removeDir, setEnv, writeFiles } from '../support/tempTree';
 
+/**
+ * What each server does with ListMultipartUploads, measured on 2026-10-21 (local runs of RustFS
+ * 1.0.0, SeaweedFS 4.46 and MinIO 0.20260330, and the Garage job of CI run 39524953997):
+ * - `aborts`: the listing under a prefix returns the uploads with an Initiated time, so prune
+ *   aborts the stale ones. RustFS and Garage.
+ * - `noInitiated`: the listing returns the uploads but without an Initiated time, so prune skips
+ *   them and warns. SeaweedFS.
+ * - `noPrefixListing`: the listing returns nothing for a prefix that is not a full object key, so
+ *   prune finds no upload. MinIO.
+ * A provider that nobody measured is expected to abort.
+ */
+type UploadListing = 'aborts' | 'noInitiated' | 'noPrefixListing';
+const UPLOAD_LISTING: Record<string, UploadListing> = {
+  rustfs: 'aborts',
+  garage: 'aborts',
+  seaweedfs: 'noInitiated',
+  minio: 'noPrefixListing',
+};
+
 const s3 = getTestS3Config();
+const uploadListing: UploadListing = UPLOAD_LISTING[s3.provider] ?? 'aborts';
 const runId = `${Date.now()}-${process.pid}`;
 let available = false;
 let client: S3Client;
@@ -307,11 +328,29 @@ describe('pruneCaches integration', () => {
         expect(started.UploadId).toBeTruthy();
         return started.UploadId as string;
       };
+      // The test lists the whole bucket and filters the keys itself, because MinIO lists nothing
+      // for a prefix that is not a full object key.
       const open = async (repo: string): Promise<Array<{ key?: string; id?: string }>> => {
-        const listed = await client.send(
-          new ListMultipartUploadsCommand({ Bucket: s3.bucket, Prefix: `${repo}/` })
-        );
-        return (listed.Uploads ?? []).map((u) => ({ key: u.Key, id: u.UploadId }));
+        const found: Array<{ key?: string; id?: string }> = [];
+        let keyMarker: string | undefined;
+        let uploadIdMarker: string | undefined;
+        do {
+          const listed = await client.send(
+            new ListMultipartUploadsCommand({
+              Bucket: s3.bucket,
+              KeyMarker: keyMarker,
+              UploadIdMarker: uploadIdMarker,
+            })
+          );
+          for (const u of listed.Uploads ?? []) {
+            if (u.Key?.startsWith(`${repo}/`)) {
+              found.push({ key: u.Key, id: u.UploadId });
+            }
+          }
+          keyMarker = listed.IsTruncated ? listed.NextKeyMarker : undefined;
+          uploadIdMarker = listed.IsTruncated ? listed.NextUploadIdMarker : undefined;
+        } while (keyMarker !== undefined || uploadIdMarker !== undefined);
+        return found;
       };
 
       const scopeId = await start(scopeKey);
@@ -340,8 +379,40 @@ describe('pruneCaches integration', () => {
       const tier = { storage, template };
       // The uploads just started; a `now` two days ahead makes them look stale.
       const later = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      const sameUploads = (
+        actual: Array<{ key?: string; id?: string }>,
+        expected: Array<{ key?: string; id?: string }>
+      ): void => {
+        const order = (list: Array<{ key?: string; id?: string }>) =>
+          [...list].sort((a, b) => `${a.key}`.localeCompare(`${b.key}`));
+        expect(order(actual)).toEqual(order(expected));
+      };
+      const stdout = jest.spyOn(process.stdout, 'write');
+      const warned = (text: string): boolean =>
+        stdout.mock.calls.some(
+          ([chunk]) => String(chunk).startsWith('::warning::') && String(chunk).includes(text)
+        );
 
       try {
+        sameUploads(await open(repository), [
+          { key: scopeKey, id: scopeId },
+          { key: strayKey, id: strayId },
+        ]);
+        if (uploadListing !== 'aborts') {
+          // The server cannot give prune the age of the uploads, so prune aborts nothing, also when
+          // the uploads look stale. On SeaweedFS, prune says so in a warning.
+          const blind = await pruneCaches(tier, {
+            abortUploadsOlderThanHours: 24,
+            dryRun: false,
+            now: later,
+          });
+          expect(blind.abortedUploads).toBe(0);
+          expect(warned('Skipped 1 incomplete upload(s)')).toBe(uploadListing === 'noInitiated');
+          expect(await open(repository)).toHaveLength(2);
+          expect(await open(otherRepository)).toEqual([{ key: otherKey, id: otherId }]);
+          return;
+        }
+
         // Right now the uploads are younger than the limit, so nothing is aborted.
         const fresh = await pruneCaches(tier, { abortUploadsOlderThanHours: 24, dryRun: false });
         expect(fresh.abortedUploads).toBe(0);
@@ -366,6 +437,7 @@ describe('pruneCaches integration', () => {
         expect(await open(repository)).toEqual([{ key: strayKey, id: strayId }]);
         expect(await open(otherRepository)).toEqual([{ key: otherKey, id: otherId }]);
       } finally {
+        stdout.mockRestore();
         for (const [key, id] of [
           [scopeKey, scopeId],
           [strayKey, strayId],
