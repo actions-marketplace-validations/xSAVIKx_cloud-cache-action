@@ -89,6 +89,57 @@ restore took 12.5 s and then 4.1 s, the S3 one 6.2 s and then 10.7 s, and every 
 to 20% slower the second time. Treat a difference under about 30% between two rows as noise, and
 run the benchmark more than once before tuning for one provider.
 
+## v1.8 speed fixes
+
+On hosted runners the network sets most of the time, so the transfer figures of v1.8 stay within
+run-to-run noise. The clearest effect is on restore, where the time outside the transfer fell on all three providers.
+
+Two runs on 2026-10-22, both on `ubuntu-latest` with 512 MiB and the median of 2: the baseline on
+`main` (v1.7.0), run
+[39786564838](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/39786564838), and v1.8,
+run [39791002675](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/39791002675). The
+table shows the default configurations. Save is `defaults: 8 x 64 MiB`. Restore is
+`defaults: 8 x 8 MiB`. The time outside the transfer is "Whole step" minus "Transfer".
+
+| Provider | Direction | Transfer | Whole step | Outside the transfer |
+| --- | --- | ---: | ---: | ---: |
+| Cloudflare R2 | save | 10.1 s → 11.3 s | 12.0 s → 13.2 s | 1.9 s → 1.9 s |
+| Cloudflare R2 | restore | 4.0 s → 4.0 s | 5.5 s → 5.1 s | 1.5 s → 1.1 s |
+| Amazon S3 | save | 3.5 s → 3.4 s | 5.3 s → 4.8 s | 1.8 s → 1.4 s |
+| Amazon S3 | restore | 2.5 s → 2.4 s | 3.8 s → 3.2 s | 1.3 s → 0.8 s |
+| Google Cloud Storage | save | 3.0 s → 2.7 s | 4.8 s → 4.1 s | 1.8 s → 1.4 s |
+| Google Cloud Storage | restore | 3.9 s → 5.8 s | 5.4 s → 6.5 s | 1.5 s → 0.7 s |
+
+- **Restore:** the time outside the transfer fell by 0.4 s to 0.8 s on every provider.
+- **Save:** the time outside the transfer fell by 0.4 s on S3 and GCS. It did not change on R2.
+- **Worse numbers:** the R2 save and the GCS restore took longer in the v1.8 run. In both cases
+  the transfer got longer, not the time outside it. Two runs per configuration cannot separate
+  this from network noise. A run of the same code before the final fixes
+  ([39786559857](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/39786559857)) gave a
+  GCS restore transfer of 2.5 s.
+- **Compression:** the `compression` job in run 39791002675 shows the same archive sizes and ratios
+  as the baseline. The compress and extract times differ by 0.1 s or less per level.
+
+### Local measurements
+
+These numbers come from the development host, not from a runner. It has a CPU of about 800 MHz and
+a RustFS server on localhost, so no network limits it.
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Upload of 940 MB, signed payload against `UNSIGNED-PAYLOAD` | 20.4 s | 6.1 s |
+| Archive create and hash, 57.5 MB | 3.95 s | 3.38 s |
+| Download and hash, 400 MiB | 7.3 s to 7.6 s | 5.6 s to 5.8 s |
+| Restore entry start | 786 ms | 786 ms cold, 453 ms with a warm compile cache |
+
+### What was not measured
+
+- macOS and Windows runners.
+- BSD `tar`.
+- A server that refuses `UNSIGNED-PAYLOAD`.
+- The AWS CRC32 cost per part. It is about 100 ms to 110 ms for one 64 MiB part on the local host.
+  v1.8 does not change it.
+
 ## Recommended settings
 
 The defaults are the `actions/cache` values and are a safe starting point on every provider. When
