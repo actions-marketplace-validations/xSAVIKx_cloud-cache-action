@@ -5,11 +5,14 @@ author: 'Yurii Serhiichuk (https://serhiichuk.dev)'
 inputs:
   # Official actions/cache standard inputs
   path:
-    description: 'A list of files, directories, and wildcard patterns to cache and restore'
-    required: true
+    description: 'A list of files, directories, and wildcard patterns to cache and restore. Required unless preset is set.'
+    required: false
   key:
-    description: 'An explicit key for restoring and saving the cache'
-    required: true
+    description: 'An explicit key for restoring and saving the cache. Required unless preset is set.'
+    required: false
+  preset:
+    description: 'Package manager preset that gives the default path, key and restore-keys: npm, yarn, pnpm, bun, pip, poetry, uv, gradle, maven, cargo, go. The key is <runner.os>-<preset>-<hash of the lockfiles>. An explicit path, key or restore-keys input replaces that one value.'
+    required: false
   restore-keys:
     description: 'An ordered multiline string listing the prefix-matched keys, used for restoring stale cache if no cache hit occurred for key'
     required: false

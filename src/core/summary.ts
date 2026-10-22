@@ -14,6 +14,11 @@ export interface RestoreSummaryData {
   size?: number;
   durationMs: number;
   metadata?: Record<string, string>;
+  /** The preset that gave the defaults, if any; the summary then shows the resolved paths. */
+  preset?: string;
+  paths?: readonly string[];
+  /** Why the step did not ask any tier, for example `ACTIONS_CACHE_MODE is none`. */
+  skipped?: string;
 }
 
 /** Data for the save step's job summary table. `jobSummary` is the resolved job-summary input. */
@@ -23,6 +28,35 @@ export interface SaveSummaryData {
   savedTo: Array<'s3' | 'github'>;
   size?: number;
   durationMs: number;
+  /** The preset that gave the defaults, if any; the summary then shows the resolved paths. */
+  preset?: string;
+  paths?: readonly string[];
+  /** Why the step did not save to any tier, for example `ACTIONS_CACHE_MODE is read`. */
+  skipped?: string;
+}
+
+/** One line that names the preset and the paths it resolved, under the table. */
+function addPresetLine(preset: string | undefined, paths: readonly string[] | undefined): void {
+  if (!preset) {
+    return;
+  }
+  const list = (paths ?? []).map((p) => `<code>${escapeHtml(p)}</code>`).join(', ');
+  core.summary.addRaw(`<p>Preset <code>${escapeHtml(preset)}</code>, path ${list}</p>`, true);
+}
+
+/** One line that tells why the step did not ask any tier, under the table. */
+function addSkippedLine(reason: string | undefined): void {
+  if (reason === undefined) {
+    return;
+  }
+  core.summary.addRaw(`<p>Skipped: ${escapeHtml(reason)}</p>`, true);
+}
+
+function formatSavedTo(data: SaveSummaryData): string {
+  if (data.savedTo.length > 0) {
+    return escapeHtml(data.savedTo.join(', '));
+  }
+  return data.skipped === undefined ? 'none' : 'skipped';
 }
 
 function formatDuration(durationMs: number): string {
@@ -77,12 +111,14 @@ export async function writeRestoreSummary(data: RestoreSummaryData): Promise<voi
     [
       escapeHtml(data.primaryKey),
       data.matchedKey === undefined ? '—' : escapeHtml(data.matchedKey),
-      String(data.cacheHit),
+      data.skipped === undefined ? String(data.cacheHit) : 'skipped',
       escapeHtml(data.source),
       formatOptionalSize(data.size),
       formatDuration(data.durationMs),
     ],
   ]);
+  addSkippedLine(data.skipped);
+  addPresetLine(data.preset, data.paths);
   if (data.metadata && Object.keys(data.metadata).length > 0) {
     core.summary.addDetails(
       'Object metadata',
@@ -107,10 +143,12 @@ export async function writeSaveSummary(data: SaveSummaryData): Promise<void> {
     ],
     [
       escapeHtml(data.key),
-      data.savedTo.length > 0 ? escapeHtml(data.savedTo.join(', ')) : 'none',
+      formatSavedTo(data),
       formatOptionalSize(data.size),
       formatDuration(data.durationMs),
     ],
   ]);
+  addSkippedLine(data.skipped);
+  addPresetLine(data.preset, data.paths);
   await flush();
 }

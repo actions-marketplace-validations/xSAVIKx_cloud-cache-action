@@ -2,11 +2,14 @@ import * as core from '@actions/core';
 import { getWorkspace } from '../archive/paths';
 import { Outputs, State } from '../constants';
 import { NullStateProvider, StateProvider, type IStateProvider } from '../state';
+import { isAccessDeniedError } from '../storage/errors';
 import { isValidEvent } from '../utils/inputUtils';
+import { getCacheMode, isCacheWritable } from './cacheMode';
 import { readCacheConfig, type CacheConfig } from './config';
 import { existsInGitHub, saveToGitHub } from './githubTier';
 import { emitMetrics, type StepMetrics } from './metrics';
 import { toError, type S3ObjectInfo } from './outcomes';
+import { applyPreset, readPreset } from './presets';
 import { buildS3Tier, saveToS3, type S3Tier } from './s3Tier';
 import { writeSaveSummary } from './summary';
 
@@ -22,6 +25,18 @@ interface SaveResult {
   outcome: Extract<StepMetrics['outcome'], 'saved' | 'exists' | 'skipped' | 'error'>;
   /** A tier error that was warned away rather than thrown, when nothing was saved. */
   error?: string;
+}
+
+const ACCESS_DENIED_HINT =
+  'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save and silence this message.';
+
+/** The S3 save error message, with a hint about read-only when S3 denied the write. */
+function s3SaveError(error: Error): Error {
+  if (!isAccessDeniedError(error)) {
+    return error;
+  }
+  const message = error.message.replace(/\.$/, '');
+  return new Error(`${message}. ${ACCESS_DENIED_HINT}`, { cause: error });
 }
 
 function reportS3(info: S3ObjectInfo | undefined): void {
@@ -85,10 +100,12 @@ async function saveSingleTier(
       case 'skipped':
         core.setOutput(Outputs.CacheSavedSources, 'none');
         return { sources: [], outcome: 'skipped' };
-      case 'error':
-        core.warning(`Failed to save cache to S3: ${outcome.error.message}`);
-        warnedError = outcome.error.message;
+      case 'error': {
+        const error = s3SaveError(outcome.error);
+        core.warning(`Failed to save cache to S3: ${error.message}`);
+        warnedError = error.message;
         break;
+      }
       default: {
         const unreachable: never = outcome;
         throw new Error(`Unhandled save outcome: ${JSON.stringify(unreachable)}`);
@@ -175,7 +192,7 @@ async function saveBothTiers(
       case 'skipped':
         break;
       case 'error':
-        tierFailed('S3', outcome.error);
+        tierFailed('S3', s3SaveError(outcome.error));
         break;
       default: {
         const unreachable: never = outcome;
@@ -270,7 +287,8 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
       );
     }
 
-    config = readCacheConfig(stateProvider);
+    // In the post step the key and the paths come from state, so the preset does not hash again.
+    config = await applyPreset(readCacheConfig(stateProvider), readPreset());
     strict = config.dualCache && config.dualCacheStrict;
     // Set up front and overwritten on success, so every path — an early skip or an error
     // handled as a warning included — leaves the timing and size outputs defined.
@@ -294,13 +312,34 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
       return;
     }
     if (!config.primaryKey) {
-      core.warning('Key is not specified. Skipping cache save.');
+      core.warning('Key is not specified. Set key and path, or set preset. Skipping cache save.');
       skip('no key');
       return;
     }
     if (config.paths.length === 0) {
-      core.warning('No paths specified to cache. Skipping save.');
+      core.warning('No paths specified to cache. Set path, or set preset. Skipping save.');
       skip('no paths');
+      return;
+    }
+    // @actions/cache skips the GitHub tier itself in these modes. Skip both tiers here, so the
+    // S3 tier obeys the same mode and the step reports one skip. A skip never fails the step.
+    const cacheMode = getCacheMode();
+    if (!isCacheWritable(cacheMode)) {
+      core.info(
+        `Cache save skipped: ACTIONS_CACHE_MODE is '${cacheMode}', which does not permit writes.`
+      );
+      core.setOutput(Outputs.CacheSavedSources, 'none');
+      core.setOutput(Outputs.CacheSaveDurationMs, String(Date.now() - start));
+      skip(`ACTIONS_CACHE_MODE=${cacheMode}`);
+      await writeSaveSummary({
+        jobSummary: config.jobSummary,
+        key: config.primaryKey,
+        savedTo: [],
+        durationMs: Date.now() - start,
+        preset: config.preset,
+        paths: config.paths,
+        skipped: `ACTIONS_CACHE_MODE is ${cacheMode}`,
+      });
       return;
     }
 
@@ -333,6 +372,8 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
       savedTo: result.sources,
       size: result.size,
       durationMs: Date.now() - start,
+      preset: config.preset,
+      paths: config.paths,
     });
     return config.dualCache ? undefined : result.size;
   } catch (err) {

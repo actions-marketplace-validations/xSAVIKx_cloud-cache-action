@@ -9,6 +9,7 @@ export enum Inputs {
   FailOnCacheMiss = 'fail-on-cache-miss',
   LookupOnly = 'lookup-only',
   ReadOnly = 'read-only',
+  Preset = 'preset',
 
   Bucket = 'bucket',
   Endpoint = 'endpoint',
@@ -36,6 +37,9 @@ export enum Inputs {
 
   // Prune-only inputs
   OlderThanDays = 'older-than-days',
+  KeepLatest = 'keep-latest',
+  MaxTotalSize = 'max-total-size',
+  AbortUploadsOlderThanHours = 'abort-uploads-older-than-hours',
   Ref = 'ref',
   DryRun = 'dry-run',
 
@@ -82,6 +86,7 @@ export enum Outputs {
   PrunedCount = 'pruned-count',
   PrunedBytes = 'pruned-bytes',
   KeptCount = 'kept-count',
+  AbortedUploads = 'aborted-uploads',
 
   // Inspect-only outputs
   WouldHit = 'would-hit',
@@ -93,6 +98,7 @@ export enum Outputs {
 
 export enum State {
   CachePrimaryKey = 'CACHE_PRIMARY_KEY',
+  CachePaths = 'CACHE_PATHS',
   CacheMatchedKey = 'CACHE_MATCHED_KEY',
   CacheStorageProvider = 'CACHE_STORAGE_PROVIDER',
   CacheS3Key = 'CACHE_S3_KEY',

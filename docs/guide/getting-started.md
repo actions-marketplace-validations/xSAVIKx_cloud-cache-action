@@ -24,6 +24,8 @@ Add the following step to your GitHub Actions workflow:
       ${{ runner.os }}-node-
 ```
 
+For a package manager cache, `preset: npm` (or `yarn`, `pnpm`, `bun`, `pip`, `poetry`, `uv`, `gradle`, `maven`, `cargo`, `go`) gives the `path`, `key` and `restore-keys` for you. See [Cache Presets](./presets.md).
+
 ## Paths and Exclusions
 
 `path` accepts files, directories, globs, `~` and `!` exclusions, one per line.
@@ -41,6 +43,8 @@ Add the following step to your GitHub Actions workflow:
 ### Symlinks
 
 Symlinks are archived as links, never followed and re-created as copies. On Windows, `windows-latest` runners use Git's bundled GNU `tar`, which this action runs with `MSYS=winsymlinks:nativestrict` (the same setting `actions/cache` uses) so that restored links come back as native NTFS symlinks rather than plain-text stand-ins. GitHub-hosted Windows runners allow creating these without extra privileges.
+
+On a self-hosted Windows runner, the account can lack the `SeCreateSymbolicLinkPrivilege` privilege, and Developer Mode can be off. Then Git's GNU `tar` cannot create native symlinks, and the extract fails with `Cannot create symlink to ...: Operation not permitted`. When symlinks are the only failure, the action logs a warning and extracts the archive one more time with `MSYS=winsymlinks:deepcopy`. Each symlink is then restored as a copy of its target, not as a link. A symlink whose target is not in the archive still fails the restore. BSD `tar` (`C:\Windows\System32\tar.exe`) does not read `MSYS`, so the action does not retry with it. This retry applies only to the S3 tier in file mode. With `streaming: true`, or for the GitHub tier with `dual-cache: true` (`@actions/cache` runs its own `tar`), the restore still fails. The retry also fails for a symlink whose target is another symlink later in the archive. A copied directory symlink can make the restored tree much larger than the archive.
 
 ## How It Works
 

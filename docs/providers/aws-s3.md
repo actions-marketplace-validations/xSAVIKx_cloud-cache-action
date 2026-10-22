@@ -60,45 +60,10 @@ Create an IAM Role with a trust policy allowing GitHub Actions to assume it:
 }
 ```
 
-#### 2. Attach Least-Privilege S3 Permissions Policy
-Attach an IAM policy granting only the minimal actions required by `cloud-cache-action`:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowBucketListing",
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket"
-      ],
-      "Resource": "arn:aws:s3:::my-actions-cache-bucket"
-    },
-    {
-      "Sid": "AllowObjectOperations",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:GetObjectTagging",
-        "s3:PutObjectTagging",
-        "s3:AbortMultipartUpload"
-      ],
-      "Resource": "arn:aws:s3:::my-actions-cache-bucket/*"
-    }
-  ]
-}
-```
-
-> [!NOTE]
-> `cloud-cache-action` does not require `s3:DeleteObject`. Lifecycle cleanup is handled by bucket lifecycle rules.
-
-> [!NOTE]
-> `s3:GetObjectTagging` and `s3:PutObjectTagging` carry the archive checksum for a streamed save.
-> Without them the save falls back to a copy and the restore skips the integrity check, with a
-> warning in the log. Grant both actions to the save role and at least `s3:GetObjectTagging` to
-> the restore role.
+#### 2. Attach a Least-Privilege S3 Permissions Policy
+Attach a policy that grants only the actions the action sends, scoped to the bucket and the
+repository prefix. The [Security guide](../guide/security.md#aws-s3) holds the full read-write,
+read-only and prune policies, and the list of S3 calls that each feature sends.
 
 #### 3. Workflow Example (OIDC)
 
@@ -130,7 +95,7 @@ jobs:
 
 ### Option B: Static IAM Credentials
 
-If you prefer static credentials, create a dedicated IAM user (never use your root AWS account) with the least-privilege policy shown above, generate an Access Key ID and Secret Access Key, and save them in your repository's GitHub Secrets.
+If you prefer static credentials, create a dedicated IAM user (never use your root AWS account) with a least-privilege policy from the [Security guide](../guide/security.md#aws-s3), generate an Access Key ID and Secret Access Key, and save them in your repository's GitHub Secrets.
 
 ```yaml
 - name: Cache dependencies

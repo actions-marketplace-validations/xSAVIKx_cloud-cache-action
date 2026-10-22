@@ -4,6 +4,7 @@ import type { SaveOutcome } from '../../../src/core/outcomes';
 import type { StepMetrics } from '../../../src/core/metrics';
 import type { S3Tier } from '../../../src/core/s3Tier';
 import { MemoryState } from '../../support/memoryState';
+import { makeTempDir, removeDir, setEnv, writeFiles } from '../../support/tempTree';
 
 const inputs = new Map<string, string>();
 const outputs = new Map<string, string>();
@@ -12,6 +13,10 @@ const mockSetFailed = jest.fn<(message: string) => void>(() => {
   process.exitCode = 1;
 });
 const mockWarning = jest.fn<(message: string) => void>();
+const mockInfo = jest.fn<(message: string) => void>();
+const mockSetOutput = jest.fn<(name: string, value: string) => void>((name, value) => {
+  outputs.set(name, value);
+});
 const mockBuildS3Tier =
   jest.fn<
     (
@@ -43,11 +48,9 @@ const mockSaveToGitHub =
 
 jest.unstable_mockModule('@actions/core', () => ({
   getInput: (name: string) => inputs.get(name) ?? '',
-  setOutput: (name: string, value: string) => {
-    outputs.set(name, value);
-  },
+  setOutput: mockSetOutput,
   setFailed: mockSetFailed,
-  info: jest.fn(),
+  info: mockInfo,
   warning: mockWarning,
   debug: jest.fn(),
   saveState: jest.fn(),
@@ -343,9 +346,57 @@ describe('saveImpl', () => {
     it('warns and skips when no key is available', async () => {
       inputs.delete(Inputs.Key);
       await saveImpl(state);
-      expect(mockWarning).toHaveBeenCalledWith('Key is not specified. Skipping cache save.');
+      expect(mockWarning).toHaveBeenCalledWith(
+        'Key is not specified. Set key and path, or set preset. Skipping cache save.'
+      );
       expect(mockBuildS3Tier).not.toHaveBeenCalled();
       expect(mockWriteSaveSummary).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('with a preset', () => {
+    let workspace: string;
+    let restoreEnv: () => void;
+
+    beforeEach(() => {
+      workspace = makeTempDir('save-preset');
+      restoreEnv = setEnv({ GITHUB_WORKSPACE: workspace, RUNNER_OS: 'Linux' });
+      inputs.delete(Inputs.Key);
+      inputs.delete(Inputs.Path);
+      inputs.set(Inputs.Preset, 'npm');
+    });
+
+    afterEach(() => {
+      restoreEnv();
+      removeDir(workspace);
+    });
+
+    it('reuses the key and paths the restore step resolved, without hashing again', async () => {
+      // No lockfile in the workspace: hashing again would fail the save.
+      state.setState(State.CachePrimaryKey, 'Linux-npm-fromrestore');
+      state.setState(State.CachePaths, JSON.stringify(['~/.npm']));
+      await saveImpl(state);
+      expect(mockWarning).not.toHaveBeenCalled();
+      expect(mockSaveToS3).toHaveBeenCalledWith(tier, 'Linux-npm-fromrestore', ['~/.npm']);
+      expect(mockWriteSaveSummary).toHaveBeenCalledWith(
+        expect.objectContaining({ key: 'Linux-npm-fromrestore', preset: 'npm' })
+      );
+    });
+
+    it('hashes the lockfiles when no restore step ran (the save sub-action)', async () => {
+      writeFiles(workspace, { 'package-lock.json': '{}' });
+      await saveImpl(state);
+      const [, key, paths] = mockSaveToS3.mock.calls[0];
+      expect(key).toMatch(/^Linux-npm-[0-9a-f]{64}$/);
+      expect(paths).toEqual(['~/.npm']);
+    });
+
+    it('warns and does not save when no lockfile is found', async () => {
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(
+        expect.stringContaining('Preset "npm" found no lockfile to hash')
+      );
+      expect(mockSaveToS3).not.toHaveBeenCalled();
     });
   });
 
@@ -451,6 +502,186 @@ describe('saveImpl', () => {
       mockBuildS3Tier.mockRejectedValue(new Error('Bucket name is required.'));
       await saveImpl(state);
       expect(mockSetFailed).toHaveBeenCalledWith('Bucket name is required.');
+    });
+  });
+
+  describe('ACTIONS_CACHE_MODE', () => {
+    let restoreEnv: () => void = () => {};
+
+    afterEach(() => {
+      restoreEnv();
+      restoreEnv = () => {};
+    });
+
+    const useMode = (mode: string | undefined): void => {
+      restoreEnv = setEnv({ ACTIONS_CACHE_MODE: mode });
+    };
+
+    it.each(['none', 'read', ' READ ', 'None'])(
+      'skips the save on both tiers when the mode is %p',
+      async (mode) => {
+        useMode(mode);
+        inputs.set(Inputs.DualCache, 'true');
+
+        await saveImpl(state);
+
+        const effective = mode.trim().toLowerCase();
+        expect(mockBuildS3Tier).not.toHaveBeenCalled();
+        expect(mockSaveToS3).not.toHaveBeenCalled();
+        expect(mockExistsInGitHub).not.toHaveBeenCalled();
+        expect(mockSaveToGitHub).not.toHaveBeenCalled();
+        expect(mockSetFailed).not.toHaveBeenCalled();
+        expect(mockWarning).not.toHaveBeenCalled();
+        expect(mockInfo).toHaveBeenCalledWith(
+          `Cache save skipped: ACTIONS_CACHE_MODE is '${effective}', which does not permit writes.`
+        );
+        expect(outputs.get('cache-saved-sources')).toBe('none');
+        expect(outputs.get('cache-bytes')).toBe('0');
+        expect(outputs.get('cache-transfer-duration-ms')).toBe('0');
+        expect(outputs.get('cache-save-duration-ms')).toMatch(/^\d+$/);
+        expect(mockSetOutput).toHaveBeenCalledWith('cache-save-duration-ms', '0');
+        expect(mockSetOutput).toHaveBeenLastCalledWith(
+          'cache-save-duration-ms',
+          expect.stringMatching(/^\d+$/)
+        );
+        expect(mockEmitMetrics).toHaveBeenCalledTimes(1);
+        expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+          expect.objectContaining({
+            step: 'save',
+            outcome: 'skipped',
+            savedTo: [],
+            bytes: 0,
+            extra: { reason: `ACTIONS_CACHE_MODE=${effective}` },
+          })
+        );
+        expect(mockWriteSaveSummary).toHaveBeenCalledWith(
+          expect.objectContaining({ savedTo: [], skipped: `ACTIONS_CACHE_MODE is ${effective}` })
+        );
+      }
+    );
+
+    it.each([undefined, '', 'write', 'write-only', 'WRITE-ONLY', 'readonly', 'off'])(
+      'saves as usual when the mode is %p',
+      async (mode) => {
+        useMode(mode);
+        await saveImpl(state);
+        expect(mockSaveToS3).toHaveBeenCalled();
+        expect(outputs.get('cache-saved-sources')).toBe('s3');
+        expect(mockInfo).not.toHaveBeenCalledWith(expect.stringContaining('ACTIONS_CACHE_MODE'));
+      }
+    );
+
+    it('does not save to the GitHub fallback when the mode skips the save', async () => {
+      useMode('none');
+      inputs.set(Inputs.UseFallback, 'true');
+      await saveImpl(state);
+      expect(mockSaveToS3).not.toHaveBeenCalled();
+      expect(mockSaveToGitHub).not.toHaveBeenCalled();
+    });
+
+    it('does not fail a skipped save in strict dual-cache mode', async () => {
+      useMode('read');
+      inputs.set(Inputs.DualCache, 'true');
+      inputs.set(Inputs.DualCacheStrict, 'true');
+      await saveImpl(state);
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(mockSaveToS3).not.toHaveBeenCalled();
+      expect(mockSaveToGitHub).not.toHaveBeenCalled();
+    });
+
+    it.each(['read', 'write-only', 'write'])(
+      'lets read-only skip the save first when the mode is %p',
+      async (mode) => {
+        useMode(mode);
+        inputs.set(Inputs.ReadOnly, 'true');
+        await saveImpl(state);
+        expect(mockSaveToS3).not.toHaveBeenCalled();
+        expect(mockInfo).toHaveBeenCalledWith('Read-only mode enabled. Skipping cache save.');
+        expect(mockInfo).not.toHaveBeenCalledWith(expect.stringContaining('ACTIONS_CACHE_MODE'));
+        expect(mockEmitMetrics.mock.calls[0][0]).toEqual(
+          expect.objectContaining({ outcome: 'skipped', extra: { reason: 'read-only' } })
+        );
+      }
+    );
+  });
+
+  describe('access denied on the S3 save', () => {
+    const hint =
+      'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save and silence this message.';
+    const denied = (): SaveOutcome => ({
+      kind: 'error',
+      error: Object.assign(new Error('Access Denied'), {
+        name: 'AccessDenied',
+        $metadata: { httpStatusCode: 403 },
+      }),
+    });
+
+    it('warns with the read-only hint and does not fail the step', async () => {
+      mockSaveToS3.mockResolvedValue(denied());
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(
+        `Failed to save cache to S3: Access Denied. ${hint}`
+      );
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(outputs.get('cache-saved-sources')).toBe('none');
+    });
+
+    it('adds the hint for a bare 403 status', async () => {
+      mockSaveToS3.mockResolvedValue({
+        kind: 'error',
+        error: Object.assign(new Error('Forbidden'), { $metadata: { httpStatusCode: 403 } }),
+      });
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(`Failed to save cache to S3: Forbidden. ${hint}`);
+    });
+
+    it('does not double the full stop when the S3 message ends with one', async () => {
+      mockSaveToS3.mockResolvedValue({
+        kind: 'error',
+        error: Object.assign(new Error('Access Denied.'), { name: 'AccessDenied' }),
+      });
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(
+        `Failed to save cache to S3: Access Denied. ${hint}`
+      );
+    });
+
+    it('adds no hint to a 403 SignatureDoesNotMatch, because the credentials are wrong', async () => {
+      mockSaveToS3.mockResolvedValue({
+        kind: 'error',
+        error: Object.assign(new Error('The request signature we calculated does not match'), {
+          name: 'SignatureDoesNotMatch',
+          $metadata: { httpStatusCode: 403 },
+        }),
+      });
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(
+        'Failed to save cache to S3: The request signature we calculated does not match'
+      );
+      expect(mockSetFailed).not.toHaveBeenCalled();
+    });
+
+    it('adds no hint to other errors', async () => {
+      mockSaveToS3.mockResolvedValue(failure('SlowDown'));
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith('Failed to save cache to S3: SlowDown');
+    });
+
+    it('warns with the hint and saves to GitHub in non-strict dual-cache mode', async () => {
+      inputs.set(Inputs.DualCache, 'true');
+      mockSaveToS3.mockResolvedValue(denied());
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(`Dual-cache S3 save error: Access Denied. ${hint}`);
+      expect(mockSetFailed).not.toHaveBeenCalled();
+      expect(outputs.get('cache-saved-sources')).toBe('github');
+    });
+
+    it('still fails the step, with the hint, in strict dual-cache mode', async () => {
+      inputs.set(Inputs.DualCache, 'true');
+      inputs.set(Inputs.DualCacheStrict, 'true');
+      mockSaveToS3.mockResolvedValue(denied());
+      await saveImpl(state);
+      expect(mockSetFailed).toHaveBeenCalledWith(`Saving to S3 failed: Access Denied. ${hint}`);
     });
   });
 

@@ -55,6 +55,8 @@ Add the following step to your GitHub Actions workflow:
 
 Symlinks are archived as links, never followed and re-created as copies. On Windows, `windows-latest` runners use Git's bundled GNU `tar`, which this action runs with `MSYS=winsymlinks:nativestrict` (the same setting `actions/cache` uses) so that restored links come back as native NTFS symlinks rather than plain-text stand-ins. GitHub-hosted Windows runners allow creating these without extra privileges.
 
+On a self-hosted Windows runner, the account can lack the `SeCreateSymbolicLinkPrivilege` privilege, and Developer Mode can be off. Then Git's GNU `tar` cannot create native symlinks, and the extract fails with `Cannot create symlink to ...: Operation not permitted`. When symlinks are the only failure, the action logs a warning and extracts the archive one more time with `MSYS=winsymlinks:deepcopy`. Each symlink is then restored as a copy of its target, not as a link. A symlink whose target is not in the archive still fails the restore. BSD `tar` (`C:\Windows\System32\tar.exe`) does not read `MSYS`, so the action does not retry with it. This retry applies only to the S3 tier in file mode. With `streaming: true`, or for the GitHub tier with `dual-cache: true` (`@actions/cache` runs its own `tar`), the restore still fails. The retry also fails for a symlink whose target is another symlink later in the archive. A copied directory symlink can make the restored tree much larger than the archive.
+
 ## How It Works
 
 1. **Restore Phase (Pre/Main)**:
@@ -543,8 +545,9 @@ set its `ref` input in that case.
 
 Object storage has no built-in cache eviction like GitHub's 10 GB-per-repository limit: whatever
 you save to S3 stays there until something deletes it. `cloud-cache-action/prune` is a standalone
-sub-action that deletes cache archives older than a given age from any S3-compatible bucket, so you
-can run it on a schedule instead of relying only on a bucket lifecycle rule.
+sub-action that deletes cache archives from any S3-compatible bucket by age, by count per ref, or
+to fit a total size budget. You can run it on a schedule instead of relying only on a bucket
+lifecycle rule.
 
 ## Usage
 
@@ -577,12 +580,16 @@ totals line), so a dry run tells you exactly what a real run would delete.
 
 ## Inputs
 
-The prune action shares its storage inputs with the main action, plus four inputs of its own:
+The prune action shares its storage inputs with the main action, plus the inputs of its own below.
+Set at least one of `older-than-days`, `keep-latest`, `max-total-size` and `abort-uploads-older-than-hours`.
 
 | Input                             | Required |          Default          | Description                                                                 |
 | ---------------------------------- | :------: | :------------------------: | ---------------------------------------------------------------------------- |
 | `bucket`                           | **Yes**  |             —              | Name of the S3 bucket                                                        |
-| `older-than-days`                  | **Yes**  |             —              | Delete cache archives whose last-modified time is older than this many days |
+| `older-than-days`                  |    No    |             —              | Delete cache archives whose last-modified time is older than this many days |
+| `keep-latest`                      |    No    |             —              | Positive integer. In each ref, never delete the N most recently modified archives. Alone, it deletes every other archive of the ref |
+| `max-total-size`                   |    No    |             —              | Total size budget in bytes (a plain integer). Delete the oldest archives until the total fits |
+| `abort-uploads-older-than-hours`   |    No    |             —              | Positive integer. Abort incomplete multipart uploads in the prune scope that started more than this many hours ago. Deletes no archive. Set it above the duration of your longest save. Has no effect on SeaweedFS and MinIO (see below) |
 | `ref`                               |    No    |     _(every ref)_          | Prune only caches under this full Git ref (`refs/heads/main`); empty means every ref |
 | `dry-run`                           |    No    |          `false`           | List cache archives that would be pruned without deleting anything          |
 | `endpoint`                         |    No    |          Auto/AWS          | Custom S3-compatible endpoint URL                                           |
@@ -600,7 +607,8 @@ The prune action shares its storage inputs with the main action, plus four input
 | `retry-count`                      |    No    |            `3`              | Maximum number of S3 retries                                                |
 | `metrics-file`                     |    No    |            `""`             | Append one JSON line of timings and sizes for this step to this file, relative to the workspace |
 
-An invalid `older-than-days` (not a positive integer) or an unrecognized `dry-run` value (anything
+An invalid `older-than-days`, `keep-latest`, `max-total-size` or `abort-uploads-older-than-hours` (not a positive integer; `max-total-size` also accepts `0`), a step
+with none of the four set, or an unrecognized `dry-run` value (anything
 other than `true`, `True`, `TRUE`, `false`, `False` or `FALSE`) fails the step immediately, rather
 than silently falling back to a default — a typo like `dry-run: Flase` must never turn into a real
 deletion.
@@ -611,7 +619,8 @@ deletion.
 | ---------------- | ------------------------------------------------------------------------------- |
 | `pruned-count`   | The number of cache archives pruned (or that would be pruned in a dry run)      |
 | `pruned-bytes`   | The total size in bytes of the pruned cache archives                           |
-| `kept-count`     | The number of cache archives that matched the scope but were not old enough    |
+| `kept-count`     | The number of cache archives that matched the scope but no rule selected       |
+| `aborted-uploads` | The number of incomplete multipart uploads aborted (or that would be aborted in a dry run) |
 
 The outputs are set once the prune finishes. A step that fails earlier — an invalid input, an
 unsafe scope, an S3 error — sets none of them, so guard on `steps.<id>.outcome` before reading
@@ -624,7 +633,7 @@ Set `metrics-file` to append one JSON line describing this prune to a file, in a
 outcome of `pruned`, the pruned byte total, the step's `durationMs`, and the tallies in `extra`:
 
 ```json
-{"step":"prune","timestamp":"2026-09-17T03:00:11.204Z","provider":"r2","bytes":4194304000,"durationMs":9412,"outcome":"pruned","extra":{"prunedCount":37,"prunedBytes":4194304000,"keptCount":12,"dryRun":false}}
+{"step":"prune","timestamp":"2026-09-17T03:00:11.204Z","provider":"r2","bytes":4194304000,"durationMs":9412,"outcome":"pruned","extra":{"prunedCount":37,"prunedBytes":4194304000,"keptCount":12,"abortedUploads":0,"dryRun":false}}
 ```
 
 The line is written once the prune has finished, so a step that fails earlier writes none. Writing
@@ -646,10 +655,60 @@ that also sets `scoped-to-ref: false` and leaves `ref` empty: the pattern is the
 `${ref}`, exactly as the main action resolves it, and keys that carry a ref segment where the ref
 would be are left for a ref-scoped prune. One exception: an unscoped prune with an empty `prefix`
 also matches ref-scoped caches of the same repository that were saved with a non-empty `prefix`
-(their prefix segment reads as part of the key), subject to `older-than-days`. If you mix prefixes,
+(their prefix segment reads as part of the key), subject to the prune rules. If you mix prefixes,
 give every prune step the `prefix` its caches were saved with.
 
-Among candidates, only those whose `LastModified` is older than `older-than-days` are deleted.
+Among candidates, the first three rules below choose what to delete. The fourth rule aborts
+incomplete uploads and deletes no archive. Each rule is optional, and at least one must be set.
+
+- **`older-than-days`**: an archive whose `LastModified` is older than this many days is deleted.
+- **`keep-latest`**: in each ref, the N most recently modified archives are never deleted. With
+  `older-than-days` also set, an archive is deleted only when it is older than the age limit **and**
+  not among the newest N of its ref. With `keep-latest` alone, every other archive of the ref is
+  deleted. With `max-total-size` and no `older-than-days`, `keep-latest` only protects the newest N,
+  and the budget decides what else is deleted. Groups are per ref, not per cache key: with two cache
+  keys under one ref, `keep-latest: 1` keeps one archive for that ref, and the newest archive of the
+  other key can be deleted.
+- **`max-total-size`**: after the other rules, the total size of the remaining archives in the
+  whole prune scope (every ref, not each ref) must be at or below this many bytes. Prune deletes
+  the oldest remaining archives until it is. The `keep-latest` archives are never deleted for the
+  budget. If they alone are over the budget, the step logs a warning and deletes nothing more.
+  The value is a plain integer in bytes: `10GB` or `5G` is not accepted. `0` is accepted and
+  deletes every archive that `keep-latest` does not protect.
+- **`abort-uploads-older-than-hours`**: a save that stops in the middle of a multipart upload
+  leaves an incomplete upload, which uses storage until someone aborts it. On a provider with no
+  lifecycle rule for incomplete uploads, nothing else removes it. Prune lists the incomplete
+  uploads under the same scope as the archives, with the same key match. It aborts each upload
+  that started more than this many hours ago. `dry-run` lists the uploads and aborts none. This
+  rule alone is a valid prune: it aborts uploads and deletes no archive. If the provider cannot
+  list uploads (for example, it answers `NotImplemented`), prune logs a warning and goes on. An
+  upload that finished before prune aborted it is ignored. Any other abort error gives a warning
+  for that upload and does not fail the step. Set the limit above the duration of your longest
+  save: prune aborts an upload that is still in progress when it is older than the limit, and that
+  save then fails. The minimum is 1 hour.
+
+  This rule works only when the provider lists the uploads under a prefix, with their start time.
+  The behaviour below was measured on 2026-10-21 with the servers of the CI suite:
+
+  | Server              | What `ListMultipartUploads` returns                         | Result                                     |
+  | ------------------- | ----------------------------------------------------------- | ------------------------------------------ |
+  | RustFS 1.0.0        | The uploads under the prefix, with the `Initiated` time     | Prune aborts the stale uploads             |
+  | Garage 2.4.1        | The uploads under the prefix, with the `Initiated` time     | Prune aborts the stale uploads             |
+  | SeaweedFS 4.46      | The uploads under the prefix, with no `Initiated` time      | Prune aborts none and warns with the count |
+  | MinIO (2026-03-30)  | No upload, unless the prefix is a full object key           | Prune finds no upload and aborts none      |
+
+  On SeaweedFS and MinIO, use a lifecycle rule of the server if it has one (for MinIO,
+  `mc ilm rule add --abort-incomplete-multipart-upload-days`). Other providers were not measured.
+
+"Each ref" is the ref segment of your `s3-key-pattern`. When the pattern has no `${ref}` (or
+`scoped-to-ref` is `false`), prune treats the whole scope as one group, so `keep-latest: 5` keeps the
+5 newest archives of the scope. Two archives with the same modification time are ranked by key, so
+the result is the same on every run. An archive with no modification time is never deleted.
+
+Each log line names the rule that selected the archive (`age`, `count` for `keep-latest` alone, or
+`size budget`), and the totals line counts them by rule. The outputs and the metrics line count
+every archive deleted by any rule; `kept-count` is every archive in scope that no rule selected.
+
 Deletion happens one `DeleteObject` call per key (up to 8 in flight at a time), rather than a
 single batch delete: Google Cloud Storage's S3 interoperability layer does not support
 multi-object delete, and this keeps behavior identical across providers.
@@ -929,6 +988,336 @@ line, and appends the same JSON as one line to `metrics-file` when that input is
 
 
 <!-- ============================================================================ -->
+<!-- FILE: docs/guide/security.md -->
+<!-- ============================================================================ -->
+
+# Security and Least-Privilege Policies
+
+This guide explains what the cache protects, what it does not protect, and which permissions each
+job needs. It holds the one full set of policies. The provider pages link here.
+
+## The trust boundary
+
+Anyone who can write to the cache bucket can change what a later restore extracts. A restore
+unpacks the archive on the runner, and the next steps then run code from it. Treat write access to
+the bucket as write access to every job that restores from it.
+
+The action reduces the risk in three ways:
+
+- **Ref scoping.** A restore searches only the current ref, the pull request base branch and the
+  default branch. A save writes only to the current ref. A pull request branch cannot replace the
+  cache of the default branch by using the action. See [S3 Key Templating](./s3-key-patterns.md).
+- **Integrity check.** Every save records the sha256 checksum of the archive. A restore hashes the
+  download and compares it. A mismatch counts as a cache miss. This finds a damaged archive. It
+  does not find an archive that an attacker built with a matching checksum tag.
+- **Conditional create.** A save uses `If-None-Match: *`. On a provider that enforces it, a save
+  does not overwrite an existing key.
+
+The action does not sign caches. The checksum is stored beside the archive, so a writer who can
+change the archive can change the checksum too. Ref scoping is a naming rule in the action. It is
+not an access rule in the bucket. A credential that can write to the repository prefix can write to
+any ref in it. Use the policies below to limit what each credential can do.
+
+## Pull requests from forks
+
+GitHub does not give repository secrets to a workflow that a fork pull request starts. The action
+then has no credentials, and the S3 tier cannot connect. Use the GitHub cache tier for these runs,
+or accept a cache miss.
+
+> [!WARNING]
+> Do not use `pull_request_target` to restore a cache in a job that runs code from the pull
+> request. That event gives secrets to the job. A restore then extracts files that an untrusted
+> branch could influence, and the job runs them with your credentials.
+
+Follow these rules for `pull_request_target`:
+
+1. Do not check out or run the pull request code in the same job that holds the S3 credentials.
+2. Do not restore a cache in a job that runs untrusted code with a write credential.
+3. If a job must restore, give it a read-only credential and set `read-only: true`.
+
+For ordinary `pull_request` jobs from the same repository, use a read-only pattern. The job
+restores the cache and never saves. Only a trusted job on the default branch saves.
+
+```yaml
+# Pull request job: read-only key, no save.
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-actions-cache-bucket
+    access-key: ${{ secrets.CACHE_READ_ACCESS_KEY }}
+    secret-key: ${{ secrets.CACHE_READ_SECRET_KEY }}
+    read-only: true
+    key: ${{ runner.os }}-build-${{ hashFiles('**/lock') }}
+    path: node_modules
+```
+
+`read-only: true` makes the post step skip the save. The read-only key makes the storage refuse a
+save even if a step changes the workflow. Use both. A trusted job on the default branch uses the
+read-write key and saves.
+
+## Which S3 calls the action makes
+
+The table lists every S3 call in the code. Each row names the policy action and the feature that
+sends the call.
+
+| S3 call                                                                       | Policy action                                                                             | Sent by                                                                                                                        |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `ListObjectsV2`                                                               | `s3:ListBucket`                                                                           | Restore (the `restore-keys` search), `explain`, the `inspect` sub-action, and `prune`                                          |
+| `HeadObject`                                                                  | `s3:GetObject`                                                                            | Restore (exact-key lookup), save (existence check and the ownership check after a streamed save), `inspect`                    |
+| `GetObject` (also with a `Range` header)                                      | `s3:GetObject`                                                                            | Restore (download, and the parallel ranged download of large archives)                                                         |
+| `PutObject`, `CreateMultipartUpload`, `UploadPart`, `CompleteMultipartUpload` | `s3:PutObject`                                                                            | Save (the upload helper in the AWS SDK sends these)                                                                            |
+| `PutObjectTagging`                                                            | `s3:PutObjectTagging`                                                                     | Save: the `tags` input, and the checksum tag of a streamed save. A `PutObject` that carries a tag header needs this action too |
+| `GetObjectTagging`                                                            | `s3:GetObjectTagging`                                                                     | Restore, when the object has no checksum metadata (a streamed save stores the checksum as a tag)                               |
+| `CopyObject`                                                                  | `s3:GetObject` and `s3:PutObject` (and `s3:PutObjectTagging` per AWS for the copied tags) | Save: the fallback that writes the checksum metadata after a streamed save                                                     |
+| `AbortMultipartUpload`                                                        | `s3:AbortMultipartUpload`                                                                 | Save, when an upload fails or stops. Also `prune` with `abort-uploads-older-than-hours`                                        |
+| `ListMultipartUploads`                                                        | `s3:ListBucketMultipartUploads`                                                           | `prune` with `abort-uploads-older-than-hours`                                                                                  |
+| `DeleteObject`                                                                | `s3:DeleteObject`                                                                         | `prune` only, when it is not a dry run                                                                                         |
+
+The action never sends `ListParts`, so `s3:ListMultipartUploadParts` is not needed. The checksum
+tag calls are optional: if a provider or a policy refuses them, the save falls back to the copy and
+the restore skips the integrity check, with a warning in the log. Grant them to keep the integrity
+check.
+
+A restore needs `s3:ListBucket`, `s3:GetObject` and `s3:GetObjectTagging`. A save needs
+`s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, `s3:PutObjectTagging`, `s3:AbortMultipartUpload`.
+Only `prune` needs `s3:DeleteObject` and `s3:ListBucketMultipartUploads`. Give `prune` its own
+credential.
+
+## Scope of the policies
+
+The default object key is `<owner>/<repo>/<prefix><ref>/<key>/<version>/<file>`. All
+policies below grant access to the prefix `my-org/my-repo/` in the bucket
+`my-actions-cache-bucket`. Replace both values. If you use the `prefix` input, the prefix goes after
+the repository name, so the repository prefix still covers it. If you set
+`scoped-to-repository: false` or a custom `s3-key-pattern`, use the fixed leading part of your
+pattern instead.
+
+## AWS S3
+
+### Read-write policy (restore and save)
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListBucketKeys",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket"
+    },
+    {
+      "Sid": "ReadWriteRepositoryObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:GetObjectTagging",
+        "s3:PutObjectTagging",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket/my-org/my-repo/*"
+    }
+  ]
+}
+```
+
+### Read-only policy (restore only)
+
+Use this policy for pull request jobs together with `read-only: true`.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListBucketKeys",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket"
+    },
+    {
+      "Sid": "ReadRepositoryObjects",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:GetObjectTagging"],
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket/my-org/my-repo/*"
+    }
+  ]
+}
+```
+
+> [!NOTE]
+> The read-write and read-only policies grant `s3:ListBucket` on the whole bucket, with no
+> `s3:prefix` condition. This is on purpose. For a `HeadObject` on a missing key, S3 returns `404`
+> only when the caller has `s3:ListBucket`, and it returns `403` otherwise. A `HeadObject` request
+> has no `s3:prefix` value, so a prefix condition can turn every miss into a `403`. The action
+> treats `403` as an error, not as a miss. A restore then fails before the `restore-keys` search,
+> and a save fails before the upload. The cost: the key holder can list the key names in the whole
+> bucket. The key holder cannot read the objects outside the repository prefix. If the key names
+> are sensitive, use a dedicated bucket for this repository. This guide did not measure this
+> behaviour on AWS.
+
+### Prune policy
+
+Attach this policy to the credential of the [prune](./pruning.md) workflow. Prune lists, deletes,
+and (with `abort-uploads-older-than-hours`) lists and aborts incomplete uploads. Omit the last
+statement if you do not use that input.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListRepositoryPrefix",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket",
+      "Condition": {
+        "StringLike": { "s3:prefix": "my-org/my-repo/*" }
+      }
+    },
+    {
+      "Sid": "DeleteRepositoryObjects",
+      "Effect": "Allow",
+      "Action": "s3:DeleteObject",
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket/my-org/my-repo/*"
+    },
+    {
+      "Sid": "AbortIncompleteUploads",
+      "Effect": "Allow",
+      "Action": ["s3:AbortMultipartUpload"],
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket/my-org/my-repo/*"
+    },
+    {
+      "Sid": "ListIncompleteUploads",
+      "Effect": "Allow",
+      "Action": "s3:ListBucketMultipartUploads",
+      "Resource": "arn:aws:s3:::my-actions-cache-bucket"
+    }
+  ]
+}
+```
+
+The last statement has no prefix condition, because AWS does not list `s3:prefix` as a condition key
+for `s3:ListBucketMultipartUploads` (AWS Service Authorization Reference for Amazon S3,
+<https://servicereference.us-east-1.amazonaws.com/v1/s3/s3.json>). The action filters the
+list to the prune scope itself. Prune does not call `HeadObject`, so its `s3:ListBucket` statement
+keeps the prefix condition. If you prune several repositories with one credential, widen the
+`Resource` ARNs and the `s3:prefix` value to match.
+
+For the role trust policy, the OIDC workflow and the static key option, see [AWS S3
+Setup](../providers/aws-s3.md).
+
+## Cloudflare R2
+
+R2 API tokens use permission groups, not policy JSON. Create the token in the Cloudflare dashboard
+under **R2** > **Manage R2 API Tokens**, and choose a permission group:
+
+| Job                           | Permission group        | Scope                           |
+| ----------------------------- | ----------------------- | ------------------------------- |
+| Restore only (pull requests)  | **Object Read only**    | Specific buckets: the cache bucket |
+| Restore and save, and prune   | **Object Read & Write** | Specific buckets: the cache bucket |
+
+Cloudflare documents that only the two Object groups can be limited to chosen buckets. The Admin
+groups are account-wide, so do not use them for CI. Cloudflare documents scope at the bucket level
+only. This guide found no prefix scope for R2 tokens. Use one bucket for each trust level, for
+example one bucket for the cache of a single repository, if you need a hard boundary.
+
+The Cloudflare page lists no narrower group than **Object Read & Write**. This guide therefore
+assumes that a token which saves can also delete. Keep the read-write token out of pull request jobs.
+
+Checked on 2026-10-20: <https://developers.cloudflare.com/r2/api/tokens/>.
+
+## Google Cloud Storage
+
+GCS accepts S3 requests that an HMAC key signs. The key has the permissions of its service account.
+Create the HMAC key for a dedicated service account, as the [Google Cloud
+Storage](../providers/google-cloud-storage.md) page describes. Then limit the service account to
+the repository prefix with an IAM condition on the role binding for the bucket.
+
+Google documents this condition expression for an object name prefix:
+
+```text
+resource.name.startsWith('projects/_/buckets/my-actions-cache-bucket/objects/my-org/my-repo/')
+```
+
+Conditions on a bucket need uniform bucket-level access on that bucket. Google documents this
+requirement. Conditional role bindings also need IAM policy version 3.
+
+Google documents that a `resource.name` condition cannot limit `storage.objects.list`, because
+Cloud Storage grants that permission at the bucket level. A conditional binding alone therefore
+leaves the account unable to list. The `restore-keys` search, `explain`, the `inspect` sub-action
+and `prune` all list objects, and a lookup of a missing key can fail. Use two bindings:
+
+1. A conditional binding with the object prefix condition above. It grants read and write access
+   to the objects under the repository prefix only.
+   - Read-write job: **Storage Object User** (`roles/storage.objectUser`). This role includes
+     `storage.objects.delete`, so every job that saves can also delete. For a job that does not
+     prune, create a custom role without `storage.objects.delete`. Do not use only **Storage Object
+     Creator**. It has no `storage.objects.get`, so the existence check of a save fails.
+   - Read-only job: **Storage Object Viewer** (`roles/storage.objectViewer`).
+2. An unconditioned binding that grants `storage.objects.list` on the bucket, for example a custom
+   role that holds only that permission. This binding shows the object names of the whole bucket,
+   including other repositories. It does not give read access to their contents. Use a dedicated
+   bucket when the names are sensitive.
+
+This guide did not verify these points, so test them before you rely on them:
+
+- The exact JSON or `gcloud` form of the conditional binding. Use the Google Cloud console or the
+  current Google documentation, and not a copy from this page.
+- Which permission the S3 multipart calls need. The `prune` option `abort-uploads-older-than-hours`
+  and an aborted upload use multipart calls, and a role that lacks the multipart permissions can
+  refuse them.
+
+Checked on 2026-10-20: <https://docs.cloud.google.com/storage/docs/access-control/iam>
+(object prefix condition, uniform bucket-level access, no condition on `storage.objects.list`) and
+<https://docs.cloud.google.com/storage/docs/authentication/hmackeys> (HMAC key permissions come from
+the service account).
+
+## MinIO and RustFS
+
+Both servers read an S3-style policy document. Use the AWS read-write policy above with the
+bucket name and prefix changed. The example below uses the bucket `ci-cache` and a prefix.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": "arn:aws:s3:::ci-cache",
+      "Condition": {
+        "StringLike": { "s3:prefix": ["my-org/my-repo/*"] }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:GetObjectTagging",
+        "s3:PutObjectTagging",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": "arn:aws:s3:::ci-cache/my-org/my-repo/*"
+    }
+  ]
+}
+```
+
+For a read-only or prune credential, use the same actions as in the AWS sections. Add `s3:DeleteObject`
+for prune.
+
+RustFS 1.0.0 is tested with this policy on a live server. It enforces the `s3:prefix` condition,
+returns `404` for a `HeadObject` on a missing key, and allows the save, restore and tag calls in
+the table above. It denies `ListMultipartUploads` and `DeleteObject` as intended. MinIO is not
+tested. Test the policy on your MinIO version before you rely on it. If a restore finds no cache
+after you add the condition, remove the condition and keep the object ARN scope.
+
+The [MinIO](../providers/minio.md) page shows how to load the policy with `mc admin policy create`.
+
+
+<!-- ============================================================================ -->
 <!-- FILE: docs/guide/migration.md -->
 <!-- ============================================================================ -->
 
@@ -1154,37 +1543,10 @@ Create an IAM Role with a trust policy allowing GitHub Actions to assume it:
 }
 ```
 
-#### 2. Attach Least-Privilege S3 Permissions Policy
-Attach an IAM policy granting only the minimal actions required by `cloud-cache-action`:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowBucketListing",
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket"
-      ],
-      "Resource": "arn:aws:s3:::my-actions-cache-bucket"
-    },
-    {
-      "Sid": "AllowObjectOperations",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:AbortMultipartUpload"
-      ],
-      "Resource": "arn:aws:s3:::my-actions-cache-bucket/*"
-    }
-  ]
-}
-```
-
-> [!NOTE]
-> `cloud-cache-action` does not require `s3:DeleteObject`. Lifecycle cleanup is handled by bucket lifecycle rules.
+#### 2. Attach a Least-Privilege S3 Permissions Policy
+Attach a policy that grants only the actions the action sends, scoped to the bucket and the
+repository prefix. The [Security guide](../guide/security.md#aws-s3) holds the full read-write,
+read-only and prune policies, and the list of S3 calls that each feature sends.
 
 #### 3. Workflow Example (OIDC)
 
@@ -1216,7 +1578,7 @@ jobs:
 
 ### Option B: Static IAM Credentials
 
-If you prefer static credentials, create a dedicated IAM user (never use your root AWS account) with the least-privilege policy shown above, generate an Access Key ID and Secret Access Key, and save them in your repository's GitHub Secrets.
+If you prefer static credentials, create a dedicated IAM user (never use your root AWS account) with a least-privilege policy from the [Security guide](../guide/security.md#aws-s3), generate an Access Key ID and Secret Access Key, and save them in your repository's GitHub Secrets.
 
 ```yaml
 - name: Cache dependencies
@@ -1289,6 +1651,8 @@ Never use account-wide administrative tokens for CI workflows. Create a scoped, 
 4. **Bucket Scope**: Select **Apply to specific buckets only**, and choose your cache bucket.
 5. (Optional) Set a **TTL / Expiration date** to satisfy organizational security rotation policies.
 6. Click **Create API Token**.
+
+Use **Object Read only** for jobs that never save. See the [Security guide](../guide/security.md#cloudflare-r2) for the token types and the S3 calls the action sends.
 
 ### 2. Configure GitHub Secrets
 Cloudflare will display the credentials **once**. Copy and store them in your repository's **Settings** > **Secrets and variables** > **Actions**:
@@ -1388,6 +1752,8 @@ Do not grant project-wide Editor or Storage Admin roles. Grant access strictly o
 2. Under the **Permissions** tab, click **Grant Access**.
 3. **New principals**: Enter the email of your dedicated service account (`github-actions-ci-cache@<project-id>.iam.gserviceaccount.com`).
 4. **Role**: Select **Storage Object User** (`roles/storage.objectUser`), which allows reading, writing, and listing objects without bucket administrative privileges.
+
+To limit the account to the repository prefix, add an IAM condition to the binding. See the [Security guide](../guide/security.md#google-cloud-storage) for the expression and for the points that are not verified.
 
 ### 3. Generate HMAC Key for the Service Account
 1. In the Google Cloud Console, navigate to **Cloud Storage** > **Settings** > **Interoperability**.
@@ -1888,31 +2254,8 @@ mc encrypt set sse-s3 myminio/ci-cache
 > Never use root credentials (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`) in your GitHub Actions workflows. Always create a dedicated Service Account restricted strictly to the CI cache bucket.
 
 ### 1. Create a Restricted Policy (`ci-cache-policy.json`)
-Save the following minimal policy JSON:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket"
-      ],
-      "Resource": "arn:aws:s3:::ci-cache"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:AbortMultipartUpload"
-      ],
-      "Resource": "arn:aws:s3:::ci-cache/*"
-    }
-  ]
-}
-```
+Copy the MinIO policy from the [Security guide](../guide/security.md#minio-and-rustfs) into
+`ci-cache-policy.json`. Change the bucket name and the prefix to match your set-up.
 
 Add the policy to MinIO:
 ```bash

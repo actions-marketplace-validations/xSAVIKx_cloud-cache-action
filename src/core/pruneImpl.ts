@@ -2,18 +2,25 @@ import * as core from '@actions/core';
 import { getWorkspace } from '../archive/paths';
 import { Defaults, Inputs, Outputs } from '../constants';
 import { createStorageContext } from '../storage/client';
-import { getInputAsBool, getInputAsInt, parsePositiveInt } from '../utils/inputUtils';
+import {
+  getInputAsBool,
+  getInputAsInt,
+  parseOptionalNonNegativeInt,
+  parseOptionalPositiveInt,
+} from '../utils/inputUtils';
 import { compileKeyTemplate } from './keyTemplate';
 import { emitMetrics } from './metrics';
 import { toError } from './outcomes';
 import { pruneCaches, type PruneTier } from './prune';
+import { NO_RULE_MESSAGE, hasPruneRule, type PruneRules } from './pruneSelect';
 
 const TRUE_VALUES = ['true', 'True', 'TRUE'];
 const FALSE_VALUES = ['false', 'False', 'FALSE'];
 
 /** Every input the prune step reads. `ref` empty means every ref. */
 export interface PruneConfig {
-  olderThanDays: number;
+  /** The rules (age, keep-latest, size budget, stale uploads). Each one is optional. */
+  rules: PruneRules;
   ref: string;
   dryRun: boolean;
   prefix: string;
@@ -44,9 +51,35 @@ function parseDryRun(raw: string): boolean {
   throw new Error(`Invalid "dry-run" value "${raw}": use true or false.`);
 }
 
+/**
+ * Reads the selection rules. To add a rule, add its input here and its logic in `./pruneSelect`.
+ * `max-total-size` is a plain integer in bytes (0 allowed): the code has no size parser.
+ */
+export function readPruneRules(): PruneRules {
+  const rules: PruneRules = {
+    olderThanDays: parseOptionalPositiveInt(
+      core.getInput(Inputs.OlderThanDays),
+      Inputs.OlderThanDays
+    ),
+    keepLatest: parseOptionalPositiveInt(core.getInput(Inputs.KeepLatest), Inputs.KeepLatest),
+    maxTotalSize: parseOptionalNonNegativeInt(
+      core.getInput(Inputs.MaxTotalSize),
+      Inputs.MaxTotalSize
+    ),
+    abortUploadsOlderThanHours: parseOptionalPositiveInt(
+      core.getInput(Inputs.AbortUploadsOlderThanHours),
+      Inputs.AbortUploadsOlderThanHours
+    ),
+  };
+  if (!hasPruneRule(rules)) {
+    throw new Error(NO_RULE_MESSAGE);
+  }
+  return rules;
+}
+
 export function readPruneConfig(): PruneConfig {
   return {
-    olderThanDays: parsePositiveInt(core.getInput(Inputs.OlderThanDays), 'older-than-days'),
+    rules: readPruneRules(),
     ref: core.getInput(Inputs.Ref).trim(),
     dryRun: parseDryRun(core.getInput(Inputs.DryRun)),
     prefix: core.getInput(Inputs.Prefix),
@@ -105,7 +138,7 @@ export async function pruneImpl(): Promise<void> {
 
     const tier = buildPruneTier(config);
     const result = await pruneCaches(tier, {
-      olderThanDays: config.olderThanDays,
+      ...config.rules,
       ref: config.ref || undefined,
       dryRun: config.dryRun,
     });
@@ -113,6 +146,7 @@ export async function pruneImpl(): Promise<void> {
     core.setOutput(Outputs.PrunedCount, String(result.pruned.length));
     core.setOutput(Outputs.PrunedBytes, String(result.prunedBytes));
     core.setOutput(Outputs.KeptCount, String(result.keptCount));
+    core.setOutput(Outputs.AbortedUploads, String(result.abortedUploads));
     emitMetrics(
       {
         step: 'prune',
@@ -125,6 +159,7 @@ export async function pruneImpl(): Promise<void> {
           prunedCount: result.pruned.length,
           prunedBytes: result.prunedBytes,
           keptCount: result.keptCount,
+          abortedUploads: result.abortedUploads,
           dryRun: result.dryRun,
         },
       },

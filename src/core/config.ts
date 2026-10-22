@@ -7,6 +7,7 @@ import {
   type ObjectTag,
 } from './objectAttributes';
 import type { IStateProvider } from '../state';
+import type { PresetName } from './presets';
 import {
   getInputAsArray,
   getInputAsBool,
@@ -23,6 +24,8 @@ export type DualCacheStrategy = (typeof DUAL_CACHE_STRATEGIES)[number];
 export interface CacheConfig {
   primaryKey: string;
   paths: string[];
+  /** The preset that gave the defaults, when the `preset` input is set (see presets.ts). */
+  preset?: PresetName;
   restoreKeys: string[];
   lookupOnly: boolean;
   failOnCacheMiss: boolean;
@@ -135,7 +138,7 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
 
   return {
     primaryKey: text(State.CachePrimaryKey, () => core.getInput(Inputs.Key).trim()),
-    paths: getInputAsArray(Inputs.Path),
+    paths: json(State.CachePaths, () => getInputAsArray(Inputs.Path)),
     restoreKeys: getInputAsArray(Inputs.RestoreKeys),
     lookupOnly: getInputAsBool(Inputs.LookupOnly),
     failOnCacheMiss: getInputAsBool(Inputs.FailOnCacheMiss),
@@ -202,6 +205,8 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
 /** Saves what the post step must agree on with the restore step. */
 export function persistCacheConfig(state: IStateProvider, config: CacheConfig): void {
   state.setState(State.CachePrimaryKey, config.primaryKey);
+  // A preset can give the paths, so the post step reads them from here, not from the input.
+  state.setState(State.CachePaths, JSON.stringify(config.paths));
   state.setState(State.CacheReadOnly, String(config.readOnly));
   state.setState(State.CacheS3KeyPattern, config.s3KeyPattern);
   state.setState(State.CachePrefix, config.prefix);

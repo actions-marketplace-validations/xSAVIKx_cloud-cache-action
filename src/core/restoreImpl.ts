@@ -3,11 +3,13 @@ import { getWorkspace } from '../archive/paths';
 import { Outputs, State } from '../constants';
 import { NullStateProvider, StateProvider, type IStateProvider } from '../state';
 import { isValidEvent } from '../utils/inputUtils';
+import { getCacheMode, isCacheReadable } from './cacheMode';
 import { persistCacheConfig, readCacheConfig, type CacheConfig } from './config';
 import { buildExplainReport, renderExplain, writeExplainSummary } from './explain';
 import { restoreFromGitHub } from './githubTier';
 import { emitMetrics, type StepMetrics } from './metrics';
 import { toError, type RestoreOutcome } from './outcomes';
+import { applyPreset, readPreset } from './presets';
 import { buildS3Tier, restoreFromS3, type S3Tier } from './s3Tier';
 import { writeRestoreSummary } from './summary';
 
@@ -115,12 +117,12 @@ export async function restoreImpl(
       );
     }
 
-    config = readCacheConfig();
+    config = await applyPreset(readCacheConfig(), readPreset());
     if (!config.primaryKey) {
-      throw new Error('Input required and not supplied: key');
+      throw new Error('Input required and not supplied: key. Set key and path, or set preset.');
     }
     if (config.paths.length === 0) {
-      throw new Error('Input required and not supplied: path');
+      throw new Error('Input required and not supplied: path. Set key and path, or set preset.');
     }
 
     persistCacheConfig(stateProvider, config);
@@ -133,6 +135,46 @@ export async function restoreImpl(
     core.setOutput(Outputs.CacheRestoreDurationMs, '0');
     core.setOutput(Outputs.CacheTransferDurationMs, '0');
     core.setOutput(Outputs.CacheBytes, '0');
+
+    // @actions/cache skips the GitHub tier itself in these modes. Skip both tiers here, so the
+    // S3 tier obeys the same mode and the step reports one skip.
+    const cacheMode = getCacheMode();
+    if (!isCacheReadable(cacheMode)) {
+      core.info(
+        `Cache restore skipped: ACTIONS_CACHE_MODE is '${cacheMode}', which does not permit reads.`
+      );
+      stateProvider.setState(State.CacheHitSource, 'none');
+      core.setOutput(Outputs.CacheRestoreDurationMs, String(Date.now() - start));
+      report({
+        step: 'restore',
+        key: config.primaryKey,
+        source: 'none',
+        bytes: 0,
+        transferDurationMs: 0,
+        downloadParts: 0,
+        outcome: 'skipped',
+        extra: { reason: `ACTIONS_CACHE_MODE=${cacheMode}` },
+      });
+      await writeRestoreSummary({
+        jobSummary: config.jobSummary,
+        primaryKey: config.primaryKey,
+        matchedKey: undefined,
+        cacheHit: false,
+        source: 'none',
+        size: undefined,
+        durationMs: Date.now() - start,
+        preset: config.preset,
+        paths: config.paths,
+        skipped: `ACTIONS_CACHE_MODE is ${cacheMode}`,
+      });
+      // The toolkit returns no key for a skipped restore, so actions/cache treats it as a miss.
+      if (config.failOnCacheMiss) {
+        throw new Error(
+          `Failed to restore cache entry. Exiting as fail-on-cache-miss is set. Input key: ${config.primaryKey}`
+        );
+      }
+      return undefined;
+    }
 
     const s3 = await setUpS3(config, stateProvider);
     provider = s3?.storage.providerConfig.provider;
@@ -187,6 +229,8 @@ export async function restoreImpl(
             size: outcome.s3?.size,
             durationMs: Date.now() - start,
             metadata: outcome.s3?.metadata,
+            preset: config.preset,
+            paths: config.paths,
           });
           return matchedKey;
         }
@@ -230,6 +274,8 @@ export async function restoreImpl(
       source: 'none',
       size: undefined,
       durationMs: Date.now() - start,
+      preset: config.preset,
+      paths: config.paths,
     });
     if (config.failOnCacheMiss) {
       throw new Error(

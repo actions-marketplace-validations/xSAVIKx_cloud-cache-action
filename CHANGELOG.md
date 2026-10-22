@@ -8,6 +8,106 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+### Added
+
+- **`preset` input.** Set `preset: npm` (or `yarn`, `pnpm`, `bun`, `pip`, `poetry`, `uv`,
+  `gradle`, `maven`, `cargo`, `go`) instead of `path`, `key` and `restore-keys`, like the `cache:`
+  input of `actions/setup-node`. The preset gives the download cache of the package manager for
+  the runner OS, the key `<runner.os>-<preset>-<hash of the lockfiles>` and the restore key
+  `<runner.os>-<preset>-`. The hash comes from `hashFiles` of `@actions/glob`, the function that
+  `hashFiles()` in a workflow uses. An explicit `path`, `key` or `restore-keys` input replaces that
+  one value. With no lockfile, the step fails and names the globs. The post step saves with the key
+  and the paths that the restore step resolved. The main action and the `restore` and `save`
+  sub-actions take the input. See the [Cache Presets](./guide/presets.md) guide.
+
+- **`ACTIONS_CACHE_MODE` support.** The S3 tier now obeys the `ACTIONS_CACHE_MODE` environment
+  variable in the same way as `@actions/cache` 6.2.0 (and the 5.2.0 backport) does for GitHub
+  Actions Cache. GitHub sets the variable from the `cache-mode` workflow key. `none` skips
+  the restore and the save. `read` skips the save. `write-only` skips the restore. `write`, an
+  unset variable and an unknown value change nothing. The action trims the value and ignores its
+  case, as the toolkit does. A skip logs one info line that names the variable. The metrics line
+  and the job summary show the step as skipped, with the reason. A skip never fails the step, also
+  in strict dual-cache mode. A skipped restore sets `cache-hit` to `false`, and
+  `fail-on-cache-miss: true` then fails the step, as in `actions/cache`. `read-only: true` still
+  skips the save in every mode. See
+  [Parity with actions/cache](https://github.com/xSAVIKx/cloud-cache-action#parity-with-actionscache).
+
+- **Security guide.** A new [Security](./guide/security.md) page explains the cache trust boundary
+  and what the action does and does not protect. It covers fork pull requests, `pull_request_target`
+  and the read-only credential pattern. It lists each S3 call and the feature that sends it, and it
+  gives least-privilege policies for AWS S3 (read-write, read-only and prune), Cloudflare R2, Google
+  Cloud Storage, MinIO and RustFS. The AWS and MinIO provider pages now link to it.
+
+- **`keep-latest` and `max-total-size` prune inputs.** `keep-latest` keeps the N most recently
+  modified archives of each ref, even when they are older than `older-than-days`. Alone, it
+  deletes every other archive of the ref. `max-total-size` is a budget in bytes: after the other
+  rules, prune deletes the oldest remaining archives in the scope until the total fits.
+  `older-than-days` is now optional, but the step fails when none of the four rule inputs
+  (`older-than-days`, `keep-latest`, `max-total-size` and `abort-uploads-older-than-hours`) is
+  set. Each log line names the rule that selected the archive.
+  `max-total-size: 0` is allowed. It deletes every archive that `keep-latest` does not protect.
+  See the [Pruning](./guide/pruning.md) guide.
+
+- **`abort-uploads-older-than-hours` prune input.** A save that stops in the middle of a multipart
+  upload leaves an incomplete upload that uses storage on providers with no lifecycle rule. Prune
+  now lists the incomplete uploads in its scope and aborts each one that started more than this
+  many hours ago. Set the limit above the duration of your longest save, because prune aborts a
+  save in progress that is older than the limit. `dry-run` lists them and aborts none. The input
+  counts as a prune rule on its own: with only this input set, prune aborts uploads and deletes no
+  archive. A provider that cannot list uploads gives a warning, not a failure. Measured on the CI
+  servers: RustFS 1.0.0 and Garage 2.4.1 list the uploads with their start time, and prune aborts
+  them. SeaweedFS 4.46 lists them without a start time, so prune aborts none and logs a warning
+  with the count. MinIO lists no upload for a prefix that is not a full object key, so prune finds
+  none. The new `aborted-uploads` output and the `abortedUploads` metrics field give the count.
+  See the [Pruning](./guide/pruning.md) guide.
+
+### Changed
+
+- **Behaviour change: S3-only jobs on low-trust triggers no longer save by default.** The S3 tier now obeys
+  `ACTIONS_CACHE_MODE`. GitHub sets it from the `cache-mode` workflow key, which is generally
+  available since 2026-09-10. When the workflow does not set the key, the
+  [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) gives a default of `read` for low-trust triggers, such as
+  `pull_request_target`, `issue_comment` and `workflow_run`, that resolve to the default-branch
+  scope. A job on such a trigger then restores but does not save, and logs one info line. The
+  `pull_request` event is not affected. To save from such a job again, set `cache-mode: write` on
+  the job. Only do this when the job cannot run untrusted code.
+
+- **An S3 save that the storage refuses with `AccessDenied` now gives a hint.** The warning
+  adds: "The credentials may not be allowed to write to the bucket. Set read-only: true to skip
+  the save and silence this message." A `403` for wrong credentials (`InvalidAccessKeyId`,
+  `SignatureDoesNotMatch`, `RequestTimeTooSkewed`, `ExpiredToken`, `InvalidToken`,
+  `TokenRefreshRequired`) does not get the hint. The step still only warns. Strict dual-cache mode still fails the
+  step, as for every other save error, and the failure message has the same hint.
+
+- **`path` and `key` are optional in the manifests.** The main action and the `restore` and
+  `save` manifests now declare `path` and `key` with `required: false`, because a `preset` can
+  give them. With no `preset` and no `key` or `path`, the restore still fails, and the message
+  now tells you to set `preset` or both inputs.
+
+- **One shared bundle in `dist/`.** `dist/` held six ncc bundles that each contained the same
+  SDK code. Now ncc builds one bundle, `dist/lib/index.js`, from `src/main.ts`. Each action entry
+  (`dist/restore`, `dist/save`, `dist/restore-only`, `dist/save-only`, `dist/prune` and
+  `dist/inspect`) is a small file that imports this bundle and calls the function of its action.
+  The `action.yml` paths do not change. `dist/` is now 4.9 MB instead of 24 MB, and
+  `npm run build` takes about 50 seconds instead of about 245 seconds.
+
+### Fixed
+
+- A dual-cache save where `path` matches nothing now skips both tiers with the reason
+  "no paths matched". Before, the GitHub tier reported an error, because `@actions/cache` throws a
+  plain `Error` for this case and the check expected a `ValidationError`. In strict mode, this
+  failed the step. The S3 tier alone was not affected.
+
+- On Windows, an S3 tier restore in file mode with Git's GNU `tar` no longer fails when the runner
+  account cannot create native symlinks (no `SeCreateSymbolicLinkPrivilege` and no Developer Mode). When the only errors
+  are `Cannot create symlink to ...: Operation not permitted`, the action logs a warning and
+  extracts the archive one more time with `MSYS=winsymlinks:deepcopy`. Symlinks are then restored
+  as copies of their targets. Any other extract error still fails the restore without a retry.
+  The retry does not run with `streaming: true`, or for the GitHub tier with `dual-cache: true`,
+  because `@actions/cache` runs its own `tar`. A symlink whose target is a later symlink in the
+  archive still fails. A copied directory symlink can make the restored tree much larger than the
+  archive.
+
 ## [1.6.0] - 2026-10-22
 
 No breaking changes. Caches saved by v1.1 to v1.5 stay valid. A streamed save now uses object

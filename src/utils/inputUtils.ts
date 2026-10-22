@@ -124,6 +124,23 @@ export function formatSize(bytes?: number): string {
   return `${size} ${units[unitIndex]}`;
 }
 
+/** Reads an optional input that must be an integer of 0 or more; empty gives undefined. */
+export function parseOptionalNonNegativeInt(raw: string, name: string): number | undefined {
+  const trimmed = raw.trim();
+  if (trimmed === '') {
+    return undefined;
+  }
+  if (!/^[0-9]+$/.test(trimmed) || !Number.isSafeInteger(Number(trimmed))) {
+    throw new Error(`Input "${name}" must be a non-negative integer; got "${raw}".`);
+  }
+  return Number(trimmed);
+}
+
+/** Like `parsePositiveInt`, but an empty input gives undefined: the input is optional. */
+export function parseOptionalPositiveInt(raw: string, name: string): number | undefined {
+  return raw.trim() === '' ? undefined : parsePositiveInt(raw, name);
+}
+
 /**
  * Reads an input that must be a positive integer, failing the step on anything else: a typo
  * silently falling back to a default would hide a wrong-looking result rather than report it.

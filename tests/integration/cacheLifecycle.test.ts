@@ -22,6 +22,7 @@ jest.unstable_mockModule('../../src/archive/compression', () => ({
 
 const { restoreImpl } = await import('../../src/core/restoreImpl');
 const { saveImpl } = await import('../../src/core/saveImpl');
+const { PRESETS, runnerOs } = await import('../../src/core/presets');
 
 const s3 = getTestS3Config();
 const runId = `${Date.now()}-${process.pid}`;
@@ -193,6 +194,39 @@ describe.each<CompressionConfig & { streaming: boolean }>([
     },
     180_000
   );
+});
+
+describe('presets', () => {
+  itS3('round-trips the npm cache with the preset path, key and restore-keys', async () => {
+    // The preset path of this runner, for example ~/.npm on Linux and ~\AppData\Local\npm-cache
+    // on Windows, with ~ replaced by the test home.
+    const presetPath = PRESETS.npm.paths[runnerOs()][0];
+    const npmCache = path.join(roots.home, ...presetPath.slice(2).split(/[\\/]/));
+    writeFiles(roots.workspace, { 'package-lock.json': '{"lockfileVersion":3}' });
+    writeFiles(npmCache, { '_cacache/index-v5/aa/bb': 'index', '_cacache/content-v2/x': 'blob' });
+
+    const first = await restore({ preset: 'npm' });
+    const key = first.outputs['cache-primary-key'];
+    expect(key).toMatch(/^(Linux|macOS|Windows)-npm-[0-9a-f]{64}$/);
+    expect(first.outputs['cache-hit']).toBe('false');
+    // The post step: the key and the paths come from the restore step's state.
+    expect(await save({ preset: 'npm' }, first.state)).toMatchObject({
+      'cache-saved-sources': 's3',
+    });
+
+    fs.rmSync(npmCache, { recursive: true });
+    const second = await restore({ preset: 'npm', 'fail-on-cache-miss': 'true' });
+    expect(second.outputs).toMatchObject({ 'cache-hit': 'true', 'cache-matched-key': key });
+    expect(fs.readFileSync(path.join(npmCache, '_cacache', 'content-v2', 'x'), 'utf8')).toBe(
+      'blob'
+    );
+
+    // A changed lockfile gives a new key, and the preset restore-keys find the old cache.
+    writeFiles(roots.workspace, { 'package-lock.json': '{"lockfileVersion":3,"x":1}' });
+    const third = await restore({ preset: 'npm', 'lookup-only': 'true' });
+    expect(third.outputs['cache-primary-key']).not.toBe(key);
+    expect(third.outputs).toMatchObject({ 'cache-hit': 'false', 'cache-matched-key': key });
+  });
 });
 
 describe('key matching', () => {

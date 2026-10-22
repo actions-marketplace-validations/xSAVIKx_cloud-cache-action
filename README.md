@@ -55,13 +55,14 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
 - **Standalone Sub-Actions**: Includes `cloud-cache-action/restore`, `cloud-cache-action/save`, `cloud-cache-action/prune` and `cloud-cache-action/inspect` for decoupled cache stages, scheduled cleanup and lookup debugging.
 - **Archive Integrity**: Every save writes a sha256 checksum as object metadata; restore verifies it and treats a mismatch as a cache miss with a warning, so a corrupted or truncated object is never reported as a hit. See [Archive Integrity](#archive-integrity).
 - **Safe Concurrent Saves**: Uploads use a conditional create (`If-None-Match`), so on providers that enforce it, two jobs racing to save the same key never overwrite each other. See [Safe Concurrent Saves](#safe-concurrent-saves).
-- **Cache Pruning**: A dedicated `prune` sub-action deletes cache archives older than a given age from any S3-compatible bucket on a schedule. See [Cache Pruning](#cache-pruning).
+- **Cache Pruning**: A dedicated `prune` sub-action deletes cache archives from any S3-compatible bucket on a schedule, by age, by count per ref (`keep-latest`) or to fit a total size budget (`max-total-size`). See [Cache Pruning](#cache-pruning).
 - **Job Summary**: Writes a step summary table after restore and save with the key, hit/source, size and duration (on by default; `job-summary: false` turns it off).
 - **Object Metadata and Tags**: Store custom `x-amz-meta-*` metadata and object tags on every saved cache object with `metadata` and `tags`; the metadata comes back on restore as the `cache-metadata` output. See [Object Metadata and Tags](#object-metadata-and-tags).
 - **Explain a Lookup**: `explain: true` logs why a lookup hits or misses — the resolved pattern, the `${version}` hash, every ref searched and every candidate object — and the `inspect` sub-action reports the same thing as step outputs, without restoring anything. See [Inspecting a cache lookup](#inspecting-a-cache-lookup).
 - **Metrics**: Every step exposes its timings and byte count as outputs and can append one JSON line per step to a `metrics-file`. See [Metrics and Timings](#metrics-and-timings).
 - **Opt-in Streaming (Experimental)**: Stream archives directly between `tar` and S3 without a temporary file, with `streaming: true`. See [Streaming Archives](#streaming-archives-experimental).
 - **Parallel Transfers**: Restores fetch archives larger than 8 MiB as concurrent `Range` requests, and saves send multipart parts concurrently, 8 at a time each by default, the same fan-out as `actions/cache`. See [Parallel Transfers](#parallel-transfers).
+- **Least-Privilege Policies**: The [Security guide](https://xsavikx.github.io/cloud-cache-action/guide/security.html) explains the trust boundary, fork pull requests, the read-only pattern, and gives IAM policies for AWS, R2, GCS, MinIO and RustFS.
 - **Resilient**: Automatic exponential backoff retries on transient network errors.
 
 ---
@@ -83,6 +84,28 @@ Created and maintained by [Yurii Serhiichuk](https://serhiichuk.dev).
     restore-keys: |
       ${{ runner.os }}-node-
 ```
+
+### Cache presets
+
+Set `preset` instead of `path`, `key` and `restore-keys`. The preset gives the download cache of the package manager for the runner OS, the key `<runner.os>-<preset>-<hash of the lockfiles>` and the restore key `<runner.os>-<preset>-`:
+
+```yaml
+- name: Cache npm downloads to S3
+  uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    bucket: my-ci-cache-bucket
+    access-key: ${{ secrets.S3_ACCESS_KEY }}
+    secret-key: ${{ secrets.S3_SECRET_KEY }}
+    preset: npm # npm, yarn, pnpm, bun, pip, poetry, uv, gradle, maven, cargo or go
+```
+
+- An explicit `path`, `key` or `restore-keys` input replaces the preset value for that one input. With an explicit `key`, the action adds no preset restore keys.
+- The paths are the static defaults that each tool documents. The action does not run the package manager to find them. If you move the cache directory, set `path`.
+- With no lockfile that matches the preset globs, the step fails and names the globs.
+- The post step saves with the key and the paths that the restore step resolved. It does not hash the lockfiles again.
+- The `restore` and `save` sub-actions take `preset` too. `prune` and `inspect` do not.
+
+The [Cache Presets](https://xsavikx.github.io/cloud-cache-action/guide/presets) guide lists the paths and the lockfile globs of each preset, and the source of each value.
 
 ### 🤖 Migrate in Seconds with AI Coding Agents
 
@@ -265,8 +288,11 @@ Cache across **both** S3 and GitHub Actions Cache simultaneously. In this patter
 ## Cache Pruning
 
 Object storage does not evict old caches the way GitHub's cache service does. The standalone
-`cloud-cache-action/prune` sub-action deletes cache archives older than a given age from any
-S3-compatible bucket, so you can run it on a schedule. **Run it with `dry-run: true` first** to see
+`cloud-cache-action/prune` sub-action deletes cache archives from any S3-compatible bucket, so you
+can run it on a schedule. Set at least one rule: `older-than-days` (age), `keep-latest` (the newest
+N archives of each ref are never deleted; alone, it deletes every other archive of the ref), `max-total-size` (a budget in bytes; the oldest
+archives go first until the total fits) or `abort-uploads-older-than-hours` (abort stale incomplete
+multipart uploads; no archive is deleted). **Run it with `dry-run: true` first** to see
 what it would delete before letting it delete anything:
 
 ```yaml
@@ -688,6 +714,27 @@ inputs writes the same object as v1.2 did. Every addition is opt-in:
   `cloud-cache-sha256` after the upload, so streamed archives are integrity-checked on restore like
   file-mode ones. See [Streaming Archives](#streaming-archives-experimental).
 
+## Parity with actions/cache
+
+The action takes the inputs and gives the outputs of `actions/cache`. See [Features](#features) for the list. This section gives the behaviour that has no input.
+
+**`ACTIONS_CACHE_MODE`.** GitHub sets this environment variable from the `cache-mode` workflow key (generally available since 2026-09-10). The value is `read`, `write`, `write-only` or `none`, at the workflow level or at `jobs.<job_id>.cache-mode`. When the workflow does not set the key, the [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) gives a default of `read` for low-trust triggers, such as `pull_request_target`, `issue_comment` and `workflow_run`, that resolve to the default-branch scope. The `pull_request` event is not affected. `@actions/cache` 6.2.0 (and the 5.2.0 backport) reads the variable, and this action applies the same rules to the S3 tier:
+
+| `ACTIONS_CACHE_MODE`                      | Restore | Save    |
+| ----------------------------------------- | ------- | ------- |
+| `none`                                    | skipped | skipped |
+| `read`                                    | runs    | skipped |
+| `write-only`                              | skipped | runs    |
+| `write`, not set, or any other value      | runs    | runs    |
+
+The action trims the value and ignores its case. A skip logs one info line that names the variable, and the metrics line and the job summary show the step as `skipped` with the reason. A skip does not fail the step, also with `dual-cache-strict: true`. A skipped restore sets `cache-hit` to `false`. With `fail-on-cache-miss: true`, a skipped restore fails the step, as in `actions/cache`. `read-only: true` skips the save in every mode.
+
+An S3-only job on one of those low-trust triggers can stop saving after you upgrade to this version. To save from such a job again, set `cache-mode: write` on the job. Only do this when the job cannot run untrusted code, because the read default is there to stop cache poisoning.
+
+**Write denied.** When the storage refuses an S3 save with `AccessDenied` (or a `403` that is not a credential error), the step logs a warning that the credentials may not be allowed to write to the bucket, and that `read-only: true` skips the save. The job does not fail. With `dual-cache-strict: true`, the step fails, as for every other save error. A `403` for wrong credentials, such as `InvalidAccessKeyId`, `SignatureDoesNotMatch` or `ExpiredToken`, gives the usual warning without the hint. For jobs that must not write, such as pull requests, see the read-only pattern in the [Security guide](https://xsavikx.github.io/cloud-cache-action/guide/security.html).
+
+**`save-always`.** The action does not support this deprecated input. See [Saving after failed steps](#saving-after-failed-steps).
+
 ## Saving after failed steps
 
 The post step only runs when the job succeeds. To save a cache even when a later step fails, use the separate actions with `if: always()`:
@@ -715,8 +762,9 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | Input                            | Required |                          Default                           | Description                                                                 |
 | -------------------------------- | :------: | :--------------------------------------------------------: | --------------------------------------------------------------------------- |
 | `bucket`                         | **Yes**  |                             —                              | Name of the S3 bucket                                                       |
-| `key`                            | **Yes**  |                             —                              | Explicit key for restoring and saving cache                                 |
-| `path`                           | **Yes**  |                             —                              | Multiline list of paths, globs and `!` exclusions to cache (see [Paths and exclusions](#paths-and-exclusions)) |
+| `key`                            | **Yes**, unless `preset` is set |                             —                              | Explicit key for restoring and saving cache                                 |
+| `path`                           | **Yes**, unless `preset` is set |                             —                              | Multiline list of paths, globs and `!` exclusions to cache (see [Paths and exclusions](#paths-and-exclusions)) |
+| `preset`                         |    No    |                             —                              | Package manager preset that gives the default `path`, `key` and `restore-keys`: `npm`, `yarn`, `pnpm`, `bun`, `pip`, `poetry`, `uv`, `gradle`, `maven`, `cargo`, `go` (see [Cache presets](#cache-presets)) |
 | `restore-keys`                   |    No    |                             —                              | Multiline string of prefix keys for fallback matching                       |
 | `endpoint`                       |    No    |                          Auto/AWS                          | Custom S3 endpoint URL                                                      |
 | `region`                         |    No    |                      Auto/`us-east-1`                      | AWS or S3 provider region                                                   |
@@ -756,6 +804,7 @@ The post step only runs when the job succeeds. To save a cache even when a later
 
 - **Exclusions only remove what the include patterns matched**, as in actions/cache. `path: logs` with `!logs/debug.txt` still caches the whole `logs` directory, because the directory is the match. To leave one file out, match the files instead: `logs/*` with `!logs/debug.txt`.
 - **Symbolic links are not followed while matching.** A pattern that wildcards through a symlinked directory, such as `linked-dir/*` where `linked-dir` is a symlink, matches nothing. A symlink that a pattern matches is archived as a link, not as the files it points to.
+- **Windows symlinks without the privilege.** On a self-hosted Windows runner, the account can lack the `SeCreateSymbolicLinkPrivilege` privilege, and Developer Mode can be off. Then Git's GNU `tar` cannot create native symlinks, and the extract fails with `Cannot create symlink to ...: Operation not permitted`. When symlinks are the only failure, the action logs a warning and extracts the archive one more time with `MSYS=winsymlinks:deepcopy`. Each symlink is then restored as a copy of its target, not as a link. A symlink whose target is not in the archive still fails the restore. BSD `tar` (`C:\Windows\System32\tar.exe`) does not read `MSYS`, so the action does not retry with it. This retry applies only to the S3 tier in file mode. With `streaming: true`, or for the GitHub tier with `dual-cache: true` (`@actions/cache` runs its own `tar`), the restore still fails. The retry also fails for a symlink whose target is another symlink later in the archive. A copied directory symlink can make the restored tree much larger than the archive.
 
 ---
 

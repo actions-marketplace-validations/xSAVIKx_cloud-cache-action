@@ -112,6 +112,23 @@ Because `cloud-cache-action` maintains 1:1 input and output parity, you simply c
 
 All existing features (`lookup-only`, `fail-on-cache-miss`, `enableCrossOsArchive`, `read-only`) continue to work identically. `save-always` is not supported: use `cloud-cache-action/save` with `if: always()` instead.
 
+### `ACTIONS_CACHE_MODE` and denied writes
+
+GitHub sets `ACTIONS_CACHE_MODE` from the `cache-mode` workflow key, at the workflow level or at `jobs.<job_id>.cache-mode`. When the workflow does not set the key, the [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) gives a default of `read` for low-trust triggers, such as `pull_request_target`, `issue_comment` and `workflow_run`, that resolve to the default-branch scope. The `pull_request` event is not affected.
+
+The action obeys `ACTIONS_CACHE_MODE` in the S3 tier, with the same rules as `@actions/cache` 6.2.0 (and the 5.2.0 backport):
+
+- `none` skips the restore and the save.
+- `read` skips the save.
+- `write-only` skips the restore.
+- `write`, an unset variable and an unknown value change nothing.
+
+A skip logs one info line and does not fail the step, also in strict dual-cache mode. A skipped restore is a cache miss: `cache-hit` is `false`, and `fail-on-cache-miss: true` fails the step.
+
+An S3-only job on one of those low-trust triggers can stop saving after the upgrade. To save from such a job again, set `cache-mode: write` on the job. Only do this when the job cannot run untrusted code.
+
+When the storage refuses an S3 save with `AccessDenied` (or a `403` that is not a credential error), the step warns that the credentials may not be allowed to write to the bucket and that `read-only: true` skips the save. The job does not fail, except in strict dual-cache mode.
+
 ---
 
 ## Manual Migration from `tespkg/actions-cache`
