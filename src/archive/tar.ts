@@ -4,8 +4,17 @@ import * as io from '@actions/io';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import type { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { StringDecoder } from 'node:string_decoder';
+import { createSha256Tap, sha256File } from './checksum';
 import type { CompressionConfig, CompressionMethod } from './compression';
+import {
+  captureStderrTail,
+  spawnArchiveCommand,
+  waitForExit,
+  waitForExitAfterKill,
+} from './stream';
 
 export type TarFlavor = 'gnu' | 'bsd';
 
@@ -123,11 +132,22 @@ export function formatManifest(entries: readonly string[]): string {
   return `${entries.map((entry) => (entry.startsWith('-') ? `./${entry}` : entry)).join('\n')}\n`;
 }
 
+/**
+ * Builds the commands that create the archive. With `toStdout`, tar writes the archive to stdout
+ * and the commands do not name `archivePath`. The two-command zstd plan cannot do this.
+ */
 export function buildCreateCommands(
-  plan: ArchivePlan & { manifestPath: string }
+  plan: ArchivePlan & { manifestPath: string; toStdout?: boolean }
 ): ArchiveCommand[] {
   const separateZstd = usesSeparateZstd(plan);
-  const tarFile = separateZstd ? path.join(plan.tempDir, 'cache.tar') : plan.archivePath;
+  if (separateZstd && plan.toStdout) {
+    throw new Error('The separate zstd command cannot write the archive to stdout');
+  }
+  const tarFile = separateZstd
+    ? path.join(plan.tempDir, 'cache.tar')
+    : plan.toStdout
+      ? '-'
+      : plan.archivePath;
 
   const args: string[] = [];
   if (plan.tar.flavor === 'gnu') {
@@ -325,31 +345,81 @@ export async function runExtract(
   }
 }
 
+/**
+ * Runs one create command that writes the archive to stdout. The sha256 tap hashes the bytes on
+ * their way to `archivePath`, so the file is not read again. On a failure, this stops tar,
+ * removes the partial file, and throws the error text of `run()` with the stderr tail added.
+ */
+async function writeArchiveFromStdout(
+  command: ArchiveCommand,
+  archivePath: string
+): Promise<string> {
+  const child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
+  // exec writes tar's stderr to the log. Do the same, so that tar warnings stay visible.
+  child.stderr?.on('data', (chunk: string) => process.stderr.write(chunk));
+  const stderrTail = captureStderrTail(child.stderr);
+  const tarClose = waitForExit(child);
+  const tap = createSha256Tap();
+  const file = fs.createWriteStream(archivePath);
+  const fileClosed = new Promise<void>((resolve) => file.once('close', () => resolve()));
+  try {
+    const [, code] = await Promise.all([
+      pipeline(child.stdout as Readable, tap.stream, file),
+      tarClose,
+    ]);
+    if (code !== 0) {
+      const tail = stderrTail.lines();
+      const message = `The process '${command.tool}' failed with exit code ${code}`;
+      throw new Error(tail.length === 0 ? message : `${message}\n${tail.join('\n')}`);
+    }
+    await fileClosed;
+    return tap.digest();
+  } catch (err) {
+    // When the pipe fails first, tar can still run. Stop it and wait, bounded, for it to close.
+    child.stdout?.destroy();
+    await waitForExitAfterKill(child, tarClose);
+    file.destroy();
+    await fileClosed;
+    try {
+      fs.rmSync(archivePath, { force: true });
+    } catch {
+      // The tar or pipe error is the one to report, not a failed removal.
+    }
+    throw err;
+  }
+}
+
+/** Creates the archive and returns the sha256 of its bytes. */
 export async function createArchive(
   archivePath: string,
   entries: readonly string[],
   compression: CompressionConfig,
   workspace: string,
   level?: number
-): Promise<void> {
+): Promise<{ sha256: string }> {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-tar-'));
   try {
     const manifestPath = path.join(tempDir, 'manifest.txt');
     fs.writeFileSync(manifestPath, formatManifest(entries));
     fs.mkdirSync(path.dirname(archivePath), { recursive: true });
     const tar = await findTar();
-    await run(
-      buildCreateCommands({
-        tar,
-        platform: process.platform,
-        compression: compression.method,
-        archivePath,
-        workspace,
-        tempDir,
-        manifestPath,
-        level,
-      })
-    );
+    const plan = {
+      tar,
+      platform: process.platform,
+      compression: compression.method,
+      archivePath,
+      workspace,
+      tempDir,
+      manifestPath,
+      level,
+    };
+    if (usesSeparateZstd(plan)) {
+      // Two commands write files, so the archive is hashed after they finish.
+      await run(buildCreateCommands(plan));
+      return { sha256: await sha256File(archivePath) };
+    }
+    const [command] = buildCreateCommands({ ...plan, toStdout: true });
+    return { sha256: await writeArchiveFromStdout(command, archivePath) };
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

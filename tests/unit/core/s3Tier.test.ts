@@ -27,7 +27,7 @@ const mockCreateArchive =
       entries: readonly string[],
       compression: CompressionConfig,
       workspace: string
-    ) => Promise<void>
+    ) => Promise<{ sha256: string }>
   >();
 const mockExtractArchive =
   jest.fn<
@@ -334,7 +334,7 @@ beforeEach(() => {
   mockDownloadFile.mockResolvedValue({});
   mockDownloadFileInParts.mockResolvedValue({ parts: 3 });
   mockExtractArchive.mockResolvedValue();
-  mockCreateArchive.mockResolvedValue();
+  mockCreateArchive.mockResolvedValue({ sha256: 'archive-sha256' });
   mockGetArchiveSize.mockReturnValue(2048);
   mockUploadFile.mockResolvedValue({ size: 2048, etag: '"new"' });
   mockResolveCachePaths.mockResolvedValue({ entries: ['node_modules'], skipped: [] });
@@ -761,13 +761,13 @@ describe('saveToS3', () => {
     expect(fs.existsSync(path.dirname(archivePath))).toBe(false);
   });
 
-  it('hashes the archive and uploads its sha256 as object metadata', async () => {
-    mockSha256File.mockResolvedValue(
-      'c0ffee0000000000000000000000000000000000000000000000000000ffee'
-    );
+  it('uploads the sha256 that createArchive computed as object metadata', async () => {
+    mockCreateArchive.mockResolvedValue({
+      sha256: 'c0ffee0000000000000000000000000000000000000000000000000000ffee',
+    });
     await saveToS3(tier(), 'k', ['node_modules']);
-    const [archivePath] = mockCreateArchive.mock.calls[0];
-    expect(mockSha256File).toHaveBeenCalledWith(archivePath);
+    // createArchive hashes the archive while tar writes it, so the save does not read it again.
+    expect(mockSha256File).not.toHaveBeenCalled();
     const [, , , , , options] = mockUploadFile.mock.calls[0];
     expect(options).toEqual({
       metadata: {

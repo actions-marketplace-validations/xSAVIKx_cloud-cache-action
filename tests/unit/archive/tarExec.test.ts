@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import * as childProcess from 'node:child_process';
 import * as path from 'node:path';
 import { makeTempDir, removeDir } from '../../support/tempTree';
 
@@ -8,9 +9,17 @@ type Exec = (
   options?: { env?: Record<string, string> }
 ) => Promise<number>;
 
+type SpawnOptions = { env?: NodeJS.ProcessEnv; stdio?: childProcess.StdioOptions };
+
 const mockExec = jest.fn<Exec>();
+// createArchive spawns tar without exec. The mock records the options and runs an empty Node
+// script in place of tar, so the test needs no tar.
+const mockSpawn = jest.fn((_tool: string, _args: string[], options: SpawnOptions) =>
+  childProcess.spawn(process.execPath, ['-e', ''], { stdio: options.stdio })
+);
 
 jest.unstable_mockModule('@actions/exec', () => ({ exec: mockExec }));
+jest.unstable_mockModule('node:child_process', () => ({ ...childProcess, spawn: mockSpawn }));
 
 const { archiveExecOptions, createArchive, extractArchive } = await import(
   '../../../src/archive/tar'
@@ -37,6 +46,7 @@ describe('archive commands', () => {
     dir = makeTempDir('tar-exec');
     mockExec.mockReset();
     mockExec.mockResolvedValue(0);
+    mockSpawn.mockClear();
   });
 
   afterEach(() => removeDir(dir));
@@ -49,10 +59,14 @@ describe('archive commands', () => {
       await createArchive(archivePath, ['data'], compression, dir);
       await extractArchive(archivePath, compression, dir);
 
-      expect(mockExec.mock.calls.length).toBeGreaterThanOrEqual(2);
-      for (const [, , options] of mockExec.mock.calls) {
-        expect(options?.env).toMatchObject({ MSYS: 'winsymlinks:nativestrict' });
-        expect(options?.env?.PATH ?? options?.env?.Path).toBe(process.env.PATH ?? process.env.Path);
+      const envs = [
+        ...mockExec.mock.calls.map(([, , options]) => options?.env),
+        ...mockSpawn.mock.calls.map(([, , options]) => options.env),
+      ];
+      expect(envs.length).toBeGreaterThanOrEqual(2);
+      for (const env of envs) {
+        expect(env).toMatchObject({ MSYS: 'winsymlinks:nativestrict' });
+        expect(env?.PATH ?? env?.Path).toBe(process.env.PATH ?? process.env.Path);
       }
     }
   );

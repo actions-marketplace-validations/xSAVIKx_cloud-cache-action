@@ -17,6 +17,11 @@ points at the latest `v1.x.y` release.
   endpoints keep the signed payload. Set `CLOUD_CACHE_UNSIGNED_PAYLOAD=false` to turn the change
   off, or `CLOUD_CACHE_UNSIGNED_PAYLOAD=true` to turn it on for an `http://` endpoint. If a server
   refuses the header, the action sends that request again with a signed payload and logs one line.
+- **A file-mode save hashes the archive while tar writes it.** Tar now writes the archive to
+  stdout, and the action computes the sha256 on the way to the temporary file. The save no longer
+  reads the whole archive again before the upload. The archive bytes and the stored sha256 do not
+  change. If tar fails, the action removes the partial file. BSD tar on Windows with zstd keeps
+  its two commands and hashes the file after them.
 
 ## [1.7.0] - 2026-10-22
 

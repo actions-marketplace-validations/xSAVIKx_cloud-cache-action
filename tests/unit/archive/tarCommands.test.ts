@@ -269,6 +269,42 @@ describe('buildCreateCommands compression level', () => {
   });
 });
 
+describe('buildCreateCommands to stdout', () => {
+  const plan = {
+    ...unix,
+    tar: gnu,
+    platform: 'linux' as NodeJS.Platform,
+    compression: 'zstd' as const,
+    archivePath: '/tmp/t/cache.tar.zst',
+  };
+
+  it('writes the archive to stdout and does not name the output path', () => {
+    const commands = buildCreateCommands({ ...plan, toStdout: true });
+    expect(commands).toHaveLength(1);
+    expect(commands[0].args.slice(0, 3)).toEqual(['--posix', '-cf', '-']);
+    expect(commands[0].args).not.toContain('/tmp/t/cache.tar.zst');
+  });
+
+  it('keeps every other argument the same as the command that writes the file', () => {
+    const toFile = buildCreateCommands(plan)[0].args;
+    const toStdout = buildCreateCommands({ ...plan, toStdout: true })[0].args;
+    expect(toStdout).toEqual(toFile.map((arg) => (arg === plan.archivePath ? '-' : arg)));
+  });
+
+  it('refuses stdout for the Windows two-step zstd commands', () => {
+    expect(() =>
+      buildCreateCommands({
+        ...win,
+        tar: systemTar,
+        platform: 'win32',
+        compression: 'zstd',
+        archivePath: 'D:\\a\\_temp\\cache.tar.zst',
+        toStdout: true,
+      })
+    ).toThrow();
+  });
+});
+
 describe('buildExtractCommands', () => {
   it.each<[string, Parameters<typeof buildExtractCommands>[0], ArchiveCommand[]]>([
     [

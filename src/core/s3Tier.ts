@@ -572,7 +572,7 @@ async function saveToS3FileMode(
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
   try {
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
-    await createArchive(
+    const { sha256: checksum } = await createArchive(
       archivePath,
       entries,
       tier.compression,
@@ -581,7 +581,6 @@ async function saveToS3FileMode(
     );
     const archiveSize = getArchiveSize(archivePath);
     core.info(`Uploading ${formatSize(archiveSize)} to s3://${bucket}/${objectKey}...`);
-    const checksum = await sha256File(archivePath);
     const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: checksum };
     const attemptUpload = (ifNoneMatch: string | undefined, tagging: string | undefined) =>
       withRetry(

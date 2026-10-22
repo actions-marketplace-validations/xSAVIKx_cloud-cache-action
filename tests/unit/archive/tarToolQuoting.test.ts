@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import * as childProcess from 'node:child_process';
 import * as path from 'node:path';
 import { makeTempDir, removeDir } from '../../support/tempTree';
 
@@ -11,15 +12,23 @@ type Which = (tool: string, check?: boolean) => Promise<string>;
 
 const mockExec = jest.fn<Exec>();
 const mockWhich = jest.fn<Which>();
+// createArchive spawns tar without exec. The mock records the call and runs an empty Node script
+// in place of tar, so the test needs no tar at the fake path.
+const mockSpawn = jest.fn(
+  (_tool: string, _args: string[], options: { stdio?: childProcess.StdioOptions }) =>
+    childProcess.spawn(process.execPath, ['-e', ''], { stdio: options.stdio })
+);
 
 jest.unstable_mockModule('@actions/exec', () => ({ exec: mockExec }));
+jest.unstable_mockModule('node:child_process', () => ({ ...childProcess, spawn: mockSpawn }));
 jest.unstable_mockModule('@actions/io', () => ({ which: mockWhich }));
 
 const { createArchive, extractArchive } = await import('../../../src/archive/tar');
 
 // exec.exec parses its first argument as a command line, so a tool path with spaces (as
 // produced by findTar for Git's bundled tar.exe on Windows) must be quoted, while the
-// remaining arguments are passed through as an array, unquoted and unchanged.
+// remaining arguments are passed through as an array, unquoted and unchanged. spawn uses no
+// shell, so the create command gets the tool path without quotes.
 const TOOL_WITH_SPACES = 'C:\\Program Files\\Git\\usr\\bin\\tar.exe';
 const forwardSlashes = (value: string): string => value.replace(/\\/g, '/');
 
@@ -32,24 +41,25 @@ describe('tool paths containing spaces', () => {
     mockExec.mockResolvedValue(0);
     mockWhich.mockReset();
     mockWhich.mockResolvedValue(TOOL_WITH_SPACES);
+    mockSpawn.mockClear();
   });
 
   afterEach(() => removeDir(dir));
 
-  it('quotes the tool as the exec command line and leaves the archive-create arguments unchanged', async () => {
+  it('spawns the tool without quotes and leaves the archive-create arguments unchanged', async () => {
     const compression = { method: 'gzip', archiveFilename: 'cache.tar.gz' } as const;
     const archivePath = path.join(dir, 'out', compression.archiveFilename);
 
     await createArchive(archivePath, ['data'], compression, dir);
 
-    expect(mockExec).toHaveBeenCalledTimes(1);
-    const [commandLine, args] = mockExec.mock.calls[0];
-    expect(commandLine).toBe(`"${TOOL_WITH_SPACES}"`);
-    expect(Array.isArray(args)).toBe(true);
-    for (const arg of args ?? []) {
+    expect(mockExec).not.toHaveBeenCalled();
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+    const [tool, args] = mockSpawn.mock.calls[0];
+    expect(tool).toBe(TOOL_WITH_SPACES);
+    for (const arg of args) {
       expect(arg.startsWith('"') && arg.endsWith('"')).toBe(false);
     }
-    expect(args).toEqual(expect.arrayContaining(['-cf', '-P', '-C', '-z']));
+    expect(args).toEqual(expect.arrayContaining(['-cf', '-', '-P', '-C', '-z']));
   });
 
   it('quotes the tool as the exec command line and leaves the archive-extract arguments unchanged', async () => {
