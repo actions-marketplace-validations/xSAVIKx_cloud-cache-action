@@ -8,6 +8,11 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-22
+
+No breaking changes. Caches saved by v1.1 to v1.5 stay valid. A streamed save now uses object
+tagging for its checksum, so grant `s3:PutObjectTagging` and `s3:GetObjectTagging` (see Changed).
+
 ### Added
 
 - **`compression-level` input.** Set the zstd (1–19) or gzip (1–9) level a save uses. Unset keeps
@@ -330,7 +335,8 @@ Initial pre-release.
 - zstd compression with a gzip fallback, chunked multipart uploads and retries.
 - `restore` and `save` sub-actions.
 
-[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.3.0...v1.4.0
