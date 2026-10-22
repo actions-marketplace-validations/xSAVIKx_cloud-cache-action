@@ -206,10 +206,12 @@ async function saveBothTiers(
     present.add('github');
   } else if (!skipBoth) {
     let alreadyThere = false;
-    // Load the GitHub tier only when a run uses it. S3-only runs skip its start-up cost.
-    const { existsInGitHub, saveToGitHub } = await import('./githubTier');
+    let githubTier: typeof import('./githubTier') | undefined;
     try {
-      alreadyThere = await existsInGitHub(
+      // Load the GitHub tier only when a run uses it. S3-only runs skip its start-up cost. A
+      // failure to load the chunk is a GitHub tier failure, as is a failed existence check.
+      githubTier = await import('./githubTier');
+      alreadyThere = await githubTier.existsInGitHub(
         config.paths,
         config.primaryKey,
         config.enableCrossOsArchive
@@ -217,13 +219,15 @@ async function saveBothTiers(
     } catch (err) {
       tierFailed('GitHub Actions Cache', toError(err));
     }
-    if (alreadyThere) {
+    if (githubTier === undefined) {
+      // The tier did not load, and tierFailed has warned. There is nothing to save with.
+    } else if (alreadyThere) {
       core.info(
         `GitHub Actions Cache already has key "${config.primaryKey}"; not uploading it again.`
       );
       present.add('github');
     } else {
-      const outcome = await saveToGitHub(
+      const outcome = await githubTier.saveToGitHub(
         config.paths,
         config.primaryKey,
         config.uploadChunkSize,
