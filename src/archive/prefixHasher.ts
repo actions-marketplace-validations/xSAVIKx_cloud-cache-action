@@ -10,7 +10,10 @@ import { Worker } from 'node:worker_threads';
 export interface PrefixHasher {
   /** Says that bytes `[0, end)` are on disk and do not change again. */
   advance(end: number): void;
-  /** Hashes up to `size` bytes and resolves the hex sha256 digest. Stops the worker. */
+  /**
+   * Hashes up to `size` bytes and resolves the hex sha256 digest. Stops the worker on every
+   * path, also when it throws an earlier failure.
+   */
   finish(size: number): Promise<string>;
   /**
    * Stops the worker and closes the file; a second call does nothing. The promise resolves when
@@ -111,7 +114,10 @@ export function createPrefixHasher(filePath: string): PrefixHasher {
     },
     async finish(size: number): Promise<string> {
       if (stopped || failure) {
-        throw failure ?? new Error('The hasher is closed');
+        // Keep the error that came first: close() sets its own error when none is set.
+        const err = failure ?? new Error('The hasher is closed');
+        await close();
+        throw err;
       }
       try {
         return await new Promise<string>((resolve, reject) => {

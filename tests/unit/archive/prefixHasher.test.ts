@@ -39,7 +39,7 @@ describe('createPrefixHasher', () => {
       expect(digest).toBe(await sha256File(filePath));
       expect(digest).toBe(crypto.createHash('sha256').update(data).digest('hex'));
     } finally {
-      hasher.close();
+      await hasher.close();
     }
   });
 
@@ -50,7 +50,7 @@ describe('createPrefixHasher', () => {
     try {
       await expect(hasher.finish(data.length)).resolves.toBe(await sha256File(filePath));
     } finally {
-      hasher.close();
+      await hasher.close();
     }
   });
 
@@ -60,7 +60,7 @@ describe('createPrefixHasher', () => {
     try {
       await expect(hasher.finish(0)).resolves.toBe(crypto.createHash('sha256').digest('hex'));
     } finally {
-      hasher.close();
+      await hasher.close();
     }
   });
 
@@ -74,7 +74,7 @@ describe('createPrefixHasher', () => {
     try {
       await expect(hasher.finish(20)).rejects.toThrow(/ended after 10 of 20 bytes/);
     } finally {
-      hasher.close();
+      await hasher.close();
     }
   });
 
@@ -84,5 +84,6 @@ describe('createPrefixHasher', () => {
     hasher.close();
     expect(() => hasher.close()).not.toThrow();
     await expect(hasher.finish(10)).rejects.toThrow(/closed/);
+    await hasher.close();
   });
 });
