@@ -23,11 +23,16 @@ const CONTENT_SHA256_HEADER = 'x-amz-content-sha256';
 const UNSIGNED_PAYLOAD_MIDDLEWARE = 'cloudCacheUnsignedPayload';
 /** Commands that carry the large upload bodies. */
 const UNSIGNED_PAYLOAD_COMMANDS = new Set(['UploadPartCommand', 'PutObjectCommand']);
-/** S3 error codes that mean the server refuses `UNSIGNED-PAYLOAD`. */
+/**
+ * S3 error codes that can mean the server refuses `UNSIGNED-PAYLOAD`. `SignatureDoesNotMatch`
+ * is also the code for wrong credentials. In that case the signed retry fails with the same
+ * error, so the cost is one request.
+ */
 const UNSIGNED_PAYLOAD_REFUSALS = new Set([
   'XAmzContentSHA256Mismatch',
   'InvalidRequest',
   'NotImplemented',
+  'SignatureDoesNotMatch',
 ]);
 
 /**
@@ -50,11 +55,19 @@ export function useUnsignedPayload(
   return !endpoint || endpoint.startsWith('https://');
 }
 
-function isUnsignedPayloadRefusal(error: unknown): error is { name: string } {
+/**
+ * Returns the S3 error code when the error is a refusal of `UNSIGNED-PAYLOAD`, and undefined
+ * otherwise. The SDK always sets `name`, so `name` and `Code` are checked separately.
+ */
+function unsignedPayloadRefusal(error: unknown): string | undefined {
   const e = error as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } };
   const status = e?.$metadata?.httpStatusCode;
-  const code = e?.name ?? e?.Code ?? '';
-  return (status === 400 || status === 403) && UNSIGNED_PAYLOAD_REFUSALS.has(code);
+  if (status !== 400 && status !== 403) {
+    return undefined;
+  }
+  return [e?.name, e?.Code].find(
+    (code): code is string => code !== undefined && UNSIGNED_PAYLOAD_REFUSALS.has(code)
+  );
 }
 
 /**
@@ -75,13 +88,14 @@ function addUnsignedPayloadMiddleware(client: S3Client): void {
       try {
         return await next(args);
       } catch (error) {
-        if (!isUnsignedPayloadRefusal(error)) {
+        const code = unsignedPayloadRefusal(error);
+        if (code === undefined) {
           throw error;
         }
         if (enabled) {
           enabled = false;
           core.info(
-            `The server refused UNSIGNED-PAYLOAD (${error.name}). Uploads for this client now sign the payload hash.`
+            `The server refused UNSIGNED-PAYLOAD (${code}). Uploads for this client now sign the payload hash.`
           );
         }
         delete request.headers[CONTENT_SHA256_HEADER];

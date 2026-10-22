@@ -255,6 +255,7 @@ describe('UNSIGNED-PAYLOAD middleware', () => {
     ['XAmzContentSHA256Mismatch', 400],
     ['InvalidRequest', 400],
     ['NotImplemented', 403],
+    ['SignatureDoesNotMatch', 403],
   ])('retries once signed and stays signed after %s', async (code, status) => {
     const { client } = createStorageContext({ maxAttempts: 1 });
     const seen = stubNetwork(client, (headers) => {
@@ -271,6 +272,37 @@ describe('UNSIGNED-PAYLOAD middleware', () => {
     expect(seen[2]['x-amz-content-sha256']).not.toBe('UNSIGNED-PAYLOAD');
     expect(mockInfo).toHaveBeenCalledTimes(1);
     expect(mockInfo.mock.calls[0][0]).toContain(code);
+  });
+
+  it('finds the code in Code when name is generic, and logs that code', async () => {
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    const seen = stubNetwork(client, (headers) => {
+      if (headers['x-amz-content-sha256'] === 'UNSIGNED-PAYLOAD') {
+        throw Object.assign(new Error('refused'), {
+          name: 'S3ServiceException',
+          Code: 'XAmzContentSHA256Mismatch',
+          $metadata: { httpStatusCode: 400 },
+        });
+      }
+    });
+
+    await client.send(part());
+
+    expect(seen).toHaveLength(2);
+    expect(mockInfo).toHaveBeenCalledTimes(1);
+    expect(mockInfo.mock.calls[0][0]).toContain('(XAmzContentSHA256Mismatch)');
+    expect(mockInfo.mock.calls[0][0]).not.toContain('undefined');
+  });
+
+  it('fails when the signed retry fails with the same credential error', async () => {
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    const seen = stubNetwork(client, () => {
+      throw refusal('SignatureDoesNotMatch', 403);
+    });
+
+    await expect(client.send(part())).rejects.toThrow('SignatureDoesNotMatch');
+    expect(seen).toHaveLength(2);
+    expect(seen[1]['x-amz-content-sha256']).not.toBe('UNSIGNED-PAYLOAD');
   });
 
   it('does not retry other errors', async () => {
