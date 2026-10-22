@@ -675,6 +675,19 @@ integrity check.
 - **Tag-triggered runs:** if a run started by pushing a tag is the only place that saves a given cache, no pull request or branch build will ever restore it — restores never search `refs/tags/*`. Save on the default branch instead (a `push` there, or `workflow_dispatch`), or see [Tag-triggered runs and refs](https://xsavikx.github.io/cloud-cache-action/guide/migration.html#tag-triggered-runs-and-refs) for using `scoped-to-ref: false`.
 - **Maintenance:** Dependabot now keeps npm and GitHub Actions dependencies up to date, and publishing a GitHub release runs `.github/workflows/release.yml` automatically — see [Releasing](#releasing).
 
+## Upgrading to v1.7
+
+**There are no breaking changes in the inputs of v1.7, but one default changes.** Caches saved by
+v1.1 to v1.6 restore normally.
+
+- **`ACTIONS_CACHE_MODE`:** the S3 tier now obeys this variable, as `actions/cache` does. When a
+  workflow does not set the `cache-mode` key, GitHub sets `read` for `pull_request_target`,
+  `issue_comment` and `workflow_run`. An S3-only job on one of these triggers then restores but
+  does not save. To save again, set `cache-mode: write` on the job. Do this only when the job
+  cannot run untrusted code. See [Parity with actions/cache](#parity-with-actionscache).
+- **Prune:** `older-than-days` is now optional. The step fails only when none of the four rule
+  inputs is set, so an existing prune step works as before.
+
 ## Upgrading to v1.5
 
 **There are no breaking changes in v1.5, and no default changes.** It adds
