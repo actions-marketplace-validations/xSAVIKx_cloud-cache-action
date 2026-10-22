@@ -68480,124 +68480,7 @@ function createSha256Tap() {
 var main_exec = __nccwpck_require__(7187);
 ;// CONCATENATED MODULE: external "node:string_decoder"
 const external_node_string_decoder_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:string_decoder");
-// EXTERNAL MODULE: external "node:child_process"
-var external_node_child_process_ = __nccwpck_require__(1421);
-;// CONCATENATED MODULE: ./src/archive/stream.ts
-
-
-
-/**
- * Spawns one tar/zstd command for streaming (Task 8): no shell, so paths and arguments never
- * need quoting, unlike the `exec.exec` command line `run()` uses for the file-based path.
- */
-function spawnArchiveCommand(command, stdio) {
-    return (0,external_node_child_process_.spawn)(command.tool, command.args, {
-        env: archiveExecOptions().env,
-        windowsHide: true,
-        stdio,
-    });
-}
-/**
- * Resolves with the exit code once the process AND its stdio streams have fully closed (the
- * 'close' event, not 'exit'), so by the time this resolves, everything the process wrote to
- * stdout/stderr has already drained and is safe to read. Rejects when it could not be spawned at
- * all (e.g. the tool is missing) or was terminated by a signal.
- */
-function waitForExit(child) {
-    return new Promise((resolve, reject) => {
-        child.once('error', reject);
-        child.once('close', (code, signal) => {
-            if (code !== null) {
-                resolve(code);
-                return;
-            }
-            reject(new Error(`${child.spawnfile ?? 'the archive command'} was terminated by signal ${signal}`));
-        });
-    });
-}
-/** Kills the process only if it has not already exited or been signalled, so this never throws. */
-function killIfRunning(child) {
-    if (child.exitCode === null && child.signalCode === null) {
-        child.kill();
-    }
-}
-/**
- * Kills the process if it is still running, then waits (bounded) for `settle` — typically the
- * same promise `waitForExit` returned for this child, or a caller's own wrapper that depends on
- * it (e.g. "tar closed and the pipe finished") — so a caller's cleanup (removing a temp
- * directory, reading the final stderr tail) does not race stdio that is still draining or a
- * process that still has open files. Pass the exact promise `waitForExit` returned rather than a
- * fresh call: a fresh call would attach a listener for a one-shot event that may already have
- * fired, and would then hang until the timeout. Kills first, so a process that never settles on
- * its own (and anything only waiting on it) cannot hang this past `timeoutMs` either. Never
- * rejects: giving up on an orderly wait after `timeoutMs` is not a caller-visible failure.
- */
-async function waitForExitAfterKill(child, settle, timeoutMs = 5000) {
-    killIfRunning(child);
-    let timer;
-    const timeout = new Promise((resolve) => {
-        timer = setTimeout(resolve, timeoutMs);
-    });
-    try {
-        await Promise.race([
-            settle.then(() => undefined, () => undefined),
-            timeout,
-        ]);
-    }
-    finally {
-        clearTimeout(timer);
-    }
-}
-/** Caps unterminated output so one very long (or binary) line cannot grow this without bound. */
-const MAX_PARTIAL_LENGTH = 8 * 1024;
-/** Collects up to `maxLines` of the most recent text a stream has produced, for error messages. */
-function captureStderrTail(stream, maxLines = 20) {
-    const tail = [];
-    let partial = '';
-    const push = (line) => {
-        tail.push(line);
-        if (tail.length > maxLines) {
-            tail.shift();
-        }
-    };
-    // setEncoding decodes multi-byte UTF-8 characters correctly across chunk boundaries, which
-    // chunk.toString('utf8') per chunk cannot.
-    stream?.setEncoding('utf8');
-    stream?.on('data', (chunk) => {
-        partial += chunk;
-        const lines = partial.split(/\r?\n/);
-        partial = lines.pop() ?? '';
-        for (const line of lines) {
-            push(line);
-        }
-        if (partial.length > MAX_PARTIAL_LENGTH) {
-            partial = partial.slice(-MAX_PARTIAL_LENGTH);
-        }
-    });
-    return {
-        lines: () => (partial ? [...tail, partial].slice(-maxLines) : tail.slice(-maxLines)),
-    };
-}
-/** Counts bytes flowing through a streaming pipeline, standing in for a known archive size. */
-function createByteCounter() {
-    let total = 0;
-    const stream = new external_node_stream_.Transform({
-        transform(chunk, _encoding, callback) {
-            total += chunk.length;
-            callback(null, chunk);
-        },
-    });
-    return { stream, count: () => total };
-}
-
-;// CONCATENATED MODULE: ./src/archive/tar.ts
-
-
-
-
-
-
-
+;// CONCATENATED MODULE: ./src/archive/commands.ts
 
 
 
@@ -68765,6 +68648,129 @@ function archiveExecOptions(env = process.env, msys = MSYS_NATIVE_SYMLINKS) {
     }
     return { env: { ...inherited, MSYS: msys } };
 }
+
+// EXTERNAL MODULE: external "node:child_process"
+var external_node_child_process_ = __nccwpck_require__(1421);
+;// CONCATENATED MODULE: ./src/archive/stream.ts
+
+
+
+/**
+ * Spawns one tar/zstd command for streaming (Task 8): no shell, so paths and arguments never
+ * need quoting, unlike the `exec.exec` command line `run()` uses for the file-based path.
+ */
+function spawnArchiveCommand(command, stdio) {
+    return (0,external_node_child_process_.spawn)(command.tool, command.args, {
+        env: archiveExecOptions().env,
+        windowsHide: true,
+        stdio,
+    });
+}
+/**
+ * Resolves with the exit code once the process AND its stdio streams have fully closed (the
+ * 'close' event, not 'exit'), so by the time this resolves, everything the process wrote to
+ * stdout/stderr has already drained and is safe to read. Rejects when it could not be spawned at
+ * all (e.g. the tool is missing) or was terminated by a signal.
+ */
+function waitForExit(child) {
+    return new Promise((resolve, reject) => {
+        child.once('error', reject);
+        child.once('close', (code, signal) => {
+            if (code !== null) {
+                resolve(code);
+                return;
+            }
+            reject(new Error(`${child.spawnfile ?? 'the archive command'} was terminated by signal ${signal}`));
+        });
+    });
+}
+/** Kills the process only if it has not already exited or been signalled, so this never throws. */
+function killIfRunning(child) {
+    if (child.exitCode === null && child.signalCode === null) {
+        child.kill();
+    }
+}
+/**
+ * Kills the process if it is still running, then waits (bounded) for `settle` — typically the
+ * same promise `waitForExit` returned for this child, or a caller's own wrapper that depends on
+ * it (e.g. "tar closed and the pipe finished") — so a caller's cleanup (removing a temp
+ * directory, reading the final stderr tail) does not race stdio that is still draining or a
+ * process that still has open files. Pass the exact promise `waitForExit` returned rather than a
+ * fresh call: a fresh call would attach a listener for a one-shot event that may already have
+ * fired, and would then hang until the timeout. Kills first, so a process that never settles on
+ * its own (and anything only waiting on it) cannot hang this past `timeoutMs` either. Never
+ * rejects: giving up on an orderly wait after `timeoutMs` is not a caller-visible failure.
+ */
+async function waitForExitAfterKill(child, settle, timeoutMs = 5000) {
+    killIfRunning(child);
+    let timer;
+    const timeout = new Promise((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+    });
+    try {
+        await Promise.race([
+            settle.then(() => undefined, () => undefined),
+            timeout,
+        ]);
+    }
+    finally {
+        clearTimeout(timer);
+    }
+}
+/** Caps unterminated output so one very long (or binary) line cannot grow this without bound. */
+const MAX_PARTIAL_LENGTH = 8 * 1024;
+/** Collects up to `maxLines` of the most recent text a stream has produced, for error messages. */
+function captureStderrTail(stream, maxLines = 20) {
+    const tail = [];
+    let partial = '';
+    const push = (line) => {
+        tail.push(line);
+        if (tail.length > maxLines) {
+            tail.shift();
+        }
+    };
+    // setEncoding decodes multi-byte UTF-8 characters correctly across chunk boundaries, which
+    // chunk.toString('utf8') per chunk cannot.
+    stream?.setEncoding('utf8');
+    stream?.on('data', (chunk) => {
+        partial += chunk;
+        const lines = partial.split(/\r?\n/);
+        partial = lines.pop() ?? '';
+        for (const line of lines) {
+            push(line);
+        }
+        if (partial.length > MAX_PARTIAL_LENGTH) {
+            partial = partial.slice(-MAX_PARTIAL_LENGTH);
+        }
+    });
+    return {
+        lines: () => (partial ? [...tail, partial].slice(-maxLines) : tail.slice(-maxLines)),
+    };
+}
+/** Counts bytes flowing through a streaming pipeline, standing in for a known archive size. */
+function createByteCounter() {
+    let total = 0;
+    const stream = new external_node_stream_.Transform({
+        transform(chunk, _encoding, callback) {
+            total += chunk.length;
+            callback(null, chunk);
+        },
+    });
+    return { stream, count: () => total };
+}
+
+;// CONCATENATED MODULE: ./src/archive/tar.ts
+
+
+
+
+
+
+
+
+
+
+
 // GNU tar prints "<tar>: <file>: Cannot create symlink to <target>: <strerror>". The MSYS runtime
 // maps ERROR_PRIVILEGE_NOT_HELD to EPERM. The program name and the quote marks change, so the
 // patterns do not include them.
@@ -68867,6 +68873,8 @@ async function runExtract(plan, env = process.env) {
  * removes the partial file, and throws the error text of `run()` with the stderr tail added.
  */
 async function writeArchiveFromStdout(command, archivePath) {
+    // exec printed the command line before it started a command. Print it at debug level here.
+    core/* debug */.Yz(`[command]${command.tool} ${command.args.join(' ')}`);
     const child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
     // exec writes tar's stderr to the log. Do the same, so that tar warnings stay visible.
     child.stderr?.on('data', (chunk) => process.stderr.write(chunk));
@@ -69127,11 +69135,16 @@ const CONTENT_SHA256_HEADER = 'x-amz-content-sha256';
 const UNSIGNED_PAYLOAD_MIDDLEWARE = 'cloudCacheUnsignedPayload';
 /** Commands that carry the large upload bodies. */
 const UNSIGNED_PAYLOAD_COMMANDS = new Set(['UploadPartCommand', 'PutObjectCommand']);
-/** S3 error codes that mean the server refuses `UNSIGNED-PAYLOAD`. */
+/**
+ * S3 error codes that can mean the server refuses `UNSIGNED-PAYLOAD`. `SignatureDoesNotMatch`
+ * is also the code for wrong credentials. In that case the signed retry fails with the same
+ * error, so the cost is one request.
+ */
 const UNSIGNED_PAYLOAD_REFUSALS = new Set([
     'XAmzContentSHA256Mismatch',
     'InvalidRequest',
     'NotImplemented',
+    'SignatureDoesNotMatch',
 ]);
 /**
  * Decides whether upload requests carry `UNSIGNED-PAYLOAD` instead of a payload hash. The action
@@ -69149,11 +69162,17 @@ function useUnsignedPayload(endpoint, env = process.env) {
     }
     return !endpoint || endpoint.startsWith('https://');
 }
-function isUnsignedPayloadRefusal(error) {
+/**
+ * Returns the S3 error code when the error is a refusal of `UNSIGNED-PAYLOAD`, and undefined
+ * otherwise. The SDK always sets `name`, so `name` and `Code` are checked separately.
+ */
+function unsignedPayloadRefusal(error) {
     const e = error;
     const status = e?.$metadata?.httpStatusCode;
-    const code = e?.name ?? e?.Code ?? '';
-    return (status === 400 || status === 403) && UNSIGNED_PAYLOAD_REFUSALS.has(code);
+    if (status !== 400 && status !== 403) {
+        return undefined;
+    }
+    return [e?.name, e?.Code].find((code) => code !== undefined && UNSIGNED_PAYLOAD_REFUSALS.has(code));
 }
 /**
  * Adds the `UNSIGNED-PAYLOAD` middleware. SigV4 then skips the second hash pass over each part.
@@ -69173,12 +69192,13 @@ function addUnsignedPayloadMiddleware(client) {
             return await next(args);
         }
         catch (error) {
-            if (!isUnsignedPayloadRefusal(error)) {
+            const code = unsignedPayloadRefusal(error);
+            if (code === undefined) {
                 throw error;
             }
             if (enabled) {
                 enabled = false;
-                core/* info */.pq(`The server refused UNSIGNED-PAYLOAD (${error.name}). Uploads for this client now sign the payload hash.`);
+                core/* info */.pq(`The server refused UNSIGNED-PAYLOAD (${code}). Uploads for this client now sign the payload hash.`);
             }
             delete request.headers[CONTENT_SHA256_HEADER];
             return next(args);
@@ -69610,7 +69630,10 @@ function createPrefixHasher(filePath) {
         },
         async finish(size) {
             if (stopped || failure) {
-                throw failure ?? new Error('The hasher is closed');
+                // Keep the error that came first: close() sets its own error when none is set.
+                const err = failure ?? new Error('The hasher is closed');
+                await close();
+                throw err;
             }
             try {
                 return await new Promise((resolve, reject) => {
@@ -72931,20 +72954,25 @@ async function saveBothTiers(config, s3, s3ExactHit, githubExactHit) {
     }
     else if (!skipBoth) {
         let alreadyThere = false;
-        // Load the GitHub tier only when a run uses it. S3-only runs skip its start-up cost.
-        const { existsInGitHub, saveToGitHub } = await Promise.all(/* import() */[__nccwpck_require__.e(80), __nccwpck_require__.e(699)]).then(__nccwpck_require__.bind(__nccwpck_require__, 5080));
+        let githubTier;
         try {
-            alreadyThere = await existsInGitHub(config.paths, config.primaryKey, config.enableCrossOsArchive);
+            // Load the GitHub tier only when a run uses it. S3-only runs skip its start-up cost. A
+            // failure to load the chunk is a GitHub tier failure, as is a failed existence check.
+            githubTier = await Promise.all(/* import() */[__nccwpck_require__.e(80), __nccwpck_require__.e(699)]).then(__nccwpck_require__.bind(__nccwpck_require__, 5080));
+            alreadyThere = await githubTier.existsInGitHub(config.paths, config.primaryKey, config.enableCrossOsArchive);
         }
         catch (err) {
             tierFailed('GitHub Actions Cache', (0,outcomes/* toError */.i)(err));
         }
-        if (alreadyThere) {
+        if (githubTier === undefined) {
+            // The tier did not load, and tierFailed has warned. There is nothing to save with.
+        }
+        else if (alreadyThere) {
             core/* info */.pq(`GitHub Actions Cache already has key "${config.primaryKey}"; not uploading it again.`);
             present.add('github');
         }
         else {
-            const outcome = await saveToGitHub(config.paths, config.primaryKey, config.uploadChunkSize, config.enableCrossOsArchive);
+            const outcome = await githubTier.saveToGitHub(config.paths, config.primaryKey, config.uploadChunkSize, config.enableCrossOsArchive);
             switch (outcome.kind) {
                 case 'saved':
                     present.add('github');

@@ -5,6 +5,7 @@ export const modules = {
 /***/ 5080:
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
+__webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   existsInGitHub: () => (/* binding */ existsInGitHub),
 /* harmony export */   restoreFromGitHub: () => (/* binding */ restoreFromGitHub),
