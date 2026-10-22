@@ -193,6 +193,18 @@ describe('restoreImpl', () => {
     expect(mockRestoreFromS3).toHaveBeenCalledWith(tier, 'Linux-npm-abc', ['Linux-npm-'], true);
   });
 
+  it('logs no timing line on a lookup-only hit, which downloads nothing', async () => {
+    inputs.set(Inputs.LookupOnly, 'true');
+    mockRestoreFromS3.mockResolvedValue({
+      kind: 'hit',
+      matchedKey: 'Linux-npm-abc',
+      exact: true,
+      lookupMs: 30,
+    });
+    await restoreImpl(state, false);
+    expect(mockCoreInfo.mock.calls.some(([line]) => line.startsWith('Timings: '))).toBe(false);
+  });
+
   it('treats an S3 restore failure as a miss with a warning instead of failing the step', async () => {
     mockRestoreFromS3.mockResolvedValue(failure('download interrupted'));
     await expect(restoreImpl(state, false)).resolves.toBeUndefined();

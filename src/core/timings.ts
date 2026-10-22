@@ -13,14 +13,12 @@ function seconds(ms: number): string {
 
 /**
  * Returns `Timings: lookup …, download … (… MiB/s), extract …, total …` for a hit, or the
- * archive and upload phases for a save. Phases a step did not measure are left out. Returns
- * undefined when the step moved no bytes through S3.
+ * archive and upload phases for a save. Phases a step did not measure are left out. `total` is
+ * the whole step, and the transfer time includes retries. Returns undefined when the step moved
+ * no bytes through S3.
  */
 export function formatTimings(metrics: StepMetrics): string | undefined {
   const transferMs = metrics.transferDurationMs;
-  if (metrics.outcome !== 'hit' && metrics.outcome !== 'saved') {
-    return undefined;
-  }
   if (transferMs === undefined || transferMs <= 0) {
     return undefined;
   }
@@ -39,5 +37,6 @@ export function formatTimings(metrics: StepMetrics): string | undefined {
       : `extract ${seconds(metrics.extractDurationMs)}`,
     `total ${seconds(metrics.durationMs)}`,
   ];
-  return `Timings: ${parts.filter((part) => part !== undefined).join(', ')}`;
+  const note = metrics.outcome === 'exists' ? ' (another job saved first)' : '';
+  return `Timings: ${parts.filter((part) => part !== undefined).join(', ')}${note}`;
 }

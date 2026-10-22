@@ -1,3 +1,6 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { StepMetrics } from '../../../src/core/metrics';
 import { formatTimings } from '../../../src/core/timings';
 
@@ -44,10 +47,39 @@ describe('formatTimings', () => {
     expect(formatTimings(sample({ transferDurationMs: 0 }))).toBeUndefined();
   });
 
+  it('gives a line with a note for a save that uploaded and then found another job saved first', () => {
+    expect(
+      formatTimings(
+        sample({ step: 'save', outcome: 'exists', archiveDurationMs: 1500, durationMs: 4900 })
+      )
+    ).toBe(
+      'Timings: archive 1.50 s, upload 3.20 s (160.0 MiB/s), total 4.90 s (another job saved first)'
+    );
+  });
+
   it('gives no line when no transfer happened', () => {
     expect(
       formatTimings(sample({ outcome: 'miss', transferDurationMs: undefined }))
     ).toBeUndefined();
-    expect(formatTimings(sample({ step: 'save', outcome: 'exists' }))).toBeUndefined();
+    expect(formatTimings(sample({ outcome: 'miss', transferDurationMs: 0 }))).toBeUndefined();
+    expect(
+      formatTimings(sample({ step: 'save', outcome: 'exists', transferDurationMs: 0 }))
+    ).toBeUndefined();
+    expect(
+      formatTimings(sample({ step: 'save', outcome: 'skipped', transferDurationMs: 0 }))
+    ).toBeUndefined();
+    expect(
+      formatTimings(sample({ outcome: 'error', transferDurationMs: undefined }))
+    ).toBeUndefined();
+  });
+
+  it('stays free of runtime imports, so any CI front end can use it', () => {
+    const source = fs.readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), '../../../src/core/timings.ts'),
+      'utf8'
+    );
+    const imports = source.split('\n').filter((line) => /^import\s/.test(line));
+    expect(imports.length).toBeGreaterThan(0);
+    expect(imports.every((line) => line.startsWith('import type '))).toBe(true);
   });
 });

@@ -14,7 +14,9 @@ jest.unstable_mockModule('@actions/core', () => ({
 }));
 
 const { HeadObjectCommand, UploadPartCommand } = await import('@aws-sdk/client-s3');
-const { createStorageContext, useUnsignedPayload } = await import('../../src/storage/client');
+const { createStorageContext, useSdkChecksums, useUnsignedPayload } = await import(
+  '../../src/storage/client'
+);
 
 describe('Storage Client Context Factory', () => {
   const originalEnv = process.env;
@@ -118,6 +120,30 @@ describe('Storage Client Context Factory', () => {
     const { client } = createStorageContext({ maxAttempts: 1 });
     await expect(client.config.requestChecksumCalculation()).resolves.toBe('WHEN_REQUIRED');
     await expect(client.config.responseChecksumValidation()).resolves.toBe('WHEN_REQUIRED');
+  });
+
+  it('keeps the SDK checksum defaults when CLOUD_CACHE_SDK_CHECKSUMS is true', async () => {
+    mockGetInput.mockImplementation(inputsOf({ [Inputs.Bucket]: 'bucket' }));
+    process.env.CLOUD_CACHE_SDK_CHECKSUMS = 'true';
+    try {
+      const { client } = createStorageContext({ maxAttempts: 1 });
+      await expect(client.config.requestChecksumCalculation()).resolves.toBe('WHEN_SUPPORTED');
+      await expect(client.config.responseChecksumValidation()).resolves.toBe('WHEN_SUPPORTED');
+    } finally {
+      delete process.env.CLOUD_CACHE_SDK_CHECKSUMS;
+    }
+  });
+
+  it.each([
+    [undefined, false],
+    ['true', true],
+    [' TRUE ', true],
+    ['false', false],
+    ['yes', false],
+  ])('reads CLOUD_CACHE_SDK_CHECKSUMS=%p as %p', (value, expected) => {
+    expect(useSdkChecksums(value === undefined ? {} : { CLOUD_CACHE_SDK_CHECKSUMS: value })).toBe(
+      expected
+    );
   });
 
   it('warns about an unknown provider', () => {

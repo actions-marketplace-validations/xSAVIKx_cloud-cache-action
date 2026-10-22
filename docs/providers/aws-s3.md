@@ -26,6 +26,15 @@ Without lifecycle management, older cache revisions accumulate and increase stor
 2. **Abort Incomplete Multipart Uploads**:
    - **Action**: Delete expired object delete markers and incomplete multipart uploads after **7 days**. This prevents lingering chunks from failed or interrupted uploads from consuming storage.
 
+### 4. Object Lock
+
+Do not use a bucket with an Object Lock default retention for caches. Prune cannot delete locked objects. Also, Object Lock requires a checksum on each upload. From v1.9, the action does not send the AWS SDK CRC32 checksums, because its own sha256 check covers the archive. A save to such a bucket then fails with `400 InvalidRequest`. If you must use such a bucket, set this environment variable on the job:
+
+```yaml
+env:
+  CLOUD_CACHE_SDK_CHECKSUMS: 'true'
+```
+
 ---
 
 ## Credentials & Least-Privilege IAM Policies

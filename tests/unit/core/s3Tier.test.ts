@@ -2441,6 +2441,8 @@ describe('restoreFromS3 streaming', () => {
       matchedKey: 'k',
       transferMs: expect.any(Number) as unknown as number,
     });
+    // Streaming extracts during the download, so there is no separate extract phase.
+    expect(outcome).not.toHaveProperty('extractMs');
     expect(mockDownloadFile).not.toHaveBeenCalled();
     expect(mockExtractArchive).not.toHaveBeenCalled();
     expect(mockSha256File).not.toHaveBeenCalled();

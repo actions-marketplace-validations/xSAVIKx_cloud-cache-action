@@ -465,10 +465,10 @@ debug line. Set `metrics-file` to append the same JSON as one line to a file, re
 download-plus-extract — the line's `streaming` field tells the two apart. On a restore,
 `downloadParts` is how many ranged requests fetched the archive (`1` for a single request, `0`
 when nothing was downloaded; see [Parallel Transfers](#parallel-transfers)). `lookupDurationMs`
-is the time to find the S3 object on a restore. In file mode, `archiveDurationMs` is the time to
-write and hash the archive on a save, and `extractDurationMs` is the time to unpack it on a
-restore. After an S3 download or upload, the step also logs the phases in one line, for example
-`Timings: lookup 0.24 s, download 5.31 s (35.9 MiB/s), extract 2.41 s, total 8.12 s`. `prune` and `inspect`
+is the time to find the S3 object on a restore. When the step uses a temporary archive file (file mode, or a
+streaming step that falls back to file mode), `archiveDurationMs` is the time to write and hash
+the archive on a save, and `extractDurationMs` is the time to unpack it on a restore. After an S3 download or upload, the step also logs the phases in one line, for example
+`Timings: lookup 0.24 s, download 5.31 s (35.9 MiB/s), extract 2.41 s, total 8.12 s`. `total` is the whole step, including the GitHub tier in dual-cache mode. The transfer time and the rate include retries. `prune` and `inspect`
 write their line once the step has finished its work, so a step that fails earlier writes none.
 Writing the file is best-effort: a failure only logs
 `Could not write metrics to <path>: <reason>` and never fails the step.

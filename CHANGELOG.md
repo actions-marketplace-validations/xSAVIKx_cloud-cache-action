@@ -14,8 +14,11 @@ points at the latest `v1.x.y` release.
   one line with the time of each phase and the transfer rate, for example
   `Timings: lookup 0.24 s, download 5.31 s (35.9 MiB/s), extract 2.41 s, total 8.12 s`. The
   metrics line and the `metrics-file` get the same phases as `lookupDurationMs`,
-  `archiveDurationMs` and `extractDurationMs`. Streaming mode archives and extracts during the
-  transfer, so it reports only the lookup, the transfer and the total.
+  `archiveDurationMs` and `extractDurationMs`. The archive and extract phases appear only when the
+  step writes or reads a temporary archive file. A streaming step that falls back to file mode
+  reports them too. `total` is the whole step, including the GitHub tier in dual-cache mode. The
+  transfer time and the rate include retries. A save that uploads and then finds that another job
+  saved first ends the line with `(another job saved first)`.
 
 ### Changed
 
@@ -24,7 +27,10 @@ points at the latest `v1.x.y` release.
   action now sends a checksum only when an S3 operation requires one, as it already did for every
   other provider. The sha256 integrity check on restore stays, and TLS protects the bytes in
   transit. Downloads from AWS also no longer validate the CRC that the SDK can check on a whole
-  object, because the sha256 check covers the same bytes.
+  object, because the sha256 check covers the same bytes. **Caution:** an AWS bucket with an
+  Object Lock default retention requires a checksum on each upload, so saves to it now fail with
+  `400 InvalidRequest`. The log can then also say that the server refused `UNSIGNED-PAYLOAD`. Set
+  `CLOUD_CACHE_SDK_CHECKSUMS=true` in the job environment to send the SDK checksums again.
 
 ## [1.8.0] - 2026-10-22
 
