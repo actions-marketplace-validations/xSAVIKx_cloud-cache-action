@@ -8,6 +8,12 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-22
+
+One default changes: the S3 tier now obeys `ACTIONS_CACHE_MODE`, so S3-only jobs on
+`pull_request_target`, `issue_comment` and `workflow_run` no longer save by default (see Changed).
+Caches saved by v1.1 to v1.6 stay valid.
+
 ### Added
 
 - **`preset` input.** Set `preset: npm` (or `yarn`, `pnpm`, `bun`, `pip`, `poetry`, `uv`,
@@ -435,7 +441,8 @@ Initial pre-release.
 - zstd compression with a gzip fallback, chunked multipart uploads and retries.
 - `restore` and `save` sub-actions.
 
-[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.4.0...v1.5.0
