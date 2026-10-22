@@ -163,11 +163,11 @@ export function createStorageContext(options: StorageClientOptions): StorageCont
     clientConfig.endpoint = providerConfig.endpoint;
   }
 
-  if (providerConfig.provider !== 'aws') {
-    // Several S3-compatible services reject the CRC checksums the SDK sends by default.
-    clientConfig.requestChecksumCalculation = 'WHEN_REQUIRED';
-    clientConfig.responseChecksumValidation = 'WHEN_REQUIRED';
-  }
+  // Several S3-compatible services reject the CRC checksums the SDK sends by default. On AWS the
+  // CRC32 costs about 100 ms of main-thread CPU per 64 MiB part, and the sha256 check on restore
+  // already covers the archive, so no provider sends a checksum unless the operation needs one.
+  clientConfig.requestChecksumCalculation = 'WHEN_REQUIRED';
+  clientConfig.responseChecksumValidation = 'WHEN_REQUIRED';
 
   if (accessKey && secretKey) {
     clientConfig.credentials = {

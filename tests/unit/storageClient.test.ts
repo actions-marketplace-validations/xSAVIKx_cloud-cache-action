@@ -113,10 +113,11 @@ describe('Storage Client Context Factory', () => {
     await expect(client.config.responseChecksumValidation()).resolves.toBe('WHEN_REQUIRED');
   });
 
-  it('keeps the SDK checksum defaults for AWS', async () => {
+  it('only sends checksums when required for AWS too', async () => {
     mockGetInput.mockImplementation(inputsOf({ [Inputs.Bucket]: 'bucket' }));
     const { client } = createStorageContext({ maxAttempts: 1 });
-    await expect(client.config.requestChecksumCalculation()).resolves.toBe('WHEN_SUPPORTED');
+    await expect(client.config.requestChecksumCalculation()).resolves.toBe('WHEN_REQUIRED');
+    await expect(client.config.responseChecksumValidation()).resolves.toBe('WHEN_REQUIRED');
   });
 
   it('warns about an unknown provider', () => {

@@ -8,6 +8,15 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+### Changed
+
+- **Uploads to AWS S3 no longer compute a CRC32 for each part.** The AWS SDK computed this
+  checksum on the main thread, which took about 100 ms for each 64 MiB part on a test host. The
+  action now sends a checksum only when an S3 operation requires one, as it already did for every
+  other provider. The sha256 integrity check on restore stays, and TLS protects the bytes in
+  transit. Downloads from AWS also no longer validate the CRC that the SDK can check on a whole
+  object, because the sha256 check covers the same bytes.
+
 ## [1.8.0] - 2026-10-22
 
 Faster saves and restores. Object keys, metadata and archive bytes do not change, so caches saved
