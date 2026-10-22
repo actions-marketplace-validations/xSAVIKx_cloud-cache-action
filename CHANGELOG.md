@@ -8,6 +8,16 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+### Changed
+
+- **Upload parts skip the second hash pass over HTTPS.** Uploads to AWS S3 and to any `https://`
+  endpoint now send `x-amz-content-sha256: UNSIGNED-PAYLOAD` on `UploadPart` and `PutObject`
+  requests. The AWS SDK no longer hashes each part again for the request signature. The sha256
+  integrity check on restore stays, and TLS protects the bytes in transit. Plain `http://`
+  endpoints keep the signed payload. Set `CLOUD_CACHE_UNSIGNED_PAYLOAD=false` to turn the change
+  off, or `CLOUD_CACHE_UNSIGNED_PAYLOAD=true` to turn it on for an `http://` endpoint. If a server
+  refuses the header, the action sends that request again with a signed payload and logs one line.
+
 ## [1.7.0] - 2026-10-22
 
 One default changes: the S3 tier now obeys `ACTIONS_CACHE_MODE`, so S3-only jobs on

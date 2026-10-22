@@ -4,14 +4,17 @@ import { Inputs } from '../../src/constants';
 const mockGetInput = jest.fn<(name: string) => string>();
 const mockDebug = jest.fn<(message: string) => void>();
 const mockWarning = jest.fn<(message: string) => void>();
+const mockInfo = jest.fn<(message: string) => void>();
 
 jest.unstable_mockModule('@actions/core', () => ({
   getInput: mockGetInput,
   debug: mockDebug,
   warning: mockWarning,
+  info: mockInfo,
 }));
 
-const { createStorageContext } = await import('../../src/storage/client');
+const { HeadObjectCommand, UploadPartCommand } = await import('@aws-sdk/client-s3');
+const { createStorageContext, useUnsignedPayload } = await import('../../src/storage/client');
 
 describe('Storage Client Context Factory', () => {
   const originalEnv = process.env;
@@ -149,5 +152,135 @@ describe('Storage Client Context Factory', () => {
     expect(mockWarning).toHaveBeenCalledWith(
       expect.stringContaining('Only one of access-key and secret-key is set')
     );
+  });
+});
+
+describe('useUnsignedPayload', () => {
+  it.each([
+    [undefined, {}, true],
+    ['https://x.r2.cloudflarestorage.com', {}, true],
+    ['http://127.0.0.1:9000', {}, false],
+    ['http://127.0.0.1:9000', { CLOUD_CACHE_UNSIGNED_PAYLOAD: 'true' }, true],
+    ['https://s3.example', { CLOUD_CACHE_UNSIGNED_PAYLOAD: 'false' }, false],
+    ['https://s3.example', { CLOUD_CACHE_UNSIGNED_PAYLOAD: 'maybe' }, true],
+  ])('endpoint %s with %j gives %s', (endpoint, env, expected) => {
+    expect(useUnsignedPayload(endpoint, env)).toBe(expected);
+  });
+});
+
+describe('UNSIGNED-PAYLOAD middleware', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env = { ...originalEnv };
+    delete process.env.CLOUD_CACHE_UNSIGNED_PAYLOAD;
+    mockGetInput.mockImplementation((name: string) => {
+      const values: Record<string, string> = {
+        [Inputs.Bucket]: 'b',
+        [Inputs.Endpoint]: 'https://s3.example.test',
+        [Inputs.AccessKey]: 'K',
+        [Inputs.SecretKey]: 'S',
+      };
+      return values[name] ?? '';
+    });
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  /**
+   * Replaces the network with a fake handler. `respond` sees the request headers and either
+   * returns or throws; the headers of every request are recorded in order.
+   */
+  function stubNetwork(
+    client: ReturnType<typeof createStorageContext>['client'],
+    respond: (headers: Record<string, string>) => void
+  ): Array<Record<string, string>> {
+    const seen: Array<Record<string, string>> = [];
+    client.middlewareStack.add(
+      (_next) => async (args) => {
+        const headers = { ...(args.request as { headers: Record<string, string> }).headers };
+        seen.push(headers);
+        respond(headers);
+        return { output: { $metadata: {} }, response: {} } as never;
+      },
+      { step: 'finalizeRequest', name: 'fakeNetwork', priority: 'low' }
+    );
+    return seen;
+  }
+
+  const part = () =>
+    new UploadPartCommand({
+      Bucket: 'b',
+      Key: 'k',
+      UploadId: 'u',
+      PartNumber: 1,
+      Body: Buffer.from('x'),
+    });
+  const refusal = (name: string, status = 400) =>
+    Object.assign(new Error(name), { name, $metadata: { httpStatusCode: status } });
+
+  it('sets the header on UploadPart and not on HeadObject', async () => {
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    const seen = stubNetwork(client, () => undefined);
+
+    await client.send(part());
+    await client.send(new HeadObjectCommand({ Bucket: 'b', Key: 'k' }));
+
+    expect(seen[0]['x-amz-content-sha256']).toBe('UNSIGNED-PAYLOAD');
+    expect(seen[1]['x-amz-content-sha256']).not.toBe('UNSIGNED-PAYLOAD');
+  });
+
+  it('does not add the middleware over plain HTTP', async () => {
+    mockGetInput.mockImplementation((name: string) => {
+      const values: Record<string, string> = {
+        [Inputs.Bucket]: 'b',
+        [Inputs.Endpoint]: 'http://127.0.0.1:9000',
+        [Inputs.AccessKey]: 'K',
+        [Inputs.SecretKey]: 'S',
+      };
+      return values[name] ?? '';
+    });
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    const seen = stubNetwork(client, () => undefined);
+
+    await client.send(part());
+
+    expect(seen[0]['x-amz-content-sha256']).not.toBe('UNSIGNED-PAYLOAD');
+  });
+
+  it.each([
+    ['XAmzContentSHA256Mismatch', 400],
+    ['InvalidRequest', 400],
+    ['NotImplemented', 403],
+  ])('retries once signed and stays signed after %s', async (code, status) => {
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    const seen = stubNetwork(client, (headers) => {
+      if (headers['x-amz-content-sha256'] === 'UNSIGNED-PAYLOAD') {
+        throw refusal(code, status);
+      }
+    });
+
+    await client.send(part());
+    await client.send(part());
+
+    expect(seen).toHaveLength(3);
+    expect(seen[1]['x-amz-content-sha256']).not.toBe('UNSIGNED-PAYLOAD');
+    expect(seen[2]['x-amz-content-sha256']).not.toBe('UNSIGNED-PAYLOAD');
+    expect(mockInfo).toHaveBeenCalledTimes(1);
+    expect(mockInfo.mock.calls[0][0]).toContain(code);
+  });
+
+  it('does not retry other errors', async () => {
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    const seen = stubNetwork(client, () => {
+      throw refusal('AccessDenied', 403);
+    });
+
+    await expect(client.send(part())).rejects.toThrow('AccessDenied');
+    expect(seen).toHaveLength(1);
+    expect(mockInfo).not.toHaveBeenCalled();
   });
 });

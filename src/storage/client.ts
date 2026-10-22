@@ -18,6 +18,80 @@ export interface StorageContext {
   objectTaggingUnsupported?: boolean;
 }
 
+const UNSIGNED_PAYLOAD = 'UNSIGNED-PAYLOAD';
+const CONTENT_SHA256_HEADER = 'x-amz-content-sha256';
+const UNSIGNED_PAYLOAD_MIDDLEWARE = 'cloudCacheUnsignedPayload';
+/** Commands that carry the large upload bodies. */
+const UNSIGNED_PAYLOAD_COMMANDS = new Set(['UploadPartCommand', 'PutObjectCommand']);
+/** S3 error codes that mean the server refuses `UNSIGNED-PAYLOAD`. */
+const UNSIGNED_PAYLOAD_REFUSALS = new Set([
+  'XAmzContentSHA256Mismatch',
+  'InvalidRequest',
+  'NotImplemented',
+]);
+
+/**
+ * Decides whether upload requests carry `UNSIGNED-PAYLOAD` instead of a payload hash. The action
+ * checks its own sha256 on restore, and TLS protects the bytes in transit. Over plain HTTP the
+ * payload hash is the only integrity in transit, so the default is off there.
+ * `CLOUD_CACHE_UNSIGNED_PAYLOAD` overrides the default with `true` or `false`.
+ */
+export function useUnsignedPayload(
+  endpoint: string | undefined,
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  const override = env.CLOUD_CACHE_UNSIGNED_PAYLOAD?.trim().toLowerCase();
+  if (override === 'true') {
+    return true;
+  }
+  if (override === 'false') {
+    return false;
+  }
+  return !endpoint || endpoint.startsWith('https://');
+}
+
+function isUnsignedPayloadRefusal(error: unknown): error is { name: string } {
+  const e = error as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } };
+  const status = e?.$metadata?.httpStatusCode;
+  const code = e?.name ?? e?.Code ?? '';
+  return (status === 400 || status === 403) && UNSIGNED_PAYLOAD_REFUSALS.has(code);
+}
+
+/**
+ * Adds the `UNSIGNED-PAYLOAD` middleware. SigV4 then skips the second hash pass over each part.
+ * When the server refuses the header, the middleware turns off for this client and sends the
+ * request again with a signed payload.
+ */
+function addUnsignedPayloadMiddleware(client: S3Client): void {
+  let enabled = true;
+  client.middlewareStack.add(
+    (next, context) => async (args) => {
+      const request = args.request as { headers?: Record<string, string> } | undefined;
+      const applies = UNSIGNED_PAYLOAD_COMMANDS.has(context.commandName ?? '');
+      if (!enabled || !applies || !request?.headers) {
+        return next(args);
+      }
+      request.headers[CONTENT_SHA256_HEADER] = UNSIGNED_PAYLOAD;
+      try {
+        return await next(args);
+      } catch (error) {
+        if (!isUnsignedPayloadRefusal(error)) {
+          throw error;
+        }
+        if (enabled) {
+          enabled = false;
+          core.info(
+            `The server refused UNSIGNED-PAYLOAD (${error.name}). Uploads for this client now sign the payload hash.`
+          );
+        }
+        delete request.headers[CONTENT_SHA256_HEADER];
+        return next(args);
+      }
+    },
+    { step: 'build', name: UNSIGNED_PAYLOAD_MIDDLEWARE }
+  );
+}
+
 export interface StorageClientOptions {
   /** Total SDK attempts per request, including the first one. */
   maxAttempts: number;
@@ -99,8 +173,13 @@ export function createStorageContext(options: StorageClientOptions): StorageCont
     }, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle}, maxAttempts: ${clientConfig.maxAttempts})`
   );
 
+  const client = new S3Client(clientConfig);
+  if (useUnsignedPayload(providerConfig.endpoint)) {
+    addUnsignedPayloadMiddleware(client);
+  }
+
   return {
-    client: new S3Client(clientConfig),
+    client,
     providerConfig,
     bucket,
   };
