@@ -69163,6 +69163,15 @@ function useUnsignedPayload(endpoint, env = process.env) {
     return !endpoint || endpoint.startsWith('https://');
 }
 /**
+ * Decides whether the SDK adds its own CRC checksums where an operation allows them. The default
+ * is off: the sha256 check on restore covers the archive, and the CRC32 costs main-thread CPU.
+ * `CLOUD_CACHE_SDK_CHECKSUMS=true` turns them back on, for example for an AWS bucket with an
+ * Object Lock default retention, which requires a checksum on each upload.
+ */
+function useSdkChecksums(env = process.env) {
+    return env.CLOUD_CACHE_SDK_CHECKSUMS?.trim().toLowerCase() === 'true';
+}
+/**
  * Returns the S3 error code when the error is a refusal of `UNSIGNED-PAYLOAD`, and undefined
  * otherwise. The SDK always sets `name`, so `name` and `Code` are checked separately.
  */
@@ -69237,8 +69246,10 @@ function createStorageContext(options) {
     // Several S3-compatible services reject the CRC checksums the SDK sends by default. On AWS the
     // CRC32 costs about 100 ms of main-thread CPU per 64 MiB part, and the sha256 check on restore
     // already covers the archive, so no provider sends a checksum unless the operation needs one.
-    clientConfig.requestChecksumCalculation = 'WHEN_REQUIRED';
-    clientConfig.responseChecksumValidation = 'WHEN_REQUIRED';
+    if (!useSdkChecksums()) {
+        clientConfig.requestChecksumCalculation = 'WHEN_REQUIRED';
+        clientConfig.responseChecksumValidation = 'WHEN_REQUIRED';
+    }
     if (accessKey && secretKey) {
         clientConfig.credentials = {
             accessKeyId: accessKey,
@@ -72291,14 +72302,12 @@ function seconds(ms) {
 }
 /**
  * Returns `Timings: lookup …, download … (… MiB/s), extract …, total …` for a hit, or the
- * archive and upload phases for a save. Phases a step did not measure are left out. Returns
- * undefined when the step moved no bytes through S3.
+ * archive and upload phases for a save. Phases a step did not measure are left out. `total` is
+ * the whole step, and the transfer time includes retries. Returns undefined when the step moved
+ * no bytes through S3.
  */
 function formatTimings(metrics) {
     const transferMs = metrics.transferDurationMs;
-    if (metrics.outcome !== 'hit' && metrics.outcome !== 'saved') {
-        return undefined;
-    }
     if (transferMs === undefined || transferMs <= 0) {
         return undefined;
     }
@@ -72317,7 +72326,8 @@ function formatTimings(metrics) {
             : `extract ${seconds(metrics.extractDurationMs)}`,
         `total ${seconds(metrics.durationMs)}`,
     ];
-    return `Timings: ${parts.filter((part) => part !== undefined).join(', ')}`;
+    const note = metrics.outcome === 'exists' ? ' (another job saved first)' : '';
+    return `Timings: ${parts.filter((part) => part !== undefined).join(', ')}${note}`;
 }
 
 ;// CONCATENATED MODULE: ./src/core/presets.ts
