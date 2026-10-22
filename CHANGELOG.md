@@ -61,21 +61,6 @@ points at the latest `v1.x.y` release.
   none. The new `aborted-uploads` output and the `abortedUploads` metrics field give the count.
   See the [Pruning](./guide/pruning.md) guide.
 
-- **`compression-level` input.** Set the zstd (1–19) or gzip (1–9) level a save uses. Unset keeps
-  today's exact command (zstd level 3, or gzip via `tar -z`), so an existing workflow sees no
-  change. Only saving is affected; restore decodes whichever level a cache was saved with.
-  Measured levels for two real dependency trees, and the reasoning for leaving the default at 3,
-  are in the [Performance](./guide/performance.md) guide.
-  A new `compression` job in the `Transfer benchmark` workflow, and a `compressionBenchmark.ts`
-  script, reproduce the sweep against your own cache paths.
-- **Faster cache lookups.** Refs are still searched one at a time and in the same order as before,
-  so a later branch is never probed before an earlier one is ruled out. Within one ref, the
-  primary-key and restore-key listings now go out together instead of one after another: a total
-  miss with three refs and two restore keys drops from twelve sequential round trips to six, while
-  an exact hit still costs one request. The `explain` report and the `inspect` sub-action fan out
-  the same way, one ref's listings at a time, and still stop at the first hit, so the rendered
-  report is unchanged.
-
 ### Changed
 
 - **Behaviour change: S3-only jobs on low-trust triggers no longer save by default.** The S3 tier now obeys
@@ -98,6 +83,54 @@ points at the latest `v1.x.y` release.
   `save` manifests now declare `path` and `key` with `required: false`, because a `preset` can
   give them. With no `preset` and no `key` or `path`, the restore still fails, and the message
   now tells you to set `preset` or both inputs.
+
+- **One shared bundle in `dist/`.** `dist/` held six ncc bundles that each contained the same
+  SDK code. Now ncc builds one bundle, `dist/lib/index.js`, from `src/main.ts`. Each action entry
+  (`dist/restore`, `dist/save`, `dist/restore-only`, `dist/save-only`, `dist/prune` and
+  `dist/inspect`) is a small file that imports this bundle and calls the function of its action.
+  The `action.yml` paths do not change. `dist/` is now 4.9 MB instead of 24 MB, and
+  `npm run build` takes about 50 seconds instead of about 245 seconds.
+
+### Fixed
+
+- A dual-cache save where `path` matches nothing now skips both tiers with the reason
+  "no paths matched". Before, the GitHub tier reported an error, because `@actions/cache` throws a
+  plain `Error` for this case and the check expected a `ValidationError`. In strict mode, this
+  failed the step. The S3 tier alone was not affected.
+
+- On Windows, an S3 tier restore in file mode with Git's GNU `tar` no longer fails when the runner
+  account cannot create native symlinks (no `SeCreateSymbolicLinkPrivilege` and no Developer Mode). When the only errors
+  are `Cannot create symlink to ...: Operation not permitted`, the action logs a warning and
+  extracts the archive one more time with `MSYS=winsymlinks:deepcopy`. Symlinks are then restored
+  as copies of their targets. Any other extract error still fails the restore without a retry.
+  The retry does not run with `streaming: true`, or for the GitHub tier with `dual-cache: true`,
+  because `@actions/cache` runs its own `tar`. A symlink whose target is a later symlink in the
+  archive still fails. A copied directory symlink can make the restored tree much larger than the
+  archive.
+
+## [1.6.0] - 2026-10-22
+
+No breaking changes. Caches saved by v1.1 to v1.5 stay valid. A streamed save now uses object
+tagging for its checksum, so grant `s3:PutObjectTagging` and `s3:GetObjectTagging` (see Changed).
+
+### Added
+
+- **`compression-level` input.** Set the zstd (1–19) or gzip (1–9) level a save uses. Unset keeps
+  today's exact command (zstd level 3, or gzip via `tar -z`), so an existing workflow sees no
+  change. Only saving is affected; restore decodes whichever level a cache was saved with.
+  Measured levels for two real dependency trees, and the reasoning for leaving the default at 3,
+  are in the [Performance](./guide/performance.md) guide.
+  A new `compression` job in the `Transfer benchmark` workflow, and a `compressionBenchmark.ts`
+  script, reproduce the sweep against your own cache paths.
+- **Faster cache lookups.** Refs are still searched one at a time and in the same order as before,
+  so a later branch is never probed before an earlier one is ruled out. Within one ref, the
+  primary-key and restore-key listings now go out together instead of one after another: a total
+  miss with three refs and two restore keys drops from twelve sequential round trips to six, while
+  an exact hit still costs one request. The `explain` report and the `inspect` sub-action fan out
+  the same way, one ref's listings at a time, and still stop at the first hit, so the rendered
+  report is unchanged.
+
+### Changed
 
 - **A streamed save now stores its sha256 checksum as an object tag** instead of rewriting the
   whole object, which removes about 8 seconds from a 512 MiB save on Amazon S3. An action older
@@ -125,30 +158,6 @@ points at the latest `v1.x.y` release.
   - The documented IAM policies now grant `s3:GetObjectTagging` and `s3:PutObjectTagging`. A
     restore that cannot read the tags now warns instead of logging a debug line, because the only
     other symptom is an integrity check that silently stops running.
-
-- **One shared bundle in `dist/`.** `dist/` held six ncc bundles that each contained the same
-  SDK code. Now ncc builds one bundle, `dist/lib/index.js`, from `src/main.ts`. Each action entry
-  (`dist/restore`, `dist/save`, `dist/restore-only`, `dist/save-only`, `dist/prune` and
-  `dist/inspect`) is a small file that imports this bundle and calls the function of its action.
-  The `action.yml` paths do not change. `dist/` is now 4.9 MB instead of 24 MB, and
-  `npm run build` takes about 50 seconds instead of about 245 seconds.
-
-### Fixed
-
-- A dual-cache save where `path` matches nothing now skips both tiers with the reason
-  "no paths matched". Before, the GitHub tier reported an error, because `@actions/cache` throws a
-  plain `Error` for this case and the check expected a `ValidationError`. In strict mode, this
-  failed the step. The S3 tier alone was not affected.
-
-- On Windows, an S3 tier restore in file mode with Git's GNU `tar` no longer fails when the runner
-  account cannot create native symlinks (no `SeCreateSymbolicLinkPrivilege` and no Developer Mode). When the only errors
-  are `Cannot create symlink to ...: Operation not permitted`, the action logs a warning and
-  extracts the archive one more time with `MSYS=winsymlinks:deepcopy`. Symlinks are then restored
-  as copies of their targets. Any other extract error still fails the restore without a retry.
-  The retry does not run with `streaming: true`, or for the GitHub tier with `dual-cache: true`,
-  because `@actions/cache` runs its own `tar`. A symlink whose target is a later symlink in the
-  archive still fails. A copied directory symlink can make the restored tree much larger than the
-  archive.
 
 ## [1.5.1] - 2026-10-21
 
@@ -426,7 +435,8 @@ Initial pre-release.
 - zstd compression with a gzip fallback, chunked multipart uploads and retries.
 - `restore` and `save` sub-actions.
 
-[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.3.0...v1.4.0
