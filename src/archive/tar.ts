@@ -144,6 +144,8 @@ async function writeArchiveFromStdout(
   command: ArchiveCommand,
   archivePath: string
 ): Promise<string> {
+  // exec printed the command line before it started a command. Print it at debug level here.
+  core.debug(`[command]${command.tool} ${command.args.join(' ')}`);
   const child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
   // exec writes tar's stderr to the log. Do the same, so that tar warnings stay visible.
   child.stderr?.on('data', (chunk: string) => process.stderr.write(chunk));

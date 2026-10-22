@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import * as core from '@actions/core';
 import * as childProcess from 'node:child_process';
 import * as path from 'node:path';
 import { makeTempDir, removeDir } from '../../support/tempTree';
@@ -18,7 +19,10 @@ const mockSpawn = jest.fn((_tool: string, _args: string[], options: SpawnOptions
   childProcess.spawn(process.execPath, ['-e', ''], { stdio: options.stdio })
 );
 
+const mockDebug = jest.fn<(message: string) => void>();
+
 jest.unstable_mockModule('@actions/exec', () => ({ exec: mockExec }));
+jest.unstable_mockModule('@actions/core', () => ({ ...core, debug: mockDebug }));
 jest.unstable_mockModule('node:child_process', () => ({ ...childProcess, spawn: mockSpawn }));
 
 const { archiveExecOptions, createArchive, extractArchive } = await import(
@@ -47,9 +51,25 @@ describe('archive commands', () => {
     mockExec.mockReset();
     mockExec.mockResolvedValue(0);
     mockSpawn.mockClear();
+    mockDebug.mockClear();
   });
 
   afterEach(() => removeDir(dir));
+
+  it('prints the create command line at debug level before it starts tar', async () => {
+    const compression = { method: 'zstd' as const, archiveFilename: 'cache.tzst' };
+    await createArchive(path.join(dir, 'out', 'cache.tzst'), ['data'], compression, dir);
+
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+    const [tool, args] = mockSpawn.mock.calls[0];
+    const line = mockDebug.mock.calls.findIndex(
+      ([m]) => m === `[command]${tool} ${args.join(' ')}`
+    );
+    expect(line).toBeGreaterThanOrEqual(0);
+    expect(mockDebug.mock.invocationCallOrder[line]).toBeLessThan(
+      mockSpawn.mock.invocationCallOrder[0]
+    );
+  });
 
   it.each(['gzip', 'zstd'] as const)(
     'runs every %s create and extract command with MSYS set',
