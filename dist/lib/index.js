@@ -69234,11 +69234,11 @@ function createStorageContext(options) {
     if (providerConfig.endpoint) {
         clientConfig.endpoint = providerConfig.endpoint;
     }
-    if (providerConfig.provider !== 'aws') {
-        // Several S3-compatible services reject the CRC checksums the SDK sends by default.
-        clientConfig.requestChecksumCalculation = 'WHEN_REQUIRED';
-        clientConfig.responseChecksumValidation = 'WHEN_REQUIRED';
-    }
+    // Several S3-compatible services reject the CRC checksums the SDK sends by default. On AWS the
+    // CRC32 costs about 100 ms of main-thread CPU per 64 MiB part, and the sha256 check on restore
+    // already covers the archive, so no provider sends a checksum unless the operation needs one.
+    clientConfig.requestChecksumCalculation = 'WHEN_REQUIRED';
+    clientConfig.responseChecksumValidation = 'WHEN_REQUIRED';
     if (accessKey && secretKey) {
         clientConfig.credentials = {
             accessKeyId: accessKey,
@@ -70647,6 +70647,7 @@ async function resolveExpectedSha256(tier, objectKey, metadata, tagCount) {
 }
 async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
     let match;
+    const lookupStart = Date.now();
     try {
         match = await findS3Match(tier, primaryKey, restoreKeys);
     }
@@ -70662,6 +70663,7 @@ async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
         matchedKey: found.matchedKey,
         exact: found.exact,
         s3: { objectKey: found.objectKey, size: found.size, etag: found.etag },
+        lookupMs: Date.now() - lookupStart,
     };
     if (lookupOnly) {
         return hit;
@@ -70709,9 +70711,13 @@ async function restoreFromS3(tier, primaryKey, restoreKeys, lookupOnly) {
         else {
             core/* debug */.Yz(`s3://${bucket}/${found.objectKey} has no ${SHA256_METADATA_KEY} metadata; skipping integrity check.`);
         }
+        const extractStart = Date.now();
         await extractArchive(archivePath, tier.compression, tier.workspace);
-        if (hit.kind === 'hit' && hit.s3) {
-            hit.s3.metadata = stripReservedMetadata(metadata);
+        if (hit.kind === 'hit') {
+            hit.extractMs = Date.now() - extractStart;
+            if (hit.s3) {
+                hit.s3.metadata = stripReservedMetadata(metadata);
+            }
         }
         return hit;
     }
@@ -70765,7 +70771,9 @@ async function saveToS3FileMode(tier, objectKey, entries, primaryKey, retryConfl
     const tempDir = external_node_fs_.mkdtempSync(external_node_path_.join(external_node_os_.tmpdir(), 'cloud-cache-save-'));
     try {
         const archivePath = external_node_path_.join(tempDir, tier.compression.archiveFilename);
+        const archiveStart = Date.now();
         const { sha256: checksum } = await createArchive(archivePath, entries, tier.compression, tier.workspace, tier.compressionLevel);
+        const archiveMs = Date.now() - archiveStart;
         const archiveSize = getArchiveSize(archivePath);
         core/* info */.pq(`Uploading ${(0,inputUtils/* formatSize */.Xq)(archiveSize)} to s3://${bucket}/${objectKey}...`);
         const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: checksum };
@@ -70820,6 +70828,7 @@ async function saveToS3FileMode(tier, objectKey, entries, primaryKey, retryConfl
                 kind: 'saved',
                 s3: { objectKey, size: uploaded.size, etag: uploaded.etag },
                 transferMs: transferMs(),
+                archiveMs,
             };
         }
         catch (err) {
@@ -70829,6 +70838,7 @@ async function saveToS3FileMode(tier, objectKey, entries, primaryKey, retryConfl
                     kind: 'exists',
                     s3: { objectKey, size: archiveSize, etag: undefined },
                     transferMs: transferMs(),
+                    archiveMs,
                 };
             }
             if (sendCondition && isConditionUnsupported(err)) {
@@ -70840,6 +70850,7 @@ async function saveToS3FileMode(tier, objectKey, entries, primaryKey, retryConfl
                     kind: 'saved',
                     s3: { objectKey, size: uploaded.size, etag: uploaded.etag },
                     transferMs: transferMs(),
+                    archiveMs,
                 };
             }
             throw err;
@@ -72269,6 +72280,46 @@ function isCacheWritable(mode) {
     return mode === 'write' || mode === 'write-only';
 }
 
+;// CONCATENATED MODULE: ./src/core/timings.ts
+/**
+ * The one-line phase summary a restore or save step logs after an S3 transfer. Pure on purpose:
+ * it takes the step's metrics and returns text, so any CI front end can print it.
+ */
+const MiB = 1024 * 1024;
+function seconds(ms) {
+    return `${(ms / 1000).toFixed(2)} s`;
+}
+/**
+ * Returns `Timings: lookup …, download … (… MiB/s), extract …, total …` for a hit, or the
+ * archive and upload phases for a save. Phases a step did not measure are left out. Returns
+ * undefined when the step moved no bytes through S3.
+ */
+function formatTimings(metrics) {
+    const transferMs = metrics.transferDurationMs;
+    if (metrics.outcome !== 'hit' && metrics.outcome !== 'saved') {
+        return undefined;
+    }
+    if (transferMs === undefined || transferMs <= 0) {
+        return undefined;
+    }
+    const rate = `${(metrics.bytes / MiB / (transferMs / 1000)).toFixed(1)} MiB/s`;
+    const transfer = `${metrics.step === 'save' ? 'upload' : 'download'} ${seconds(transferMs)} (${rate})`;
+    const parts = [
+        metrics.lookupDurationMs === undefined
+            ? undefined
+            : `lookup ${seconds(metrics.lookupDurationMs)}`,
+        metrics.archiveDurationMs === undefined
+            ? undefined
+            : `archive ${seconds(metrics.archiveDurationMs)}`,
+        transfer,
+        metrics.extractDurationMs === undefined
+            ? undefined
+            : `extract ${seconds(metrics.extractDurationMs)}`,
+        `total ${seconds(metrics.durationMs)}`,
+    ];
+    return `Timings: ${parts.filter((part) => part !== undefined).join(', ')}`;
+}
+
 ;// CONCATENATED MODULE: ./src/core/presets.ts
 /**
  * Cache presets: one input that gives the `path`, `key` and `restore-keys` of a package
@@ -72486,6 +72537,7 @@ async function applyPreset(config, name, options = {}) {
 
 
 
+
 /** S3 alone, unless use-fallback or dual-cache adds GitHub Actions Cache. */
 function restoreOrder(config) {
     if (config.dualCache) {
@@ -72558,7 +72610,16 @@ async function restoreImpl(stateProvider, earlyExit) {
             return;
         }
         reported = true;
-        emitMetrics({ ...metrics, timestamp: new Date().toISOString(), durationMs: Date.now() - start }, config?.metricsFile ?? '', getWorkspace());
+        const full = {
+            ...metrics,
+            timestamp: new Date().toISOString(),
+            durationMs: Date.now() - start,
+        };
+        const timings = formatTimings(full);
+        if (timings) {
+            core/* info */.pq(timings);
+        }
+        emitMetrics(full, config?.metricsFile ?? '', getWorkspace());
     };
     try {
         if (!(0,inputUtils/* isValidEvent */.FR)()) {
@@ -72656,6 +72717,8 @@ async function restoreImpl(stateProvider, earlyExit) {
                         source,
                         bytes,
                         transferDurationMs: outcome.transferMs ?? 0,
+                        lookupDurationMs: outcome.lookupMs,
+                        extractDurationMs: outcome.extractMs,
                         streaming: config.streaming,
                         downloadParts: outcome.downloadParts ?? 0,
                         outcome: 'hit',
@@ -72801,6 +72864,7 @@ function isAccessDeniedError(err) {
 
 
 
+
 const ACCESS_DENIED_HINT = 'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save and silence this message.';
 /** The S3 save error message, with a hint about read-only when S3 denied the write. */
 function s3SaveError(error) {
@@ -72857,6 +72921,7 @@ async function saveSingleTier(config, s3, s3ExactHit) {
                     sources: ['s3'],
                     objectKey: outcome.s3?.objectKey,
                     transferMs: outcome.transferMs,
+                    archiveMs: outcome.archiveMs,
                     outcome: outcome.kind,
                 };
             case 'skipped':
@@ -72906,6 +72971,7 @@ async function saveBothTiers(config, s3, s3ExactHit, githubExactHit) {
     let size;
     let objectKey;
     let transferMs;
+    let archiveMs;
     // Only an upload this step actually performed makes the outcome "saved"; tiers that already
     // held the key report "exists".
     let uploaded = false;
@@ -72936,6 +73002,7 @@ async function saveBothTiers(config, s3, s3ExactHit, githubExactHit) {
                 size = outcome.s3?.size;
                 objectKey = outcome.s3?.objectKey;
                 transferMs = outcome.transferMs;
+                archiveMs = outcome.archiveMs;
                 uploaded ||= outcome.kind === 'saved';
                 break;
             case 'skipped':
@@ -73004,6 +73071,7 @@ async function saveBothTiers(config, s3, s3ExactHit, githubExactHit) {
         sources: [...sources],
         objectKey,
         transferMs,
+        archiveMs,
         outcome: uploaded ? 'saved' : 'exists',
     };
 }
@@ -73019,7 +73087,16 @@ async function saveImpl(stateProvider) {
             return;
         }
         reported = true;
-        emitMetrics({ ...metrics, timestamp: new Date().toISOString(), durationMs: Date.now() - start }, config?.metricsFile ?? '', getWorkspace());
+        const full = {
+            ...metrics,
+            timestamp: new Date().toISOString(),
+            durationMs: Date.now() - start,
+        };
+        const timings = formatTimings(full);
+        if (timings) {
+            core/* info */.pq(timings);
+        }
+        emitMetrics(full, config?.metricsFile ?? '', getWorkspace());
     };
     try {
         if (!(0,inputUtils/* isValidEvent */.FR)()) {
@@ -73096,6 +73173,7 @@ async function saveImpl(stateProvider) {
             savedTo: result.sources,
             bytes: result.size ?? 0,
             transferDurationMs: result.transferMs ?? 0,
+            archiveDurationMs: result.archiveMs,
             streaming: config.streaming,
             outcome: result.outcome,
             extra: result.error ? { error: result.error } : undefined,
