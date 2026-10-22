@@ -23,6 +23,12 @@ points at the latest `v1.x.y` release.
   change. If tar fails, the action removes the partial file. This applies to GNU tar only. BSD
   tar (macOS without `gtar`, and `tar.exe` in System32 on Windows) writes the file as before, and
   the action hashes the file after tar.
+- **A file-mode restore hashes the archive while it downloads.** For a download in ranged parts,
+  a worker thread computes the sha256 each time the parts at the start of the file are complete.
+  For a download in one request, the action computes the sha256 as the bytes arrive. The restore
+  no longer reads the whole archive again before the integrity check. The check and its error
+  text do not change. If the hash worker fails, the action hashes the file after the download, as
+  before. A streaming restore does not change.
 
 ## [1.7.0] - 2026-10-22
 

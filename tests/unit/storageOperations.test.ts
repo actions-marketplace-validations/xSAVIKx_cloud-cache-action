@@ -263,6 +263,29 @@ describe('Storage Operations', () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
+    it('returns the sha256 of the bytes it wrote with hash: true, and none without it', async () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-download-'));
+      const destPath = path.join(tempDir, 'hashed.bin');
+      const respond = () =>
+        s3Mock.on(GetObjectCommand).resolves({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          Body: Readable.from([Buffer.from('abc')]) as any,
+        });
+      try {
+        respond();
+        const hashed = await downloadFile(client, 'b', 'k', destPath, { hash: true });
+        expect(hashed.sha256).toBe(
+          'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+        );
+        expect(fs.readFileSync(destPath, 'utf8')).toBe('abc');
+        respond();
+        const plain = await downloadFile(client, 'b', 'k', destPath);
+        expect(plain.sha256).toBeUndefined();
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
     it('leaves metadata undefined when the response carries none', async () => {
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-download-'));
       const destPath = path.join(tempDir, 'no-metadata.txt');

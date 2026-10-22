@@ -481,11 +481,12 @@ export async function restoreFromS3(
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
     const { bucket } = tier.storage;
     const transferStart = Date.now();
-    const { metadata, tagCount, parts } = await downloadArchive(tier, found, archivePath);
+    const { metadata, tagCount, parts, sha256 } = await downloadArchive(tier, found, archivePath);
     recordDownload(parts, transferStart);
     const expectedSha256 = await resolveExpectedSha256(tier, found.objectKey, metadata, tagCount);
     if (expectedSha256) {
-      const actualSha256 = await sha256File(archivePath);
+      // The download hashes the bytes as they arrive; read the file again only when it did not.
+      const actualSha256 = sha256 ?? (await sha256File(archivePath));
       if (actualSha256 !== expectedSha256) {
         return {
           kind: 'error',
@@ -1120,12 +1121,19 @@ async function downloadArchive(
   tier: S3Tier,
   found: S3Match,
   archivePath: string
-): Promise<{ metadata?: Record<string, string>; tagCount?: number; parts: number }> {
+): Promise<{
+  metadata?: Record<string, string>;
+  tagCount?: number;
+  parts: number;
+  sha256?: string;
+}> {
   const { client, bucket } = tier.storage;
   const plan = partPlan(tier, found);
   if (plan) {
     try {
-      return await downloadFileInParts(client, bucket, found.objectKey, archivePath, plan);
+      return await downloadFileInParts(client, bucket, found.objectKey, archivePath, plan, {
+        hash: true,
+      });
     } catch (err) {
       if (!(err instanceof RangeNotSupportedError)) {
         throw err;
@@ -1133,15 +1141,15 @@ async function downloadArchive(
       logRangeFallback(tier, found);
     }
   }
-  const { metadata, tagCount } = await withRetry(
-    () => downloadFile(client, bucket, found.objectKey, archivePath),
+  const { metadata, tagCount, sha256 } = await withRetry(
+    () => downloadFile(client, bucket, found.objectKey, archivePath, { hash: true }),
     {
       retries: tier.streamRetries,
       operationName: `Download of ${found.objectKey}`,
       shouldRetry: isRetryableStreamError,
     }
   );
-  return { metadata, tagCount, parts: 1 };
+  return { metadata, tagCount, parts: 1, sha256 };
 }
 
 /** The streaming counterpart of `downloadArchive`: the archive bytes as one ordered stream. */

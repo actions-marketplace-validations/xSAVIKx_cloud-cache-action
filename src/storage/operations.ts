@@ -14,6 +14,7 @@ import * as path from 'path';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import * as core from '@actions/core';
+import { createSha256Tap } from '../archive/checksum';
 import { Defaults } from '../constants';
 
 export interface CacheObjectMetadata {
@@ -117,6 +118,8 @@ export interface DownloadResult {
   metadata?: Record<string, string>;
   /** How many tags the object carries, so a caller can skip a pointless GetObjectTagging. */
   tagCount?: number;
+  /** The hex sha256 of the bytes written; set only when the call asked for `hash: true`. */
+  sha256?: string;
 }
 
 export interface ObjectStreamResult {
@@ -254,7 +257,8 @@ export async function downloadFile(
   client: S3Client,
   bucket: string,
   key: string,
-  destinationPath: string
+  destinationPath: string,
+  options: { hash?: boolean } = {}
 ): Promise<DownloadResult> {
   // Ensure target folder exists
   const dir = path.dirname(destinationPath);
@@ -273,6 +277,12 @@ export async function downloadFile(
   }
 
   const fileStream = fs.createWriteStream(destinationPath);
+  // One request is bound by the network, so the hash runs on the main thread, in the pipe.
+  if (options.hash) {
+    const tap = createSha256Tap();
+    await pipeline(response.Body as Readable, tap.stream, fileStream);
+    return { metadata: response.Metadata, tagCount: response.TagCount, sha256: tap.digest() };
+  }
   await pipeline(response.Body as Readable, fileStream);
 
   return { metadata: response.Metadata, tagCount: response.TagCount };
