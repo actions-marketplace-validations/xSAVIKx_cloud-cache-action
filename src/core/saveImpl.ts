@@ -7,6 +7,7 @@ import { isValidEvent } from '../utils/inputUtils';
 import { getCacheMode, isCacheWritable } from './cacheMode';
 import { readCacheConfig, type CacheConfig } from './config';
 import { emitMetrics, type StepMetrics } from './metrics';
+import { formatTimings } from './timings';
 import { toError, type S3ObjectInfo } from './outcomes';
 import { applyPreset, readPreset } from './presets';
 import { buildS3Tier, saveToS3, type S3Tier } from './s3Tier';
@@ -20,6 +21,8 @@ interface SaveResult {
   objectKey?: string;
   /** The S3 upload alone, when one happened. */
   transferMs?: number;
+  /** The archive write and hash of a file-mode S3 save. */
+  archiveMs?: number;
   /** How the step ended, as the metrics line reports it. */
   outcome: Extract<StepMetrics['outcome'], 'saved' | 'exists' | 'skipped' | 'error'>;
   /** A tier error that was warned away rather than thrown, when nothing was saved. */
@@ -94,6 +97,7 @@ async function saveSingleTier(
           sources: ['s3'],
           objectKey: outcome.s3?.objectKey,
           transferMs: outcome.transferMs,
+          archiveMs: outcome.archiveMs,
           outcome: outcome.kind,
         };
       case 'skipped':
@@ -155,6 +159,7 @@ async function saveBothTiers(
   let size: number | undefined;
   let objectKey: string | undefined;
   let transferMs: number | undefined;
+  let archiveMs: number | undefined;
   // Only an upload this step actually performed makes the outcome "saved"; tiers that already
   // held the key report "exists".
   let uploaded = false;
@@ -188,6 +193,7 @@ async function saveBothTiers(
         size = outcome.s3?.size;
         objectKey = outcome.s3?.objectKey;
         transferMs = outcome.transferMs;
+        archiveMs = outcome.archiveMs;
         uploaded ||= outcome.kind === 'saved';
         break;
       case 'skipped':
@@ -265,6 +271,7 @@ async function saveBothTiers(
     sources: [...sources],
     objectKey,
     transferMs,
+    archiveMs,
     outcome: uploaded ? 'saved' : 'exists',
   };
 }
@@ -281,11 +288,16 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
       return;
     }
     reported = true;
-    emitMetrics(
-      { ...metrics, timestamp: new Date().toISOString(), durationMs: Date.now() - start },
-      config?.metricsFile ?? '',
-      getWorkspace()
-    );
+    const full = {
+      ...metrics,
+      timestamp: new Date().toISOString(),
+      durationMs: Date.now() - start,
+    };
+    const timings = formatTimings(full);
+    if (timings) {
+      core.info(timings);
+    }
+    emitMetrics(full, config?.metricsFile ?? '', getWorkspace());
   };
   try {
     if (!isValidEvent()) {
@@ -369,6 +381,7 @@ export async function saveImpl(stateProvider: IStateProvider): Promise<number | 
       savedTo: result.sources,
       bytes: result.size ?? 0,
       transferDurationMs: result.transferMs ?? 0,
+      archiveDurationMs: result.archiveMs,
       streaming: config.streaming,
       outcome: result.outcome,
       extra: result.error ? { error: result.error } : undefined,

@@ -506,6 +506,7 @@ describe('restoreFromS3', () => {
       matchedKey: 'k',
       exact: true,
       s3: { objectKey, size: 101, etag: '"k"' },
+      lookupMs: expect.any(Number) as unknown as number,
     });
     expect(mockDownloadFile).not.toHaveBeenCalled();
   });
@@ -536,6 +537,31 @@ describe('restoreFromS3', () => {
       nowSpy.mockRestore();
     }
     expect(mockExtractArchive).toHaveBeenCalled();
+  });
+
+  it('measures the lookup and the extraction apart from the download', async () => {
+    put(FEATURE, 'k', 1);
+    // A clock that only the mocked phases advance, each by a different amount.
+    let now = 1_000;
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    mockDownloadFile.mockImplementation(async () => {
+      now += 250;
+      return {};
+    });
+    mockExtractArchive.mockImplementation(async () => {
+      now += 5_000;
+    });
+    try {
+      const outcome = await restoreFromS3(tier(), 'k', [], false);
+      expect(outcome).toMatchObject({
+        kind: 'hit',
+        lookupMs: 0,
+        transferMs: 250,
+        extractMs: 5_000,
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it('does not log its own info line on a lookup-only hit, since restoreImpl already reports it', async () => {
@@ -730,6 +756,25 @@ describe('saveToS3', () => {
     expect(mockUploadFile).not.toHaveBeenCalled();
   });
 
+  it('measures the archive apart from the upload', async () => {
+    let now = 1_000;
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    mockCreateArchive.mockImplementation(async () => {
+      now += 1_500;
+      return { sha256: 'archive-sha256' };
+    });
+    mockUploadFile.mockImplementation(async () => {
+      now += 400;
+      return { size: 2048, etag: '"new"' };
+    });
+    try {
+      const outcome = await saveToS3(tier(), 'k', ['node_modules']);
+      expect(outcome).toMatchObject({ kind: 'saved', archiveMs: 1_500, transferMs: 400 });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it('archives the resolved entries and uploads them under the current ref', async () => {
     const outcome = await saveToS3(tier({ upload: { concurrency: 8, partSize: 5_242_880 } }), 'k', [
       'node_modules',
@@ -740,6 +785,7 @@ describe('saveToS3', () => {
       kind: 'saved',
       s3: { objectKey, size: 2048, etag: '"new"' },
       transferMs: expect.any(Number) as unknown as number,
+      archiveMs: expect.any(Number) as unknown as number,
     });
     expect(mockResolveCachePaths).toHaveBeenCalledWith(
       ['node_modules', '!node_modules/.cache'],
@@ -798,6 +844,7 @@ describe('saveToS3', () => {
       kind: 'exists',
       s3: { objectKey, size: 2048, etag: undefined },
       transferMs: expect.any(Number) as unknown as number,
+      archiveMs: expect.any(Number) as unknown as number,
     });
     expect(mockInfo).toHaveBeenCalledWith(
       `Another job saved s3://bucket/${objectKey} first; keeping its cache.`
@@ -829,6 +876,7 @@ describe('saveToS3', () => {
       kind: 'saved',
       s3: { objectKey, size: 2048, etag: '"fallback"' },
       transferMs: expect.any(Number) as unknown as number,
+      archiveMs: expect.any(Number) as unknown as number,
     });
     expect(mockUploadFile).toHaveBeenCalledTimes(2);
     const [, , , , , firstOptions] = mockUploadFile.mock.calls[0];

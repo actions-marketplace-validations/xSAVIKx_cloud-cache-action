@@ -18,14 +18,18 @@ export type RestoreOutcome =
       transferMs?: number;
       /** Ranged requests the S3 download used; 1 for a single GetObject. */
       downloadParts?: number;
+      /** The S3 lookup for the matching object. */
+      lookupMs?: number;
+      /** The unpack of a downloaded archive file; unset in streaming mode. */
+      extractMs?: number;
     }
   | { kind: 'miss' }
   | { kind: 'error'; error: Error };
 
 /** What one cache tier did during save. `transferMs` is the S3 upload alone. */
 export type SaveOutcome =
-  | { kind: 'saved'; s3?: S3ObjectInfo; transferMs?: number }
-  | { kind: 'exists'; s3?: S3ObjectInfo; transferMs?: number }
+  | { kind: 'saved'; s3?: S3ObjectInfo; transferMs?: number; archiveMs?: number }
+  | { kind: 'exists'; s3?: S3ObjectInfo; transferMs?: number; archiveMs?: number }
   | { kind: 'skipped'; reason: string }
   | { kind: 'error'; error: Error };
 

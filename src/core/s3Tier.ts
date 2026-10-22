@@ -430,6 +430,7 @@ export async function restoreFromS3(
   lookupOnly: boolean
 ): Promise<RestoreOutcome> {
   let match: S3Match | undefined;
+  const lookupStart = Date.now();
   try {
     match = await findS3Match(tier, primaryKey, restoreKeys);
   } catch (err) {
@@ -445,6 +446,7 @@ export async function restoreFromS3(
     matchedKey: found.matchedKey,
     exact: found.exact,
     s3: { objectKey: found.objectKey, size: found.size, etag: found.etag },
+    lookupMs: Date.now() - lookupStart,
   };
   if (lookupOnly) {
     return hit;
@@ -500,9 +502,13 @@ export async function restoreFromS3(
         `s3://${bucket}/${found.objectKey} has no ${SHA256_METADATA_KEY} metadata; skipping integrity check.`
       );
     }
+    const extractStart = Date.now();
     await extractArchive(archivePath, tier.compression, tier.workspace);
-    if (hit.kind === 'hit' && hit.s3) {
-      hit.s3.metadata = stripReservedMetadata(metadata);
+    if (hit.kind === 'hit') {
+      hit.extractMs = Date.now() - extractStart;
+      if (hit.s3) {
+        hit.s3.metadata = stripReservedMetadata(metadata);
+      }
     }
     return hit;
   } catch (err) {
@@ -573,6 +579,7 @@ async function saveToS3FileMode(
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
   try {
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
+    const archiveStart = Date.now();
     const { sha256: checksum } = await createArchive(
       archivePath,
       entries,
@@ -580,6 +587,7 @@ async function saveToS3FileMode(
       tier.workspace,
       tier.compressionLevel
     );
+    const archiveMs = Date.now() - archiveStart;
     const archiveSize = getArchiveSize(archivePath);
     core.info(`Uploading ${formatSize(archiveSize)} to s3://${bucket}/${objectKey}...`);
     const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: checksum };
@@ -642,6 +650,7 @@ async function saveToS3FileMode(
         kind: 'saved',
         s3: { objectKey, size: uploaded.size, etag: uploaded.etag },
         transferMs: transferMs(),
+        archiveMs,
       };
     } catch (err) {
       if (sendCondition && isPreconditionFailed(err)) {
@@ -650,6 +659,7 @@ async function saveToS3FileMode(
           kind: 'exists',
           s3: { objectKey, size: archiveSize, etag: undefined },
           transferMs: transferMs(),
+          archiveMs,
         };
       }
       if (sendCondition && isConditionUnsupported(err)) {
@@ -666,6 +676,7 @@ async function saveToS3FileMode(
           kind: 'saved',
           s3: { objectKey, size: uploaded.size, etag: uploaded.etag },
           transferMs: transferMs(),
+          archiveMs,
         };
       }
       throw err;

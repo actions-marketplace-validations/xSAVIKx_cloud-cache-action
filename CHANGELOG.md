@@ -8,6 +8,15 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+### Added
+
+- **A timing line for each restore and save.** After an S3 download or upload, the step logs
+  one line with the time of each phase and the transfer rate, for example
+  `Timings: lookup 0.24 s, download 5.31 s (35.9 MiB/s), extract 2.41 s, total 8.12 s`. The
+  metrics line and the `metrics-file` get the same phases as `lookupDurationMs`,
+  `archiveDurationMs` and `extractDurationMs`. Streaming mode archives and extracts during the
+  transfer, so it reports only the lookup, the transfer and the total.
+
 ### Changed
 
 - **Uploads to AWS S3 no longer compute a CRC32 for each part.** The AWS SDK computed this

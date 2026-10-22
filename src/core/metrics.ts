@@ -24,6 +24,12 @@ export interface StepMetrics {
   durationMs: number;
   /** Time spent on the S3 download or upload alone, when one happened. */
   transferDurationMs?: number;
+  /** Restore: time to find the matching S3 object. */
+  lookupDurationMs?: number;
+  /** File-mode save: time to write and hash the archive. */
+  archiveDurationMs?: number;
+  /** File-mode restore: time to unpack the archive. */
+  extractDurationMs?: number;
   streaming?: boolean;
   /** Ranged requests the restore download used; 1 for a single GetObject, 0 with no download. */
   downloadParts?: number;

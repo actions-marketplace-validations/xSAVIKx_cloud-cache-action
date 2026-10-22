@@ -134,6 +134,21 @@ describe('saveImpl', () => {
       expect(metrics.durationMs).toEqual(expect.any(Number));
     });
 
+    it('passes the archive time to the metrics and logs one timing line', async () => {
+      mockSaveToS3.mockResolvedValue({ ...s3Saved, archiveMs: 20 } as SaveOutcome);
+      await saveImpl(state);
+
+      const [metrics] = mockEmitMetrics.mock.calls[0];
+      expect(metrics).toEqual(
+        expect.objectContaining({ archiveDurationMs: 20, transferDurationMs: 9 })
+      );
+      const timingLines = mockInfo.mock.calls.filter(([line]) => line.startsWith('Timings: '));
+      expect(timingLines).toHaveLength(1);
+      expect(timingLines[0][0]).toMatch(
+        /^Timings: archive 0\.02 s, upload 0\.01 s \(.+ MiB\/s\), total \d+\.\d{2} s$/
+      );
+    });
+
     it('reads metrics-file from the state the restore step persisted', async () => {
       state.setState(State.CacheMetricsFile, 'from-state.jsonl');
       await saveImpl(state);

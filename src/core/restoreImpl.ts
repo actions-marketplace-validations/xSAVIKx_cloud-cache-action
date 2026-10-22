@@ -7,6 +7,7 @@ import { getCacheMode, isCacheReadable } from './cacheMode';
 import { persistCacheConfig, readCacheConfig, type CacheConfig } from './config';
 import { buildExplainReport, renderExplain, writeExplainSummary } from './explain';
 import { emitMetrics, type StepMetrics } from './metrics';
+import { formatTimings } from './timings';
 import { toError, type RestoreOutcome } from './outcomes';
 import { applyPreset, readPreset } from './presets';
 import { buildS3Tier, restoreFromS3, type S3Tier } from './s3Tier';
@@ -105,11 +106,16 @@ export async function restoreImpl(
       return;
     }
     reported = true;
-    emitMetrics(
-      { ...metrics, timestamp: new Date().toISOString(), durationMs: Date.now() - start },
-      config?.metricsFile ?? '',
-      getWorkspace()
-    );
+    const full = {
+      ...metrics,
+      timestamp: new Date().toISOString(),
+      durationMs: Date.now() - start,
+    };
+    const timings = formatTimings(full);
+    if (timings) {
+      core.info(timings);
+    }
+    emitMetrics(full, config?.metricsFile ?? '', getWorkspace());
   };
   try {
     if (!isValidEvent()) {
@@ -217,6 +223,8 @@ export async function restoreImpl(
             source,
             bytes,
             transferDurationMs: outcome.transferMs ?? 0,
+            lookupDurationMs: outcome.lookupMs,
+            extractDurationMs: outcome.extractMs,
             streaming: config.streaming,
             downloadParts: outcome.downloadParts ?? 0,
             outcome: 'hit',

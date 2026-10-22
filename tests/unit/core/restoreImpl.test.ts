@@ -483,6 +483,35 @@ describe('restoreImpl', () => {
     expect(metrics.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
+  it('passes the phase times to the metrics and logs one timing line on a hit', async () => {
+    mockRestoreFromS3.mockResolvedValue({
+      ...s3Hit('Linux-npm-abc', true),
+      lookupMs: 30,
+      extractMs: 40,
+    } as RestoreOutcome);
+
+    await restoreImpl(state, false);
+
+    const [metrics] = mockEmitMetrics.mock.calls[0];
+    expect(metrics).toEqual(
+      expect.objectContaining({
+        lookupDurationMs: 30,
+        transferDurationMs: 7,
+        extractDurationMs: 40,
+      })
+    );
+    const timingLines = mockCoreInfo.mock.calls.filter(([line]) => line.startsWith('Timings: '));
+    expect(timingLines).toHaveLength(1);
+    expect(timingLines[0][0]).toMatch(
+      /^Timings: lookup 0\.03 s, download 0\.01 s \(.+ MiB\/s\), extract 0\.04 s, total \d+\.\d{2} s$/
+    );
+  });
+
+  it('logs no timing line on a miss', async () => {
+    await restoreImpl(state, false);
+    expect(mockCoreInfo.mock.calls.some(([line]) => line.startsWith('Timings: '))).toBe(false);
+  });
+
   it('reports zero bytes and zero transfer time on a miss', async () => {
     await restoreImpl(state, false);
     expect(outputs.get('cache-bytes')).toBe('0');
