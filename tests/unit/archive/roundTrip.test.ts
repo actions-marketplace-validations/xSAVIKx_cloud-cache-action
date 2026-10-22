@@ -1,5 +1,7 @@
 import * as io from '@actions/io';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { sha256File } from '../../../src/archive/checksum';
 import type { CompressionConfig } from '../../../src/archive/compression';
 import { resolveCachePaths } from '../../../src/archive/paths';
 import { createArchive, extractArchive } from '../../../src/archive/tar';
@@ -46,11 +48,25 @@ describe.each(compressions)('tar round trip with $method', (compression) => {
     const { entries } = await resolveCachePaths(fixture.patterns, roots.workspace);
     const archive = path.join(scratch, compression.archiveFilename);
 
-    await createArchive(archive, entries, compression, roots.workspace);
+    const { sha256 } = await createArchive(archive, entries, compression, roots.workspace);
+    expect(sha256).toBe(await sha256File(archive));
     clearFixtureRoots(roots);
     expect(verifyFixtureTree(fixture, roots)).not.toEqual([]);
 
     await extractArchive(archive, compression, roots.workspace);
     expect(verifyFixtureTree(fixture, roots)).toEqual([]);
   }, 120_000);
+
+  it('rejects with the tar exit code and leaves no archive when tar fails', async () => {
+    if (compression.method === 'zstd' && !(await io.which('zstd', false))) {
+      console.log('zstd is not installed on this machine; skipping the zstd failure case.');
+      return;
+    }
+
+    const archive = path.join(scratch, compression.archiveFilename);
+    await expect(
+      createArchive(archive, ['does-not-exist'], compression, roots.workspace)
+    ).rejects.toThrow(/^The process '.+' failed with exit code [1-9]\d*\n.*does-not-exist/s);
+    expect(fs.existsSync(archive)).toBe(false);
+  }, 60_000);
 });

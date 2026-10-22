@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import * as crypto from 'node:crypto';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { mockClient } from 'aws-sdk-client-mock';
 import * as fs from 'node:fs';
@@ -193,6 +194,75 @@ describe('downloadFileInParts', () => {
     expect(rangesRequested().filter((range) => range === 'bytes=10-19')).toHaveLength(2);
     expect(rangesRequested().filter((range) => range === 'bytes=0-9')).toHaveLength(1);
     expect(mockInfo).toHaveBeenCalledWith(expect.stringMatching(/part 2\/3: attempt 1\/2 failed/));
+  });
+
+  it('returns the sha256 of the object bytes with hash: true, also when a part is retried', async () => {
+    serveRanges((range, calls) => {
+      if (range.start === 10 && calls === 1) {
+        // Writes a wrong first chunk and then drops, so the retry must overwrite those bytes.
+        const body = new PassThrough();
+        body.write(Buffer.alloc(4, 0));
+        const error = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
+        setImmediate(() => body.destroy(error));
+        return { ...partResponse(range), Body: body };
+      }
+      return undefined;
+    });
+    const result = await downloadFileInParts(client(), BUCKET, KEY, destination, options, {
+      hash: true,
+    });
+    expect(fs.readFileSync(destination)).toEqual(DATA);
+    expect(result.sha256).toBe(crypto.createHash('sha256').update(DATA).digest('hex'));
+    expect(rangesRequested().filter((range) => range === 'bytes=10-19')).toHaveLength(2);
+  });
+
+  it('hashes in order when the parts complete in reverse order', async () => {
+    const bodies = new Map<number, PassThrough>();
+    s3Mock.on(GetObjectCommand).callsFake((input: { Range?: string }) => {
+      const range = parseRange(input);
+      const body = new PassThrough();
+      bodies.set(range.start, body);
+      return { ...partResponse(range), Body: body };
+    });
+    const download = downloadFileInParts(
+      client(),
+      BUCKET,
+      KEY,
+      destination,
+      { ...options, concurrency: 3 },
+      { hash: true }
+    );
+    // Ends the last part first and the first part last, each after the earlier one is written.
+    const release = async (): Promise<void> => {
+      for (const start of [20, 10, 0]) {
+        while (!bodies.has(start)) {
+          await new Promise((resolve) => setImmediate(resolve));
+        }
+        bodies.get(start)?.end(DATA.subarray(start, Math.min(start + 10, DATA.length)));
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    };
+    const [result] = await Promise.all([download, release()]);
+    expect(fs.readFileSync(destination)).toEqual(DATA);
+    expect(result.sha256).toBe(crypto.createHash('sha256').update(DATA).digest('hex'));
+  });
+
+  it('stops the hash and rejects with the part error when a part fails for good', async () => {
+    serveRanges((range) => {
+      if (range.start === 10) {
+        throw Object.assign(new Error('AccessDenied'), { $metadata: { httpStatusCode: 403 } });
+      }
+      return undefined;
+    });
+    await expect(
+      downloadFileInParts(client(), BUCKET, KEY, destination, options, { hash: true })
+    ).rejects.toThrow('AccessDenied');
+  });
+
+  it('returns no sha256 without hash: true', async () => {
+    serveRanges();
+    const result = await downloadFileInParts(client(), BUCKET, KEY, destination, options);
+    expect(result.sha256).toBeUndefined();
   });
 
   it('retries a part whose body ends short of its declared length', async () => {

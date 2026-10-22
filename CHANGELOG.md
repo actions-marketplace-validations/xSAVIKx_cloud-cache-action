@@ -8,6 +8,35 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+### Changed
+
+- **Upload parts skip the second hash pass over HTTPS.** Uploads to AWS S3 and to any `https://`
+  endpoint now send `x-amz-content-sha256: UNSIGNED-PAYLOAD` on `UploadPart` and `PutObject`
+  requests. The AWS SDK no longer hashes each part again for the request signature. The sha256
+  integrity check on restore stays, and TLS protects the bytes in transit. Plain `http://`
+  endpoints keep the signed payload. Set `CLOUD_CACHE_UNSIGNED_PAYLOAD=false` to turn the change
+  off, or `CLOUD_CACHE_UNSIGNED_PAYLOAD=true` to turn it on for an `http://` endpoint. If a server
+  refuses the header, the action sends that request again with a signed payload and logs one line.
+- **A file-mode save hashes the archive while tar writes it.** Tar now writes the archive to
+  stdout, and the action computes the sha256 on the way to the temporary file. The save no longer
+  reads the whole archive again before the upload. The archive bytes and the stored sha256 do not
+  change. If tar fails, the action removes the partial file. This applies to GNU tar only. BSD
+  tar (macOS without `gtar`, and `tar.exe` in System32 on Windows) writes the file as before, and
+  the action hashes the file after tar.
+- **A file-mode restore hashes the archive while it downloads.** For a download in ranged parts,
+  a worker thread computes the sha256 each time the parts at the start of the file are complete.
+  For a download in one request, the action computes the sha256 as the bytes arrive. The restore
+  no longer reads the whole archive again before the integrity check. The check and its error
+  text do not change. If the hash worker fails, the action hashes the file after the download, as
+  before. A streaming restore does not change.
+- **The second run of the action in a job starts faster.** For example, the post step starts
+  faster. Each entry turns on the Node.js V8 compile cache. The cache directory is
+  `cloud-cache-action-v8` under `RUNNER_TEMP`, or under the system temp directory when
+  `RUNNER_TEMP` is not set. If the cache cannot start, the step runs without it. The first run in
+  a job does not start faster. A job that uses S3 only no longer loads the GitHub Actions Cache
+  code (`@azure/*` and `@protobuf-ts/*`). The action loads this code only when a run uses the
+  GitHub tier. The bundle in `dist/lib` is now split into three files.
+
 ## [1.7.0] - 2026-10-22
 
 One default changes: the S3 tier now obeys `ACTIONS_CACHE_MODE`, so S3-only jobs on

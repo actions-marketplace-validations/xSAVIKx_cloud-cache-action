@@ -8,6 +8,8 @@ import { GetObjectCommand, type S3Client } from '@aws-sdk/client-s3';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Readable } from 'node:stream';
+import * as core from '@actions/core';
+import { createPrefixHasher, type PrefixHasher } from '../archive/prefixHasher';
 import { isRetryableStreamError, withRetry } from './retry';
 
 /** One `Range` request: `start` and `end` are inclusive byte offsets, as in HTTP. */
@@ -35,6 +37,16 @@ export interface PartDownloadResult {
   tagCount?: number;
   /** How many ranged requests the object was split into. */
   parts: number;
+}
+
+export interface FileDownloadOptions {
+  /** Hash the file while the parts arrive, and return the sha256. */
+  hash?: boolean;
+}
+
+export interface FileDownloadResult extends PartDownloadResult {
+  /** The hex sha256 of the file; set only with `hash: true` and when the hash worker succeeded. */
+  sha256?: string;
 }
 
 export interface PartsStreamResult extends PartDownloadResult {
@@ -264,34 +276,67 @@ async function forEachConcurrently<T>(
  * Downloads an object into `destinationPath` as concurrent ranged parts. Each part's chunks are
  * written at their offset as they arrive, so the memory used is the SDK's socket buffers, not the
  * parts. Throws `RangeNotSupportedError` before the file exists when the server ignores `Range`.
+ *
+ * With `hash: true`, a worker thread hashes the start of the file each time the parts before it
+ * are complete. A part is complete only after its last chunk is written, and a retried part
+ * rewrites its range before it is complete, so the hash never reads bytes that change later.
  */
 export async function downloadFileInParts(
   client: S3Client,
   bucket: string,
   key: string,
   destinationPath: string,
-  options: PartDownloadOptions
-): Promise<PartDownloadResult> {
+  options: PartDownloadOptions,
+  fileOptions: FileDownloadOptions = {}
+): Promise<FileDownloadResult> {
   const source = new PartSource(client, bucket, key, options);
   const { metadata, tagCount } = await source.open();
 
   fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
   const handle = await fs.promises.open(destinationPath, 'w');
+  let hasher: PrefixHasher | undefined;
+  let sha256: string | undefined;
   try {
     await handle.truncate(options.size);
+    hasher = fileOptions.hash ? startHasher(destinationPath) : undefined;
+    const complete = source.parts.map(() => false);
+    let prefix = 0;
     await forEachConcurrently(
       source.parts,
       options.concurrency,
-      (part) =>
-        source.download(part, async (chunk, offset) => {
+      async (part) => {
+        await source.download(part, async (chunk, offset) => {
           await handle.write(chunk, 0, chunk.length, offset);
-        }),
+        });
+        complete[part.index] = true;
+        while (prefix < complete.length && complete[prefix]) {
+          prefix += 1;
+        }
+        if (prefix > 0) {
+          hasher?.advance(source.parts[prefix - 1].end + 1);
+        }
+      },
       () => source.abort()
     );
+    sha256 = await hasher?.finish(options.size).catch((err: unknown) => {
+      core.debug(`The download hash failed, so the result has no sha256: ${String(err)}`);
+      return undefined;
+    });
   } finally {
+    await hasher?.close();
     await handle.close();
   }
-  return { metadata, tagCount, parts: source.parts.length };
+  return { metadata, tagCount, parts: source.parts.length, ...(sha256 ? { sha256 } : {}) };
+}
+
+/** Starts a hasher, or returns undefined (the caller then hashes the file afterwards). */
+function startHasher(filePath: string): PrefixHasher | undefined {
+  try {
+    return createPrefixHasher(filePath);
+  } catch (err) {
+    core.debug(`Could not start the download hash worker: ${String(err)}`);
+    return undefined;
+  }
 }
 
 /**

@@ -3,8 +3,9 @@
  * against real dependency trees (the transfer benchmark in `benchmark.ts` uses random bytes,
  * which never compress, so this is the only benchmark that exercises compression at all).
  *
- * Builds each archive through the real `buildCreateCommands` plan from `src/archive/tar.ts`, so
- * the measured command is the one the action actually runs.
+ * Builds each archive through the real `buildCreateCommands` plan from
+ * `src/archive/commands.ts`, so the measured command is the one the action actually runs. That
+ * module has no runtime relative imports, so native Node can load it.
  *
  *   BENCH_FIXTURES="node_modules=/abs/path" node tests/ci/compressionBenchmark.ts
  *
@@ -13,7 +14,7 @@
  * Writes compression-results.json and compression-results.md into BENCH_OUT (default the
  * workspace), and appends the tables to GITHUB_STEP_SUMMARY when set.
  */
-import { buildCreateCommands, buildExtractCommands, findTar } from '../../src/archive/tar.ts';
+import { buildCreateCommands, buildExtractCommands, findTar } from '../../src/archive/commands.ts';
 import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';

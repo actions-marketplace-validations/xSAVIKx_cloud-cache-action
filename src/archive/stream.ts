@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess, type StdioOptions } from 'node:child_process';
 import type { Readable } from 'node:stream';
 import { Transform } from 'node:stream';
-import { archiveExecOptions, type ArchiveCommand } from './tar';
+import { archiveExecOptions, type ArchiveCommand } from './commands';
 
 /**
  * Spawns one tar/zstd command for streaming (Task 8): no shell, so paths and arguments never

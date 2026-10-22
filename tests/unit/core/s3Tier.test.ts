@@ -27,7 +27,7 @@ const mockCreateArchive =
       entries: readonly string[],
       compression: CompressionConfig,
       workspace: string
-    ) => Promise<void>
+    ) => Promise<{ sha256: string }>
   >();
 const mockExtractArchive =
   jest.fn<
@@ -53,8 +53,9 @@ const mockDownloadFile =
       client: S3Client,
       bucket: string,
       key: string,
-      destination: string
-    ) => Promise<{ metadata?: Record<string, string>; tagCount?: number }>
+      destination: string,
+      options?: { hash?: boolean }
+    ) => Promise<{ metadata?: Record<string, string>; tagCount?: number; sha256?: string }>
   >();
 const mockUploadFile =
   jest.fn<
@@ -217,8 +218,9 @@ const mockDownloadFileInParts =
       bucket: string,
       key: string,
       destination: string,
-      options: PartDownloadOptions
-    ) => Promise<{ metadata?: Record<string, string>; parts: number }>
+      options: PartDownloadOptions,
+      fileOptions?: { hash?: boolean }
+    ) => Promise<{ metadata?: Record<string, string>; parts: number; sha256?: string }>
   >();
 const mockOpenObjectPartsStream =
   jest.fn<
@@ -334,7 +336,7 @@ beforeEach(() => {
   mockDownloadFile.mockResolvedValue({});
   mockDownloadFileInParts.mockResolvedValue({ parts: 3 });
   mockExtractArchive.mockResolvedValue();
-  mockCreateArchive.mockResolvedValue();
+  mockCreateArchive.mockResolvedValue({ sha256: 'archive-sha256' });
   mockGetArchiveSize.mockReturnValue(2048);
   mockUploadFile.mockResolvedValue({ size: 2048, etag: '"new"' });
   mockResolveCachePaths.mockResolvedValue({ entries: ['node_modules'], skipped: [] });
@@ -761,13 +763,13 @@ describe('saveToS3', () => {
     expect(fs.existsSync(path.dirname(archivePath))).toBe(false);
   });
 
-  it('hashes the archive and uploads its sha256 as object metadata', async () => {
-    mockSha256File.mockResolvedValue(
-      'c0ffee0000000000000000000000000000000000000000000000000000ffee'
-    );
+  it('uploads the sha256 that createArchive computed as object metadata', async () => {
+    mockCreateArchive.mockResolvedValue({
+      sha256: 'c0ffee0000000000000000000000000000000000000000000000000000ffee',
+    });
     await saveToS3(tier(), 'k', ['node_modules']);
-    const [archivePath] = mockCreateArchive.mock.calls[0];
-    expect(mockSha256File).toHaveBeenCalledWith(archivePath);
+    // createArchive hashes the archive while tar writes it, so the save does not read it again.
+    expect(mockSha256File).not.toHaveBeenCalled();
     const [, , , , , options] = mockUploadFile.mock.calls[0];
     expect(options).toEqual({
       metadata: {
@@ -2266,6 +2268,44 @@ describe('restoreFromS3 parallel download', () => {
     mockSha256File.mockResolvedValue('actual-hash');
     const outcome = await restoreFromS3(tier(), 'k', [], false);
     expect(outcome.kind === 'error' && outcome.error.message).toContain('Integrity check failed');
+    expect(mockExtractArchive).not.toHaveBeenCalled();
+  });
+
+  it('asks both download paths for a digest, and checks it without a second pass over the file', async () => {
+    large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'good-hash' },
+      parts: 3,
+      sha256: 'good-hash',
+    });
+    const outcome = await restoreFromS3(tier(), 'k', [], false);
+    expect(outcome.kind).toBe('hit');
+    expect(mockDownloadFileInParts.mock.calls[0][5]).toEqual({ hash: true });
+    expect(mockSha256File).not.toHaveBeenCalled();
+    expect(mockExtractArchive).toHaveBeenCalled();
+
+    mockDownloadFileInParts.mockRejectedValue(new RangeNotSupportedError('bucket', 'x'));
+    mockDownloadFile.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'good-hash' },
+      sha256: 'good-hash',
+    });
+    await restoreFromS3(tier(), 'k', [], false);
+    expect(mockDownloadFile.mock.calls[0][4]).toEqual({ hash: true });
+    expect(mockSha256File).not.toHaveBeenCalled();
+  });
+
+  it('reports a mismatch of the digest the download returned', async () => {
+    const objectKey = large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'expected-hash' },
+      parts: 3,
+      sha256: 'actual-hash',
+    });
+    const outcome = await restoreFromS3(tier(), 'k', [], false);
+    expect(outcome.kind === 'error' && outcome.error.message).toBe(
+      `Integrity check failed for s3://bucket/${objectKey}: expected sha256 expected-hash, got actual-hash`
+    );
+    expect(mockSha256File).not.toHaveBeenCalled();
     expect(mockExtractArchive).not.toHaveBeenCalled();
   });
 
