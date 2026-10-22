@@ -8,6 +8,11 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-22
+
+Faster saves and restores. Object keys, metadata and archive bytes do not change, so caches saved
+by v1.1 to v1.7 stay valid.
+
 ### Changed
 
 - **Upload parts skip the second hash pass over HTTPS.** Uploads to AWS S3 and to any `https://`
@@ -470,7 +475,8 @@ Initial pre-release.
 - zstd compression with a gzip fallback, chunked multipart uploads and retries.
 - `restore` and `save` sub-actions.
 
-[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.0...v1.5.1
