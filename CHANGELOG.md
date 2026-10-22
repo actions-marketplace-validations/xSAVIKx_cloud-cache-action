@@ -20,8 +20,9 @@ points at the latest `v1.x.y` release.
 - **A file-mode save hashes the archive while tar writes it.** Tar now writes the archive to
   stdout, and the action computes the sha256 on the way to the temporary file. The save no longer
   reads the whole archive again before the upload. The archive bytes and the stored sha256 do not
-  change. If tar fails, the action removes the partial file. BSD tar on Windows with zstd keeps
-  its two commands and hashes the file after them.
+  change. If tar fails, the action removes the partial file. This applies to GNU tar only. BSD
+  tar (macOS without `gtar`, and `tar.exe` in System32 on Windows) writes the file as before, and
+  the action hashes the file after tar.
 
 ## [1.7.0] - 2026-10-22
 

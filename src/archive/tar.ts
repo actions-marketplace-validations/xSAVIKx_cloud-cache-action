@@ -413,8 +413,10 @@ export async function createArchive(
       manifestPath,
       level,
     };
-    if (usesSeparateZstd(plan)) {
-      // Two commands write files, so the archive is hashed after they finish.
+    // Only GNU tar writes the same bytes to stdout as to a file. BSD tar (libarchive) pads the
+    // last record with NULs when it writes to a pipe, which changes the archive bytes. BSD tar
+    // thus writes the file, and the archive is hashed after the commands finish.
+    if (tar.flavor !== 'gnu') {
       await run(buildCreateCommands(plan));
       return { sha256: await sha256File(archivePath) };
     }
