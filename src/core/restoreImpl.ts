@@ -6,7 +6,6 @@ import { isValidEvent } from '../utils/inputUtils';
 import { getCacheMode, isCacheReadable } from './cacheMode';
 import { persistCacheConfig, readCacheConfig, type CacheConfig } from './config';
 import { buildExplainReport, renderExplain, writeExplainSummary } from './explain';
-import { restoreFromGitHub } from './githubTier';
 import { emitMetrics, type StepMetrics } from './metrics';
 import { toError, type RestoreOutcome } from './outcomes';
 import { applyPreset, readPreset } from './presets';
@@ -50,6 +49,8 @@ async function attempt(
 ): Promise<RestoreOutcome> {
   if (source === 'github') {
     core.info('Querying GitHub Actions Cache...');
+    // Load the GitHub tier only when a run uses it. S3-only runs skip its start-up cost.
+    const { restoreFromGitHub } = await import('./githubTier');
     return restoreFromGitHub(
       config.paths,
       config.primaryKey,

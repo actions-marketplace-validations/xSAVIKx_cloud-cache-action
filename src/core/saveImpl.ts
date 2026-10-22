@@ -6,7 +6,6 @@ import { isAccessDeniedError } from '../storage/errors';
 import { isValidEvent } from '../utils/inputUtils';
 import { getCacheMode, isCacheWritable } from './cacheMode';
 import { readCacheConfig, type CacheConfig } from './config';
-import { existsInGitHub, saveToGitHub } from './githubTier';
 import { emitMetrics, type StepMetrics } from './metrics';
 import { toError, type S3ObjectInfo } from './outcomes';
 import { applyPreset, readPreset } from './presets';
@@ -115,6 +114,8 @@ async function saveSingleTier(
 
   if (config.useFallback) {
     core.info('Saving to GitHub Actions Cache instead (use-fallback).');
+    // Load the GitHub tier only when a run uses it. S3-only runs skip its start-up cost.
+    const { saveToGitHub } = await import('./githubTier');
     const outcome = await saveToGitHub(
       config.paths,
       config.primaryKey,
@@ -205,6 +206,8 @@ async function saveBothTiers(
     present.add('github');
   } else if (!skipBoth) {
     let alreadyThere = false;
+    // Load the GitHub tier only when a run uses it. S3-only runs skip its start-up cost.
+    const { existsInGitHub, saveToGitHub } = await import('./githubTier');
     try {
       alreadyThere = await existsInGitHub(
         config.paths,
