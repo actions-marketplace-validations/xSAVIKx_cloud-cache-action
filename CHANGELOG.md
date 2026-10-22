@@ -29,12 +29,13 @@ points at the latest `v1.x.y` release.
   no longer reads the whole archive again before the integrity check. The check and its error
   text do not change. If the hash worker fails, the action hashes the file after the download, as
   before. A streaming restore does not change.
-- **The action starts faster.** Each entry turns on the Node.js V8 compile cache. The cache
-  directory is `cloud-cache-action-v8` under `RUNNER_TEMP`, or under the system temp directory
-  when `RUNNER_TEMP` is not set. If the cache cannot start, the step runs without it. A job
-  that runs the action again, for example the post step, starts faster. The action loads the
-  GitHub Actions Cache code (`@azure/*`, `undici`) only when a run uses the GitHub tier, so
-  an S3-only job does not load it. The bundle in `dist/lib` is now split into three files.
+- **The second run of the action in a job starts faster.** For example, the post step starts
+  faster. Each entry turns on the Node.js V8 compile cache. The cache directory is
+  `cloud-cache-action-v8` under `RUNNER_TEMP`, or under the system temp directory when
+  `RUNNER_TEMP` is not set. If the cache cannot start, the step runs without it. The first run in
+  a job does not start faster. A job that uses S3 only no longer loads the GitHub Actions Cache
+  code (`@azure/*` and `@protobuf-ts/*`). The action loads this code only when a run uses the
+  GitHub tier. The bundle in `dist/lib` is now split into three files.
 
 ## [1.7.0] - 2026-10-22
 
