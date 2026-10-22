@@ -8,6 +8,52 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+### Added
+
+- **`compression-level` input.** Set the zstd (1–19) or gzip (1–9) level a save uses. Unset keeps
+  today's exact command (zstd level 3, or gzip via `tar -z`), so an existing workflow sees no
+  change. Only saving is affected; restore decodes whichever level a cache was saved with.
+  Measured levels for two real dependency trees, and the reasoning for leaving the default at 3,
+  are in the [Performance](./guide/performance.md) guide.
+  A new `compression` job in the `Transfer benchmark` workflow, and a `compressionBenchmark.ts`
+  script, reproduce the sweep against your own cache paths.
+- **Faster cache lookups.** Refs are still searched one at a time and in the same order as before,
+  so a later branch is never probed before an earlier one is ruled out. Within one ref, the
+  primary-key and restore-key listings now go out together instead of one after another: a total
+  miss with three refs and two restore keys drops from twelve sequential round trips to six, while
+  an exact hit still costs one request. The `explain` report and the `inspect` sub-action fan out
+  the same way, one ref's listings at a time, and still stop at the first hit, so the rendered
+  report is unchanged.
+
+### Changed
+
+- **A streamed save now stores its sha256 checksum as an object tag** instead of rewriting the
+  whole object, which removes about 8 seconds from a 512 MiB save on Amazon S3. An action older
+  than v1.6 restoring such a cache finds no checksum metadata and skips the integrity check
+  instead of failing, the same way it already does for a v1.1 cache. The object copy is still used
+  when user `metadata` is set, when the provider has no tagging API (Garage), when the upload
+  could not use a conditional create, or when the save cannot confirm that it owns the object
+  after the tag. A streamed archive over 5 GiB now gets a checksum for the
+  first time, since a tag has no size limit while the copy was refused above 5 GiB. With
+  `streaming: true`, the `tags` input is capped at 9 instead of 10, because the reserved checksum
+  tag takes one slot.
+  - The save sends one small `HeadObject` after the tag and compares its ETag with the upload's.
+    A provider that accepts `If-None-Match` and silently ignores it (Google Cloud Storage) would
+    otherwise let this job tag another job's bytes with this archive's checksum, which a later
+    restore would reject. When the ETags differ, the save removes its checksum tag again, warns,
+    and leaves the other job's cache alone.
+  - When the upload or the `HeadObject` reports no ETag, the save compares a new
+    `cloud-cache-writer` user metadata field instead. The upload writes a random id for this save
+    into it, so an object that carries the checksum tag also carries this field. It is not
+    reported in `cache-metadata`. When the save cannot confirm the object either way, it now
+    removes its checksum tag. It then falls back to the copy only when the upload reported an
+    ETag, because only then can `CopySourceIfMatch` guard the copy. With no upload ETag, the save
+    keeps no checksum and warns, and a failed tag write is handled the same way. A missing
+    checksum only skips the integrity check, but a false checksum would reject a good cache.
+  - The documented IAM policies now grant `s3:GetObjectTagging` and `s3:PutObjectTagging`. A
+    restore that cannot read the tags now warns instead of logging a debug line, because the only
+    other symptom is an integrity check that silently stops running.
+
 ## [1.5.1] - 2026-10-21
 
 No breaking changes. This release only updates dependencies.

@@ -55,6 +55,17 @@ describe('Storage Operations', () => {
       });
     });
 
+    it('returns the user metadata from the HeadObject response', async () => {
+      s3Mock.on(HeadObjectCommand).resolves({
+        ContentLength: 1,
+        ETag: '"e"',
+        Metadata: { 'cloud-cache-writer': 'id-1' },
+      });
+
+      const meta = await checkObjectExists(client, 'test-bucket', 'key');
+      expect(meta?.metadata).toEqual({ 'cloud-cache-writer': 'id-1' });
+    });
+
     it('returns null when object is not found (404 / NotFound)', () => {
       const notFoundError = new Error('NotFound');
       notFoundError.name = 'NotFound';
@@ -658,6 +669,36 @@ describe('Storage Operations', () => {
       expect(call.args[0].input.Tagging).toBe('repo=acme%2Fapp');
     });
 
+    it('sends metadata with a single-part upload', async () => {
+      const { createStreamUpload } = await import('../../src/storage/operations');
+      s3Mock.on(PutObjectCommand).resolves({ ETag: '"meta"' });
+
+      const body = Readable.from([Buffer.alloc(10, 'y')]);
+      const upload = createStreamUpload(client, 'test-bucket', 'meta-key', body, MULTIPART, {
+        metadata: { 'cloud-cache-writer': 'id-1' },
+      });
+      await upload.done();
+
+      const [call] = s3Mock.commandCalls(PutObjectCommand);
+      expect(call.args[0].input.Metadata).toEqual({ 'cloud-cache-writer': 'id-1' });
+    });
+
+    it('sends metadata on the create request of a multipart upload', async () => {
+      const { createStreamUpload } = await import('../../src/storage/operations');
+      s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
+      s3Mock.on(UploadPartCommand).resolves({ ETag: '"part"' });
+      s3Mock.on(CompleteMultipartUploadCommand).resolves({ ETag: '"multipart"' });
+
+      const body = Readable.from([Buffer.alloc(12 * 1024 * 1024, 'z')]);
+      const upload = createStreamUpload(client, 'test-bucket', 'meta-key', body, MULTIPART, {
+        metadata: { 'cloud-cache-writer': 'id-1' },
+      });
+      await upload.done();
+
+      const [call] = s3Mock.commandCalls(CreateMultipartUploadCommand);
+      expect(call.args[0].input.Metadata).toEqual({ 'cloud-cache-writer': 'id-1' });
+    });
+
     it('splits a stream by the given part size, same rule as uploadFile', async () => {
       const { createStreamUpload } = await import('../../src/storage/operations');
       s3Mock.on(CreateMultipartUploadCommand).resolves({ UploadId: 'upload-1' });
@@ -683,6 +724,68 @@ describe('Storage Operations', () => {
 
       expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(1);
       expect(s3Mock.commandCalls(UploadPartCommand)).toHaveLength(0);
+    });
+  });
+
+  describe('object tags', () => {
+    it('putObjectTags replaces the whole tag set', async () => {
+      const { PutObjectTaggingCommand } = await import('@aws-sdk/client-s3');
+      const { putObjectTags } = await import('../../src/storage/operations');
+      s3Mock.on(PutObjectTaggingCommand).resolves({});
+
+      await putObjectTags(client, 'b', 'k', [
+        { Key: 'team', Value: 'platform' },
+        { Key: 'cloud-cache-sha256', Value: 'abc' },
+      ]);
+
+      const [call] = s3Mock.commandCalls(PutObjectTaggingCommand);
+      expect(call.args[0].input.Tagging).toEqual({
+        TagSet: [
+          { Key: 'team', Value: 'platform' },
+          { Key: 'cloud-cache-sha256', Value: 'abc' },
+        ],
+      });
+    });
+
+    it('putObjectTags sends an empty tag set when there are no tags', async () => {
+      const { PutObjectTaggingCommand } = await import('@aws-sdk/client-s3');
+      const { putObjectTags } = await import('../../src/storage/operations');
+      s3Mock.on(PutObjectTaggingCommand).resolves({});
+
+      await putObjectTags(client, 'b', 'k', []);
+
+      const [call] = s3Mock.commandCalls(PutObjectTaggingCommand);
+      expect(call.args[0].input.Tagging).toEqual({ TagSet: [] });
+    });
+
+    it('getObjectTags returns the tags as a plain object', async () => {
+      const { GetObjectTaggingCommand } = await import('@aws-sdk/client-s3');
+      const { getObjectTags } = await import('../../src/storage/operations');
+      s3Mock.on(GetObjectTaggingCommand).resolves({
+        TagSet: [
+          { Key: 'cloud-cache-sha256', Value: 'abc' },
+          { Key: 'team', Value: 'platform' },
+        ],
+      });
+
+      await expect(getObjectTags(client, 'b', 'k')).resolves.toEqual({
+        'cloud-cache-sha256': 'abc',
+        team: 'platform',
+      });
+    });
+
+    it('downloadFile reports the tag count from the GetObject response', async () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-download-'));
+      s3Mock.on(GetObjectCommand).resolves({
+        Body: Readable.from([Buffer.from('data')]) as never,
+        TagCount: 2,
+      });
+      try {
+        const result = await downloadFile(client, 'b', 'k', path.join(tempDir, 'out.bin'));
+        expect(result.tagCount).toBe(2);
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
     });
   });
 

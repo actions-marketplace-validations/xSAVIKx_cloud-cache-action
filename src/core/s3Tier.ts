@@ -1,5 +1,6 @@
 import * as core from '@actions/core';
 import type { ChildProcess } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -39,9 +40,12 @@ import {
   downloadFile,
   findNewestObject,
   getObjectStream,
+  getObjectTags,
   listObjects,
+  putObjectTags,
   replaceObjectMetadata,
   uploadFile,
+  type CacheObjectMetadata,
 } from '../storage/operations';
 import {
   downloadFileInParts,
@@ -52,11 +56,14 @@ import {
 } from '../storage/parallelDownload';
 import { isRetryableStreamError, withRetry } from '../storage/retry';
 import { formatSize, isExactKeyMatch } from '../utils/inputUtils';
+import { mapWithConcurrency } from '../utils/concurrency';
 import type { CacheConfig } from './config';
 import {
   encodeTagging,
   SHA256_METADATA_KEY,
   stripReservedMetadata,
+  WRITER_METADATA_KEY,
+  withChecksumTag,
   type ObjectTag,
 } from './objectAttributes';
 import { compileKeyTemplate, type KeyTemplate } from './keyTemplate';
@@ -67,6 +74,9 @@ import { computeCacheVersion } from './version';
 /** Logged when streaming is requested but the plan needs the BSD-tar-plus-zstd two-step on Windows. */
 const STREAMING_FALLBACK_MESSAGE =
   'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.';
+
+/** Prefix listings sent at once while searching one ref. */
+const LOOKUP_CONCURRENCY = 8;
 
 export interface S3Tier {
   storage: StorageContext;
@@ -89,6 +99,8 @@ export interface S3Tier {
   metadata: Record<string, string>;
   /** Object tags written on every save, when the provider supports them. */
   tags: ObjectTag[];
+  /** zstd or gzip level for saving; undefined keeps each method's own default. */
+  compressionLevel?: number;
 }
 
 export interface DownloadSettings {
@@ -241,6 +253,7 @@ export async function buildS3Tier(
   }
   // A pattern without ${ref} gives every ref the same object keys; search them only once.
   const usesRef = scopedToRef && template.objectKey('a', '') !== template.objectKey('b', '');
+  const compressionLevel = clampCompressionLevel(config.compressionLevel, compression.method);
 
   return {
     storage,
@@ -258,7 +271,22 @@ export async function buildS3Tier(
     },
     metadata: config.metadata,
     tags: config.tags,
+    compressionLevel,
   };
+}
+
+/** gzip stops at 9, so a higher level warns once and uses 9. */
+function clampCompressionLevel(
+  level: number | undefined,
+  method: CompressionMethod
+): number | undefined {
+  if (level === undefined || method !== 'gzip' || level <= Defaults.MaxGzipCompressionLevel) {
+    return level;
+  }
+  core.warning(
+    `Input "compression-level" is ${level}, above gzip's maximum of ${Defaults.MaxGzipCompressionLevel}; using ${Defaults.MaxGzipCompressionLevel}.`
+  );
+  return Defaults.MaxGzipCompressionLevel;
 }
 
 /** One object under a search prefix, with what the template makes of it. */
@@ -312,6 +340,10 @@ export async function findS3Match(
   restoreKeys: readonly string[]
 ): Promise<S3Match | undefined> {
   const { client, bucket } = tier.storage;
+  const keyPrefixes = [primaryKey, ...restoreKeys];
+
+  // Refs stay sequential: a prefix match on an earlier ref outranks an exact match on a later one,
+  // so a later ref may only be searched once this one has produced nothing.
   for (const ref of tier.restoreRefs) {
     const exactKey = tier.template.objectKey(ref, primaryKey);
     core.debug(`Checking s3://${bucket}/${exactKey}`);
@@ -327,15 +359,20 @@ export async function findS3Match(
       };
     }
 
-    for (const keyPrefix of [primaryKey, ...restoreKeys]) {
-      const searchPrefix = tier.template.searchPrefix(ref, keyPrefix);
-      core.debug(`Listing s3://${bucket}/${searchPrefix}`);
-      const newest = await findNewestObject(
+    for (const keyPrefix of keyPrefixes) {
+      core.debug(`Listing s3://${bucket}/${tier.template.searchPrefix(ref, keyPrefix)}`);
+    }
+    const listed = await mapWithConcurrency(keyPrefixes, LOOKUP_CONCURRENCY, (keyPrefix) =>
+      findNewestObject(
         client,
         bucket,
-        searchPrefix,
+        tier.template.searchPrefix(ref, keyPrefix),
         (objectKey) => tier.template.extractKey(ref, objectKey) !== undefined
-      );
+      )
+    );
+
+    // Resolved in key order, never in the order the responses arrived.
+    for (const newest of listed) {
       if (newest) {
         const matchedKey = tier.template.extractKey(ref, newest.key) as string;
         return {
@@ -350,6 +387,40 @@ export async function findS3Match(
     }
   }
   return undefined;
+}
+
+/**
+ * The expected sha256 for an object: metadata first, because every object written before tagging
+ * carries it there, then the reserved tag — unless the response said outright that the object has
+ * no tags (`tagCount === 0`), which costs no extra request. A provider that just does not report
+ * the count on GetObject (`tagCount === undefined`, seen on RustFS) still gets the tag read: an
+ * unknown count is not proof of absence, and skipping it there would silently defeat the check.
+ */
+async function resolveExpectedSha256(
+  tier: S3Tier,
+  objectKey: string,
+  metadata: Record<string, string> | undefined,
+  tagCount: number | undefined
+): Promise<string | undefined> {
+  const fromMetadata = metadata?.[SHA256_METADATA_KEY];
+  if (fromMetadata) {
+    return fromMetadata;
+  }
+  if (tagCount === 0) {
+    return undefined;
+  }
+  try {
+    const tags = await getObjectTags(tier.storage.client, tier.storage.bucket, objectKey);
+    return tags[SHA256_METADATA_KEY];
+  } catch (err) {
+    // A warning, not a debug line: the usual cause is an IAM policy without
+    // `s3:GetObjectTagging`, and the only visible effect is an integrity check that silently
+    // stops happening. The restore still proceeds — the cache itself is fine.
+    core.warning(
+      `Could not read the tags of s3://${tier.storage.bucket}/${objectKey}, so this restore skips the integrity check: ${toError(err).message}`
+    );
+    return undefined;
+  }
 }
 
 export async function restoreFromS3(
@@ -410,9 +481,9 @@ export async function restoreFromS3(
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
     const { bucket } = tier.storage;
     const transferStart = Date.now();
-    const { metadata, parts } = await downloadArchive(tier, found, archivePath);
+    const { metadata, tagCount, parts } = await downloadArchive(tier, found, archivePath);
     recordDownload(parts, transferStart);
-    const expectedSha256 = metadata?.[SHA256_METADATA_KEY];
+    const expectedSha256 = await resolveExpectedSha256(tier, found.objectKey, metadata, tagCount);
     if (expectedSha256) {
       const actualSha256 = await sha256File(archivePath);
       if (actualSha256 !== expectedSha256) {
@@ -501,7 +572,13 @@ async function saveToS3FileMode(
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-save-'));
   try {
     const archivePath = path.join(tempDir, tier.compression.archiveFilename);
-    await createArchive(archivePath, entries, tier.compression, tier.workspace);
+    await createArchive(
+      archivePath,
+      entries,
+      tier.compression,
+      tier.workspace,
+      tier.compressionLevel
+    );
     const archiveSize = getArchiveSize(archivePath);
     core.info(`Uploading ${formatSize(archiveSize)} to s3://${bucket}/${objectKey}...`);
     const checksum = await sha256File(archivePath);
@@ -610,12 +687,13 @@ const MAX_COPY_SIZE = 5 * 1024 * 1024 * 1024;
  * one) costs the metadata and warns once, never the save. Returns the ETag to report: the copy
  * rewrites the object, so its ETag supersedes the upload's; on any failure the upload's stands.
  */
-async function attachStreamedMetadata(
+async function attachStreamedMetadataByCopy(
   tier: S3Tier,
   objectKey: string,
-  metadata: Record<string, string>,
+  sha256: string,
   size: number,
-  uploadedEtag: string | undefined
+  uploadedEtag: string | undefined,
+  checksumTagLeft = false
 ): Promise<string | undefined> {
   const { client, bucket } = tier.storage;
   if (size > MAX_COPY_SIZE) {
@@ -628,6 +706,7 @@ async function attachStreamedMetadata(
     // `CopySourceIfMatch`, when the upload reported an ETag: a concurrent writer that replaced
     // the object between the upload and this copy must not get this save's metadata stamped onto
     // its body. The 412 that then comes back is handled like any other copy failure.
+    const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: sha256 };
     const copied = await withRetry(
       () => replaceObjectMetadata(client, bucket, objectKey, metadata, uploadedEtag),
       {
@@ -641,8 +720,177 @@ async function attachStreamedMetadata(
     core.warning(
       `Saved s3://${bucket}/${objectKey} but could not attach metadata: ${toError(err).message}`
     );
+    if (checksumTagLeft && isPreconditionFailed(err)) {
+      // The 412 says another writer replaced the object, and the tag removal before this copy
+      // failed. The checksum tag of this save can now be a false checksum on that object.
+      core.warning(
+        `This save's checksum tag may remain on s3://${bucket}/${objectKey}, which another job replaced; a restore of that cache can reject it as corrupt.`
+      );
+    }
     return uploadedEtag;
   }
+}
+
+/**
+ * True when the server answered a `PutObjectTagging` request that it does not implement the
+ * tagging API at all. Deliberately narrower than `isTaggingUnsupported` above: that predicate
+ * also treats any message mentioning "tagging" as unsupported, which is the right call for an
+ * upload's `Tagging` header (a provider that rejects it tends to say so in those words) but far
+ * too broad here — an `AccessDenied` for the `s3:PutObjectTagging` permission also mentions
+ * tagging, and must not latch `objectTaggingUnsupported`, which would silently drop the user's
+ * own tags from every later upload in the run for a reason that had nothing to do with support.
+ */
+function isTagPutUnsupported(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const error = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return error.$metadata?.httpStatusCode === 501 || error.name === 'NotImplemented';
+}
+
+/** How the ownership check after a `PutObjectTagging` ended. */
+type TagOwnership = 'ours' | 'replaced' | 'unconfirmed';
+
+/**
+ * Confirms that the object the tag was just written to still holds the body this job uploaded.
+ * `conditionalWriteUnsupported` only latches when a server actively rejects `If-None-Match`; a
+ * server that accepts the header and ignores it (the README names Google Cloud Storage) leaves
+ * the flag unset, so the condition alone does not prove ownership. One small `HeadObject` per
+ * streamed save closes that window. When the upload and the HEAD both report an ETag, the ETags
+ * decide. Otherwise the `cloud-cache-writer` metadata decides: the upload wrote this save's
+ * random id there. A HEAD that fails, finds no object, or returns neither value proves nothing,
+ * and is reported as `unconfirmed`.
+ */
+async function confirmTaggedObject(
+  tier: S3Tier,
+  objectKey: string,
+  uploadedEtag: string | undefined,
+  writerId: string
+): Promise<TagOwnership> {
+  const { client, bucket } = tier.storage;
+  let head: CacheObjectMetadata | null;
+  try {
+    head = await checkObjectExists(client, bucket, objectKey);
+  } catch (err) {
+    core.debug(`Could not read s3://${bucket}/${objectKey} after the tag: ${toError(err).message}`);
+    return 'unconfirmed';
+  }
+  if (head === null) {
+    return 'unconfirmed';
+  }
+  if (uploadedEtag !== undefined && head.etag !== undefined) {
+    return head.etag === uploadedEtag ? 'ours' : 'replaced';
+  }
+  const currentWriter = head.metadata?.[WRITER_METADATA_KEY];
+  if (currentWriter === undefined) {
+    return 'unconfirmed';
+  }
+  return currentWriter === writerId ? 'ours' : 'replaced';
+}
+
+/**
+ * Rewrites the tag set without the checksum tag. With no user tags, the new set is empty. A
+ * failure only warns: the cache itself is saved. Returns false when the tag can still be there.
+ */
+async function removeChecksumTag(tier: S3Tier, objectKey: string): Promise<boolean> {
+  const { client, bucket } = tier.storage;
+  try {
+    await putObjectTags(client, bucket, objectKey, [...tier.tags]);
+    return true;
+  } catch (err) {
+    core.warning(
+      `Could not remove this save's checksum tag from s3://${bucket}/${objectKey}: ${toError(err).message}`
+    );
+    return false;
+  }
+}
+
+/**
+ * True when a streamed save can attach its checksum with a tag: the upload uses an honoured
+ * `If-None-Match`, the provider is not known to lack tagging, and no user metadata is configured
+ * (a tag cannot carry it).
+ */
+function canAttachByTag(tier: S3Tier, usedCondition: boolean): boolean {
+  return (
+    usedCondition &&
+    !tier.storage.objectTaggingUnsupported &&
+    Object.keys(tier.metadata).length === 0
+  );
+}
+
+/**
+ * Attaches the checksum to a streamed object. A tag rewrites no data, so it costs a fraction of
+ * the copy on a large archive, but it is only safe when this job provably owns the object (see
+ * `confirmTaggedObject`). `writerId` is the id the upload wrote to `cloud-cache-writer`. It is
+ * undefined when `canAttachByTag` was false at upload start, and then the save uses the copy.
+ * An ownership check that cannot confirm the object removes the tag again. A failed tag write or
+ * an unconfirmed check then uses the copy, but only when the upload reported an ETag, which
+ * guards the copy with `CopySourceIfMatch`. With no upload ETag, nothing can guard the copy, so
+ * the save keeps no checksum: a missing checksum only skips the check on restore, but a false
+ * checksum rejects a good cache.
+ */
+async function attachStreamedChecksum(
+  tier: S3Tier,
+  objectKey: string,
+  sha256: string,
+  size: number,
+  uploadedEtag: string | undefined,
+  writerId: string | undefined
+): Promise<string | undefined> {
+  const { client, bucket } = tier.storage;
+
+  let checksumTagLeft = false;
+  if (writerId !== undefined) {
+    let tagged = false;
+    try {
+      await putObjectTags(client, bucket, objectKey, withChecksumTag(tier.tags, sha256));
+      tagged = true;
+    } catch (err) {
+      if (isTagPutUnsupported(err)) {
+        tier.storage.objectTaggingUnsupported = true;
+        core.debug(`s3://${bucket} has no object tagging API; the checksum cannot go on as a tag.`);
+      } else {
+        core.debug(`Could not tag s3://${bucket}/${objectKey}: ${toError(err).message}`);
+      }
+    }
+    if (tagged) {
+      const ownership = await confirmTaggedObject(tier, objectKey, uploadedEtag, writerId);
+      if (ownership === 'ours') {
+        return uploadedEtag;
+      }
+      // Take the checksum back off, so no restore checks bytes that may not be ours against
+      // our digest.
+      checksumTagLeft = !(await removeChecksumTag(tier, objectKey));
+      if (ownership === 'replaced') {
+        // Another job wrote this key between the upload and the tag. Stop here: the copy would
+        // rewrite an object that is not ours.
+        core.warning(
+          `Another job replaced s3://${bucket}/${objectKey} while this save was finishing, so its checksum was not attached; that cache is kept without an integrity check.`
+        );
+        return uploadedEtag;
+      }
+      // `unconfirmed`: the same as a tag failure below.
+      core.debug(`Could not confirm that s3://${bucket}/${objectKey} still holds this upload.`);
+    }
+    if (uploadedEtag === undefined) {
+      // No ETag, so no `CopySourceIfMatch`: the copy could put this save's checksum on the
+      // bytes of another job. Keep no checksum instead.
+      core.warning(
+        `Saved s3://${bucket}/${objectKey} without a checksum: the upload reported no ETag, so this save cannot prove that it still owns the object, and that cache is kept without an integrity check.`
+      );
+      return uploadedEtag;
+    }
+    core.debug(`Attaching the checksum to s3://${bucket}/${objectKey} by an ETag-guarded copy.`);
+  }
+
+  return await attachStreamedMetadataByCopy(
+    tier,
+    objectKey,
+    sha256,
+    size,
+    uploadedEtag,
+    checksumTagLeft
+  );
 }
 
 /** Wraps a failure with tar's recent stderr output, for a clearer error message. */
@@ -657,8 +905,10 @@ function withStderrTail(err: unknown, tail: readonly string[]): Error {
 /**
  * Streaming save (Task 8): spawns tar writing the archive to stdout and pipes it, through a
  * sha256 tap and a byte counter (there is no file to hash or stat for the size), into an S3
- * multipart upload. The sha256 and the user metadata are attached afterwards, best-effort, by a
- * CopyObject onto the saved object. Tar and
+ * multipart upload. The sha256 is attached afterwards, best-effort, in one of two ways (see
+ * `attachStreamedChecksum`): a `PutObjectTagging` that adds a reserved checksum tag, when this
+ * job provably owns the object and carries no user metadata, and otherwise an ETag-guarded
+ * CopyObject onto the saved object, which is also the only way user metadata is attached. Tar and
  * the upload run concurrently, but the upload body is only ever told the archive is complete
  * (`counter.stream.end()`) once tar has actually closed with exit code 0; any other outcome —
  * a non-zero exit, a signal, or the pipe itself breaking — destroys the body with an error
@@ -690,6 +940,7 @@ async function saveToS3Streaming(
       workspace: tier.workspace,
       tempDir,
       manifestPath,
+      level: tier.compressionLevel,
     });
 
     child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
@@ -739,9 +990,13 @@ async function saveToS3Streaming(
     const transferStart = Date.now();
     core.info(`Streaming upload to s3://${bucket}/${objectKey}...`);
     const tagging = tier.storage.objectTaggingUnsupported ? undefined : encodeTagging(tier.tags);
+    // A random id for this save, sent only when the checksum can go on as a tag. The ownership
+    // check after the tag compares it when the ETags cannot be compared.
+    const writerId = canAttachByTag(tier, sendCondition) ? randomUUID() : undefined;
     const upload = createStreamUpload(client, bucket, objectKey, counter.stream, tier.upload, {
       ifNoneMatch: sendCondition ? '*' : undefined,
       tagging,
+      metadata: writerId === undefined ? undefined : { [WRITER_METADATA_KEY]: writerId },
     });
 
     // Captured once so the failure path below can wait for it to settle.
@@ -750,9 +1005,15 @@ async function saveToS3Streaming(
       const [uploaded] = await Promise.all([uploadDone, finalized]);
       core.info(`Cache saved to S3 with key: ${primaryKey}`);
       const size = counter.count();
-      const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: tap.digest() };
       const transferMs = Date.now() - transferStart;
-      const etag = await attachStreamedMetadata(tier, objectKey, metadata, size, uploaded.ETag);
+      const etag = await attachStreamedChecksum(
+        tier,
+        objectKey,
+        tap.digest(),
+        size,
+        uploaded.ETag,
+        writerId
+      );
       return { kind: 'saved', s3: { objectKey, size, etag }, transferMs };
     } catch (err) {
       // Fail the body first. When the upload stopped reading it, tar's stdout is paused with data
@@ -860,7 +1121,7 @@ async function downloadArchive(
   tier: S3Tier,
   found: S3Match,
   archivePath: string
-): Promise<{ metadata?: Record<string, string>; parts: number }> {
+): Promise<{ metadata?: Record<string, string>; tagCount?: number; parts: number }> {
   const { client, bucket } = tier.storage;
   const plan = partPlan(tier, found);
   if (plan) {
@@ -873,7 +1134,7 @@ async function downloadArchive(
       logRangeFallback(tier, found);
     }
   }
-  const { metadata } = await withRetry(
+  const { metadata, tagCount } = await withRetry(
     () => downloadFile(client, bucket, found.objectKey, archivePath),
     {
       retries: tier.streamRetries,
@@ -881,14 +1142,19 @@ async function downloadArchive(
       shouldRetry: isRetryableStreamError,
     }
   );
-  return { metadata, parts: 1 };
+  return { metadata, tagCount, parts: 1 };
 }
 
 /** The streaming counterpart of `downloadArchive`: the archive bytes as one ordered stream. */
 async function openArchiveStream(
   tier: S3Tier,
   found: S3Match
-): Promise<{ body: Readable; metadata?: Record<string, string>; parts: number }> {
+): Promise<{
+  body: Readable;
+  metadata?: Record<string, string>;
+  tagCount?: number;
+  parts: number;
+}> {
   const { client, bucket } = tier.storage;
   const plan = partPlan(tier, found);
   if (plan) {
@@ -902,7 +1168,7 @@ async function openArchiveStream(
     }
   }
   const stream = await getObjectStream(client, bucket, found.objectKey);
-  return { body: stream.body, metadata: stream.metadata, parts: 1 };
+  return { body: stream.body, metadata: stream.metadata, tagCount: stream.tagCount, parts: 1 };
 }
 /**
  * Streaming restore (Task 8): pipes the GetObject body through the sha256 tap into a spawned
@@ -925,7 +1191,7 @@ async function restoreFromS3Streaming(
   try {
     const stream = await openArchiveStream(tier, found);
     body = stream.body;
-    const { metadata } = stream;
+    const { metadata, tagCount } = stream;
     fs.mkdirSync(tier.workspace, { recursive: true });
     const [command] = buildExtractCommands({
       tar,
@@ -964,7 +1230,7 @@ async function restoreFromS3Streaming(
       throw withStderrTail(err, stderrTail.lines());
     }
 
-    const expectedSha256 = metadata?.[SHA256_METADATA_KEY];
+    const expectedSha256 = await resolveExpectedSha256(tier, found.objectKey, metadata, tagCount);
     if (expectedSha256) {
       const actualSha256 = tap.digest();
       if (actualSha256 !== expectedSha256) {

@@ -4,7 +4,9 @@ import {
   CopyObjectCommand,
   HeadObjectCommand,
   GetObjectCommand,
+  GetObjectTaggingCommand,
   ListObjectsV2Command,
+  PutObjectTaggingCommand,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import * as fs from 'fs';
@@ -19,6 +21,8 @@ export interface CacheObjectMetadata {
   size: number;
   lastModified?: Date;
   etag?: string;
+  /** User metadata from the HeadObject response; undefined when the server returns none. */
+  metadata?: Record<string, string>;
 }
 
 export async function checkObjectExists(
@@ -37,6 +41,7 @@ export async function checkObjectExists(
       size: response.ContentLength || 0,
       lastModified: response.LastModified,
       etag: response.ETag,
+      metadata: response.Metadata,
     };
   } catch (err: unknown) {
     const error = err as { name?: string; $metadata?: { httpStatusCode?: number } };
@@ -110,6 +115,8 @@ export async function findNewestObject(
 export interface DownloadResult {
   /** Object metadata from the GetObject response; undefined when the object carries none. */
   metadata?: Record<string, string>;
+  /** How many tags the object carries, so a caller can skip a pointless GetObjectTagging. */
+  tagCount?: number;
 }
 
 export interface ObjectStreamResult {
@@ -117,6 +124,41 @@ export interface ObjectStreamResult {
   body: Readable;
   /** Object metadata from the GetObject response; undefined when the object carries none. */
   metadata?: Record<string, string>;
+  /** How many tags the object carries, so a caller can skip a pointless GetObjectTagging. */
+  tagCount?: number;
+}
+
+export interface ObjectTagLike {
+  Key: string;
+  Value: string;
+}
+
+/** Replaces the object's whole tag set; S3 has no partial tag update. */
+export async function putObjectTags(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  tags: readonly ObjectTagLike[]
+): Promise<void> {
+  await client.send(
+    new PutObjectTaggingCommand({ Bucket: bucket, Key: key, Tagging: { TagSet: [...tags] } })
+  );
+}
+
+/** Reads the object's tags as a plain object; an absent or malformed entry is skipped. */
+export async function getObjectTags(
+  client: S3Client,
+  bucket: string,
+  key: string
+): Promise<Record<string, string>> {
+  const response = await client.send(new GetObjectTaggingCommand({ Bucket: bucket, Key: key }));
+  const tags: Record<string, string> = {};
+  for (const tag of response.TagSet ?? []) {
+    if (tag.Key !== undefined && tag.Value !== undefined) {
+      tags[tag.Key] = tag.Value;
+    }
+  }
+  return tags;
 }
 
 /** How a multipart upload is split and fanned out; unset fields take the actions/cache defaults. */
@@ -233,7 +275,7 @@ export async function downloadFile(
   const fileStream = fs.createWriteStream(destinationPath);
   await pipeline(response.Body as Readable, fileStream);
 
-  return { metadata: response.Metadata };
+  return { metadata: response.Metadata, tagCount: response.TagCount };
 }
 
 /**
@@ -249,7 +291,11 @@ export async function getObjectStream(
   if (!response.Body) {
     throw new Error(`Empty response body received from S3 for key: ${key}`);
   }
-  return { body: response.Body as Readable, metadata: response.Metadata };
+  return {
+    body: response.Body as Readable,
+    metadata: response.Metadata,
+    tagCount: response.TagCount,
+  };
 }
 
 export async function uploadFile(
@@ -299,8 +345,8 @@ export async function uploadFile(
  * via a byte counter) instead of a file path, and returns the upload instead of awaiting it, so
  * the caller can race it against the archiving process and abort it on failure. Its `done()`
  * aborts a multipart upload that fails, the same way `uploadFile` does.
- * Metadata is attached afterwards by `replaceObjectMetadata`: a streamed archive's sha256 cannot
- * be known before it finishes.
+ * The sha256 is attached afterwards: a streamed archive's sha256 cannot be known before it
+ * finishes. `metadata` goes with the create request, so it must be known at upload start.
  */
 export function createStreamUpload(
   client: S3Client,
@@ -308,7 +354,7 @@ export function createStreamUpload(
   key: string,
   body: Readable,
   transfer?: UploadTransfer,
-  options?: Pick<UploadOptions, 'ifNoneMatch' | 'tagging'>
+  options?: Pick<UploadOptions, 'ifNoneMatch' | 'tagging' | 'metadata'>
 ): StreamUpload {
   const upload = new Upload({
     client,
@@ -318,6 +364,7 @@ export function createStreamUpload(
       Body: body,
       IfNoneMatch: options?.ifNoneMatch,
       Tagging: options?.tagging,
+      Metadata: options?.metadata,
     },
     partSize: resolvePartSize(transfer),
     queueSize: resolveQueueSize(transfer),

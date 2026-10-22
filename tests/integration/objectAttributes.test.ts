@@ -12,7 +12,12 @@
  * documented best-effort warning fired) but does not require a particular one.
  */
 import { jest } from '@jest/globals';
-import { GetObjectTaggingCommand, HeadObjectCommand, type S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectTaggingCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  type S3Client,
+} from '@aws-sdk/client-s3';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CompressionConfig } from '../../src/archive/compression';
@@ -29,6 +34,7 @@ jest.unstable_mockModule('../../src/archive/compression', () => ({
 
 const { restoreImpl } = await import('../../src/core/restoreImpl');
 const { saveImpl } = await import('../../src/core/saveImpl');
+const { putObjectTags } = await import('../../src/storage/operations');
 
 /**
  * What a server did with the tags the save asked for:
@@ -299,5 +305,81 @@ describe('object metadata and tags', () => {
     } else {
       expect(attached || warned).toBe(true);
     }
+  });
+
+  itS3(
+    'tags a streamed save without user metadata, and keeps its writer id out of cache-metadata',
+    async () => {
+      writeFiles(workspace, { 'data/f.txt': 'object-attributes-stream-tag' });
+      const key = `attributes-stream-tag-${runId}`;
+
+      const saved = await save({ key, path: 'data', streaming: 'true', tags: 'repo=acme/app' });
+      const objectKey = saved.outputs['cache-s3-key'];
+      expect(objectKey).toBeTruthy();
+      expect(saved.log).not.toContain('replaced s3://');
+
+      const head = await client.send(new HeadObjectCommand({ Bucket: s3.bucket, Key: objectKey }));
+      let tagSet: { Key?: string; Value?: string }[] | undefined;
+      try {
+        const tagging = await client.send(
+          new GetObjectTaggingCommand({ Bucket: s3.bucket, Key: objectKey })
+        );
+        tagSet = tagging.TagSet;
+      } catch (err) {
+        if (!isTaggingApiMissing(err)) {
+          throw err;
+        }
+      }
+      const tagged = tagSet?.some((tag) => tag.Key === 'cloud-cache-sha256') === true;
+      console.log(
+        `[attributes] ${s3.provider} at ${s3.endpoint}: streamed checksum ${
+          tagged ? 'tagged' : 'copied'
+        }, writer metadata ${head.Metadata?.['cloud-cache-writer'] ?? 'absent'}`
+      );
+      if (tagged) {
+        // The tag path: the upload wrote this save's id, and the HEAD after the tag confirmed it.
+        expect(head.Metadata?.['cloud-cache-writer']).toMatch(/^[0-9a-f-]{36}$/);
+        expect(tagSet).toEqual(
+          expect.arrayContaining([
+            { Key: 'repo', Value: 'acme/app' },
+            { Key: 'cloud-cache-sha256', Value: expect.stringMatching(/^[0-9a-f]{64}$/) },
+          ])
+        );
+      } else {
+        // No tagging API (Garage): the copy replaced the metadata with the checksum.
+        expect(head.Metadata?.['cloud-cache-sha256']).toMatch(/^[0-9a-f]{64}$/);
+      }
+
+      const outputs = await restore({ key, path: 'data' });
+      expect(outputs['cache-hit']).toBe('true');
+      expect(JSON.parse(outputs['cache-metadata'])).toEqual({});
+    }
+  );
+
+  itS3('removes the checksum tag with an empty tag set', async () => {
+    // The rewrite a streamed save sends when it cannot keep its checksum tag and has no user
+    // tags. S3 has no partial tag update, so the whole set is replaced, here by an empty set.
+    const objectKey = `attributes-empty-tags-${runId}`;
+    await client.send(
+      new PutObjectCommand({ Bucket: s3.bucket, Key: objectKey, Body: 'empty-tag-set' })
+    );
+    try {
+      await putObjectTags(client, s3.bucket, objectKey, [
+        { Key: 'cloud-cache-sha256', Value: 'a'.repeat(64) },
+      ]);
+    } catch (err) {
+      if (!isTaggingApiMissing(err)) {
+        throw err;
+      }
+      console.log(
+        `[attributes] ${s3.provider} at ${s3.endpoint}: no tagging API, nothing to remove`
+      );
+      return;
+    }
+    await putObjectTags(client, s3.bucket, objectKey, []);
+    const tagging = await client.send(
+      new GetObjectTaggingCommand({ Bucket: s3.bucket, Key: objectKey })
+    );
+    expect(tagging.TagSet ?? []).toEqual([]);
   });
 });
