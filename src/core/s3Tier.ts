@@ -34,6 +34,7 @@ import {
 } from '../archive/stream';
 import { Defaults } from '../constants';
 import { createStorageContext, type StorageContext } from '../storage/client';
+import { isAccessDeniedError } from '../storage/errors';
 import {
   checkObjectExists,
   createStreamUpload,
@@ -860,6 +861,12 @@ async function attachStreamedChecksum(
       if (isTagPutUnsupported(err)) {
         tier.storage.objectTaggingUnsupported = true;
         core.debug(`s3://${bucket} has no object tagging API; the checksum cannot go on as a tag.`);
+      } else if (isAccessDeniedError(err)) {
+        // Visible on purpose: the copy below rewrites the whole object, which costs seconds per
+        // GiB, and the only fix is a permission the user can grant.
+        core.info(
+          `The credentials may not tag s3://${bucket}/${objectKey}, so the checksum goes on by a copy of the whole object, which is slow for a large cache. Grant s3:PutObjectTagging to skip the copy.`
+        );
       } else {
         core.debug(`Could not tag s3://${bucket}/${objectKey}: ${toError(err).message}`);
       }

@@ -2124,6 +2124,27 @@ describe('saveToS3 streaming', () => {
     expect(t.storage.objectTaggingUnsupported).toBe(true);
   });
 
+  it('names the missing permission when the tag is denied, then copies', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    const t = tier({ streaming: true });
+    mockPutObjectTags.mockRejectedValueOnce(
+      Object.assign(new Error('not authorized to perform: s3:PutObjectTagging'), {
+        name: 'AccessDenied',
+        $metadata: { httpStatusCode: 403 },
+      })
+    );
+    await saveToS3(t, 'k', ['node_modules']);
+    expect(mockInfo).toHaveBeenCalledWith(
+      expect.stringContaining('Grant s3:PutObjectTagging to skip the copy')
+    );
+    expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+    expect(t.storage.objectTaggingUnsupported).toBeFalsy();
+  });
+
   it('still succeeds, with a warning, when neither the tag nor the copy can be attached', async () => {
     mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
     mockWaitForExit.mockImplementation(async (c) => {

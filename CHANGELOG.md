@@ -19,6 +19,10 @@ points at the latest `v1.x.y` release.
   reports them too. `total` is the whole step, including the GitHub tier in dual-cache mode. The
   transfer time and the rate include retries. A save that uploads and then finds that another job
   saved first ends the line with `(another job saved first)`.
+- **A log line when a streaming save may not tag its object.** A streaming save attaches its
+  sha256 as a tag. When the credentials do not have `s3:PutObjectTagging`, the save copies the
+  whole object instead, which took about 7.5 s for 512 MiB on AWS S3 in a test. The step now logs
+  this and names the missing permission. Before, only a debug line showed it.
 
 ### Changed
 
