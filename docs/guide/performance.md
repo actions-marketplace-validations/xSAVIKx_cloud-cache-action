@@ -194,7 +194,8 @@ not copy. Since v1.9 the step logs a line that names the missing permission.
 ## Automatic tuning
 
 Set `transfer-tuning: auto` to let the action select the part size and the concurrency for each
-restore and each file-mode save, from the archive size and the provider:
+restore and each file-mode save. A restore uses the archive size. A save uses the archive size
+and the provider:
 
 ```yaml
 - uses: xSAVIKx/cloud-cache-action@v1
@@ -209,13 +210,20 @@ restore and each file-mode save, from the archive size and the provider:
 | Save | more than 256 MiB | 16 × 32 MiB |
 | Save to Cloudflare R2 | 1 GiB or more | 32 × 16 MiB |
 
-- The bytes in flight stay within a quarter of the free memory and within 1 GiB. The action
-  reduces the concurrency first.
+- The action reduces a tuned concurrency until `(concurrency + 1) × part size` fits a quarter of
+  the memory that the process can use, and 1 GiB. The extra part is the one that the code reads
+  ahead. The part size does not shrink, so a very small budget still gets one part in flight. A
+  container memory limit counts.
 - An upload part grows when the archive would need more than 10,000 parts.
 - A transfer input that you set, for example `download-concurrency`, still wins for that field.
+  The action does not reduce a concurrency that you set.
+- A wrapper action or a reusable workflow that forwards a transfer input with a default value
+  sets that input. Leave the default of the wrapper input empty, so that `auto` can select it.
 - A streaming save does not know the archive size in advance, so it keeps the fixed settings.
+  When a streaming save falls back to file mode, the file-mode save is tuned.
 - The step logs the selection, for example
-  `Transfer tuning: auto selected 16 x 16 MiB for the download of 2.0 GiB`.
+  `Transfer tuning: auto selected 16 x 16 MiB for the download of 2.0 GiB`. A value that you
+  set is marked `(set)`.
 - The default is `transfer-tuning: fixed`, which does not change the settings.
 
 In benchmark run 39906947417, `auto` was faster than the defaults for every provider and size

@@ -101,7 +101,7 @@ inputs:
     description: 'Bytes per ranged GET request of a parallel download (1 MiB to 128 MiB). Archives no larger than this are downloaded in one request. Default 8388608 (8 MiB).'
     required: false
   transfer-tuning:
-    description: 'fixed: use the transfer inputs and their defaults. auto: select the part size and the concurrency from the archive size and the provider, for restores and file-mode saves. An explicit upload-concurrency, upload-chunk-size, download-concurrency or download-chunk-size still wins.'
+    description: 'fixed: use download-concurrency, download-chunk-size and their defaults. auto: select the part size and the concurrency from the archive size. A download input that you set still wins.'
     required: false
     default: 'fixed'
 

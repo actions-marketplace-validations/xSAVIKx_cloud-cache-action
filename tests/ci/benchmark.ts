@@ -122,7 +122,10 @@ const UPLOADS = matrix === 'sweep' ? SWEEP_UPLOADS : STANDARD_UPLOADS;
 const DOWNLOADS = matrix === 'sweep' ? SWEEP_DOWNLOADS : STANDARD_DOWNLOADS;
 
 /** The step inputs for one configuration. */
-function transferInputs(config: TransferConfig, direction: 'upload' | 'download') {
+function transferInputs(
+  config: TransferConfig,
+  direction: 'upload' | 'download'
+): Record<string, string> {
   if (config.auto) {
     return { 'transfer-tuning': 'auto', streaming: 'false' };
   }

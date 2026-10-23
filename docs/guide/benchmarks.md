@@ -7,7 +7,7 @@ title: Benchmarks
 # Benchmarks
 
 This page compares the default transfer settings, other fixed settings and
-`transfer-tuning: auto` on three providers and three cache sizes. See
+`transfer-tuning: auto` on 3 providers and 3 cache sizes. See
 [Performance](./performance.md) for what the settings do and how to select them.
 
 ## How the numbers were measured
@@ -23,9 +23,8 @@ This page compares the default transfer settings, other fixed settings and
   [39905131759](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/39905131759). This
   page uses a different run, so the `auto` rows are not the data the rules were fitted to.
 - The jobs for the three providers ran at the same time. The numbers depend on the region, the
-  runner and the time of day. The same configuration can change by more than 30%
-  between runs: the AWS S3 defaults saved 2 GiB at 416 MiB/s in the earlier sweep. Compare
-  rows inside one table, not numbers between runs.
+  runner and the time of day. The same configuration can change by more than 30% between
+  runs. Compare rows inside one table, not numbers between runs.
 
 ## `transfer-tuning: auto` against the defaults
 
@@ -63,7 +62,7 @@ A value above 1 means that `auto` was faster than the defaults.
 | Upload | Amazon S3 | Cloudflare R2 | Google Cloud Storage |
 | --- | ---: | ---: | ---: |
 | defaults: 8 x 64 MiB | 57 | 27 | 60 |
-| 8 x 16 MiB | 108 | 43 | 87 |
+| 8 x 16 MiB | **108** | 43 | 87 |
 | 16 x 16 MiB | 101 | 44 | 88 |
 | 16 x 32 MiB | 74 | 43 | 78 |
 | 32 x 16 MiB | **108** | **53** | **94** |
@@ -126,5 +125,5 @@ A value above 1 means that `auto` was faster than the defaults.
 ```sh
 gh workflow run benchmark.yml -f size-mb=128,512,2048 -f matrix=sweep -f repeats=2
 gh run download <run-id> --dir bench
-node tests/ci/benchmarkPage.ts bench docs/guide/benchmarks.md
+node tests/ci/benchmarkPage.ts bench docs/guide/benchmarks.md [rules-run-id]
 ```

@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { formatTuning, tuneTransfer, type TuningInput } from '../../../src/core/transferTuning';
+import type { StorageProvider } from '../../../src/storage/providers';
 
 const MiB = 1024 * 1024;
 const GiB = 1024 * MiB;
@@ -16,7 +17,7 @@ const input = (overrides: Partial<TuningInput> = {}): TuningInput => ({
 
 describe('tuneTransfer', () => {
   it('downloads in 16 MiB parts, 16 at a time, on every provider', () => {
-    for (const provider of ['aws', 'r2', 'gcs', 'generic']) {
+    for (const provider of ['aws', 'r2', 'gcs', 'generic-s3'] as StorageProvider[]) {
       expect(tuneTransfer(input({ provider }))).toEqual({ concurrency: 16, partSize: 16 * MiB });
     }
   });
@@ -73,13 +74,14 @@ describe('tuneTransfer', () => {
     );
   });
 
-  it('keeps the bytes in flight within a quarter of the free memory', () => {
+  it('keeps concurrency + 1 parts within a quarter of the free memory', () => {
+    // 128 MiB budget / 16 MiB parts = 8 parts, one of them read ahead.
     expect(tuneTransfer(input({ freeMemoryBytes: 512 * MiB }))).toEqual({
-      concurrency: 8,
+      concurrency: 7,
       partSize: 16 * MiB,
     });
     expect(tuneTransfer(input({ direction: 'upload', freeMemoryBytes: GiB }))).toEqual({
-      concurrency: 8,
+      concurrency: 7,
       partSize: 32 * MiB,
     });
   });
@@ -88,7 +90,23 @@ describe('tuneTransfer', () => {
     const settings = tuneTransfer(
       input({ direction: 'upload', sizeBytes: 5000 * GiB, freeMemoryBytes: 256 * GiB })
     );
-    expect(settings).toEqual({ concurrency: 8, partSize: 128 * MiB });
+    expect(settings).toEqual({ concurrency: 7, partSize: 128 * MiB });
+  });
+
+  it('bounds the tuned concurrency by a part size that the workflow set', () => {
+    for (const direction of ['download', 'upload'] as const) {
+      expect(tuneTransfer(input({ direction, fixed: { partSize: 128 * MiB } }))).toEqual({
+        concurrency: 7,
+        partSize: 128 * MiB,
+      });
+    }
+  });
+
+  it('keeps a concurrency that the workflow set, and tunes the part size', () => {
+    expect(tuneTransfer(input({ freeMemoryBytes: 64 * MiB, fixed: { concurrency: 24 } }))).toEqual({
+      concurrency: 24,
+      partSize: 16 * MiB,
+    });
   });
 
   it('never goes below one transfer at a time', () => {
@@ -106,6 +124,17 @@ describe('formatTuning', () => {
     );
   });
 
+  it('marks the values that the workflow set', () => {
+    expect(
+      formatTuning('download', { concurrency: 5, partSize: 16 * MiB }, 2 * GiB, { concurrency: 5 })
+    ).toBe('Transfer tuning: auto selected 5 (set) x 16 MiB for the download of 2.0 GiB');
+    expect(
+      formatTuning('upload', { concurrency: 7, partSize: 128 * MiB }, 2 * GiB, {
+        partSize: 128 * MiB,
+      })
+    ).toBe('Transfer tuning: auto selected 7 x 128 MiB (set) for the upload of 2.0 GiB');
+  });
+
   it('stays free of runtime imports, so any CI front end can use it', () => {
     const source = fs.readFileSync(
       path.join(
@@ -115,6 +144,7 @@ describe('formatTuning', () => {
       'utf8'
     );
     const imports = source.split('\n').filter((line) => /^import\s/.test(line));
+    expect(imports.length).toBeGreaterThan(0);
     expect(imports.every((line) => line.startsWith('import type '))).toBe(true);
   });
 });

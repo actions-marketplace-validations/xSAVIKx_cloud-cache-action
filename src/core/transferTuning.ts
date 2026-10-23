@@ -5,6 +5,8 @@
  * R2 and Google Cloud Storage, on a 4-CPU runner); the benchmark page lists the measurements.
  */
 
+import type { StorageProvider } from '../storage/providers';
+
 const MiB = 1024 * 1024;
 const GiB = 1024 * MiB;
 
@@ -15,18 +17,20 @@ const MAX_PART_SIZE = 128 * MiB;
 /** At most this many bytes in flight, whatever the free memory. */
 const MAX_BUFFERED_BYTES = 1 * GiB;
 
-export interface TuningInput {
-  direction: 'upload' | 'download';
-  sizeBytes: number;
-  /** The resolved provider name, for example `aws`, `r2` or `gcs`. */
-  provider: string;
-  /** `os.freemem()` when the transfer starts. A quarter of it is the buffer budget. */
-  freeMemoryBytes: number;
-}
-
 export interface TransferSettings {
   concurrency: number;
   partSize: number;
+}
+
+export interface TuningInput {
+  direction: 'upload' | 'download';
+  sizeBytes: number;
+  /** The resolved provider. Only the upload rule uses it. */
+  provider: StorageProvider;
+  /** The memory the process can use when the transfer starts. A quarter of it is the budget. */
+  freeMemoryBytes: number;
+  /** The values the workflow set. They replace the rule's values and are never reduced. */
+  fixed?: Partial<TransferSettings>;
 }
 
 /**
@@ -45,7 +49,7 @@ function downloadRule(sizeBytes: number): TransferSettings {
  * so R2 uploads of 1 GiB or more use 32 x 16 MiB. The part size grows when the archive would
  * need more than 10,000 parts.
  */
-function uploadRule(sizeBytes: number, provider: string): TransferSettings {
+function uploadRule(sizeBytes: number, provider: StorageProvider): TransferSettings {
   let settings: TransferSettings =
     provider === 'r2' && sizeBytes >= GiB
       ? { concurrency: 32, partSize: 16 * MiB }
@@ -58,28 +62,42 @@ function uploadRule(sizeBytes: number, provider: string): TransferSettings {
 }
 
 /**
- * Returns the settings for one transfer. Concurrency times part size stays within a quarter of
- * the free memory and within 1 GiB; the concurrency goes down first, to 1 at the lowest.
+ * Returns the settings for one transfer: the rule's values, with the `fixed` values in their
+ * place. The budget is a quarter of the free memory, at most 1 GiB. The code that reads the parts
+ * holds one part more than the concurrency, so a tuned concurrency goes down until
+ * `(concurrency + 1) * partSize` fits the budget, to 1 at the lowest. The part size does not
+ * shrink, so a very small budget still gets one part in flight. A concurrency that the workflow
+ * set is not reduced.
  */
 export function tuneTransfer(input: TuningInput): TransferSettings {
-  const settings =
+  const rule =
     input.direction === 'download'
       ? downloadRule(input.sizeBytes)
       : uploadRule(input.sizeBytes, input.provider);
+  const partSize = input.fixed?.partSize ?? rule.partSize;
+  if (input.fixed?.concurrency !== undefined) {
+    return { concurrency: input.fixed.concurrency, partSize };
+  }
   const budget = Math.min(MAX_BUFFERED_BYTES, Math.floor(input.freeMemoryBytes / 4));
-  const fits = Math.max(1, Math.floor(budget / settings.partSize));
-  return { ...settings, concurrency: Math.min(settings.concurrency, fits) };
+  const fits = Math.max(1, Math.floor(budget / partSize) - 1);
+  return { concurrency: Math.min(rule.concurrency, fits), partSize };
 }
 
-/** `Transfer tuning: auto selected 16 x 16 MiB for the download of 2.0 GiB`. */
+/**
+ * `Transfer tuning: auto selected 16 x 16 MiB for the download of 2.0 GiB`. A value that the
+ * workflow set is marked `(set)`.
+ */
 export function formatTuning(
   direction: 'upload' | 'download',
   settings: TransferSettings,
-  sizeBytes: number
+  sizeBytes: number,
+  fixed: Partial<TransferSettings> = {}
 ): string {
   const size =
     sizeBytes >= GiB
       ? `${(sizeBytes / GiB).toFixed(1)} GiB`
       : `${(sizeBytes / MiB).toFixed(0)} MiB`;
-  return `Transfer tuning: auto selected ${settings.concurrency} x ${settings.partSize / MiB} MiB for the ${direction} of ${size}`;
+  const concurrency = `${settings.concurrency}${fixed.concurrency === undefined ? '' : ' (set)'}`;
+  const partSize = `${settings.partSize / MiB} MiB${fixed.partSize === undefined ? '' : ' (set)'}`;
+  return `Transfer tuning: auto selected ${concurrency} x ${partSize} for the ${direction} of ${size}`;
 }

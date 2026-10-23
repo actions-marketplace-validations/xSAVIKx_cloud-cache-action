@@ -19,7 +19,7 @@ inputs:
     description: 'How many multipart upload parts are sent at once (1-32; default 8)'
     required: false
   transfer-tuning:
-    description: 'fixed: use the transfer inputs and their defaults. auto: select the part size and the concurrency from the archive size and the provider, for restores and file-mode saves. An explicit upload-concurrency, upload-chunk-size, download-concurrency or download-chunk-size still wins.'
+    description: 'fixed: use upload-concurrency, upload-chunk-size and their defaults. auto: select the part size and the concurrency of a file-mode save from the archive size and the provider. An upload input that you set still wins. A streaming save keeps the fixed settings.'
     required: false
     default: 'fixed'
   compression-level:

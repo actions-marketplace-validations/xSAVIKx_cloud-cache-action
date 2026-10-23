@@ -24,9 +24,10 @@ points at the latest `v1.x.y` release.
   whole object instead, which took about 7.5 s for 512 MiB on AWS S3 in a test. The step now logs
   this and names the missing permission. Before, only a debug line showed it.
 - **`transfer-tuning: auto`, an opt-in mode that selects the transfer settings.** A restore and a
-  file-mode save select the part size and the concurrency from the archive size and the provider.
-  For example, a restore uses 16 × 16 MiB, and an upload of more than 256 MiB uses 16 × 32 MiB.
-  The bytes in flight stay within a quarter of the free memory and 1 GiB. A transfer input that
+  file-mode save select the part size and the concurrency from the archive size. A save also uses
+  the provider. For example, a restore uses 16 × 16 MiB, and an upload of more than 256 MiB uses
+  16 × 32 MiB. The bytes in flight stay within about a quarter of the usable memory, including a
+  container limit, and within 1 GiB. A transfer input that
   the workflow sets still wins for that field. A streaming save keeps the fixed settings, because
   it does not know the archive size in advance. The default is `fixed`, so nothing changes
   without the input. The rule values come from a size sweep of 128 MiB, 512 MiB and 2 GiB on AWS

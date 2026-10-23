@@ -292,28 +292,30 @@ function settingsFor(
   direction: 'upload' | 'download',
   sizeBytes: number
 ): { concurrency: number; partSize: number } {
-  const fixed = direction === 'upload' ? tier.upload : tier.download;
+  const current = direction === 'upload' ? tier.upload : tier.download;
   if (tier.tuning === undefined) {
-    return fixed;
+    return current;
   }
-  const tuned = tuneTransfer({
-    direction,
-    sizeBytes,
-    provider: tier.storage.providerConfig.provider,
-    freeMemoryBytes: os.freemem(),
-  });
   const explicit =
     direction === 'upload'
       ? { concurrency: tier.tuning.uploadConcurrency, partSize: tier.tuning.uploadChunkSize }
       : { concurrency: tier.tuning.downloadConcurrency, partSize: tier.tuning.downloadChunkSize };
   if (explicit.concurrency && explicit.partSize) {
-    return fixed;
+    return current;
   }
-  const settings = {
-    concurrency: explicit.concurrency ? fixed.concurrency : tuned.concurrency,
-    partSize: explicit.partSize ? fixed.partSize : tuned.partSize,
+  const fixed = {
+    concurrency: explicit.concurrency ? current.concurrency : undefined,
+    partSize: explicit.partSize ? current.partSize : undefined,
   };
-  core.info(formatTuning(direction, settings, sizeBytes));
+  const settings = tuneTransfer({
+    direction,
+    sizeBytes,
+    provider: tier.storage.providerConfig.provider,
+    // The free memory, or less under a container limit, which `os.freemem()` does not see.
+    freeMemoryBytes: process.availableMemory(),
+    fixed,
+  });
+  core.info(formatTuning(direction, settings, sizeBytes, fixed));
   return settings;
 }
 

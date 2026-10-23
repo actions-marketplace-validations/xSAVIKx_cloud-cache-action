@@ -125,6 +125,7 @@ export enum State {
   CacheHitSource = 'CACHE_HIT_SOURCE',
   CacheJobSummary = 'CACHE_JOB_SUMMARY',
   CacheMetricsFile = 'CACHE_METRICS_FILE',
+  CacheTransferTuning = 'CACHE_TRANSFER_TUNING',
 }
 
 export enum Events {

@@ -16,6 +16,7 @@ const MiB = 1024 * 1024;
 interface Sample {
   kind: 'save' | 'restore';
   config: string;
+  inputs: Record<string, string>;
   bytes: number;
   transferMs: number[];
 }
@@ -38,6 +39,11 @@ const median = (values: number[]): number => {
 };
 
 const rate = (s: Sample): number => s.bytes / MiB / (median(s.transferMs) / 1000);
+/** The rate as the table prints it, so that the bold rule compares what the reader sees. */
+const shown = (s: Sample): number => Math.round(rate(s));
+/** A streaming restore also extracts, so its rate is not a transfer rate like the others. */
+const isFixedTransfer = (s: Sample): boolean =>
+  s.config !== 'auto' && s.inputs.streaming !== 'true';
 
 function readResults(dir: string): Results[] {
   return fs
@@ -48,6 +54,8 @@ function readResults(dir: string): Results[] {
     .map((file) => JSON.parse(fs.readFileSync(file, 'utf8')) as Results)
     .sort((a, b) => a.label.localeCompare(b.label));
 }
+
+const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
 function sizeLabel(sizeMb: number): string {
   return sizeMb >= 1024 ? `${sizeMb / 1024} GiB` : `${sizeMb} MiB`;
@@ -69,10 +77,11 @@ function table(results: Results[], sizeMb: number, kind: 'save' | 'restore'): st
       if (sample === undefined) {
         return '–';
       }
-      const best = Math.max(...samples.filter((s) => s.config !== 'auto').map(rate));
-      const value = rate(sample);
-      const text = value.toFixed(0);
-      return value >= best ? `**${text}**` : text;
+      const fixed = samples.filter(isFixedTransfer).map(shown);
+      const value = shown(sample);
+      const bold =
+        fixed.length > 0 && value >= Math.max(...fixed) && sample.inputs.streaming !== 'true';
+      return bold ? `**${value}**` : String(value);
     });
     const name = config === 'auto' ? '`transfer-tuning: auto`' : config;
     lines.push(`| ${name} | ${cells.join(' | ')} |`);
@@ -99,7 +108,7 @@ function summary(results: Results[], sizes: number[], kind: 'save' | 'restore'):
   return lines;
 }
 
-function page(results: Results[]): string {
+function page(results: Results[], fittedTo: string | undefined): string {
   const first = results[0];
   const sizes = [...new Set(results.flatMap((r) => r.runs.map((run) => run.sizeMb)))].sort(
     (a, b) => a - b
@@ -115,7 +124,7 @@ function page(results: Results[]): string {
     '# Benchmarks',
     '',
     'This page compares the default transfer settings, other fixed settings and',
-    '`transfer-tuning: auto` on three providers and three cache sizes. See',
+    `\`transfer-tuning: auto\` on ${count(results.length, 'provider')} and ${count(sizes.length, 'cache size')}. See`,
     '[Performance](./performance.md) for what the settings do and how to select them.',
     '',
     '## How the numbers were measured',
@@ -127,13 +136,16 @@ function page(results: Results[]): string {
     '- The transfer rate is the S3 transfer alone. It does not include tar, compression or the sha256 check.',
     '- **Bold** is the fastest fixed configuration in that column, and the `auto` row when it is',
     '  as fast or faster.',
-    '- The `auto` rules come from an earlier sweep, run',
-    '  [39905131759](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/39905131759). This',
-    '  page uses a different run, so the `auto` rows are not the data the rules were fitted to.',
+    ...(fittedTo === undefined || fittedTo === first.runId
+      ? []
+      : [
+          '- The `auto` rules come from an earlier sweep, run',
+          `  [${fittedTo}](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/${fittedTo}). This`,
+          '  page uses a different run, so the `auto` rows are not the data the rules were fitted to.',
+        ]),
     '- The jobs for the three providers ran at the same time. The numbers depend on the region, the',
-    '  runner and the time of day. The same configuration can change by more than 30%',
-    '  between runs: the AWS S3 defaults saved 2 GiB at 416 MiB/s in the earlier sweep. Compare',
-    '  rows inside one table, not numbers between runs.',
+    '  runner and the time of day. The same configuration can change by more than 30% between',
+    '  runs. Compare rows inside one table, not numbers between runs.',
     '',
     '## `transfer-tuning: auto` against the defaults',
     '',
@@ -155,20 +167,26 @@ function page(results: Results[]): string {
     '```sh',
     'gh workflow run benchmark.yml -f size-mb=128,512,2048 -f matrix=sweep -f repeats=2',
     `gh run download <run-id> --dir bench`,
-    'node tests/ci/benchmarkPage.ts bench docs/guide/benchmarks.md',
+    'node tests/ci/benchmarkPage.ts bench docs/guide/benchmarks.md [rules-run-id]',
     '```',
     ''
   );
   return out.join('\n');
 }
 
-const [dir, target = 'docs/guide/benchmarks.md'] = process.argv.slice(2);
+const [dir, target = 'docs/guide/benchmarks.md', fittedTo] = process.argv.slice(2);
 if (dir === undefined) {
-  throw new Error('Usage: node tests/ci/benchmarkPage.ts <artifact dir> [target]');
+  throw new Error(
+    'Usage: node tests/ci/benchmarkPage.ts <artifact dir> [target] [run id the auto rules come from]'
+  );
 }
 const results = readResults(dir);
 if (results.length === 0) {
   throw new Error(`No benchmark-*/benchmark-results.json under ${dir}`);
 }
-fs.writeFileSync(target, page(results));
+const runIds = new Set(results.map((r) => r.runId));
+if (runIds.size > 1) {
+  throw new Error(`The artifacts come from more than one run: ${[...runIds].join(', ')}`);
+}
+fs.writeFileSync(target, page(results, fittedTo));
 console.log(`Wrote ${target} from ${results.length} provider(s)`);

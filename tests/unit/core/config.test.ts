@@ -77,6 +77,21 @@ describe('readCacheConfig', () => {
     });
   });
 
+  it('names the auto value in the warning for an invalid transfer input under auto', () => {
+    inputs.set(Inputs.TransferTuning, 'auto');
+    inputs.set(Inputs.DownloadConcurrency, '99');
+    readCacheConfig();
+    expect(mockWarning).toHaveBeenCalledWith(
+      'Input "download-concurrency" must be an integer between 1 and 32; got "99". Using the transfer-tuning: auto value.'
+    );
+  });
+
+  it('takes transfer-tuning from the state in the post step', () => {
+    const state = new MemoryState();
+    state.setState(State.CacheTransferTuning, 'auto');
+    expect(readCacheConfig(state).transferTuning).toBe('auto');
+  });
+
   it('warns and uses fixed for an unknown transfer-tuning', () => {
     inputs.set(Inputs.TransferTuning, 'fast');
     expect(readCacheConfig().transferTuning).toBe('fixed');

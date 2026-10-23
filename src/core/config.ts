@@ -92,33 +92,27 @@ function readDualCacheStrategy(): DualCacheStrategy {
 
 /**
  * Reads an integer input within [min, max]; anything else warns and uses the default. The
- * warning names `effective`, the value the default stands for, when the default is undefined.
+ * warning names `effective`, what the default stands for. `set` is true only for a valid value.
  */
 function readBoundedInt<T extends number | undefined>(
   name: Inputs,
   defaultValue: T,
   min: number,
   max: number,
-  effective: number = defaultValue as number
-): number | T {
+  effective: number | string = defaultValue as number
+): { value: number | T; set: boolean } {
   const raw = core.getInput(name).trim();
   if (raw === '') {
-    return defaultValue;
+    return { value: defaultValue, set: false };
   }
   const value = /^[0-9]+$/.test(raw) ? Number(raw) : Number.NaN;
   if (Number.isNaN(value) || value < min || value > max) {
     core.warning(
       `Input "${name}" must be an integer between ${min} and ${max}; got "${raw}". Using ${effective}.`
     );
-    return defaultValue;
+    return { value: defaultValue, set: false };
   }
-  return value;
-}
-
-/** True when the input holds a value that `readBoundedInt` accepts. */
-function isValidBoundedInt(name: Inputs, min: number, max: number): boolean {
-  const raw = core.getInput(name).trim();
-  return /^[0-9]+$/.test(raw) && Number(raw) >= min && Number(raw) <= max;
+  return { value, set: true };
 }
 
 /** Reads `compression-level`; anything outside 1 to 19 warns and leaves the method's default. */
@@ -154,6 +148,40 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
   };
   const retryCountState = persisted(State.CacheRetryCount);
   const streaming = bool(State.CacheStreaming, () => getInputAsBool(Inputs.Streaming));
+  const transferTuning = text(State.CacheTransferTuning, () =>
+    getInputAsEnum(Inputs.TransferTuning, TRANSFER_TUNINGS, 'fixed')
+  );
+  // Under `auto`, an invalid transfer input leaves the field to the tuning, not to the default.
+  const tuned = (effective: number): number | string =>
+    transferTuning === 'auto' ? 'the transfer-tuning: auto value' : effective;
+  const uploadChunkSize = readBoundedInt(
+    Inputs.UploadChunkSize,
+    undefined,
+    Defaults.MinUploadChunkSize,
+    Defaults.MaxUploadChunkSize,
+    tuned(Defaults.DefaultUploadChunkSize)
+  );
+  const uploadConcurrency = readBoundedInt(
+    Inputs.UploadConcurrency,
+    Defaults.DefaultUploadConcurrency,
+    1,
+    Defaults.MaxUploadConcurrency,
+    tuned(Defaults.DefaultUploadConcurrency)
+  );
+  const downloadConcurrency = readBoundedInt(
+    Inputs.DownloadConcurrency,
+    Defaults.DefaultDownloadConcurrency,
+    1,
+    Defaults.MaxDownloadConcurrency,
+    tuned(Defaults.DefaultDownloadConcurrency)
+  );
+  const downloadChunkSize = readBoundedInt(
+    Inputs.DownloadChunkSize,
+    Defaults.DefaultDownloadChunkSize,
+    Defaults.MinDownloadChunkSize,
+    Defaults.MaxDownloadChunkSize,
+    tuned(Defaults.DefaultDownloadChunkSize)
+  );
 
   return {
     primaryKey: text(State.CachePrimaryKey, () => core.getInput(Inputs.Key).trim()),
@@ -163,19 +191,8 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     failOnCacheMiss: getInputAsBool(Inputs.FailOnCacheMiss),
     readOnly: bool(State.CacheReadOnly, () => getInputAsBool(Inputs.ReadOnly)),
     enableCrossOsArchive: getInputAsBool(Inputs.EnableCrossOsArchive),
-    uploadChunkSize: readBoundedInt(
-      Inputs.UploadChunkSize,
-      undefined,
-      Defaults.MinUploadChunkSize,
-      Defaults.MaxUploadChunkSize,
-      Defaults.DefaultUploadChunkSize
-    ),
-    uploadConcurrency: readBoundedInt(
-      Inputs.UploadConcurrency,
-      Defaults.DefaultUploadConcurrency,
-      1,
-      Defaults.MaxUploadConcurrency
-    ),
+    uploadChunkSize: uploadChunkSize.value,
+    uploadConcurrency: uploadConcurrency.value,
     compressionLevel: readOptionalLevel(),
     s3KeyPattern: text(
       State.CacheS3KeyPattern,
@@ -199,40 +216,14 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     dualCacheStrategy: text(State.CacheDualCacheStrategy, readDualCacheStrategy),
     dualCacheStrict: bool(State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
     streaming,
-    downloadConcurrency: readBoundedInt(
-      Inputs.DownloadConcurrency,
-      Defaults.DefaultDownloadConcurrency,
-      1,
-      Defaults.MaxDownloadConcurrency
-    ),
-    downloadChunkSize: readBoundedInt(
-      Inputs.DownloadChunkSize,
-      Defaults.DefaultDownloadChunkSize,
-      Defaults.MinDownloadChunkSize,
-      Defaults.MaxDownloadChunkSize
-    ),
-    transferTuning: getInputAsEnum(Inputs.TransferTuning, TRANSFER_TUNINGS, 'fixed'),
+    downloadConcurrency: downloadConcurrency.value,
+    downloadChunkSize: downloadChunkSize.value,
+    transferTuning,
     explicitTransfer: {
-      uploadConcurrency: isValidBoundedInt(
-        Inputs.UploadConcurrency,
-        1,
-        Defaults.MaxUploadConcurrency
-      ),
-      uploadChunkSize: isValidBoundedInt(
-        Inputs.UploadChunkSize,
-        Defaults.MinUploadChunkSize,
-        Defaults.MaxUploadChunkSize
-      ),
-      downloadConcurrency: isValidBoundedInt(
-        Inputs.DownloadConcurrency,
-        1,
-        Defaults.MaxDownloadConcurrency
-      ),
-      downloadChunkSize: isValidBoundedInt(
-        Inputs.DownloadChunkSize,
-        Defaults.MinDownloadChunkSize,
-        Defaults.MaxDownloadChunkSize
-      ),
+      uploadConcurrency: uploadConcurrency.set,
+      uploadChunkSize: uploadChunkSize.set,
+      downloadConcurrency: downloadConcurrency.set,
+      downloadChunkSize: downloadChunkSize.set,
     },
     jobSummary: bool(State.CacheJobSummary, () => getInputAsBool(Inputs.JobSummary, true)),
     metadata: json(State.CacheMetadata, () => parseMetadata(core.getInput(Inputs.Metadata))),
@@ -265,4 +256,5 @@ export function persistCacheConfig(state: IStateProvider, config: CacheConfig): 
   state.setState(State.CacheMetadata, JSON.stringify(config.metadata));
   state.setState(State.CacheTags, JSON.stringify(config.tags));
   state.setState(State.CacheMetricsFile, config.metricsFile);
+  state.setState(State.CacheTransferTuning, config.transferTuning);
 }

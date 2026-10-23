@@ -2322,6 +2322,22 @@ describe('restoreFromS3 parallel download', () => {
     expect(mockDownloadFile).toHaveBeenCalledTimes(1);
   });
 
+  // The tuning budget reads the memory of the test host; fix it so that the bound is known.
+  let availableMemory: ReturnType<typeof jest.spyOn>;
+  beforeEach(() => {
+    availableMemory = jest.spyOn(process, 'availableMemory').mockReturnValue(16 * 1024 * MiB);
+  });
+  afterEach(() => availableMemory.mockRestore());
+
+  it('bounds the tuned concurrency by the memory that the process can use', async () => {
+    availableMemory.mockReturnValue(256 * MiB);
+    mockGetArchiveSize.mockReturnValue(2 * 1024 * MiB);
+    await saveToS3(tier({ tuning: noExplicit }), 'k', ['node_modules']);
+    const [, , , , settings] = mockUploadFile.mock.calls[0];
+    // 64 MiB budget / 32 MiB parts = 2 parts, one of them read ahead.
+    expect(settings).toEqual({ concurrency: 1, partSize: 32 * MiB });
+  });
+
   const noExplicit = {
     uploadConcurrency: false,
     uploadChunkSize: false,
@@ -2403,7 +2419,44 @@ describe('restoreFromS3 parallel download', () => {
       ['node_modules']
     );
     const [, , , , settings] = mockUploadFile.mock.calls[0];
-    expect(settings).toEqual({ concurrency: 16, partSize: 64 * MiB });
+    // 1 GiB budget / 64 MiB parts = 16 parts, one of them read ahead.
+    expect(settings).toEqual({ concurrency: 15, partSize: 64 * MiB });
+    expect(mockInfo).toHaveBeenCalledWith(
+      'Transfer tuning: auto selected 15 x 64 MiB (set) for the upload of 2.0 GiB'
+    );
+  });
+
+  it('uses the provider of the storage context for the R2 upload rule', async () => {
+    mockGetArchiveSize.mockReturnValue(2 * 1024 * MiB);
+    const r2 = {
+      ...storage,
+      providerConfig: { ...storage.providerConfig, provider: 'r2' },
+    } as StorageContext;
+    await saveToS3(tier({ storage: r2, tuning: noExplicit }), 'k', ['node_modules']);
+    const [, , , , settings] = mockUploadFile.mock.calls[0];
+    expect(settings).toEqual({ concurrency: 32, partSize: 16 * MiB });
+  });
+
+  it('uses one request for an object no larger than a tuned part', async () => {
+    put(FEATURE, 'k', 1);
+    const outcome = await restoreFromS3(tier({ tuning: noExplicit }), 'k', [], false);
+    expect(outcome).toMatchObject({ kind: 'hit', downloadParts: 1 });
+    expect(mockDownloadFileInParts).not.toHaveBeenCalled();
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the fixed settings for a streaming save with auto tuning', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    await saveToS3(tier({ streaming: true, tuning: noExplicit }), 'k', ['node_modules']);
+    expect(mockCreateStreamUpload.mock.calls[0][4]).toEqual({
+      concurrency: 8,
+      partSize: 64 * MiB,
+    });
+    expect(mockInfo).not.toHaveBeenCalledWith(expect.stringContaining('Transfer tuning'));
   });
 
   it('does not tune with fixed tuning', async () => {

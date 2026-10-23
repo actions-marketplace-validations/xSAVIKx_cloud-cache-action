@@ -125,12 +125,12 @@ Every step — restore, save, `prune` and `inspect` — also writes one `cloud-c
 
 ## Transfer Tuning
 
-The `download-concurrency`, `download-chunk-size`, `upload-concurrency` and `upload-chunk-size` inputs set how many requests a transfer runs at once and how many bytes each request carries. The defaults are 8 × 8 MiB for a restore and 8 × 64 MiB for a save. Set `transfer-tuning: auto` to let the action select them per archive from its size and the provider:
+The `download-concurrency`, `download-chunk-size`, `upload-concurrency` and `upload-chunk-size` inputs set how many requests a transfer runs at once and how many bytes each request carries. The defaults are 8 × 8 MiB for a restore and 8 × 64 MiB for a save. Set `transfer-tuning: auto` to let the action select them per archive from its size (and, for a save, the provider):
 
 - A restore uses 16 × 16 MiB, with fewer workers when the archive has fewer parts.
 - A save of up to 256 MiB uses 16 × 16 MiB, and a larger save uses 16 × 32 MiB. A save of 1 GiB or more to Cloudflare R2 uses 32 × 16 MiB.
-- The bytes in flight stay within a quarter of the free memory and 1 GiB.
-- A transfer input that the workflow sets still wins for that field.
+- The bytes in flight stay within about a quarter of the usable memory, including a container limit, and within 1 GiB. At least one part is in flight.
+- A transfer input that the workflow sets still wins for that field. A wrapper that forwards a transfer input with a default value sets that input.
 - A streaming save keeps the fixed settings, because it does not know the archive size in advance.
 - The default is `transfer-tuning: fixed`. The Performance and Benchmarks pages have the measurements.
 
