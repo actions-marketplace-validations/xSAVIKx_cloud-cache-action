@@ -97,4 +97,5 @@ This action is tested continuously against Google Cloud Storage using HMAC keys 
 ## Notes
 
 - **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
+- **Streaming saves**: GCS has no object tagging API, so a `streaming: true` save attaches its checksum with a copy of the object onto itself. The copy names the generation that the upload wrote, so it fails when another job replaced the object in between. With Object Versioning on the bucket, an old generation stays readable, and the copy can put an older save back over a newer one. Its checksum still matches its bytes.
 - **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.

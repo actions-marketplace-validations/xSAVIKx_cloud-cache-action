@@ -73,7 +73,8 @@ What the table says:
   same 512 MiB of parts in memory as the default.
 - **Streaming saves pay for the metadata copy on S3.** The whole step took 10.9 s against 2.9 s
   of transfer in both runs, because the sha256 is attached by copying the 512 MiB object onto
-  itself after the upload. R2 and GCS copy in well under a second. File mode sends the checksum
+  itself after the upload. R2 copies in well under a second. On GCS the copy then failed for
+  every archive larger than one part, so that run has no copy time for GCS. File mode sends the checksum
   with the upload and has no copy. This run predates v1.6: a streamed save now attaches the
   checksum as an object tag instead, which removes this gap on S3 in the normal case. See
   [Object Metadata and Tags](https://github.com/xSAVIKx/cloud-cache-action#object-metadata-and-tags)

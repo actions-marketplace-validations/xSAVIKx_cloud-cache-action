@@ -47,6 +47,7 @@ import {
   replaceObjectMetadata,
   uploadFile,
   type CacheObjectMetadata,
+  type CopyGuard,
 } from '../storage/operations';
 import {
   downloadFileInParts,
@@ -752,6 +753,40 @@ async function saveToS3FileMode(
 /** A single CopyObject can only copy up to 5 GiB; a larger object would need a multipart copy. */
 const MAX_COPY_SIZE = 5 * 1024 * 1024 * 1024;
 
+/** What the upload reported about the object it wrote. */
+interface UploadedVersion {
+  etag?: string;
+  /** On GCS, the object's generation (see the GCS middleware in storage/client.ts). */
+  versionId?: string;
+}
+
+/** A multipart upload's ETag: an md5 of the part md5s, then a dash and the part count. */
+const isMultipartEtag = (etag: string): boolean => /-\d+"?$/.test(etag);
+
+/**
+ * How the metadata copy proves that the object still holds this upload. Elsewhere, the ETag the
+ * upload reported (`CopySourceIfMatch`), or no guard when there is none. GCS cannot evaluate
+ * `CopySourceIfMatch` against a multipart ETag (400 InvalidArgument), and refuses its own
+ * `x-goog-copy-source-if-generation-match` next to the SDK's `x-amz-*` headers. So on GCS the copy
+ * source is pinned to the generation of the upload: a replaced object has another generation, and
+ * the copy finds no source (404). On a bucket with Object Versioning an old generation stays
+ * readable, so the pinned copy can put this save back over a newer one; its checksum still
+ * matches its bytes. Undefined when no guard can work: a multipart upload on GCS with no
+ * generation.
+ */
+function copyGuard(tier: S3Tier, uploaded: UploadedVersion): CopyGuard | undefined {
+  if (tier.storage.providerConfig.provider !== 'gcs') {
+    return { ifMatch: uploaded.etag };
+  }
+  if (uploaded.versionId !== undefined) {
+    return { versionId: uploaded.versionId };
+  }
+  if (uploaded.etag !== undefined && isMultipartEtag(uploaded.etag)) {
+    return undefined;
+  }
+  return { ifMatch: uploaded.etag };
+}
+
 /**
  * Attaches a streamed save's sha256 and user metadata once the upload has finished, the only
  * point at which the digest is known: a CopyObject onto the object itself. Best-effort — the
@@ -764,23 +799,31 @@ async function attachStreamedMetadataByCopy(
   objectKey: string,
   sha256: string,
   size: number,
-  uploadedEtag: string | undefined,
+  uploaded: UploadedVersion,
   checksumTagLeft = false
 ): Promise<string | undefined> {
   const { client, bucket } = tier.storage;
+  const uploadedEtag = uploaded.etag;
   if (size > MAX_COPY_SIZE) {
     core.warning(
       `Saved s3://${bucket}/${objectKey} but could not attach metadata: archives over 5 GiB cannot be copied in one request.`
     );
     return uploadedEtag;
   }
+  const guard = copyGuard(tier, uploaded);
+  if (guard === undefined) {
+    core.warning(
+      `Saved s3://${bucket}/${objectKey} without a checksum: GCS reported no generation for this multipart upload, so this save cannot prove that it still owns the object, and that cache is kept without an integrity check.`
+    );
+    return uploadedEtag;
+  }
   try {
-    // `CopySourceIfMatch`, when the upload reported an ETag: a concurrent writer that replaced
-    // the object between the upload and this copy must not get this save's metadata stamped onto
-    // its body. The 412 that then comes back is handled like any other copy failure.
+    // A concurrent writer that replaced the object between the upload and this copy must not get
+    // this save's metadata stamped onto its body (see copyGuard). The 412 or 404 that then comes
+    // back is handled like any other copy failure.
     const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: sha256 };
     const copied = await withRetry(
-      () => replaceObjectMetadata(client, bucket, objectKey, metadata, uploadedEtag),
+      () => replaceObjectMetadata(client, bucket, objectKey, metadata, guard),
       {
         retries: tier.streamRetries,
         operationName: `Metadata for ${objectKey}`,
@@ -897,7 +940,7 @@ function canAttachByTag(tier: S3Tier, usedCondition: boolean): boolean {
  * undefined when `canAttachByTag` was false at upload start, and then the save uses the copy.
  * An ownership check that cannot confirm the object removes the tag again. A failed tag write or
  * an unconfirmed check then uses the copy, but only when the upload reported an ETag, which
- * guards the copy with `CopySourceIfMatch`. With no upload ETag, nothing can guard the copy, so
+ * guards the copy (see copyGuard). With no upload ETag, nothing can guard the copy, so
  * the save keeps no checksum: a missing checksum only skips the check on restore, but a false
  * checksum rejects a good cache.
  */
@@ -906,10 +949,11 @@ async function attachStreamedChecksum(
   objectKey: string,
   sha256: string,
   size: number,
-  uploadedEtag: string | undefined,
+  uploaded: UploadedVersion,
   writerId: string | undefined
 ): Promise<string | undefined> {
   const { client, bucket } = tier.storage;
+  const uploadedEtag = uploaded.etag;
 
   let checksumTagLeft = false;
   if (writerId !== undefined) {
@@ -958,7 +1002,7 @@ async function attachStreamedChecksum(
       );
       return uploadedEtag;
     }
-    core.debug(`Attaching the checksum to s3://${bucket}/${objectKey} by an ETag-guarded copy.`);
+    core.debug(`Attaching the checksum to s3://${bucket}/${objectKey} by a guarded copy.`);
   }
 
   return await attachStreamedMetadataByCopy(
@@ -966,7 +1010,7 @@ async function attachStreamedChecksum(
     objectKey,
     sha256,
     size,
-    uploadedEtag,
+    uploaded,
     checksumTagLeft
   );
 }
@@ -1089,7 +1133,7 @@ async function saveToS3Streaming(
         objectKey,
         tap.digest(),
         size,
-        uploaded.ETag,
+        { etag: uploaded.ETag, versionId: uploaded.VersionId },
         writerId
       );
       return { kind: 'saved', s3: { objectKey, size, etag }, transferMs };

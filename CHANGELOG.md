@@ -54,6 +54,16 @@ points at the latest `v1.x.y` release.
   `400 InvalidRequest`. The log can then also say that the server refused `UNSIGNED-PAYLOAD`. Set
   `CLOUD_CACHE_SDK_CHECKSUMS=true` in the job environment to send the SDK checksums again.
 
+### Fixed
+
+- **Streaming saves to Google Cloud Storage keep their checksum again.** GCS has no tagging API,
+  so a streaming save attaches its sha256 with a copy of the object onto itself. The copy was
+  guarded with `CopySourceIfMatch`, which GCS rejects with `400 InvalidArgument` for the ETag of
+  a multipart upload. Every streaming save larger than one part therefore logged
+  `could not attach metadata: Invalid argument.` and kept no checksum and no user `metadata`. On
+  GCS the copy now names the generation that the upload wrote as its source version. A copy
+  after another job replaced the object finds no source and fails, as before.
+
 ## [1.8.0] - 2026-10-22
 
 Faster saves and restores. Object keys, metadata and archive bytes do not change, so caches saved

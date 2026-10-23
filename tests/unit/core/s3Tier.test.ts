@@ -76,7 +76,7 @@ const mockReplaceObjectMetadata =
       bucket: string,
       key: string,
       metadata: Record<string, string>,
-      ifMatch?: string
+      guard?: { ifMatch?: string; versionId?: string }
     ) => Promise<{ etag?: string }>
   >();
 const mockPutObjectTags =
@@ -151,7 +151,7 @@ const mockCaptureStderrTail =
 const mockGetObjectStream =
   jest.fn<(client: S3Client, bucket: string, key: string) => Promise<ObjectStreamResult>>();
 interface FakeUpload {
-  done: () => Promise<{ ETag?: string }>;
+  done: () => Promise<{ ETag?: string; VersionId?: string }>;
   abort: () => Promise<unknown>;
 }
 const mockCreateStreamUpload =
@@ -1518,7 +1518,7 @@ describe('saveToS3 streaming', () => {
         'cloud-cache-sha256': crypto.createHash('sha256').update(archiveBody).digest('hex'),
       },
       // The ETag the upload just wrote, so the copy cannot stamp another writer's body.
-      '"streamed"'
+      { ifMatch: '"streamed"' }
     );
   });
 
@@ -1536,6 +1536,67 @@ describe('saveToS3 streaming', () => {
     const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
 
     expect(outcome).toMatchObject({ kind: 'saved', s3: { etag: '"copied"' } });
+  });
+
+  describe('on GCS', () => {
+    // GCS has no tagging API, so the checksum goes on by the copy.
+    const gcs = () =>
+      ({
+        ...storage,
+        providerConfig: { ...storage.providerConfig, provider: 'gcs' },
+        objectTaggingUnsupported: true,
+      }) as StorageContext;
+    const uploadReturning = (result: { ETag?: string; VersionId?: string }) =>
+      mockCreateStreamUpload.mockImplementation(() => ({
+        done: jest.fn(async () => result),
+        abort: jest.fn(async () => undefined),
+      }));
+
+    beforeEach(() => {
+      mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+      mockWaitForExit.mockImplementation(async (c) => {
+        c.stdout.end(Buffer.from('archive-body'));
+        return 0;
+      });
+    });
+
+    it('pins the copy to the generation of a multipart upload, not to its ETag', async () => {
+      uploadReturning({ ETag: '"0123456789abcdef0123456789abcdef-3"', VersionId: '17' });
+
+      const outcome = await saveToS3(tier({ storage: gcs(), streaming: true }), 'k', [
+        'node_modules',
+      ]);
+
+      expect(outcome.kind).toBe('saved');
+      const [, , , , guard] = mockReplaceObjectMetadata.mock.calls[0];
+      expect(guard).toEqual({ versionId: '17' });
+    });
+
+    it('pins a single-part upload to its generation too', async () => {
+      uploadReturning({ ETag: '"0123456789abcdef0123456789abcdef"', VersionId: '18' });
+
+      await saveToS3(tier({ storage: gcs(), streaming: true }), 'k', ['node_modules']);
+
+      const [, , , , guard] = mockReplaceObjectMetadata.mock.calls[0];
+      expect(guard).toEqual({ versionId: '18' });
+    });
+
+    it('keeps no checksum when a multipart upload reports no generation', async () => {
+      uploadReturning({ ETag: '"0123456789abcdef0123456789abcdef-3"' });
+
+      const outcome = await saveToS3(tier({ storage: gcs(), streaming: true }), 'k', [
+        'node_modules',
+      ]);
+
+      expect(outcome).toMatchObject({
+        kind: 'saved',
+        s3: { etag: '"0123456789abcdef0123456789abcdef-3"' },
+      });
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(
+        expect.stringContaining('without a checksum') as unknown as string
+      );
+    });
   });
 
   it('skips the metadata copy, and warns, for an archive over the 5 GiB copy limit', async () => {
@@ -1907,9 +1968,9 @@ describe('saveToS3 streaming', () => {
     expect(outcome.kind).toBe('saved');
     expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
     expect(mockPutObjectTags.mock.calls[1][3]).toEqual([{ Key: 'team', Value: 'platform' }]);
-    const [, , , metadata, ifMatch] = mockReplaceObjectMetadata.mock.calls[0];
+    const [, , , metadata, guard] = mockReplaceObjectMetadata.mock.calls[0];
     expect(metadata).toEqual({ 'cloud-cache-sha256': expect.any(String) as unknown as string });
-    expect(ifMatch).toBe('"streamed"');
+    expect(guard).toEqual({ ifMatch: '"streamed"' });
   });
 
   it('warns, and still copies, when the tag cannot be removed after an unconfirmed check', async () => {
@@ -2055,7 +2116,7 @@ describe('saveToS3 streaming', () => {
       const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
       expect(outcome.kind).toBe('saved');
       expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
-      expect(mockReplaceObjectMetadata.mock.calls[0][4]).toBe('"streamed"');
+      expect(mockReplaceObjectMetadata.mock.calls[0][4]).toEqual({ ifMatch: '"streamed"' });
     });
   });
 

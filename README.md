@@ -526,7 +526,13 @@ archive over 5 GiB, since a copy cannot span more than 5 GiB — costs the check
 the save logs
 `Saved s3://<bucket>/<key> but could not attach metadata: <reason>` and succeeds. A tag has no
 size limit, so a streamed archive over 5 GiB gets a checksum for the first time when the tag path
-applies. The copy was verified to work on MinIO, SeaweedFS, RustFS and Garage.
+applies. The copy was verified to work on MinIO, SeaweedFS, RustFS and Garage. Google Cloud
+Storage has no tagging API, so a streamed save to GCS always uses the copy. GCS cannot check
+`CopySourceIfMatch` against the ETag of a multipart upload. On GCS the copy therefore names the
+generation that the upload wrote as its source version (`?versionId=`). When another job replaced
+the object in between, the copy finds no source and fails, and the save keeps no checksum. With
+Object Versioning on the bucket, an old generation stays readable: the copy can then put an older
+save back over a newer one, with a checksum that matches its bytes.
 
 The ownership check is one `HeadObject` after the tag. It proves that no other job replaced the
 object between the upload and the tag. When the upload and the HEAD both report an ETag, the save

@@ -13,7 +13,9 @@ jest.unstable_mockModule('@actions/core', () => ({
   info: mockInfo,
 }));
 
-const { HeadObjectCommand, UploadPartCommand } = await import('@aws-sdk/client-s3');
+const { CompleteMultipartUploadCommand, HeadObjectCommand, UploadPartCommand } = await import(
+  '@aws-sdk/client-s3'
+);
 const { createStorageContext, useSdkChecksums, useUnsignedPayload } = await import(
   '../../src/storage/client'
 );
@@ -341,5 +343,55 @@ describe('UNSIGNED-PAYLOAD middleware', () => {
     await expect(client.send(part())).rejects.toThrow('AccessDenied');
     expect(seen).toHaveLength(1);
     expect(mockInfo).not.toHaveBeenCalled();
+  });
+});
+
+describe('GCS generation middleware', () => {
+  const endpointInput = (endpoint: string) => (name: string) => {
+    const values: Record<string, string> = {
+      [Inputs.Bucket]: 'b',
+      [Inputs.Endpoint]: endpoint,
+      [Inputs.AccessKey]: 'K',
+      [Inputs.SecretKey]: 'S',
+    };
+    return values[name] ?? '';
+  };
+
+  /** Replaces the network with a fake handler that answers with these response headers. */
+  function answerWith(
+    client: ReturnType<typeof createStorageContext>['client'],
+    headers: Record<string, string>
+  ): void {
+    client.middlewareStack.add(
+      (_next) => async () => ({ output: { $metadata: {} }, response: { headers } }) as never,
+      { step: 'finalizeRequest', name: 'fakeNetwork', priority: 'low' }
+    );
+  }
+
+  const complete = () =>
+    new CompleteMultipartUploadCommand({ Bucket: 'b', Key: 'k', UploadId: 'u' });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('reports the x-goog-generation of a GCS write as the VersionId', async () => {
+    mockGetInput.mockImplementation(endpointInput('https://storage.googleapis.com'));
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    answerWith(client, { 'x-goog-generation': '1761234567890123' });
+
+    const output = await client.send(complete());
+
+    expect(output.VersionId).toBe('1761234567890123');
+  });
+
+  it('leaves the VersionId alone on other providers', async () => {
+    mockGetInput.mockImplementation(endpointInput('https://s3.example.test'));
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    answerWith(client, { 'x-goog-generation': '1761234567890123' });
+
+    const output = await client.send(complete());
+
+    expect(output.VersionId).toBeUndefined();
   });
 });

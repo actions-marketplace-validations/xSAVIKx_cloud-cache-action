@@ -201,7 +201,8 @@ export interface UploadOptions {
  * goes through the same abort-on-failure handling as `uploadFile`.
  */
 export interface StreamUpload {
-  done(): Promise<{ ETag?: string }>;
+  /** `VersionId` is the version the upload wrote, when the provider reports one. */
+  done(): Promise<{ ETag?: string; VersionId?: string }>;
   /** Stops the upload: `done()` rejects promptly, and no further parts are sent. */
   abort(): Promise<void>;
 }
@@ -222,7 +223,7 @@ async function completeOrAbort(
   bucket: string,
   key: string,
   upload: Upload
-): Promise<{ ETag?: string }> {
+): Promise<{ ETag?: string; VersionId?: string }> {
   try {
     return await upload.done();
   } catch (err) {
@@ -409,25 +410,38 @@ export interface ReplaceMetadataResult {
 }
 
 /**
+ * What makes a metadata copy fail rather than stamp this metadata onto another writer's body.
+ * `ifMatch` (the ETag the save just wrote) fails the copy with 412. `versionId` pins the copy
+ * source to the version the save just wrote, so a replaced object has no such source (404).
+ */
+export interface CopyGuard {
+  ifMatch?: string;
+  versionId?: string;
+}
+
+/**
  * Replaces an object's user metadata in place (S3 has no metadata-only update): a CopyObject
  * onto itself with MetadataDirective REPLACE. Tags are kept. Used after a streamed save, whose
- * sha256 is only known once the upload has finished. `ifMatch` (the ETag the save just wrote)
- * makes the copy fail with 412 rather than stamp this metadata onto another writer's body.
- * Only for objects up to 5 GiB: a larger one needs a multipart copy.
+ * sha256 is only known once the upload has finished. `guard` keeps the copy off another
+ * writer's body. Only for objects up to 5 GiB: a larger one needs a multipart copy.
  */
 export async function replaceObjectMetadata(
   client: S3Client,
   bucket: string,
   key: string,
   metadata: Record<string, string>,
-  ifMatch?: string
+  guard: CopyGuard = {}
 ): Promise<ReplaceMetadataResult> {
+  const source = encodeCopySource(bucket, key);
   const result = await client.send(
     new CopyObjectCommand({
       Bucket: bucket,
       Key: key,
-      CopySource: encodeCopySource(bucket, key),
-      CopySourceIfMatch: ifMatch,
+      CopySource:
+        guard.versionId === undefined
+          ? source
+          : `${source}?versionId=${encodeURIComponent(guard.versionId)}`,
+      CopySourceIfMatch: guard.ifMatch,
       MetadataDirective: 'REPLACE',
       TaggingDirective: 'COPY',
       Metadata: metadata,
