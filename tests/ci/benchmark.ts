@@ -7,9 +7,11 @@
  *
  * Environment: BENCH_BUCKET (required), BENCH_ENDPOINT, BENCH_REGION, BENCH_PROVIDER,
  * BENCH_ACCESS_KEY, BENCH_SECRET_KEY (or the AWS_* variables the action already falls back to),
- * BENCH_SIZE_MB (default 512), BENCH_REPEATS (default 2), BENCH_LABEL (name in the report).
- * Writes benchmark-results.json and benchmark-results.md into BENCH_OUT (default the workspace),
- * and appends the table to GITHUB_STEP_SUMMARY when set. Every object is deleted afterwards.
+ * BENCH_SIZES_MB (comma list, default BENCH_SIZE_MB or 512), BENCH_REPEATS (default 2),
+ * BENCH_MATRIX (`standard`, the default, or `sweep`: more part sizes and concurrencies, no
+ * streaming), BENCH_LABEL (name in the report). Writes benchmark-results.json and
+ * benchmark-results.md into BENCH_OUT (default the workspace), and appends the tables to
+ * GITHUB_STEP_SUMMARY when set. Every object is deleted afterwards.
  */
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { spawnSync } from 'node:child_process';
@@ -32,18 +34,13 @@ interface Metrics {
   outcome: string;
 }
 
-interface UploadConfig {
+interface TransferConfig {
   name: string;
   concurrency: number;
   chunkSize: number;
   streaming: boolean;
-}
-
-interface DownloadConfig {
-  name: string;
-  concurrency: number;
-  chunkSize: number;
-  streaming: boolean;
+  /** `auto` rows set `transfer-tuning: auto` and leave the concurrency and part size unset. */
+  auto?: boolean;
 }
 
 interface Sample {
@@ -57,7 +54,11 @@ interface Sample {
 }
 
 const env = (name: string, fallback = ''): string => process.env[name] ?? fallback;
-const sizeMb = Number(env('BENCH_SIZE_MB', '512'));
+const sizesMb = env('BENCH_SIZES_MB', env('BENCH_SIZE_MB', '512'))
+  .split(',')
+  .map((size) => Number(size.trim()))
+  .filter((size) => Number.isFinite(size) && size > 0);
+const matrix = env('BENCH_MATRIX', 'standard');
 const repeats = Math.max(1, Number(env('BENCH_REPEATS', '2')));
 const label = env('BENCH_LABEL', env('BENCH_PROVIDER', 's3'));
 const workspace = env('GITHUB_WORKSPACE', process.cwd());
@@ -66,14 +67,24 @@ const runId = `${env('GITHUB_RUN_ID', String(Date.now()))}-${env('GITHUB_RUN_ATT
 const prefix = `bench/${runId}/`;
 const payloadDir = path.join(workspace, 'bench-payload');
 
-const UPLOADS: UploadConfig[] = [
-  { name: 'v1.3 defaults: 4 x 10 MiB', concurrency: 4, chunkSize: 10 * MiB, streaming: false },
+const AUTO: TransferConfig = {
+  name: 'auto',
+  concurrency: 0,
+  chunkSize: 0,
+  streaming: false,
+  auto: true,
+};
+
+/** The first upload must be the defaults: every restore reads the object it saved. */
+const STANDARD_UPLOADS: TransferConfig[] = [
   { name: 'defaults: 8 x 64 MiB', concurrency: 8, chunkSize: 64 * MiB, streaming: false },
+  { name: 'v1.3 defaults: 4 x 10 MiB', concurrency: 4, chunkSize: 10 * MiB, streaming: false },
   { name: '16 x 32 MiB', concurrency: 16, chunkSize: 32 * MiB, streaming: false },
   { name: 'streaming, defaults: 8 x 64 MiB', concurrency: 8, chunkSize: 64 * MiB, streaming: true },
+  AUTO,
 ];
 
-const DOWNLOADS: DownloadConfig[] = [
+const STANDARD_DOWNLOADS: TransferConfig[] = [
   { name: 'single request (concurrency 1)', concurrency: 1, chunkSize: 4 * MiB, streaming: false },
   { name: 'actions/cache: 8 x 4 MiB', concurrency: 8, chunkSize: 4 * MiB, streaming: false },
   { name: 'defaults: 8 x 8 MiB', concurrency: 8, chunkSize: 8 * MiB, streaming: false },
@@ -83,10 +94,45 @@ const DOWNLOADS: DownloadConfig[] = [
   { name: 'streaming, single request', concurrency: 1, chunkSize: 4 * MiB, streaming: true },
   { name: 'streaming, defaults: 8 x 8 MiB', concurrency: 8, chunkSize: 8 * MiB, streaming: true },
   { name: 'streaming, 16 x 8 MiB', concurrency: 16, chunkSize: 8 * MiB, streaming: true },
+  AUTO,
 ];
 
+/** Part sizes and concurrencies around the defaults, to find the best per size. */
+const SWEEP_UPLOADS: TransferConfig[] = [
+  { name: 'defaults: 8 x 64 MiB', concurrency: 8, chunkSize: 64 * MiB, streaming: false },
+  { name: '8 x 16 MiB', concurrency: 8, chunkSize: 16 * MiB, streaming: false },
+  { name: '16 x 16 MiB', concurrency: 16, chunkSize: 16 * MiB, streaming: false },
+  { name: '16 x 32 MiB', concurrency: 16, chunkSize: 32 * MiB, streaming: false },
+  { name: '32 x 16 MiB', concurrency: 32, chunkSize: 16 * MiB, streaming: false },
+];
+
+const SWEEP_DOWNLOADS: TransferConfig[] = [
+  { name: 'defaults: 8 x 8 MiB', concurrency: 8, chunkSize: 8 * MiB, streaming: false },
+  { name: '8 x 16 MiB', concurrency: 8, chunkSize: 16 * MiB, streaming: false },
+  { name: '16 x 8 MiB', concurrency: 16, chunkSize: 8 * MiB, streaming: false },
+  { name: '16 x 16 MiB', concurrency: 16, chunkSize: 16 * MiB, streaming: false },
+  { name: '32 x 8 MiB', concurrency: 32, chunkSize: 8 * MiB, streaming: false },
+  { name: '32 x 16 MiB', concurrency: 32, chunkSize: 16 * MiB, streaming: false },
+  { name: '32 x 32 MiB', concurrency: 32, chunkSize: 32 * MiB, streaming: false },
+];
+
+const UPLOADS = matrix === 'sweep' ? SWEEP_UPLOADS : STANDARD_UPLOADS;
+const DOWNLOADS = matrix === 'sweep' ? SWEEP_DOWNLOADS : STANDARD_DOWNLOADS;
+
+/** The step inputs for one configuration. */
+function transferInputs(config: TransferConfig, direction: 'upload' | 'download') {
+  if (config.auto) {
+    return { 'transfer-tuning': 'auto', streaming: 'false' };
+  }
+  return {
+    [`${direction}-concurrency`]: String(config.concurrency),
+    [`${direction}-chunk-size`]: String(config.chunkSize),
+    streaming: String(config.streaming),
+  };
+}
+
 /** Random bytes do not compress, so the archive is about as large as the payload. */
-function writePayload(): Record<string, string> {
+function writePayload(sizeMb: number): Record<string, string> {
   fs.rmSync(payloadDir, { recursive: true, force: true });
   fs.mkdirSync(payloadDir, { recursive: true });
   const digests: Record<string, string> = {};
@@ -219,85 +265,116 @@ async function cleanup(): Promise<void> {
   console.log(`Deleted ${deleted} benchmark object(s) under ${scope}`);
 }
 
-async function main(): Promise<void> {
-  if (env('BENCH_BUCKET') === '') {
-    throw new Error('BENCH_BUCKET is required');
-  }
-  const base = providerInputs();
+interface SizeRun {
+  sizeMb: number;
+  archiveBytes: number;
+  samples: Sample[];
+}
+
+/** Saves and restores one payload size with every configuration. */
+function runSize(sizeMb: number, base: Record<string, string>): SizeRun {
   const samples: Sample[] = [];
   console.log(
     `Payload: ${sizeMb} MiB of random data in ${payloadDir}; ${repeats} repeat(s) per config`
   );
-  const expected = writePayload();
-
-  try {
-    let defaultKey = '';
-    for (const upload of UPLOADS) {
-      const inputs = {
-        'upload-concurrency': String(upload.concurrency),
-        'upload-chunk-size': String(upload.chunkSize),
-        streaming: String(upload.streaming),
-      };
-      const sample: Sample = {
-        kind: 'save',
-        config: upload.name,
-        inputs,
-        bytes: 0,
-        transferMs: [],
-        totalMs: [],
-      };
-      for (let i = 0; i < repeats; i++) {
-        const key = `bench-${runId}-${upload.concurrency}-${upload.chunkSize}-${upload.streaming}-${i}`;
-        const m = runBundle('save-only', { ...base, ...inputs, key, path: 'bench-payload' });
-        sample.bytes = m.bytes;
-        sample.transferMs.push(m.transferDurationMs ?? m.durationMs);
-        sample.totalMs.push(m.durationMs);
-        console.log(
-          `save   ${upload.name.padEnd(36)} ${m.transferDurationMs} ms transfer, ${m.durationMs} ms total`
-        );
-        if (upload.name.startsWith('defaults') && i === 0) {
-          defaultKey = key;
-        }
+  const expected = writePayload(sizeMb);
+  let defaultKey = '';
+  for (const upload of UPLOADS) {
+    const inputs = transferInputs(upload, 'upload');
+    const sample: Sample = {
+      kind: 'save',
+      config: upload.name,
+      inputs,
+      bytes: 0,
+      transferMs: [],
+      totalMs: [],
+    };
+    for (let i = 0; i < repeats; i++) {
+      const id = upload.auto
+        ? 'auto'
+        : `${upload.concurrency}-${upload.chunkSize}-${upload.streaming}`;
+      const key = `bench-${runId}-${sizeMb}-${id}-${i}`;
+      const m = runBundle('save-only', { ...base, ...inputs, key, path: 'bench-payload' });
+      sample.bytes = m.bytes;
+      sample.transferMs.push(m.transferDurationMs ?? m.durationMs);
+      sample.totalMs.push(m.durationMs);
+      console.log(
+        `save    ${String(sizeMb).padStart(5)} MiB ${upload.name.padEnd(36)} ${m.transferDurationMs} ms transfer, ${m.durationMs} ms total`
+      );
+      if (defaultKey === '') {
+        defaultKey = key;
       }
-      samples.push(sample);
     }
+    samples.push(sample);
+  }
 
-    for (const download of DOWNLOADS) {
-      const inputs = {
-        'download-concurrency': String(download.concurrency),
-        'download-chunk-size': String(download.chunkSize),
-        streaming: String(download.streaming),
-      };
-      const sample: Sample = {
-        kind: 'restore',
-        config: download.name,
-        inputs,
-        bytes: 0,
-        transferMs: [],
-        totalMs: [],
-      };
-      for (let i = 0; i < repeats; i++) {
-        fs.rmSync(payloadDir, { recursive: true, force: true });
-        const m = runBundle('restore-only', {
-          ...base,
-          ...inputs,
-          key: defaultKey,
-          path: 'bench-payload',
-          'fail-on-cache-miss': 'true',
-        });
-        const actual = digestPayload();
-        if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-          throw new Error(`Restored payload differs from the saved one for "${download.name}"`);
-        }
-        sample.bytes = m.bytes;
-        sample.downloadParts = m.downloadParts;
-        sample.transferMs.push(m.transferDurationMs ?? m.durationMs);
-        sample.totalMs.push(m.durationMs);
-        console.log(
-          `restore ${download.name.padEnd(36)} ${m.transferDurationMs} ms transfer, ${m.durationMs} ms total, ${m.downloadParts} part(s)`
-        );
+  for (const download of DOWNLOADS) {
+    const inputs = transferInputs(download, 'download');
+    const sample: Sample = {
+      kind: 'restore',
+      config: download.name,
+      inputs,
+      bytes: 0,
+      transferMs: [],
+      totalMs: [],
+    };
+    for (let i = 0; i < repeats; i++) {
+      fs.rmSync(payloadDir, { recursive: true, force: true });
+      const m = runBundle('restore-only', {
+        ...base,
+        ...inputs,
+        key: defaultKey,
+        path: 'bench-payload',
+        'fail-on-cache-miss': 'true',
+      });
+      const actual = digestPayload();
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        throw new Error(`Restored payload differs from the saved one for "${download.name}"`);
       }
-      samples.push(sample);
+      sample.bytes = m.bytes;
+      sample.downloadParts = m.downloadParts;
+      sample.transferMs.push(m.transferDurationMs ?? m.durationMs);
+      sample.totalMs.push(m.durationMs);
+      console.log(
+        `restore ${String(sizeMb).padStart(5)} MiB ${download.name.padEnd(36)} ${m.transferDurationMs} ms transfer, ${m.durationMs} ms total, ${m.downloadParts} part(s)`
+      );
+    }
+    samples.push(sample);
+  }
+  return { sizeMb, archiveBytes: samples[0].bytes, samples };
+}
+
+/** One Markdown table for one size. */
+function formatTable(run: SizeRun): string {
+  const archiveMb = (run.archiveBytes / MiB).toFixed(0);
+  const lines: string[] = [];
+  lines.push(`### Transfer benchmark: ${label}, ${archiveMb} MiB archive, median of ${repeats}`);
+  lines.push('');
+  lines.push('| Direction | Configuration | Transfer | MiB/s | Whole step |');
+  lines.push('| --- | --- | ---: | ---: | ---: |');
+  for (const s of run.samples) {
+    const t = median(s.transferMs);
+    const note =
+      s.kind === 'restore' && s.inputs.streaming === 'true' ? ' (download + extract)' : '';
+    lines.push(
+      `| ${s.kind} | ${s.config} | ${(t / 1000).toFixed(1)} s${note} | ${rate(s.bytes, t)} | ${(median(s.totalMs) / 1000).toFixed(1)} s |`
+    );
+  }
+  return lines.join('\n');
+}
+
+async function main(): Promise<void> {
+  if (env('BENCH_BUCKET') === '') {
+    throw new Error('BENCH_BUCKET is required');
+  }
+  if (sizesMb.length === 0) {
+    throw new Error('BENCH_SIZES_MB has no valid size');
+  }
+  const base = providerInputs();
+  const runs: SizeRun[] = [];
+  try {
+    for (const sizeMb of sizesMb) {
+      runs.push(runSize(sizeMb, base));
     }
   } finally {
     fs.rmSync(payloadDir, { recursive: true, force: true });
@@ -306,31 +383,24 @@ async function main(): Promise<void> {
     );
   }
 
-  const archiveMb = (samples[0].bytes / MiB).toFixed(0);
-  const runner = `${os.platform()} ${os.arch()}, ${os.cpus().length} CPUs, node ${process.version}`;
-  const lines: string[] = [];
-  lines.push(`### Transfer benchmark: ${label}, ${archiveMb} MiB archive, median of ${repeats}`);
-  lines.push('');
-  lines.push(`Runner: ${runner}.`);
-  lines.push('');
-  lines.push('| Direction | Configuration | Transfer | MiB/s | Whole step |');
-  lines.push('| --- | --- | ---: | ---: | ---: |');
-  for (const s of samples) {
-    const t = median(s.transferMs);
-    const note =
-      s.kind === 'restore' && s.inputs.streaming === 'true' ? ' (download + extract)' : '';
-    lines.push(
-      `| ${s.kind} | ${s.config} | ${(t / 1000).toFixed(1)} s${note} | ${rate(s.bytes, t)} | ${(median(s.totalMs) / 1000).toFixed(1)} s |`
-    );
-  }
-  const markdown = lines.join('\n');
+  const runner = `${os.platform()} ${os.arch()}, ${os.cpus().length} CPUs, ${(os.totalmem() / 1024 / MiB).toFixed(0)} GiB RAM, node ${process.version}`;
+  const markdown = [`Runner: ${runner}.`, ...runs.map(formatTable)].join('\n\n');
   console.log(`\n${markdown}\n`);
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, 'benchmark-results.md'), `${markdown}\n`);
   fs.writeFileSync(
     path.join(outDir, 'benchmark-results.json'),
     JSON.stringify(
-      { label, sizeMb, archiveBytes: samples[0].bytes, repeats, runner, samples },
+      {
+        label,
+        provider: env('BENCH_PROVIDER'),
+        matrix,
+        repeats,
+        runner,
+        runId: env('GITHUB_RUN_ID'),
+        date: new Date().toISOString().slice(0, 10),
+        runs,
+      },
       null,
       2
     )
