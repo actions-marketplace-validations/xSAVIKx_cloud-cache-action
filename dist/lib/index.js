@@ -60677,6 +60677,7 @@ var Inputs;
     Inputs["Streaming"] = "streaming";
     Inputs["DownloadConcurrency"] = "download-concurrency";
     Inputs["DownloadChunkSize"] = "download-chunk-size";
+    Inputs["TransferTuning"] = "transfer-tuning";
     Inputs["Metadata"] = "metadata";
     Inputs["Tags"] = "tags";
     // Prune-only inputs
@@ -68274,6 +68275,7 @@ function stripReservedMetadata(metadata) {
 
 const RESTORE_PRIORITIES = ['s3-first', 'github-first'];
 const DUAL_CACHE_STRATEGIES = ['backfill', 'skip-on-hit'];
+const TRANSFER_TUNINGS = ['fixed', 'auto'];
 function readDualCacheStrategy() {
     if (core/* getInput */.V4(constants/* Inputs */.G0.DualCacheStrategy).trim() === 'independent') {
         core/* warning */.$e('dual-cache-strategy "independent" was removed in v1.1; using "backfill", which now checks each tier before uploading.');
@@ -68296,6 +68298,11 @@ function readBoundedInt(name, defaultValue, min, max, effective = defaultValue) 
         return defaultValue;
     }
     return value;
+}
+/** True when the input holds a value that `readBoundedInt` accepts. */
+function isValidBoundedInt(name, min, max) {
+    const raw = core/* getInput */.V4(name).trim();
+    return /^[0-9]+$/.test(raw) && Number(raw) >= min && Number(raw) <= max;
 }
 /** Reads `compression-level`; anything outside 1 to 19 warns and leaves the method's default. */
 function readOptionalLevel() {
@@ -68354,6 +68361,13 @@ function readCacheConfig(state) {
         streaming,
         downloadConcurrency: readBoundedInt(constants/* Inputs */.G0.DownloadConcurrency, constants/* Defaults */.Hw.DefaultDownloadConcurrency, 1, constants/* Defaults */.Hw.MaxDownloadConcurrency),
         downloadChunkSize: readBoundedInt(constants/* Inputs */.G0.DownloadChunkSize, constants/* Defaults */.Hw.DefaultDownloadChunkSize, constants/* Defaults */.Hw.MinDownloadChunkSize, constants/* Defaults */.Hw.MaxDownloadChunkSize),
+        transferTuning: (0,inputUtils/* getInputAsEnum */.q8)(constants/* Inputs */.G0.TransferTuning, TRANSFER_TUNINGS, 'fixed'),
+        explicitTransfer: {
+            uploadConcurrency: isValidBoundedInt(constants/* Inputs */.G0.UploadConcurrency, 1, constants/* Defaults */.Hw.MaxUploadConcurrency),
+            uploadChunkSize: isValidBoundedInt(constants/* Inputs */.G0.UploadChunkSize, constants/* Defaults */.Hw.MinUploadChunkSize, constants/* Defaults */.Hw.MaxUploadChunkSize),
+            downloadConcurrency: isValidBoundedInt(constants/* Inputs */.G0.DownloadConcurrency, 1, constants/* Defaults */.Hw.MaxDownloadConcurrency),
+            downloadChunkSize: isValidBoundedInt(constants/* Inputs */.G0.DownloadChunkSize, constants/* Defaults */.Hw.MinDownloadChunkSize, constants/* Defaults */.Hw.MaxDownloadChunkSize),
+        },
         jobSummary: bool(constants/* State */.Uw.CacheJobSummary, () => (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.JobSummary, true)),
         metadata: json(constants/* State */.Uw.CacheMetadata, () => parseMetadata(core/* getInput */.V4(constants/* Inputs */.G0.Metadata))),
         tags: json(constants/* State */.Uw.CacheTags, () => parseTags(core/* getInput */.V4(constants/* Inputs */.G0.Tags), 'tags', streaming ? MAX_TAGS_WITH_CHECKSUM : undefined)),
@@ -70092,6 +70106,66 @@ async function openObjectPartsStream(client, bucket, key, options) {
     return { body, metadata, tagCount, parts: source.parts.length };
 }
 
+;// CONCATENATED MODULE: ./src/core/transferTuning.ts
+/**
+ * The `transfer-tuning: auto` rules: the part size and the concurrency for one transfer, from the
+ * object size and the provider. Pure on purpose, so any CI front end can use it. The values come
+ * from the size sweep in benchmark run 39905131759 (128, 512 and 2048 MiB on AWS S3, Cloudflare
+ * R2 and Google Cloud Storage, on a 4-CPU runner); the benchmark page lists the measurements.
+ */
+const MiB = 1024 * 1024;
+const GiB = 1024 * MiB;
+/** S3 accepts at most this many parts in one multipart upload. */
+const MAX_UPLOAD_PARTS = 10_000;
+/** The input limits for `upload-chunk-size` and `download-chunk-size`. */
+const MAX_PART_SIZE = 128 * MiB;
+/** At most this many bytes in flight, whatever the free memory. */
+const MAX_BUFFERED_BYTES = 1 * GiB;
+/**
+ * Downloads: 16 MiB parts, 16 at a time. Every provider reached its top group with 128 MiB or
+ * more in flight; the 8 x 8 MiB default was the slowest or close to it at every size.
+ */
+function downloadRule(sizeBytes) {
+    const partSize = 16 * MiB;
+    const parts = Math.max(1, Math.ceil(sizeBytes / partSize));
+    return { concurrency: Math.min(16, parts), partSize };
+}
+/**
+ * Uploads: 16 at a time, with 16 MiB parts up to 256 MiB and 32 MiB parts above, so a small
+ * archive still gets several parts. R2 gained most from more parts in flight on a large archive,
+ * so R2 uploads of 1 GiB or more use 32 x 16 MiB. The part size grows when the archive would
+ * need more than 10,000 parts.
+ */
+function uploadRule(sizeBytes, provider) {
+    let settings = provider === 'r2' && sizeBytes >= GiB
+        ? { concurrency: 32, partSize: 16 * MiB }
+        : { concurrency: 16, partSize: sizeBytes <= 256 * MiB ? 16 * MiB : 32 * MiB };
+    const minPartSize = Math.ceil(sizeBytes / MAX_UPLOAD_PARTS / MiB) * MiB;
+    if (minPartSize > settings.partSize) {
+        settings = { ...settings, partSize: Math.min(minPartSize, MAX_PART_SIZE) };
+    }
+    return settings;
+}
+/**
+ * Returns the settings for one transfer. Concurrency times part size stays within a quarter of
+ * the free memory and within 1 GiB; the concurrency goes down first, to 1 at the lowest.
+ */
+function tuneTransfer(input) {
+    const settings = input.direction === 'download'
+        ? downloadRule(input.sizeBytes)
+        : uploadRule(input.sizeBytes, input.provider);
+    const budget = Math.min(MAX_BUFFERED_BYTES, Math.floor(input.freeMemoryBytes / 4));
+    const fits = Math.max(1, Math.floor(budget / settings.partSize));
+    return { ...settings, concurrency: Math.min(settings.concurrency, fits) };
+}
+/** `Transfer tuning: auto selected 16 x 16 MiB for the download of 2.0 GiB`. */
+function formatTuning(direction, settings, sizeBytes) {
+    const size = sizeBytes >= GiB
+        ? `${(sizeBytes / GiB).toFixed(1)} GiB`
+        : `${(sizeBytes / MiB).toFixed(0)} MiB`;
+    return `Transfer tuning: auto selected ${settings.concurrency} x ${settings.partSize / MiB} MiB for the ${direction} of ${size}`;
+}
+
 ;// CONCATENATED MODULE: ./src/core/keyTemplate.ts
 /**
  * Turns `s3-key-pattern` into object keys, listing prefixes and key extraction.
@@ -70465,6 +70539,7 @@ function computeCacheVersion(paths, compression, enableCrossOsArchive, platform 
 
 
 
+
 /** Logged when streaming is requested but the plan needs the BSD-tar-plus-zstd two-step on Windows. */
 const STREAMING_FALLBACK_MESSAGE = 'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.';
 /** Prefix listings sent at once while searching one ref. */
@@ -70589,7 +70664,36 @@ async function buildS3Tier(config, env = process.env, options = {}) {
         metadata: config.metadata,
         tags: config.tags,
         compressionLevel,
+        tuning: config.transferTuning === 'auto' ? config.explicitTransfer : undefined,
     };
+}
+/**
+ * The transfer settings for one object of `sizeBytes`: the tier's settings with `auto` tuning
+ * applied to each field the workflow did not set. Logs the result when tuning set a field.
+ */
+function settingsFor(tier, direction, sizeBytes) {
+    const fixed = direction === 'upload' ? tier.upload : tier.download;
+    if (tier.tuning === undefined) {
+        return fixed;
+    }
+    const tuned = tuneTransfer({
+        direction,
+        sizeBytes,
+        provider: tier.storage.providerConfig.provider,
+        freeMemoryBytes: external_node_os_.freemem(),
+    });
+    const explicit = direction === 'upload'
+        ? { concurrency: tier.tuning.uploadConcurrency, partSize: tier.tuning.uploadChunkSize }
+        : { concurrency: tier.tuning.downloadConcurrency, partSize: tier.tuning.downloadChunkSize };
+    if (explicit.concurrency && explicit.partSize) {
+        return fixed;
+    }
+    const settings = {
+        concurrency: explicit.concurrency ? fixed.concurrency : tuned.concurrency,
+        partSize: explicit.partSize ? fixed.partSize : tuned.partSize,
+    };
+    core/* info */.pq(formatTuning(direction, settings, sizeBytes));
+    return settings;
 }
 /** gzip stops at 9, so a higher level warns once and uses 9. */
 function clampCompressionLevel(level, method) {
@@ -70825,7 +70929,8 @@ async function saveToS3FileMode(tier, objectKey, entries, primaryKey, retryConfl
         const archiveSize = getArchiveSize(archivePath);
         core/* info */.pq(`Uploading ${(0,inputUtils/* formatSize */.Xq)(archiveSize)} to s3://${bucket}/${objectKey}...`);
         const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: checksum };
-        const attemptUpload = (ifNoneMatch, tagging) => withRetry(() => uploadFile(client, bucket, objectKey, archivePath, tier.upload, {
+        const uploadSettings = settingsFor(tier, 'upload', archiveSize);
+        const attemptUpload = (ifNoneMatch, tagging) => withRetry(() => uploadFile(client, bucket, objectKey, archivePath, uploadSettings, {
             metadata,
             ifNoneMatch,
             tagging,
@@ -71265,7 +71370,7 @@ async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey) {
 }
 /** Part settings for one object, or undefined when it should be fetched in a single request. */
 function partPlan(tier, found) {
-    const { concurrency, partSize } = tier.download;
+    const { concurrency, partSize } = settingsFor(tier, 'download', found.size);
     if (concurrency <= 1 || !shouldDownloadInParts(found.size, partSize)) {
         return undefined;
     }
@@ -72338,7 +72443,7 @@ function isCacheWritable(mode) {
  * The one-line phase summary a restore or save step logs after an S3 transfer. Pure on purpose:
  * it takes the step's metrics and returns text, so any CI front end can print it.
  */
-const MiB = 1024 * 1024;
+const timings_MiB = 1024 * 1024;
 function seconds(ms) {
     return `${(ms / 1000).toFixed(2)} s`;
 }
@@ -72353,7 +72458,7 @@ function formatTimings(metrics) {
     if (transferMs === undefined || transferMs <= 0) {
         return undefined;
     }
-    const rate = `${(metrics.bytes / MiB / (transferMs / 1000)).toFixed(1)} MiB/s`;
+    const rate = `${(metrics.bytes / timings_MiB / (transferMs / 1000)).toFixed(1)} MiB/s`;
     const transfer = `${metrics.step === 'save' ? 'upload' : 'download'} ${seconds(transferMs)} (${rate})`;
     const parts = [
         metrics.lookupDurationMs === undefined
