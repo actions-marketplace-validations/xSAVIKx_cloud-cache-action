@@ -624,6 +624,14 @@ client's `retry-count`. The upload buffers up to `upload-concurrency × upload-c
 A value of `upload-chunk-size` below 5 MiB or above 128 MiB warns and uses the default, since
 every S3-compatible provider rejects smaller parts.
 
+**Automatic tuning.** With `transfer-tuning: auto`, a restore and a file-mode save select the
+part size and the concurrency from the archive size and the provider, for example 16 × 16 MiB for
+a restore. The bytes in flight stay within a quarter of the free memory and 1 GiB. A transfer
+input that you set still wins for that field, and a streaming save keeps the fixed settings. The
+default is `fixed`. The rules and the measurements are in the
+[Performance](https://xsavikx.github.io/cloud-cache-action/guide/performance#automatic-tuning)
+guide and on the [Benchmarks](https://xsavikx.github.io/cloud-cache-action/guide/benchmarks) page.
+
 **Measured on a hosted runner** (512 MiB archive, `ubuntu-latest`, 2026-09-21; the full tables,
 the run-to-run variance and the settings that measured best are in the
 [Performance](https://xsavikx.github.io/cloud-cache-action/guide/performance) guide):
@@ -810,6 +818,7 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | `download-chunk-size`            |    No    |                         `8388608`                          | Bytes per ranged GET request (1 MiB–128 MiB); archives no larger than this use one request |
 | `upload-concurrency`             |    No    |                            `8`                             | Multipart upload parts sent at once (1–32)                                  |
 | `upload-chunk-size`              |    No    |                         `67108864`                         | Bytes per multipart upload part (5 MiB–128 MiB); the same input `actions/cache` takes |
+| `transfer-tuning`                |    No    |                          `fixed`                           | `auto` selects the part size and the concurrency per archive from its size and the provider; a transfer input you set still wins (see [Parallel Transfers](#parallel-transfers)) |
 | `compression-level`              |    No    |                            Tool default                            | zstd 1–19 or gzip 1–9 for saving; lower is faster and larger (see [Performance](https://xsavikx.github.io/cloud-cache-action/guide/performance)) |
 | `job-summary`                    |    No    |                           `true`                           | Write a job summary table with the cache keys, hit, source, size and duration |
 | `metadata`                       |    No    |                             —                              | User metadata (`x-amz-meta-*`) for every saved object, one `key=value` per line, with surrounding whitespace trimmed (see [Object Metadata and Tags](#object-metadata-and-tags)) |

@@ -185,9 +185,42 @@ holds 512 MiB of parts in memory in streaming mode. The defaults do not change i
 ### A streaming save on S3 spends time after the upload
 
 On S3, a streaming save spent 7.3 s (512 MiB) and 32.7 s (2 GiB) outside the transfer in the v1.9
-runs, and about the same in the v1.8 runs. On R2 and GCS it spent less than 1 s. The cause is not
-known yet. The benchmark does not record the step log. A likely cause is the `CopyObject` fallback
-that attaches the checksum when the tag path is not used.
+runs, and about the same in the v1.8 runs. On R2 and GCS it spent less than 1 s. A debug run
+found the cause: the benchmark credentials do not have `s3:PutObjectTagging`. The save then
+attaches its checksum with a `CopyObject` of the whole object, which took about 7.5 s for
+512 MiB. With the permissions that [Security](./security.md) lists, the save uses a tag and does
+not copy. Since v1.9 the step logs a line that names the missing permission.
+
+## Automatic tuning
+
+Set `transfer-tuning: auto` to let the action select the part size and the concurrency for each
+restore and each file-mode save, from the archive size and the provider:
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    transfer-tuning: auto
+```
+
+| Transfer | Archive size | Concurrency × part size |
+| --- | --- | --- |
+| Restore | any | 16 × 16 MiB, fewer workers when the archive has fewer parts |
+| Save | up to 256 MiB | 16 × 16 MiB |
+| Save | more than 256 MiB | 16 × 32 MiB |
+| Save to Cloudflare R2 | 1 GiB or more | 32 × 16 MiB |
+
+- The bytes in flight stay within a quarter of the free memory and within 1 GiB. The action
+  reduces the concurrency first.
+- An upload part grows when the archive would need more than 10,000 parts.
+- A transfer input that you set, for example `download-concurrency`, still wins for that field.
+- A streaming save does not know the archive size in advance, so it keeps the fixed settings.
+- The step logs the selection, for example
+  `Transfer tuning: auto selected 16 x 16 MiB for the download of 2.0 GiB`.
+- The default is `transfer-tuning: fixed`, which does not change the settings.
+
+In benchmark run 39906947417, `auto` was faster than the defaults for every provider and size
+measured (128 MiB, 512 MiB and 2 GiB): 1.13× to 3.22× on restores and 1.11× to 1.86× on saves.
+[Benchmarks](./benchmarks.md) has the full tables, with the other fixed settings.
 
 ## Recommended settings
 
