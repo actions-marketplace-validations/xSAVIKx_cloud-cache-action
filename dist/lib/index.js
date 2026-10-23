@@ -60759,6 +60759,7 @@ var State;
     State["CacheHitSource"] = "CACHE_HIT_SOURCE";
     State["CacheJobSummary"] = "CACHE_JOB_SUMMARY";
     State["CacheMetricsFile"] = "CACHE_METRICS_FILE";
+    State["CacheTransferTuning"] = "CACHE_TRANSFER_TUNING";
 })(State || (State = {}));
 var Events;
 (function (Events) {
@@ -68285,24 +68286,19 @@ function readDualCacheStrategy() {
 }
 /**
  * Reads an integer input within [min, max]; anything else warns and uses the default. The
- * warning names `effective`, the value the default stands for, when the default is undefined.
+ * warning names `effective`, what the default stands for. `set` is true only for a valid value.
  */
 function readBoundedInt(name, defaultValue, min, max, effective = defaultValue) {
     const raw = core/* getInput */.V4(name).trim();
     if (raw === '') {
-        return defaultValue;
+        return { value: defaultValue, set: false };
     }
     const value = /^[0-9]+$/.test(raw) ? Number(raw) : Number.NaN;
     if (Number.isNaN(value) || value < min || value > max) {
         core/* warning */.$e(`Input "${name}" must be an integer between ${min} and ${max}; got "${raw}". Using ${effective}.`);
-        return defaultValue;
+        return { value: defaultValue, set: false };
     }
-    return value;
-}
-/** True when the input holds a value that `readBoundedInt` accepts. */
-function isValidBoundedInt(name, min, max) {
-    const raw = core/* getInput */.V4(name).trim();
-    return /^[0-9]+$/.test(raw) && Number(raw) >= min && Number(raw) <= max;
+    return { value, set: true };
 }
 /** Reads `compression-level`; anything outside 1 to 19 warns and leaves the method's default. */
 function readOptionalLevel() {
@@ -68334,6 +68330,13 @@ function readCacheConfig(state) {
     };
     const retryCountState = persisted(constants/* State */.Uw.CacheRetryCount);
     const streaming = bool(constants/* State */.Uw.CacheStreaming, () => (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.Streaming));
+    const transferTuning = text(constants/* State */.Uw.CacheTransferTuning, () => (0,inputUtils/* getInputAsEnum */.q8)(constants/* Inputs */.G0.TransferTuning, TRANSFER_TUNINGS, 'fixed'));
+    // Under `auto`, an invalid transfer input leaves the field to the tuning, not to the default.
+    const tuned = (effective) => transferTuning === 'auto' ? 'the transfer-tuning: auto value' : effective;
+    const uploadChunkSize = readBoundedInt(constants/* Inputs */.G0.UploadChunkSize, undefined, constants/* Defaults */.Hw.MinUploadChunkSize, constants/* Defaults */.Hw.MaxUploadChunkSize, tuned(constants/* Defaults */.Hw.DefaultUploadChunkSize));
+    const uploadConcurrency = readBoundedInt(constants/* Inputs */.G0.UploadConcurrency, constants/* Defaults */.Hw.DefaultUploadConcurrency, 1, constants/* Defaults */.Hw.MaxUploadConcurrency, tuned(constants/* Defaults */.Hw.DefaultUploadConcurrency));
+    const downloadConcurrency = readBoundedInt(constants/* Inputs */.G0.DownloadConcurrency, constants/* Defaults */.Hw.DefaultDownloadConcurrency, 1, constants/* Defaults */.Hw.MaxDownloadConcurrency, tuned(constants/* Defaults */.Hw.DefaultDownloadConcurrency));
+    const downloadChunkSize = readBoundedInt(constants/* Inputs */.G0.DownloadChunkSize, constants/* Defaults */.Hw.DefaultDownloadChunkSize, constants/* Defaults */.Hw.MinDownloadChunkSize, constants/* Defaults */.Hw.MaxDownloadChunkSize, tuned(constants/* Defaults */.Hw.DefaultDownloadChunkSize));
     return {
         primaryKey: text(constants/* State */.Uw.CachePrimaryKey, () => core/* getInput */.V4(constants/* Inputs */.G0.Key).trim()),
         paths: json(constants/* State */.Uw.CachePaths, () => (0,inputUtils/* getInputAsArray */.q3)(constants/* Inputs */.G0.Path)),
@@ -68342,8 +68345,8 @@ function readCacheConfig(state) {
         failOnCacheMiss: (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.FailOnCacheMiss),
         readOnly: bool(constants/* State */.Uw.CacheReadOnly, () => (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.ReadOnly)),
         enableCrossOsArchive: (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.EnableCrossOsArchive),
-        uploadChunkSize: readBoundedInt(constants/* Inputs */.G0.UploadChunkSize, undefined, constants/* Defaults */.Hw.MinUploadChunkSize, constants/* Defaults */.Hw.MaxUploadChunkSize, constants/* Defaults */.Hw.DefaultUploadChunkSize),
-        uploadConcurrency: readBoundedInt(constants/* Inputs */.G0.UploadConcurrency, constants/* Defaults */.Hw.DefaultUploadConcurrency, 1, constants/* Defaults */.Hw.MaxUploadConcurrency),
+        uploadChunkSize: uploadChunkSize.value,
+        uploadConcurrency: uploadConcurrency.value,
         compressionLevel: readOptionalLevel(),
         s3KeyPattern: text(constants/* State */.Uw.CacheS3KeyPattern, () => core/* getInput */.V4(constants/* Inputs */.G0.S3KeyPattern) || constants/* Defaults */.Hw.DefaultS3KeyPattern),
         prefix: text(constants/* State */.Uw.CachePrefix, () => core/* getInput */.V4(constants/* Inputs */.G0.Prefix)),
@@ -68359,14 +68362,14 @@ function readCacheConfig(state) {
         dualCacheStrategy: text(constants/* State */.Uw.CacheDualCacheStrategy, readDualCacheStrategy),
         dualCacheStrict: bool(constants/* State */.Uw.CacheDualCacheStrict, () => (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.DualCacheStrict)),
         streaming,
-        downloadConcurrency: readBoundedInt(constants/* Inputs */.G0.DownloadConcurrency, constants/* Defaults */.Hw.DefaultDownloadConcurrency, 1, constants/* Defaults */.Hw.MaxDownloadConcurrency),
-        downloadChunkSize: readBoundedInt(constants/* Inputs */.G0.DownloadChunkSize, constants/* Defaults */.Hw.DefaultDownloadChunkSize, constants/* Defaults */.Hw.MinDownloadChunkSize, constants/* Defaults */.Hw.MaxDownloadChunkSize),
-        transferTuning: (0,inputUtils/* getInputAsEnum */.q8)(constants/* Inputs */.G0.TransferTuning, TRANSFER_TUNINGS, 'fixed'),
+        downloadConcurrency: downloadConcurrency.value,
+        downloadChunkSize: downloadChunkSize.value,
+        transferTuning,
         explicitTransfer: {
-            uploadConcurrency: isValidBoundedInt(constants/* Inputs */.G0.UploadConcurrency, 1, constants/* Defaults */.Hw.MaxUploadConcurrency),
-            uploadChunkSize: isValidBoundedInt(constants/* Inputs */.G0.UploadChunkSize, constants/* Defaults */.Hw.MinUploadChunkSize, constants/* Defaults */.Hw.MaxUploadChunkSize),
-            downloadConcurrency: isValidBoundedInt(constants/* Inputs */.G0.DownloadConcurrency, 1, constants/* Defaults */.Hw.MaxDownloadConcurrency),
-            downloadChunkSize: isValidBoundedInt(constants/* Inputs */.G0.DownloadChunkSize, constants/* Defaults */.Hw.MinDownloadChunkSize, constants/* Defaults */.Hw.MaxDownloadChunkSize),
+            uploadConcurrency: uploadConcurrency.set,
+            uploadChunkSize: uploadChunkSize.set,
+            downloadConcurrency: downloadConcurrency.set,
+            downloadChunkSize: downloadChunkSize.set,
         },
         jobSummary: bool(constants/* State */.Uw.CacheJobSummary, () => (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.JobSummary, true)),
         metadata: json(constants/* State */.Uw.CacheMetadata, () => parseMetadata(core/* getInput */.V4(constants/* Inputs */.G0.Metadata))),
@@ -68396,6 +68399,7 @@ function persistCacheConfig(state, config) {
     state.setState(constants/* State */.Uw.CacheMetadata, JSON.stringify(config.metadata));
     state.setState(constants/* State */.Uw.CacheTags, JSON.stringify(config.tags));
     state.setState(constants/* State */.Uw.CacheMetricsFile, config.metricsFile);
+    state.setState(constants/* State */.Uw.CacheTransferTuning, config.transferTuning);
 }
 
 ;// CONCATENATED MODULE: ./src/utils/concurrency.ts
@@ -70147,23 +70151,36 @@ function uploadRule(sizeBytes, provider) {
     return settings;
 }
 /**
- * Returns the settings for one transfer. Concurrency times part size stays within a quarter of
- * the free memory and within 1 GiB; the concurrency goes down first, to 1 at the lowest.
+ * Returns the settings for one transfer: the rule's values, with the `fixed` values in their
+ * place. The budget is a quarter of the free memory, at most 1 GiB. The code that reads the parts
+ * holds one part more than the concurrency, so a tuned concurrency goes down until
+ * `(concurrency + 1) * partSize` fits the budget, to 1 at the lowest. The part size does not
+ * shrink, so a very small budget still gets one part in flight. A concurrency that the workflow
+ * set is not reduced.
  */
 function tuneTransfer(input) {
-    const settings = input.direction === 'download'
+    const rule = input.direction === 'download'
         ? downloadRule(input.sizeBytes)
         : uploadRule(input.sizeBytes, input.provider);
+    const partSize = input.fixed?.partSize ?? rule.partSize;
+    if (input.fixed?.concurrency !== undefined) {
+        return { concurrency: input.fixed.concurrency, partSize };
+    }
     const budget = Math.min(MAX_BUFFERED_BYTES, Math.floor(input.freeMemoryBytes / 4));
-    const fits = Math.max(1, Math.floor(budget / settings.partSize));
-    return { ...settings, concurrency: Math.min(settings.concurrency, fits) };
+    const fits = Math.max(1, Math.floor(budget / partSize) - 1);
+    return { concurrency: Math.min(rule.concurrency, fits), partSize };
 }
-/** `Transfer tuning: auto selected 16 x 16 MiB for the download of 2.0 GiB`. */
-function formatTuning(direction, settings, sizeBytes) {
+/**
+ * `Transfer tuning: auto selected 16 x 16 MiB for the download of 2.0 GiB`. A value that the
+ * workflow set is marked `(set)`.
+ */
+function formatTuning(direction, settings, sizeBytes, fixed = {}) {
     const size = sizeBytes >= GiB
         ? `${(sizeBytes / GiB).toFixed(1)} GiB`
         : `${(sizeBytes / MiB).toFixed(0)} MiB`;
-    return `Transfer tuning: auto selected ${settings.concurrency} x ${settings.partSize / MiB} MiB for the ${direction} of ${size}`;
+    const concurrency = `${settings.concurrency}${fixed.concurrency === undefined ? '' : ' (set)'}`;
+    const partSize = `${settings.partSize / MiB} MiB${fixed.partSize === undefined ? '' : ' (set)'}`;
+    return `Transfer tuning: auto selected ${concurrency} x ${partSize} for the ${direction} of ${size}`;
 }
 
 ;// CONCATENATED MODULE: ./src/core/keyTemplate.ts
@@ -70672,27 +70689,29 @@ async function buildS3Tier(config, env = process.env, options = {}) {
  * applied to each field the workflow did not set. Logs the result when tuning set a field.
  */
 function settingsFor(tier, direction, sizeBytes) {
-    const fixed = direction === 'upload' ? tier.upload : tier.download;
+    const current = direction === 'upload' ? tier.upload : tier.download;
     if (tier.tuning === undefined) {
-        return fixed;
+        return current;
     }
-    const tuned = tuneTransfer({
-        direction,
-        sizeBytes,
-        provider: tier.storage.providerConfig.provider,
-        freeMemoryBytes: external_node_os_.freemem(),
-    });
     const explicit = direction === 'upload'
         ? { concurrency: tier.tuning.uploadConcurrency, partSize: tier.tuning.uploadChunkSize }
         : { concurrency: tier.tuning.downloadConcurrency, partSize: tier.tuning.downloadChunkSize };
     if (explicit.concurrency && explicit.partSize) {
-        return fixed;
+        return current;
     }
-    const settings = {
-        concurrency: explicit.concurrency ? fixed.concurrency : tuned.concurrency,
-        partSize: explicit.partSize ? fixed.partSize : tuned.partSize,
+    const fixed = {
+        concurrency: explicit.concurrency ? current.concurrency : undefined,
+        partSize: explicit.partSize ? current.partSize : undefined,
     };
-    core/* info */.pq(formatTuning(direction, settings, sizeBytes));
+    const settings = tuneTransfer({
+        direction,
+        sizeBytes,
+        provider: tier.storage.providerConfig.provider,
+        // The free memory, or less under a container limit, which `os.freemem()` does not see.
+        freeMemoryBytes: process.availableMemory(),
+        fixed,
+    });
+    core/* info */.pq(formatTuning(direction, settings, sizeBytes, fixed));
     return settings;
 }
 /** gzip stops at 9, so a higher level warns once and uses 9. */
