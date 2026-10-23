@@ -58,7 +58,8 @@ import {
 import { isRetryableStreamError, withRetry } from '../storage/retry';
 import { formatSize, isExactKeyMatch } from '../utils/inputUtils';
 import { mapWithConcurrency } from '../utils/concurrency';
-import type { CacheConfig } from './config';
+import type { CacheConfig, ExplicitTransferInputs } from './config';
+import { formatTuning, tuneTransfer } from './transferTuning';
 import {
   encodeTagging,
   SHA256_METADATA_KEY,
@@ -102,6 +103,11 @@ export interface S3Tier {
   tags: ObjectTag[];
   /** zstd or gzip level for saving; undefined keeps each method's own default. */
   compressionLevel?: number;
+  /**
+   * Set for `transfer-tuning: auto`: the settings that `download` and `upload` give for each field
+   * the workflow did not set are replaced per object (see transferTuning.ts).
+   */
+  tuning?: ExplicitTransferInputs;
 }
 
 export interface DownloadSettings {
@@ -273,7 +279,42 @@ export async function buildS3Tier(
     metadata: config.metadata,
     tags: config.tags,
     compressionLevel,
+    tuning: config.transferTuning === 'auto' ? config.explicitTransfer : undefined,
   };
+}
+
+/**
+ * The transfer settings for one object of `sizeBytes`: the tier's settings with `auto` tuning
+ * applied to each field the workflow did not set. Logs the result when tuning set a field.
+ */
+function settingsFor(
+  tier: S3Tier,
+  direction: 'upload' | 'download',
+  sizeBytes: number
+): { concurrency: number; partSize: number } {
+  const fixed = direction === 'upload' ? tier.upload : tier.download;
+  if (tier.tuning === undefined) {
+    return fixed;
+  }
+  const tuned = tuneTransfer({
+    direction,
+    sizeBytes,
+    provider: tier.storage.providerConfig.provider,
+    freeMemoryBytes: os.freemem(),
+  });
+  const explicit =
+    direction === 'upload'
+      ? { concurrency: tier.tuning.uploadConcurrency, partSize: tier.tuning.uploadChunkSize }
+      : { concurrency: tier.tuning.downloadConcurrency, partSize: tier.tuning.downloadChunkSize };
+  if (explicit.concurrency && explicit.partSize) {
+    return fixed;
+  }
+  const settings = {
+    concurrency: explicit.concurrency ? fixed.concurrency : tuned.concurrency,
+    partSize: explicit.partSize ? fixed.partSize : tuned.partSize,
+  };
+  core.info(formatTuning(direction, settings, sizeBytes));
+  return settings;
 }
 
 /** gzip stops at 9, so a higher level warns once and uses 9. */
@@ -592,10 +633,11 @@ async function saveToS3FileMode(
     const archiveSize = getArchiveSize(archivePath);
     core.info(`Uploading ${formatSize(archiveSize)} to s3://${bucket}/${objectKey}...`);
     const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: checksum };
+    const uploadSettings = settingsFor(tier, 'upload', archiveSize);
     const attemptUpload = (ifNoneMatch: string | undefined, tagging: string | undefined) =>
       withRetry(
         () =>
-          uploadFile(client, bucket, objectKey, archivePath, tier.upload, {
+          uploadFile(client, bucket, objectKey, archivePath, uploadSettings, {
             metadata,
             ifNoneMatch,
             tagging,
@@ -1112,7 +1154,7 @@ async function saveToS3Streaming(
 
 /** Part settings for one object, or undefined when it should be fetched in a single request. */
 function partPlan(tier: S3Tier, found: S3Match): PartDownloadOptions | undefined {
-  const { concurrency, partSize } = tier.download;
+  const { concurrency, partSize } = settingsFor(tier, 'download', found.size);
   if (concurrency <= 1 || !shouldDownloadInParts(found.size, partSize)) {
     return undefined;
   }

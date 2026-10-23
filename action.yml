@@ -20,9 +20,8 @@ inputs:
     description: 'The chunk size used to split up large files during upload, in bytes (5 MiB to 128 MiB; default 64 MiB, as in actions/cache)'
     required: false
   upload-concurrency:
-    description: 'How many multipart upload parts are sent at once (1-32)'
+    description: 'How many multipart upload parts are sent at once (1-32; default 8)'
     required: false
-    default: '8'
   compression-level:
     description: 'Compression level for saving: 1-19 for zstd, 1-9 for gzip. Unset uses the tool default (zstd 3). Lower is faster and larger.'
     required: false
@@ -116,13 +115,15 @@ inputs:
     description: 'Object tags to set on every saved cache object, one key=value per line (up to 10; ignored with a warning on providers without object tagging)'
     required: false
   download-concurrency:
-    description: 'How many ranged GET requests a restore runs at once when the archive is larger than download-chunk-size (1-32). Set to 1 to download the archive in one request.'
+    description: 'How many ranged GET requests a restore runs at once when the archive is larger than download-chunk-size (1-32). Set to 1 to download the archive in one request. Default 8.'
     required: false
-    default: '8'
   download-chunk-size:
-    description: 'Bytes per ranged GET request of a parallel download (1 MiB to 128 MiB). Archives no larger than this are downloaded in one request.'
+    description: 'Bytes per ranged GET request of a parallel download (1 MiB to 128 MiB). Archives no larger than this are downloaded in one request. Default 8388608 (8 MiB).'
     required: false
-    default: '8388608'
+  transfer-tuning:
+    description: 'fixed: use the transfer inputs and their defaults. auto: select the part size and the concurrency from the archive size and the provider, for restores and file-mode saves. An explicit upload-concurrency, upload-chunk-size, download-concurrency or download-chunk-size still wins.'
+    required: false
+    default: 'fixed'
 
   # Dual-cache inputs
   dual-cache:

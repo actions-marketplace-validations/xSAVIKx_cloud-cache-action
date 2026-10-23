@@ -1152,6 +1152,13 @@ describe('buildS3Tier', () => {
     streaming: false,
     downloadConcurrency: 8,
     downloadChunkSize: 8388608,
+    transferTuning: 'fixed',
+    explicitTransfer: {
+      uploadConcurrency: false,
+      uploadChunkSize: false,
+      downloadConcurrency: false,
+      downloadChunkSize: false,
+    },
     jobSummary: true,
     metadata: {},
     tags: [],
@@ -1191,6 +1198,14 @@ describe('buildS3Tier', () => {
     expect(built.template.objectKey(FEATURE, 'k')).toBe(
       `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`
     );
+  });
+
+  it('sets the tuning only for transfer-tuning: auto', async () => {
+    expect((await buildS3Tier(config, env)).tuning).toBeUndefined();
+    const explicitTransfer = { ...config.explicitTransfer, uploadConcurrency: true };
+    expect(
+      (await buildS3Tier({ ...config, transferTuning: 'auto', explicitTransfer }, env)).tuning
+    ).toEqual(explicitTransfer);
   });
 
   it('does not scope by ref without GITHUB_REF or with scoped-to-ref: false', async () => {
@@ -2305,6 +2320,98 @@ describe('restoreFromS3 parallel download', () => {
     expect(outcome).toMatchObject({ kind: 'hit', downloadParts: 1 });
     expect(mockDownloadFileInParts).not.toHaveBeenCalled();
     expect(mockDownloadFile).toHaveBeenCalledTimes(1);
+  });
+
+  const noExplicit = {
+    uploadConcurrency: false,
+    uploadChunkSize: false,
+    downloadConcurrency: false,
+    downloadChunkSize: false,
+  };
+
+  it('selects the part size and the concurrency from the object size with auto tuning', async () => {
+    large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'good-hash' },
+      parts: 2,
+    });
+    mockSha256File.mockResolvedValue('good-hash');
+    await restoreFromS3(tier({ tuning: noExplicit }), 'k', [], false);
+    const [, , , , options] = mockDownloadFileInParts.mock.calls[0];
+    expect(options).toMatchObject({ size: 20 * MiB + 1, partSize: 16 * MiB, concurrency: 2 });
+    expect(mockInfo).toHaveBeenCalledWith(
+      'Transfer tuning: auto selected 2 x 16 MiB for the download of 20 MiB'
+    );
+  });
+
+  it('keeps an explicit download-concurrency with auto tuning', async () => {
+    large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'good-hash' },
+      parts: 2,
+    });
+    mockSha256File.mockResolvedValue('good-hash');
+    await restoreFromS3(
+      tier({
+        download: { concurrency: 5, partSize: 8 * MiB },
+        tuning: { ...noExplicit, downloadConcurrency: true },
+      }),
+      'k',
+      [],
+      false
+    );
+    const [, , , , options] = mockDownloadFileInParts.mock.calls[0];
+    expect(options).toMatchObject({ partSize: 16 * MiB, concurrency: 5 });
+  });
+
+  it('uses the tier settings, with no tuning line, when both download inputs are set', async () => {
+    large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'good-hash' },
+      parts: 3,
+    });
+    mockSha256File.mockResolvedValue('good-hash');
+    await restoreFromS3(
+      tier({ tuning: { ...noExplicit, downloadConcurrency: true, downloadChunkSize: true } }),
+      'k',
+      [],
+      false
+    );
+    const [, , , , options] = mockDownloadFileInParts.mock.calls[0];
+    expect(options).toMatchObject({ partSize: 8 * MiB, concurrency: 8 });
+    expect(mockInfo).not.toHaveBeenCalledWith(expect.stringContaining('Transfer tuning'));
+  });
+
+  it('tunes a file-mode upload from the archive size with auto tuning', async () => {
+    mockGetArchiveSize.mockReturnValue(128 * MiB);
+    await saveToS3(tier({ tuning: noExplicit }), 'k', ['node_modules']);
+    const [, , , , settings] = mockUploadFile.mock.calls[0];
+    expect(settings).toEqual({ concurrency: 16, partSize: 16 * MiB });
+    expect(mockInfo).toHaveBeenCalledWith(
+      'Transfer tuning: auto selected 16 x 16 MiB for the upload of 128 MiB'
+    );
+  });
+
+  it('keeps an explicit upload-chunk-size with auto tuning', async () => {
+    mockGetArchiveSize.mockReturnValue(2 * 1024 * MiB);
+    await saveToS3(
+      tier({
+        upload: { concurrency: 8, partSize: 64 * MiB },
+        tuning: { ...noExplicit, uploadChunkSize: true },
+      }),
+      'k',
+      ['node_modules']
+    );
+    const [, , , , settings] = mockUploadFile.mock.calls[0];
+    expect(settings).toEqual({ concurrency: 16, partSize: 64 * MiB });
+  });
+
+  it('does not tune with fixed tuning', async () => {
+    mockGetArchiveSize.mockReturnValue(128 * MiB);
+    await saveToS3(tier(), 'k', ['node_modules']);
+    const [, , , , settings] = mockUploadFile.mock.calls[0];
+    expect(settings).toEqual({ concurrency: 8, partSize: 64 * MiB });
+    expect(mockInfo).not.toHaveBeenCalledWith(expect.stringContaining('Transfer tuning'));
   });
 
   it('falls back to one request, with an info line, when the server ignores Range', async () => {

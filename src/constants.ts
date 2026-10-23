@@ -32,6 +32,7 @@ export enum Inputs {
   Streaming = 'streaming',
   DownloadConcurrency = 'download-concurrency',
   DownloadChunkSize = 'download-chunk-size',
+  TransferTuning = 'transfer-tuning',
   Metadata = 'metadata',
   Tags = 'tags',
 

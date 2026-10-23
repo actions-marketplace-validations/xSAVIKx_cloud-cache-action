@@ -104,6 +104,7 @@ const SWEEP_UPLOADS: TransferConfig[] = [
   { name: '16 x 16 MiB', concurrency: 16, chunkSize: 16 * MiB, streaming: false },
   { name: '16 x 32 MiB', concurrency: 16, chunkSize: 32 * MiB, streaming: false },
   { name: '32 x 16 MiB', concurrency: 32, chunkSize: 16 * MiB, streaming: false },
+  AUTO,
 ];
 
 const SWEEP_DOWNLOADS: TransferConfig[] = [
@@ -114,6 +115,7 @@ const SWEEP_DOWNLOADS: TransferConfig[] = [
   { name: '32 x 8 MiB', concurrency: 32, chunkSize: 8 * MiB, streaming: false },
   { name: '32 x 16 MiB', concurrency: 32, chunkSize: 16 * MiB, streaming: false },
   { name: '32 x 32 MiB', concurrency: 32, chunkSize: 32 * MiB, streaming: false },
+  AUTO,
 ];
 
 const UPLOADS = matrix === 'sweep' ? SWEEP_UPLOADS : STANDARD_UPLOADS;

@@ -95,13 +95,15 @@ inputs:
     required: false
     default: 'false'
   download-concurrency:
-    description: 'How many ranged GET requests a restore runs at once when the archive is larger than download-chunk-size (1-32). Set to 1 to download the archive in one request.'
+    description: 'How many ranged GET requests a restore runs at once when the archive is larger than download-chunk-size (1-32). Set to 1 to download the archive in one request. Default 8.'
     required: false
-    default: '8'
   download-chunk-size:
-    description: 'Bytes per ranged GET request of a parallel download (1 MiB to 128 MiB). Archives no larger than this are downloaded in one request.'
+    description: 'Bytes per ranged GET request of a parallel download (1 MiB to 128 MiB). Archives no larger than this are downloaded in one request. Default 8388608 (8 MiB).'
     required: false
-    default: '8388608'
+  transfer-tuning:
+    description: 'fixed: use the transfer inputs and their defaults. auto: select the part size and the concurrency from the archive size and the provider, for restores and file-mode saves. An explicit upload-concurrency, upload-chunk-size, download-concurrency or download-chunk-size still wins.'
+    required: false
+    default: 'fixed'
 
   # Dual-cache inputs
   dual-cache:

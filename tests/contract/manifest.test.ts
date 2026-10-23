@@ -153,12 +153,30 @@ describe('action manifests', () => {
     };
     expectDefault(Inputs.S3KeyPattern, Defaults.DefaultS3KeyPattern);
     expectDefault(Inputs.RetryCount, String(Defaults.DefaultRetryCount));
-    expectDefault(Inputs.DownloadConcurrency, String(Defaults.DefaultDownloadConcurrency));
-    expectDefault(Inputs.DownloadChunkSize, String(Defaults.DefaultDownloadChunkSize));
-    expectDefault(Inputs.UploadConcurrency, String(Defaults.DefaultUploadConcurrency));
+    expectDefault(Inputs.TransferTuning, 'fixed');
     expectDefault(Inputs.RestorePriority, Defaults.DefaultRestorePriority);
     expectDefault(Inputs.DualCacheStrategy, Defaults.DefaultDualCacheStrategy);
   });
+
+  it.each(allManifests)(
+    '%s gives the transfer inputs no default, so transfer-tuning: auto can tell a set value from an unset one',
+    (_file, manifest) => {
+      for (const [name, value] of [
+        [Inputs.DownloadConcurrency, String(Defaults.DefaultDownloadConcurrency)],
+        [Inputs.DownloadChunkSize, String(Defaults.DefaultDownloadChunkSize)],
+        [Inputs.UploadConcurrency, String(Defaults.DefaultUploadConcurrency)],
+        [Inputs.UploadChunkSize, '64 MiB'],
+      ]) {
+        if (name in manifest.inputs) {
+          expect({ name, default: manifest.inputs[name].default }).toEqual({
+            name,
+            default: undefined,
+          });
+          expect(manifest.inputs[name].description).toContain(value);
+        }
+      }
+    }
+  );
 
   it('no longer offers save-always, which post-if can never honour', () => {
     for (const [, manifest] of allManifests) {
