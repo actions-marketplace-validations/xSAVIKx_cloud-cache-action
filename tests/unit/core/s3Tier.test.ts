@@ -244,9 +244,8 @@ jest.unstable_mockModule('../../../src/archive/checksum', () => ({
   createSha256Tap: () => mockCreateSha256Tap(),
 }));
 
-const { buildS3Tier, findS3Match, listCandidates, restoreFromS3, saveToS3 } = await import(
-  '../../../src/core/s3Tier'
-);
+const { buildS3Tier, findS3Match, listCandidates, restoreFromS3, saveToS3, usableMemory } =
+  await import('../../../src/core/s3Tier');
 const { buildExplainReport } = await import('../../../src/core/explain');
 type S3Tier = Awaited<ReturnType<typeof buildS3Tier>>;
 
@@ -285,6 +284,8 @@ const tier = (overrides: Partial<S3Tier> = {}): S3Tier => ({
   upload: { concurrency: 8, partSize: 64 * 1024 * 1024 },
   metadata: {},
   tags: [],
+  // A fixed budget, so that the auto tuning tests do not depend on the memory of the host.
+  memory: () => 16 * 1024 * 1024 * 1024,
   ...overrides,
 });
 
@@ -2269,6 +2270,22 @@ describe('saveToS3 streaming failure timing', () => {
   }, 20_000);
 });
 
+describe('usableMemory', () => {
+  const GiB = 1024 * 1024 * 1024;
+  it('uses the free memory without a container limit', () => {
+    expect(usableMemory(8 * GiB, 0, GiB)).toBe(8 * GiB);
+  });
+  it('uses what is left of a container limit when that is lower', () => {
+    expect(usableMemory(30 * GiB, 4 * GiB, GiB)).toBe(3 * GiB);
+  });
+  it('uses the free memory when it is lower than a container limit', () => {
+    expect(usableMemory(2 * GiB, 16 * GiB, GiB)).toBe(2 * GiB);
+  });
+  it('never returns less than 0', () => {
+    expect(usableMemory(2 * GiB, GiB, 2 * GiB)).toBe(0);
+  });
+});
+
 describe('restoreFromS3 parallel download', () => {
   const MiB = 1024 * 1024;
   // 20 MiB + 1 byte: three 8 MiB parts, so the object is larger than one part.
@@ -2322,17 +2339,9 @@ describe('restoreFromS3 parallel download', () => {
     expect(mockDownloadFile).toHaveBeenCalledTimes(1);
   });
 
-  // The tuning budget reads the memory of the test host; fix it so that the bound is known.
-  let availableMemory: ReturnType<typeof jest.spyOn>;
-  beforeEach(() => {
-    availableMemory = jest.spyOn(process, 'availableMemory').mockReturnValue(16 * 1024 * MiB);
-  });
-  afterEach(() => availableMemory.mockRestore());
-
   it('bounds the tuned concurrency by the memory that the process can use', async () => {
-    availableMemory.mockReturnValue(256 * MiB);
     mockGetArchiveSize.mockReturnValue(2 * 1024 * MiB);
-    await saveToS3(tier({ tuning: noExplicit }), 'k', ['node_modules']);
+    await saveToS3(tier({ tuning: noExplicit, memory: () => 256 * MiB }), 'k', ['node_modules']);
     const [, , , , settings] = mockUploadFile.mock.calls[0];
     // 64 MiB budget / 32 MiB parts = 2 parts, one of them read ahead.
     expect(settings).toEqual({ concurrency: 1, partSize: 32 * MiB });

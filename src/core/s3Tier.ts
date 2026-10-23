@@ -108,6 +108,8 @@ export interface S3Tier {
    * the workflow did not set are replaced per object (see transferTuning.ts).
    */
   tuning?: ExplicitTransferInputs;
+  /** Reads the memory budget for `tuning`; tests replace it. Defaults to `usableMemory`. */
+  memory?: () => number;
 }
 
 export interface DownloadSettings {
@@ -284,6 +286,21 @@ export async function buildS3Tier(
 }
 
 /**
+ * The memory this process can use. `os.freemem()` is MemAvailable on Linux, so it counts the page
+ * cache as free, but it does not see a container limit. `process.constrainedMemory()` is that
+ * limit (0 or a very large value without one), and the process already uses `rss` of it.
+ * `process.availableMemory()` is not used: on a test host it returned about MemFree, which leaves
+ * out the page cache and is far lower after a large build.
+ */
+export function usableMemory(
+  free: number = os.freemem(),
+  limit: number = process.constrainedMemory(),
+  rss: number = process.memoryUsage.rss()
+): number {
+  return limit > 0 ? Math.min(free, Math.max(0, limit - rss)) : free;
+}
+
+/**
  * The transfer settings for one object of `sizeBytes`: the tier's settings with `auto` tuning
  * applied to each field the workflow did not set. Logs the result when tuning set a field.
  */
@@ -311,8 +328,7 @@ function settingsFor(
     direction,
     sizeBytes,
     provider: tier.storage.providerConfig.provider,
-    // The free memory, or less under a container limit, which `os.freemem()` does not see.
-    freeMemoryBytes: process.availableMemory(),
+    freeMemoryBytes: (tier.memory ?? usableMemory)(),
     fixed,
   });
   core.info(formatTuning(direction, settings, sizeBytes, fixed));
