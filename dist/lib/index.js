@@ -69272,6 +69272,42 @@ function createStorageContext(options) {
     };
 }
 
+;// CONCATENATED MODULE: ./src/storage/errors.ts
+/**
+ * S3 also answers 403 when the credentials themselves are wrong: a bad key, a bad signature, a
+ * clock skew or an expired session token. Those errors are not a missing write permission, so a
+ * hint about read-only would mislead.
+ */
+const CREDENTIAL_ERROR_NAMES = new Set([
+    'InvalidAccessKeyId',
+    'SignatureDoesNotMatch',
+    'RequestTimeTooSkewed',
+    'ExpiredToken',
+    'InvalidToken',
+    'TokenRefreshRequired',
+]);
+/**
+ * True when S3 refused the request because the credentials do not have the permission: the error
+ * name `AccessDenied`, or an HTTP 403 that is not a credential error. The check follows the
+ * `cause` chain, because some callers wrap the SDK error.
+ */
+function isAccessDeniedError(err) {
+    for (let current = err, depth = 0; depth < 5; depth++) {
+        if (typeof current !== 'object' || current === null) {
+            return false;
+        }
+        const error = current;
+        if (error.name !== undefined && CREDENTIAL_ERROR_NAMES.has(error.name)) {
+            return false;
+        }
+        if (error.name === 'AccessDenied' || error.$metadata?.httpStatusCode === 403) {
+            return true;
+        }
+        current = error.cause;
+    }
+    return false;
+}
+
 // EXTERNAL MODULE: ./node_modules/@aws-sdk/lib-storage/dist-cjs/index.js
 var lib_storage_dist_cjs = __nccwpck_require__(2358);
 // EXTERNAL MODULE: external "fs"
@@ -70428,6 +70464,7 @@ function computeCacheVersion(paths, compression, enableCrossOsArchive, platform 
 
 
 
+
 /** Logged when streaming is requested but the plan needs the BSD-tar-plus-zstd two-step on Windows. */
 const STREAMING_FALLBACK_MESSAGE = 'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.';
 /** Prefix listings sent at once while searching one ref. */
@@ -71008,6 +71045,11 @@ async function attachStreamedChecksum(tier, objectKey, sha256, size, uploadedEta
             if (isTagPutUnsupported(err)) {
                 tier.storage.objectTaggingUnsupported = true;
                 core/* debug */.Yz(`s3://${bucket} has no object tagging API; the checksum cannot go on as a tag.`);
+            }
+            else if (isAccessDeniedError(err)) {
+                // Visible on purpose: the copy below rewrites the whole object, which costs seconds per
+                // GiB, and the only fix is a permission the user can grant.
+                core/* info */.pq(`The credentials may not tag s3://${bucket}/${objectKey}, so the checksum goes on by a copy of the whole object, which is slow for a large cache. Grant s3:PutObjectTagging to skip the copy.`);
             }
             else {
                 core/* debug */.Yz(`Could not tag s3://${bucket}/${objectKey}: ${(0,outcomes/* toError */.i)(err).message}`);
@@ -72822,42 +72864,6 @@ async function runRestoreOnly(earlyExit = true) {
         // An explicit exit code overrides process.exitCode, so keep the one core.setFailed set.
         process.exit(process.exitCode ?? 0);
     }
-}
-
-;// CONCATENATED MODULE: ./src/storage/errors.ts
-/**
- * S3 also answers 403 when the credentials themselves are wrong: a bad key, a bad signature, a
- * clock skew or an expired session token. Those errors are not a missing write permission, so a
- * hint about read-only would mislead.
- */
-const CREDENTIAL_ERROR_NAMES = new Set([
-    'InvalidAccessKeyId',
-    'SignatureDoesNotMatch',
-    'RequestTimeTooSkewed',
-    'ExpiredToken',
-    'InvalidToken',
-    'TokenRefreshRequired',
-]);
-/**
- * True when S3 refused the request because the credentials do not have the permission: the error
- * name `AccessDenied`, or an HTTP 403 that is not a credential error. The check follows the
- * `cause` chain, because some callers wrap the SDK error.
- */
-function isAccessDeniedError(err) {
-    for (let current = err, depth = 0; depth < 5; depth++) {
-        if (typeof current !== 'object' || current === null) {
-            return false;
-        }
-        const error = current;
-        if (error.name !== undefined && CREDENTIAL_ERROR_NAMES.has(error.name)) {
-            return false;
-        }
-        if (error.name === 'AccessDenied' || error.$metadata?.httpStatusCode === 403) {
-            return true;
-        }
-        current = error.cause;
-    }
-    return false;
 }
 
 ;// CONCATENATED MODULE: ./src/core/saveImpl.ts
