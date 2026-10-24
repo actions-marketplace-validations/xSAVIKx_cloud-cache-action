@@ -3,7 +3,7 @@ import * as core from '@actions/core';
 import { ProviderConfig, isKnownProvider, resolveProviderDefaults } from './providers';
 import { getInputWithEnv, getInputAsBool } from '../utils/inputUtils';
 import { Inputs } from '../constants';
-import { annotateS3Error, type S3Request } from './errors';
+import { annotateS3Error, s3ErrorReason, s3RequestLabel, type S3Request } from './errors';
 
 export interface StorageContext {
   client: S3Client;
@@ -64,6 +64,52 @@ export function useUnsignedPayload(
  */
 export function useSdkChecksums(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.CLOUD_CACHE_SDK_CHECKSUMS?.trim().toLowerCase() === 'true';
+}
+
+const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
+const DEFAULT_SOCKET_TIMEOUT_MS = 120_000;
+
+function timeoutFromEnv(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
+  const raw = env[name];
+  if (raw === undefined || raw.trim() === '') {
+    return fallback;
+  }
+  if (/^\d+$/.test(raw.trim())) {
+    return Number(raw.trim());
+  }
+  core.warning(
+    `Ignoring ${name}="${raw}": it must be a whole number of milliseconds (0 turns the timeout off). Using ${fallback}.`
+  );
+  return fallback;
+}
+
+/**
+ * The timeouts of the S3 client's HTTP handler. Without them, an endpoint that does not answer
+ * holds each attempt for the TCP connect timeout of the OS (about 130 s on Linux), and a stalled
+ * response body holds a transfer with no limit.
+ *
+ * - `connectionTimeout` (10 s): a TCP connection that is not open by then fails, and the SDK
+ *   tries again.
+ * - `socketTimeout` (120 s): a socket with no data in either direction for this time fails, and
+ *   the SDK or the part retry tries again. It is an idle limit, not a total limit, so a long
+ *   transfer that moves data never hits it. It is long, so that tar back-pressure on a streaming
+ *   restore, or a slow server reply to CompleteMultipartUpload, does not cause a false retry.
+ *
+ * `CLOUD_CACHE_CONNECTION_TIMEOUT_MS` and `CLOUD_CACHE_SOCKET_TIMEOUT_MS` override the defaults.
+ * The value 0 turns the timeout off.
+ */
+export function storageTimeouts(env: NodeJS.ProcessEnv = process.env): {
+  connectionTimeout: number;
+  socketTimeout: number;
+} {
+  return {
+    connectionTimeout: timeoutFromEnv(
+      env,
+      'CLOUD_CACHE_CONNECTION_TIMEOUT_MS',
+      DEFAULT_CONNECTION_TIMEOUT_MS
+    ),
+    socketTimeout: timeoutFromEnv(env, 'CLOUD_CACHE_SOCKET_TIMEOUT_MS', DEFAULT_SOCKET_TIMEOUT_MS),
+  };
 }
 
 /**
@@ -148,6 +194,10 @@ function addGcsGenerationMiddleware(client: S3Client): void {
 }
 
 const ERROR_MESSAGE_MIDDLEWARE = 'cloudCacheErrorMessage';
+const ATTEMPT_MIDDLEWARE = 'cloudCacheAttempt';
+
+/** The request a failed attempt made and how long the attempt took, by error object. */
+const attemptFailures = new WeakMap<object, { request: S3Request; durationMs: number }>();
 
 function s3RequestOf(commandName: string | undefined, input: unknown): S3Request {
   const { Bucket, Key } = (input ?? {}) as { Bucket?: string; Key?: string };
@@ -160,7 +210,8 @@ function s3RequestOf(commandName: string | undefined, input: unknown): S3Request
 
 /**
  * Gives every failed request an error message that names the operation and the object (see
- * `annotateS3Error`).
+ * `annotateS3Error`). An inner middleware also records each failed attempt, so the retry log
+ * line can name the request.
  */
 function addErrorMiddleware(client: S3Client): void {
   client.middlewareStack.add(
@@ -174,6 +225,84 @@ function addErrorMiddleware(client: S3Client): void {
     },
     { step: 'initialize', name: ERROR_MESSAGE_MIDDLEWARE, priority: 'high' }
   );
+  // In the finalizeRequest step, a lower priority than the SDK retry middleware ('high') puts
+  // this one inside the retry loop, so it sees each attempt.
+  client.middlewareStack.add(
+    (next, context) => async (args) => {
+      const start = Date.now();
+      try {
+        return await next(args);
+      } catch (error) {
+        if (typeof error === 'object' && error !== null) {
+          attemptFailures.set(error, {
+            request: s3RequestOf(context.commandName, args.input),
+            durationMs: Date.now() - start,
+          });
+        }
+        throw error;
+      }
+    },
+    { step: 'finalizeRequest', name: ATTEMPT_MIDDLEWARE, priority: 'normal' }
+  );
+}
+
+type AnyRetryStrategy = Awaited<ReturnType<S3Client['config']['retryStrategy']>>;
+type RetryStrategyV2 = Extract<AnyRetryStrategy, { refreshRetryTokenForRetry: unknown }>;
+type RetryToken = Parameters<RetryStrategyV2['recordSuccess']>[0];
+type RetryErrorInfo = Parameters<RetryStrategyV2['refreshRetryTokenForRetry']>[1];
+
+const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)} s`;
+
+/**
+ * Wraps the SDK retry strategy and logs one line for each retry it grants. Without the line, a
+ * job log shows nothing while the SDK tries an endpoint that does not answer again and again.
+ * The SDK waits inside `refreshRetryTokenForRetry`, so the line comes just before the next attempt.
+ */
+class LoggedRetryStrategy {
+  constructor(
+    private readonly inner: RetryStrategyV2,
+    private readonly maxAttempts: number
+  ) {}
+
+  get mode(): string | undefined {
+    return (this.inner as { mode?: string }).mode;
+  }
+
+  acquireInitialRetryToken(scope: string): Promise<RetryToken> {
+    return this.inner.acquireInitialRetryToken(scope);
+  }
+
+  recordSuccess(token: RetryToken): void {
+    this.inner.recordSuccess(token);
+  }
+
+  async refreshRetryTokenForRetry(token: RetryToken, info: RetryErrorInfo): Promise<RetryToken> {
+    const next = await this.inner.refreshRetryTokenForRetry(token, info);
+    const failure = info.error ? attemptFailures.get(info.error) : undefined;
+    const label = s3RequestLabel(failure?.request ?? { operation: 'S3 request' });
+    const failed = token.getRetryCount() + 1;
+    const took = failure === undefined ? '' : ` after ${seconds(failure.durationMs)}`;
+    const wait =
+      (next as { $retryLog?: { acquisitionDelay?: number } }).$retryLog?.acquisitionDelay ??
+      next.getRetryDelay();
+    core.info(
+      `${label}: attempt ${failed} of ${this.maxAttempts} failed${took}: ${s3ErrorReason(info.error).replace(/\.$/, '')}. Starting attempt ${failed + 1} after a wait of ${seconds(wait)}.`
+    );
+    return next;
+  }
+}
+
+function logSdkRetries(client: S3Client, maxAttempts: number): void {
+  const resolve = client.config.retryStrategy;
+  let logged: Promise<AnyRetryStrategy> | undefined;
+  client.config.retryStrategy = () => {
+    logged ??= resolve().then((strategy) =>
+      'refreshRetryTokenForRetry' in strategy
+        ? new LoggedRetryStrategy(strategy, maxAttempts)
+        : strategy
+    );
+    return logged;
+  };
 }
 
 export interface StorageClientOptions {
@@ -223,11 +352,13 @@ export function createStorageContext(options: StorageClientOptions): StorageCont
   );
 
   const maxAttempts = Math.max(1, options.maxAttempts);
+  const timeouts = storageTimeouts();
   const clientConfig: S3ClientConfig = {
     region: providerConfig.region,
     forcePathStyle: providerConfig.forcePathStyle,
     maxAttempts,
     retryMode: 'standard',
+    requestHandler: timeouts,
   };
 
   if (providerConfig.endpoint) {
@@ -257,11 +388,12 @@ export function createStorageContext(options: StorageClientOptions): StorageCont
   core.debug(
     `Configuring S3 client for provider: ${providerConfig.provider} (endpoint: ${
       providerConfig.endpoint || 'AWS default'
-    }, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle}, maxAttempts: ${maxAttempts})`
+    }, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle}, maxAttempts: ${maxAttempts}, connectionTimeout: ${timeouts.connectionTimeout} ms, socketTimeout: ${timeouts.socketTimeout} ms)`
   );
 
   const client = new S3Client(clientConfig);
   addErrorMiddleware(client);
+  logSdkRetries(client, maxAttempts);
   if (useUnsignedPayload(providerConfig.endpoint)) {
     addUnsignedPayloadMiddleware(client);
   }
