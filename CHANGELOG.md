@@ -8,6 +8,11 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-24
+
+Faster uploads to AWS S3, opt-in transfer tuning, and phase timings in the log. Object keys and
+archive bytes do not change, so caches saved by v1.1 to v1.8 stay valid.
+
 ### Added
 
 - **A timing line for each restore and save.** After an S3 download or upload, the step logs
@@ -531,7 +536,8 @@ Initial pre-release.
 - zstd compression with a gzip fallback, chunked multipart uploads and retries.
 - `restore` and `save` sub-actions.
 
-[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.1...v1.6.0
