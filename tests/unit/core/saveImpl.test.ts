@@ -3,6 +3,7 @@ import { Inputs, State } from '../../../src/constants';
 import type { SaveOutcome } from '../../../src/core/outcomes';
 import type { StepMetrics } from '../../../src/core/metrics';
 import type { S3Tier } from '../../../src/core/s3Tier';
+import { annotateS3Error } from '../../../src/storage/errors';
 import { MemoryState } from '../../support/memoryState';
 import { makeTempDir, removeDir, setEnv, writeFiles } from '../../support/tempTree';
 
@@ -622,43 +623,86 @@ describe('saveImpl', () => {
 
   describe('access denied on the S3 save', () => {
     const hint =
-      'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save and silence this message.';
+      'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save.';
+    /** An error as the S3 client gives it for a failed call: the message names the call. */
+    const fromCall = <T extends Error>(error: T, operation: string): T => {
+      annotateS3Error(error, { operation, bucket: 'b', key: 'k' });
+      return error;
+    };
     const denied = (): SaveOutcome => ({
       kind: 'error',
-      error: Object.assign(new Error('Access Denied'), {
-        name: 'AccessDenied',
-        $metadata: { httpStatusCode: 403 },
-      }),
+      error: fromCall(
+        Object.assign(new Error('Access Denied'), {
+          name: 'AccessDenied',
+          $metadata: { httpStatusCode: 403 },
+        }),
+        'PutObject'
+      ),
     });
+    const deniedMessage = (): string => (denied() as { error: Error }).error.message;
 
     it('warns with the read-only hint and does not fail the step', async () => {
       mockSaveToS3.mockResolvedValue(denied());
       await saveImpl(state);
+      expect(deniedMessage()).toMatch(/^PutObject s3:\/\/b\/k returned HTTP 403 Forbidden/);
       expect(mockWarning).toHaveBeenCalledWith(
-        `Failed to save cache to S3: Access Denied. ${hint}`
+        `Failed to save cache to S3: ${deniedMessage().replace(/\.$/, '')}. ${hint}`
       );
       expect(mockSetFailed).not.toHaveBeenCalled();
       expect(outputs.get('cache-saved-sources')).toBe('none');
     });
 
-    it('adds the hint for a bare 403 status', async () => {
-      mockSaveToS3.mockResolvedValue({
-        kind: 'error',
-        error: Object.assign(new Error('Forbidden'), { $metadata: { httpStatusCode: 403 } }),
-      });
+    it('adds the hint for a bare 403 status from a write call', async () => {
+      const error = fromCall(
+        Object.assign(new Error('Forbidden'), { $metadata: { httpStatusCode: 403 } }),
+        'UploadPart'
+      );
+      mockSaveToS3.mockResolvedValue({ kind: 'error', error });
       await saveImpl(state);
-      expect(mockWarning).toHaveBeenCalledWith(`Failed to save cache to S3: Forbidden. ${hint}`);
+      expect(mockWarning).toHaveBeenCalledWith(
+        `Failed to save cache to S3: ${error.message.replace(/\.$/, '')}. ${hint}`
+      );
     });
 
     it('does not double the full stop when the S3 message ends with one', async () => {
       mockSaveToS3.mockResolvedValue({
         kind: 'error',
-        error: Object.assign(new Error('Access Denied.'), { name: 'AccessDenied' }),
+        error: fromCall(
+          Object.assign(new Error('Access Denied.'), { name: 'AccessDenied' }),
+          'PutObject'
+        ),
       });
       await saveImpl(state);
       expect(mockWarning).toHaveBeenCalledWith(
         `Failed to save cache to S3: Access Denied. ${hint}`
       );
+    });
+
+    it('adds no hint to a 403 with no body from HeadObject, a read call', async () => {
+      const error = fromCall(
+        Object.assign(new Error('UnknownError'), {
+          name: 'Unknown',
+          $metadata: { httpStatusCode: 403 },
+        }),
+        'HeadObject'
+      );
+      mockSaveToS3.mockResolvedValue({ kind: 'error', error });
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith(`Failed to save cache to S3: ${error.message}`);
+      expect(error.message).toContain('s3:ListBucket');
+      expect(mockWarning).not.toHaveBeenCalledWith(expect.stringContaining('read-only'));
+    });
+
+    it('adds no hint to a 403 when the S3 call is not known', async () => {
+      mockSaveToS3.mockResolvedValue({
+        kind: 'error',
+        error: Object.assign(new Error('Access Denied'), {
+          name: 'AccessDenied',
+          $metadata: { httpStatusCode: 403 },
+        }),
+      });
+      await saveImpl(state);
+      expect(mockWarning).toHaveBeenCalledWith('Failed to save cache to S3: Access Denied');
     });
 
     it('adds no hint to a 403 SignatureDoesNotMatch, because the credentials are wrong', async () => {
@@ -686,7 +730,9 @@ describe('saveImpl', () => {
       inputs.set(Inputs.DualCache, 'true');
       mockSaveToS3.mockResolvedValue(denied());
       await saveImpl(state);
-      expect(mockWarning).toHaveBeenCalledWith(`Dual-cache S3 save error: Access Denied. ${hint}`);
+      expect(mockWarning).toHaveBeenCalledWith(
+        `Dual-cache S3 save error: ${deniedMessage().replace(/\.$/, '')}. ${hint}`
+      );
       expect(mockSetFailed).not.toHaveBeenCalled();
       expect(outputs.get('cache-saved-sources')).toBe('github');
     });
@@ -696,7 +742,9 @@ describe('saveImpl', () => {
       inputs.set(Inputs.DualCacheStrict, 'true');
       mockSaveToS3.mockResolvedValue(denied());
       await saveImpl(state);
-      expect(mockSetFailed).toHaveBeenCalledWith(`Saving to S3 failed: Access Denied. ${hint}`);
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        `Saving to S3 failed: ${deniedMessage().replace(/\.$/, '')}. ${hint}`
+      );
     });
   });
 

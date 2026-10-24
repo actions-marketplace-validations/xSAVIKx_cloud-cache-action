@@ -1093,6 +1093,17 @@ A restore needs `s3:ListBucket`, `s3:GetObject` and `s3:GetObjectTagging`. A sav
 Only `prune` needs `s3:DeleteObject` and `s3:ListBucketMultipartUploads`. Give `prune` its own
 credential.
 
+When S3 refuses a call with `403`, the warning names the call, the object, the HTTP status and the
+policy action from this table. A `403` on `HeadObject` has no response body, so the warning cannot
+tell a wrong secret from a policy without `s3:ListBucket`. It asks you to check both:
+
+```text
+HeadObject s3://<bucket>/<key> returned HTTP 403 Forbidden. Check access-key, secret-key and region, and check that the bucket policy allows s3:ListBucket on the bucket and s3:GetObject on the cache keys. The Security guide lists the permission for each S3 call.
+```
+
+The save adds the `read-only: true` hint only for a `403` on a write call (`PutObject`,
+`CreateMultipartUpload`, `UploadPart`, `CompleteMultipartUpload` or `CopyObject`).
+
 ## Scope of the policies
 
 The default object key is `<owner>/<repo>/<prefix><ref>/<key>/<version>/<file>`. All

@@ -613,6 +613,13 @@ parts in memory.
 - **Per-part retries.** Each part is retried on its own (`retry-count` times) when its connection
   drops, so a failure late in a large download costs one part, not the whole archive. The
   single-request path keeps its whole-download retry.
+- **Timeouts.** The S3 client stops a TCP connect after 10 s, and a connection with no data in
+  either direction after 120 s. The SDK or the part retry then tries again. Each retry logs one
+  line, for example
+  `HeadObject s3://<bucket>/<key>: attempt 1 of 4 failed after 10.0 s: <reason>. Starting attempt 2 after a wait of 0.1 s.`
+  The idle limit is not a limit on the total transfer time. To change a limit, set
+  `CLOUD_CACHE_CONNECTION_TIMEOUT_MS` or `CLOUD_CACHE_SOCKET_TIMEOUT_MS` (milliseconds) in the job
+  `env`. The value `0` turns that timeout off.
 - **Both modes.** In the default file mode every part is written straight into the archive file at
   its offset, and the sha256 check runs on the assembled file. With `streaming: true` the parts are
   fetched ahead and handed to `tar` in order, so memory is bounded by
@@ -763,7 +770,15 @@ The action trims the value and ignores its case. A skip logs one info line that 
 
 An S3-only job on one of those low-trust triggers can stop saving after you upgrade to this version. To save from such a job again, set `cache-mode: write` on the job. Only do this when the job cannot run untrusted code, because the read default is there to stop cache poisoning.
 
-**Write denied.** When the storage refuses an S3 save with `AccessDenied` (or a `403` that is not a credential error), the step logs a warning that the credentials may not be allowed to write to the bucket, and that `read-only: true` skips the save. The job does not fail. With `dual-cache-strict: true`, the step fails, as for every other save error. A `403` for wrong credentials, such as `InvalidAccessKeyId`, `SignatureDoesNotMatch` or `ExpiredToken`, gives the usual warning without the hint. For jobs that must not write, such as pull requests, see the read-only pattern in the [Security guide](https://xsavikx.github.io/cloud-cache-action/guide/security.html).
+**Write denied.** When the storage refuses an S3 write call (`PutObject`, `CreateMultipartUpload`, `UploadPart`, `CompleteMultipartUpload` or `CopyObject`) with `AccessDenied` (or a `403` that is not a credential error), the step logs a warning that the credentials may not be allowed to write to the bucket, and that `read-only: true` skips the save. The job does not fail. With `dual-cache-strict: true`, the step fails, as for every other save error. A `403` for wrong credentials, such as `InvalidAccessKeyId`, `SignatureDoesNotMatch` or `ExpiredToken`, gives the usual warning without the hint. A `403` on a read call, such as the `HeadObject` existence check, also gives no hint: it means a wrong secret or a policy without `s3:ListBucket`, not a read-only key.
+
+**Access errors.** For every S3 `403`, the warning names the S3 call, the object, the HTTP status and the policy action that the call needs. A wrong secret, or a policy without `s3:ListBucket`, makes the first `HeadObject` fail with no response body. The warning then reads, for example:
+
+```text
+Restoring from s3 failed, so it counts as a cache miss: HeadObject s3://<bucket>/<key> returned HTTP 403 Forbidden. Check access-key, secret-key and region, and check that the bucket policy allows s3:ListBucket on the bucket and s3:GetObject on the cache keys. The Security guide lists the permission for each S3 call.
+```
+
+After a tier error, the last restore line is `No cache restored: the s3 tier failed (see the warning above). Keys searched: ...`. The `actions/cache` line `Cache not found for input keys: ...` is only for a true miss. For jobs that must not write, such as pull requests, see the read-only pattern in the [Security guide](https://xsavikx.github.io/cloud-cache-action/guide/security.html).
 
 **`save-always`.** The action does not support this deprecated input. See [Saving after failed steps](#saving-after-failed-steps).
 

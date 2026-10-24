@@ -1,4 +1,6 @@
 import { jest } from '@jest/globals';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { Inputs } from '../../src/constants';
 
 const mockGetInput = jest.fn<(name: string) => string>();
@@ -13,10 +15,9 @@ jest.unstable_mockModule('@actions/core', () => ({
   info: mockInfo,
 }));
 
-const { CompleteMultipartUploadCommand, HeadObjectCommand, UploadPartCommand } = await import(
-  '@aws-sdk/client-s3'
-);
-const { createStorageContext, useSdkChecksums, useUnsignedPayload } = await import(
+const { CompleteMultipartUploadCommand, GetObjectCommand, HeadObjectCommand, UploadPartCommand } =
+  await import('@aws-sdk/client-s3');
+const { createStorageContext, storageTimeouts, useSdkChecksums, useUnsignedPayload } = await import(
   '../../src/storage/client'
 );
 
@@ -393,5 +394,177 @@ describe('GCS generation middleware', () => {
     const output = await client.send(complete());
 
     expect(output.VersionId).toBeUndefined();
+  });
+});
+
+describe('storageTimeouts', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('uses a 10 s connection timeout and a 120 s socket idle timeout by default', () => {
+    expect(storageTimeouts({})).toEqual({ connectionTimeout: 10_000, socketTimeout: 120_000 });
+    expect(mockWarning).not.toHaveBeenCalled();
+  });
+
+  it('reads the two timeouts from the environment, in milliseconds', () => {
+    expect(
+      storageTimeouts({
+        CLOUD_CACHE_CONNECTION_TIMEOUT_MS: ' 2500 ',
+        CLOUD_CACHE_SOCKET_TIMEOUT_MS: '0',
+      })
+    ).toEqual({ connectionTimeout: 2500, socketTimeout: 0 });
+  });
+
+  it.each(['-1', 'ten', '1.5', ''])('warns and keeps the default for %p', (value) => {
+    expect(storageTimeouts({ CLOUD_CACHE_SOCKET_TIMEOUT_MS: value }).socketTimeout).toBe(120_000);
+    if (value === '') {
+      expect(mockWarning).not.toHaveBeenCalled();
+    } else {
+      expect(mockWarning).toHaveBeenCalledWith(
+        `Ignoring CLOUD_CACHE_SOCKET_TIMEOUT_MS="${value}": it must be a whole number of milliseconds (0 turns the timeout off). Using 120000.`
+      );
+    }
+  });
+});
+
+describe('S3 client against a local HTTP server', () => {
+  const originalEnv = process.env;
+  let server: Server;
+  let handler: (req: IncomingMessage, res: ServerResponse) => void;
+  const open: Set<import('node:net').Socket> = new Set();
+
+  beforeAll(async () => {
+    server = createServer((req, res) => handler(req, res));
+    server.on('connection', (socket) => {
+      open.add(socket);
+      socket.on('close', () => open.delete(socket));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  });
+
+  afterAll(async () => {
+    for (const socket of open) {
+      socket.destroy();
+    }
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    process.env = originalEnv;
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env = { ...originalEnv };
+    delete process.env.CLOUD_CACHE_CONNECTION_TIMEOUT_MS;
+    delete process.env.CLOUD_CACHE_SOCKET_TIMEOUT_MS;
+    const { port } = server.address() as AddressInfo;
+    mockGetInput.mockImplementation((name: string) => {
+      const values: Record<string, string> = {
+        [Inputs.Bucket]: 'b',
+        [Inputs.Endpoint]: `http://127.0.0.1:${port}`,
+        [Inputs.ForcePathStyle]: 'true',
+        [Inputs.AccessKey]: 'K',
+        [Inputs.SecretKey]: 'S',
+      };
+      return values[name] ?? '';
+    });
+  });
+
+  const head = () => new HeadObjectCommand({ Bucket: 'b', Key: 'k' });
+
+  it('gives the client the default timeouts', async () => {
+    handler = (_req, res) => res.writeHead(200, { 'content-length': '0' }).end();
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    await client.send(head());
+    const config = (
+      client.config.requestHandler as { httpHandlerConfigs(): Record<string, unknown> }
+    ).httpHandlerConfigs();
+    expect(config).toEqual(
+      expect.objectContaining({ connectionTimeout: 10_000, socketTimeout: 120_000 })
+    );
+    client.destroy();
+  });
+
+  it('turns a 403 with no body on HeadObject into a message with the status and a fix', async () => {
+    handler = (_req, res) => res.writeHead(403, { 'content-length': '0' }).end();
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    const error = await client.send(head()).then(
+      () => undefined,
+      (err: unknown) => err as Error
+    );
+    expect(error?.message).toMatch(/^HeadObject s3:\/\/b\/k returned HTTP 403 Forbidden\. /);
+    expect(error?.message).toContain('s3:ListBucket');
+    expect(error?.message).not.toContain('UnknownError');
+    client.destroy();
+  });
+
+  it('logs one line before each SDK retry, and then succeeds', async () => {
+    let requests = 0;
+    handler = (_req, res) => {
+      requests++;
+      res.writeHead(requests < 3 ? 503 : 200, { 'content-length': '0' }).end();
+    };
+    const { client } = createStorageContext({ maxAttempts: 4 });
+    await client.send(head());
+    expect(requests).toBe(3);
+    const retryLines = mockInfo.mock.calls
+      .map(([line]) => line)
+      .filter((line) => line.startsWith('HeadObject s3://b/k: attempt'));
+    expect(retryLines).toHaveLength(2);
+    expect(retryLines[0]).toMatch(
+      /^HeadObject s3:\/\/b\/k: attempt 1 of 4 failed after \d+\.\d s: HTTP 503 Service Unavailable\. Starting attempt 2 after a wait of \d+\.\d s\.$/
+    );
+    expect(retryLines[1]).toContain('attempt 2 of 4 failed');
+    client.destroy();
+  });
+
+  it('logs no retry line for an error the SDK does not retry', async () => {
+    handler = (_req, res) => res.writeHead(403, { 'content-length': '0' }).end();
+    const { client } = createStorageContext({ maxAttempts: 4 });
+    await expect(client.send(head())).rejects.toThrow('HTTP 403');
+    expect(mockInfo).not.toHaveBeenCalledWith(expect.stringContaining('attempt 1 of 4'));
+    client.destroy();
+  });
+
+  // The SDK applies a socket timeout of 6 s or more only until the response headers arrive, so
+  // this test needs a value above 6 s to show that a stalled body also stops.
+  it('stops a response body that sends no more data after the socket timeout', async () => {
+    process.env.CLOUD_CACHE_SOCKET_TIMEOUT_MS = '6500';
+    handler = (_req, res) => {
+      res.writeHead(200, { 'content-length': '1000' });
+      res.write(Buffer.alloc(100)); // then nothing
+    };
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    const output = await client.send(new GetObjectCommand({ Bucket: 'b', Key: 'k' }));
+    const start = Date.now();
+    const error = await (async () => {
+      for await (const _chunk of output.Body as AsyncIterable<Buffer>) {
+        // read until the stream fails
+      }
+    })().then(
+      () => undefined,
+      (err: unknown) => err as Error & { code?: string }
+    );
+    expect(Date.now() - start).toBeLessThan(15_000);
+    expect(error?.name).toBe('TimeoutError');
+    expect(error?.message).toBe('GetObject s3://b/k: no data from the server for 6.5 s');
+    client.destroy();
+  }, 30_000);
+
+  it('stops a request on a silent connection after the socket timeout', async () => {
+    process.env.CLOUD_CACHE_SOCKET_TIMEOUT_MS = '300';
+    handler = () => undefined; // never answers
+    const { client } = createStorageContext({ maxAttempts: 2 });
+    const start = Date.now();
+    const error = await client.send(head()).then(
+      () => undefined,
+      (err: unknown) => err as Error
+    );
+    expect(Date.now() - start).toBeLessThan(10_000);
+    expect(error?.name).toBe('TimeoutError');
+    expect(error?.message).toMatch(/^HeadObject s3:\/\/b\/k failed after 2 attempts: /);
+    expect(mockInfo).toHaveBeenCalledWith(
+      expect.stringMatching(/^HeadObject s3:\/\/b\/k: attempt 1 of 2 failed after /)
+    );
+    client.destroy();
   });
 });
