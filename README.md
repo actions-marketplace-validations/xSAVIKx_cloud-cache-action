@@ -871,9 +871,14 @@ The post step only runs when the job succeeds. To save a cache even when a later
 
 ## Releasing
 
-Before releasing, move the `Unreleased` changes in [CHANGELOG.md](CHANGELOG.md) under the new version and bump `package.json`; the version's changelog entry doubles as the release notes.
+Releases are made by [release-please](https://github.com/googleapis/release-please), from [Conventional Commit](https://www.conventionalcommits.org/) messages on `main`. Do not edit [CHANGELOG.md](CHANGELOG.md) or the version in `package.json` by hand.
 
-Publishing a GitHub release for a tag `vX.Y.Z` runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which:
+1. Write each commit message as a Conventional Commit. `feat:` makes a minor release, and `fix:`, `perf:` and `deps:` make a patch release. `feat!:` or a `BREAKING CHANGE:` footer makes a major release. `docs:`, `build:`, `ci:`, `test:`, `refactor:` and `chore:` do not appear in the changelog.
+2. After CI passes on `main`, [`.github/workflows/release-please.yml`](.github/workflows/release-please.yml) opens or updates a release PR named `chore: release vX.Y.Z`. The PR sets the version and adds the CHANGELOG entry.
+3. GitHub does not run CI on a PR that `GITHUB_TOKEN` opens. To run CI on the release PR, close it and open it again.
+4. Merge the release PR. After CI passes on `main` again, release-please tags `vX.Y.Z`, creates the GitHub release, and calls [`.github/workflows/release.yml`](.github/workflows/release.yml).
+
+The release workflow also runs when you publish a GitHub release by hand. It:
 
 - Verifies that `package.json`'s `version` matches the tag (without its `v` prefix), failing the run otherwise.
 - Verifies that `dist/` is up to date by rebuilding it and diffing the result, failing the run if it is stale.
