@@ -2,11 +2,11 @@
 
 All notable changes to Cloud Cache Action are documented here.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
-adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The floating `v1` tag always
-points at the latest `v1.x.y` release.
-
-## [Unreleased]
+This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The floating
+`v1` tag always points at the latest `v1.x.y` release. From v1.9.0 on,
+[release-please](https://github.com/googleapis/release-please) writes the new entries from the
+Conventional Commit messages on `main`. Entries up to v1.9.0 follow
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [1.9.0] - 2026-10-24
 
@@ -536,7 +536,6 @@ Initial pre-release.
 - zstd compression with a gzip fallback, chunked multipart uploads and retries.
 - `restore` and `save` sub-actions.
 
-[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.9.0...HEAD
 [1.9.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.6.0...v1.7.0

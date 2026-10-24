@@ -3,6 +3,14 @@ name: Release
 on:
   release:
     types: [published]
+  # release-please.yml calls this workflow, because a release that GITHUB_TOKEN creates does not
+  # start the `release: published` trigger.
+  workflow_call:
+    inputs:
+      tag_name:
+        description: The release tag, for example v1.10.0.
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,11 +19,13 @@ jobs:
   release:
     name: Verify release and move the major tag
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag_name || github.event.release.tag_name }}
     steps:
       - name: Checkout the release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ env.TAG }}
           # All history and tags, so the major tag step can find the highest release.
           fetch-depth: 0
           # Nothing before the push step gets a token in .git/config.
@@ -27,8 +37,6 @@ jobs:
       # The build needs no install scripts (no prepare or postinstall hook, and ncc needs none).
       - run: npm ci --ignore-scripts
       - name: Verify package.json version matches the release tag
-        env:
-          TAG: ${{ github.event.release.tag_name }}
         run: |
           VERSION="${TAG#v}"
           PKG_VERSION="$(node -p "require('./package.json').version")"
@@ -48,7 +56,6 @@ jobs:
       - name: Move the major version tag
         if: ${{ !github.event.release.prerelease }}
         env:
-          TAG: ${{ github.event.release.tag_name }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           MAJOR="v${VERSION%%.*}"
