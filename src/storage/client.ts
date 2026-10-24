@@ -3,6 +3,7 @@ import * as core from '@actions/core';
 import { ProviderConfig, isKnownProvider, resolveProviderDefaults } from './providers';
 import { getInputWithEnv, getInputAsBool } from '../utils/inputUtils';
 import { Inputs } from '../constants';
+import { annotateS3Error, type S3Request } from './errors';
 
 export interface StorageContext {
   client: S3Client;
@@ -146,6 +147,35 @@ function addGcsGenerationMiddleware(client: S3Client): void {
   );
 }
 
+const ERROR_MESSAGE_MIDDLEWARE = 'cloudCacheErrorMessage';
+
+function s3RequestOf(commandName: string | undefined, input: unknown): S3Request {
+  const { Bucket, Key } = (input ?? {}) as { Bucket?: string; Key?: string };
+  return {
+    operation: (commandName ?? 'S3 request').replace(/Command$/, ''),
+    bucket: Bucket,
+    key: Key,
+  };
+}
+
+/**
+ * Gives every failed request an error message that names the operation and the object (see
+ * `annotateS3Error`).
+ */
+function addErrorMiddleware(client: S3Client): void {
+  client.middlewareStack.add(
+    (next, context) => async (args) => {
+      try {
+        return await next(args);
+      } catch (error) {
+        annotateS3Error(error, s3RequestOf(context.commandName, args.input));
+        throw error;
+      }
+    },
+    { step: 'initialize', name: ERROR_MESSAGE_MIDDLEWARE, priority: 'high' }
+  );
+}
+
 export interface StorageClientOptions {
   /** Total SDK attempts per request, including the first one. */
   maxAttempts: number;
@@ -192,10 +222,11 @@ export function createStorageContext(options: StorageClientOptions): StorageCont
     Inputs.SessionTokenCamel
   );
 
+  const maxAttempts = Math.max(1, options.maxAttempts);
   const clientConfig: S3ClientConfig = {
     region: providerConfig.region,
     forcePathStyle: providerConfig.forcePathStyle,
-    maxAttempts: Math.max(1, options.maxAttempts),
+    maxAttempts,
     retryMode: 'standard',
   };
 
@@ -226,10 +257,11 @@ export function createStorageContext(options: StorageClientOptions): StorageCont
   core.debug(
     `Configuring S3 client for provider: ${providerConfig.provider} (endpoint: ${
       providerConfig.endpoint || 'AWS default'
-    }, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle}, maxAttempts: ${clientConfig.maxAttempts})`
+    }, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle}, maxAttempts: ${maxAttempts})`
   );
 
   const client = new S3Client(clientConfig);
+  addErrorMiddleware(client);
   if (useUnsignedPayload(providerConfig.endpoint)) {
     addUnsignedPayloadMiddleware(client);
   }

@@ -1,4 +1,6 @@
 import { jest } from '@jest/globals';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { Inputs } from '../../src/constants';
 
 const mockGetInput = jest.fn<(name: string) => string>();
@@ -393,5 +395,60 @@ describe('GCS generation middleware', () => {
     const output = await client.send(complete());
 
     expect(output.VersionId).toBeUndefined();
+  });
+});
+
+describe('S3 client against a local HTTP server', () => {
+  const originalEnv = process.env;
+  let server: Server;
+  let handler: (req: IncomingMessage, res: ServerResponse) => void;
+  const open: Set<import('node:net').Socket> = new Set();
+
+  beforeAll(async () => {
+    server = createServer((req, res) => handler(req, res));
+    server.on('connection', (socket) => {
+      open.add(socket);
+      socket.on('close', () => open.delete(socket));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  });
+
+  afterAll(async () => {
+    for (const socket of open) {
+      socket.destroy();
+    }
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    process.env = originalEnv;
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env = { ...originalEnv };
+    const { port } = server.address() as AddressInfo;
+    mockGetInput.mockImplementation((name: string) => {
+      const values: Record<string, string> = {
+        [Inputs.Bucket]: 'b',
+        [Inputs.Endpoint]: `http://127.0.0.1:${port}`,
+        [Inputs.ForcePathStyle]: 'true',
+        [Inputs.AccessKey]: 'K',
+        [Inputs.SecretKey]: 'S',
+      };
+      return values[name] ?? '';
+    });
+  });
+
+  const head = () => new HeadObjectCommand({ Bucket: 'b', Key: 'k' });
+
+  it('turns a 403 with no body on HeadObject into a message with the status and a fix', async () => {
+    handler = (_req, res) => res.writeHead(403, { 'content-length': '0' }).end();
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    const error = await client.send(head()).then(
+      () => undefined,
+      (err: unknown) => err as Error
+    );
+    expect(error?.message).toMatch(/^HeadObject s3:\/\/b\/k returned HTTP 403 Forbidden\. /);
+    expect(error?.message).toContain('s3:ListBucket');
+    expect(error?.message).not.toContain('UnknownError');
+    client.destroy();
   });
 });

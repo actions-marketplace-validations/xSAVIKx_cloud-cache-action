@@ -2,7 +2,7 @@ import * as core from '@actions/core';
 import { getWorkspace } from '../archive/paths';
 import { Outputs, State } from '../constants';
 import { NullStateProvider, StateProvider, type IStateProvider } from '../state';
-import { isAccessDeniedError } from '../storage/errors';
+import { isWriteAccessDeniedError } from '../storage/errors';
 import { isValidEvent } from '../utils/inputUtils';
 import { getCacheMode, isCacheWritable } from './cacheMode';
 import { readCacheConfig, type CacheConfig } from './config';
@@ -30,11 +30,15 @@ interface SaveResult {
 }
 
 const ACCESS_DENIED_HINT =
-  'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save and silence this message.';
+  'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save.';
 
-/** The S3 save error message, with a hint about read-only when S3 denied the write. */
+/**
+ * The S3 save error message, with a hint about read-only when S3 denied a write call. A 403 on a
+ * read call, such as the HeadObject existence check, gets no hint: it means wrong credentials or
+ * a policy without s3:ListBucket, and read-only would only hide that.
+ */
 function s3SaveError(error: Error): Error {
-  if (!isAccessDeniedError(error)) {
+  if (!isWriteAccessDeniedError(error)) {
     return error;
   }
   const message = error.message.replace(/\.$/, '');
