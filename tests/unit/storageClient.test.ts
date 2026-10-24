@@ -15,9 +15,8 @@ jest.unstable_mockModule('@actions/core', () => ({
   info: mockInfo,
 }));
 
-const { CompleteMultipartUploadCommand, HeadObjectCommand, UploadPartCommand } = await import(
-  '@aws-sdk/client-s3'
-);
+const { CompleteMultipartUploadCommand, GetObjectCommand, HeadObjectCommand, UploadPartCommand } =
+  await import('@aws-sdk/client-s3');
 const { createStorageContext, storageTimeouts, useSdkChecksums, useUnsignedPayload } = await import(
   '../../src/storage/client'
 );
@@ -525,6 +524,31 @@ describe('S3 client against a local HTTP server', () => {
     expect(mockInfo).not.toHaveBeenCalledWith(expect.stringContaining('attempt 1 of 4'));
     client.destroy();
   });
+
+  // The SDK applies a socket timeout of 6 s or more only until the response headers arrive, so
+  // this test needs a value above 6 s to show that a stalled body also stops.
+  it('stops a response body that sends no more data after the socket timeout', async () => {
+    process.env.CLOUD_CACHE_SOCKET_TIMEOUT_MS = '6500';
+    handler = (_req, res) => {
+      res.writeHead(200, { 'content-length': '1000' });
+      res.write(Buffer.alloc(100)); // then nothing
+    };
+    const { client } = createStorageContext({ maxAttempts: 1 });
+    const output = await client.send(new GetObjectCommand({ Bucket: 'b', Key: 'k' }));
+    const start = Date.now();
+    const error = await (async () => {
+      for await (const _chunk of output.Body as AsyncIterable<Buffer>) {
+        // read until the stream fails
+      }
+    })().then(
+      () => undefined,
+      (err: unknown) => err as Error & { code?: string }
+    );
+    expect(Date.now() - start).toBeLessThan(15_000);
+    expect(error?.name).toBe('TimeoutError');
+    expect(error?.message).toBe('GetObject s3://b/k: no data from the server for 6.5 s');
+    client.destroy();
+  }, 30_000);
 
   it('stops a request on a silent connection after the socket timeout', async () => {
     process.env.CLOUD_CACHE_SOCKET_TIMEOUT_MS = '300';
