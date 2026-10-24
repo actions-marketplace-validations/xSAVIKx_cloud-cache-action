@@ -224,6 +224,32 @@ describe('restoreImpl', () => {
     );
   });
 
+  it('says no cache was restored, not "Cache not found", after an S3 tier error', async () => {
+    mockRestoreFromS3.mockResolvedValue(failure('Please reduce your request rate.'));
+    await restoreImpl(state, false);
+    expect(mockCoreInfo).toHaveBeenCalledWith(
+      'No cache restored: the s3 tier failed (see the warning above). Keys searched: Linux-npm-abc, Linux-npm-'
+    );
+    expect(mockCoreInfo).not.toHaveBeenCalledWith(expect.stringContaining('Cache not found'));
+  });
+
+  it('names every tier that failed in non-strict dual-cache mode', async () => {
+    inputs.set(Inputs.DualCache, 'true');
+    mockRestoreFromS3.mockResolvedValue(failure('AccessDenied'));
+    mockRestoreFromGitHub.mockResolvedValue(failure('Cache Service Url not found'));
+    await restoreImpl(state, false);
+    expect(mockCoreInfo).toHaveBeenCalledWith(
+      'No cache restored: the s3 and github tiers failed (see the warnings above). Keys searched: Linux-npm-abc, Linux-npm-'
+    );
+  });
+
+  it('keeps the actions/cache text for a true miss', async () => {
+    await restoreImpl(state, false);
+    expect(mockCoreInfo).toHaveBeenCalledWith(
+      'Cache not found for input keys: Linux-npm-abc, Linux-npm-'
+    );
+  });
+
   it('passes job-summary through to the summary writer', async () => {
     inputs.set(Inputs.JobSummary, 'false');
     await restoreImpl(state, false);

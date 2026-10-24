@@ -205,6 +205,7 @@ export async function restoreImpl(
       );
     }
 
+    const failedTiers: string[] = [];
     for (const source of restoreOrder(config)) {
       const outcome = await attempt(source, config, s3);
       switch (outcome.kind) {
@@ -254,6 +255,7 @@ export async function restoreImpl(
           core.warning(
             `Restoring from ${source} failed, so it counts as a cache miss: ${outcome.error.message}`
           );
+          failedTiers.push(source);
           break;
         default: {
           const unreachable: never = outcome;
@@ -291,9 +293,17 @@ export async function restoreImpl(
         `Failed to restore cache entry. Exiting as fail-on-cache-miss is set. Input key: ${config.primaryKey}`
       );
     }
-    core.info(
-      `Cache not found for input keys: ${[config.primaryKey, ...config.restoreKeys].join(', ')}`
-    );
+    const keys = [config.primaryKey, ...config.restoreKeys].join(', ');
+    if (failedTiers.length > 0) {
+      // A tier error is not a miss: the object can exist, and the download failed.
+      const tiers =
+        failedTiers.length === 1
+          ? `the ${failedTiers[0]} tier failed (see the warning above)`
+          : `the ${failedTiers.join(' and ')} tiers failed (see the warnings above)`;
+      core.info(`No cache restored: ${tiers}. Keys searched: ${keys}`);
+    } else {
+      core.info(`Cache not found for input keys: ${keys}`);
+    }
     return undefined;
   } catch (err) {
     core.setFailed(toError(err).message);
