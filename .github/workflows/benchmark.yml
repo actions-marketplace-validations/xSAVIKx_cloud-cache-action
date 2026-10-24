@@ -51,7 +51,7 @@ jobs:
           else
             echo "has_secrets=true" >> "$GITHUB_OUTPUT"
           fi
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
         if: steps.check-secrets.outputs.has_secrets == 'true'
       - name: Benchmark
         if: steps.check-secrets.outputs.has_secrets == 'true'
@@ -105,7 +105,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
         if: steps.check-secrets.outputs.has_secrets == 'true'
       - name: Benchmark
         if: steps.check-secrets.outputs.has_secrets == 'true'
@@ -145,7 +145,7 @@ jobs:
           else
             echo "has_secrets=true" >> "$GITHUB_OUTPUT"
           fi
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
         if: steps.check-secrets.outputs.has_secrets == 'true'
       - name: Benchmark
         if: steps.check-secrets.outputs.has_secrets == 'true'

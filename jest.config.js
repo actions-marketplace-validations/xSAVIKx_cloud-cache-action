@@ -12,6 +12,7 @@ export default {
           module: 'ESNext',
           moduleResolution: 'bundler',
           target: 'ES2022',
+          isolatedModules: true,
         },
       },
     ],
