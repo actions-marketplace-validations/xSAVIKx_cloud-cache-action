@@ -69142,7 +69142,187 @@ function resolveProviderDefaults(endpointInput, regionInput, forcePathStyleInput
     };
 }
 
+;// CONCATENATED MODULE: ./src/storage/errors.ts
+/**
+ * S3 also answers 403 when the credentials themselves are wrong: a bad key, a bad signature, a
+ * clock skew or an expired session token. Those errors are not a missing write permission, so a
+ * hint about read-only would mislead.
+ */
+const CREDENTIAL_ERROR_NAMES = new Set([
+    'InvalidAccessKeyId',
+    'SignatureDoesNotMatch',
+    'RequestTimeTooSkewed',
+    'ExpiredToken',
+    'InvalidToken',
+    'TokenRefreshRequired',
+]);
+/**
+ * True when S3 refused the request because the credentials do not have the permission: the error
+ * name `AccessDenied`, or an HTTP 403 that is not a credential error. The check follows the
+ * `cause` chain, because some callers wrap the SDK error.
+ */
+function isAccessDeniedError(err) {
+    for (let current = err, depth = 0; depth < 5; depth++) {
+        if (typeof current !== 'object' || current === null) {
+            return false;
+        }
+        const error = current;
+        if (error.name !== undefined && CREDENTIAL_ERROR_NAMES.has(error.name)) {
+            return false;
+        }
+        if (error.name === 'AccessDenied' || error.$metadata?.httpStatusCode === 403) {
+            return true;
+        }
+        current = error.cause;
+    }
+    return false;
+}
+/** The S3 calls that write. A 403 from one of them can come from a read-only credential. */
+const WRITE_OPERATIONS = new Set([
+    'PutObject',
+    'CreateMultipartUpload',
+    'UploadPart',
+    'CompleteMultipartUpload',
+    'CopyObject',
+]);
+/** The policy actions each S3 call needs, as the Security guide lists them. */
+const REQUIRED_PERMISSIONS = {
+    HeadObject: 's3:ListBucket on the bucket and s3:GetObject on the cache keys',
+    GetObject: 's3:GetObject on the cache keys',
+    GetObjectTagging: 's3:GetObjectTagging on the cache keys',
+    ListObjectsV2: 's3:ListBucket on the bucket',
+    PutObject: 's3:PutObject on the cache keys',
+    CreateMultipartUpload: 's3:PutObject on the cache keys',
+    UploadPart: 's3:PutObject on the cache keys',
+    CompleteMultipartUpload: 's3:PutObject on the cache keys',
+    CopyObject: 's3:GetObject and s3:PutObject on the cache keys',
+    PutObjectTagging: 's3:PutObjectTagging on the cache keys',
+    AbortMultipartUpload: 's3:AbortMultipartUpload on the cache keys',
+    ListMultipartUploads: 's3:ListBucketMultipartUploads on the bucket',
+    DeleteObject: 's3:DeleteObject on the cache keys',
+};
+/** Messages that tell the reader nothing: the SDK gives them when a response has no body. */
+const EMPTY_MESSAGES = new Set(['', 'UnknownError', 'Unknown']);
+/** Error names that are not an S3 error code. */
+const GENERIC_NAMES = new Set(['Unknown', 'Error', 'S3ServiceException']);
+const STATUS_TEXT = {
+    400: 'Bad Request',
+    401: 'Unauthorized',
+    403: 'Forbidden',
+    404: 'Not Found',
+    405: 'Method Not Allowed',
+    409: 'Conflict',
+    412: 'Precondition Failed',
+    429: 'Too Many Requests',
+    500: 'Internal Server Error',
+    501: 'Not Implemented',
+    502: 'Bad Gateway',
+    503: 'Service Unavailable',
+    504: 'Gateway Timeout',
+};
+/** `HTTP 403 Forbidden`, or `HTTP 418` for a status with no known text. */
+function httpStatusText(status) {
+    const text = STATUS_TEXT[status];
+    return text ? `HTTP ${status} ${text}` : `HTTP ${status}`;
+}
+/** The error message, or undefined when the SDK had no message to give. */
+function usefulMessage(err) {
+    const message = err?.message?.trim() ?? '';
+    return EMPTY_MESSAGES.has(message) ? undefined : message;
+}
+/** `HeadObject s3://bucket/key`: the operation and the object of a request. */
+function s3RequestLabel(request) {
+    if (!request.bucket) {
+        return request.operation;
+    }
+    const path = request.key ? `${request.bucket}/${request.key}` : request.bucket;
+    return `${request.operation} s3://${path}`;
+}
+/** A short reason for a failed attempt: the S3 message, or else the HTTP status. */
+function s3ErrorReason(err) {
+    const status = err?.$metadata?.httpStatusCode;
+    const message = usefulMessage(err);
+    if (message !== undefined) {
+        return message;
+    }
+    return status === undefined
+        ? String(err?.name ?? err)
+        : httpStatusText(status);
+}
+function accessHint(request, credentialError) {
+    if (credentialError) {
+        return 'Check access-key, secret-key, session-token and region.';
+    }
+    const permission = REQUIRED_PERMISSIONS[request.operation] ?? `the ${request.operation} call`;
+    return `Check access-key, secret-key and region, and check that the bucket policy allows ${permission}. The Security guide lists the permission for each S3 call.`;
+}
+/**
+ * The message for a failed S3 request. A 403 gets the operation, the object, the status and a
+ * likely fix. An error with no message (a `HEAD` response has no body, so the SDK says
+ * `UnknownError`) gets the operation, the object and the status. A network error after SDK
+ * retries gets the operation and the attempt count. Other messages stay as they are.
+ */
+function s3ErrorMessage(err, request) {
+    const error = (typeof err === 'object' && err !== null ? err : {});
+    const message = usefulMessage(error);
+    const status = error.$metadata?.httpStatusCode;
+    const attempts = error.$metadata?.attempts ?? 1;
+    const afterAttempts = attempts > 1 ? ` after ${attempts} attempts` : '';
+    if (status === undefined) {
+        if (message !== undefined && attempts > 1) {
+            return `${s3RequestLabel(request)} failed${afterAttempts}: ${message}`;
+        }
+        return error.message ?? String(err);
+    }
+    if (status !== 403) {
+        return (message ?? `${s3RequestLabel(request)} returned ${httpStatusText(status)}${afterAttempts}`);
+    }
+    const code = [error.Code, error.name].find((name) => !!name && !GENERIC_NAMES.has(name));
+    const detail = message === undefined || message === code ? '' : `: ${message.replace(/\.$/, '')}`;
+    const codeText = code === undefined ? '' : ` (${code})`;
+    const credentialError = code !== undefined && CREDENTIAL_ERROR_NAMES.has(code);
+    return `${s3RequestLabel(request)} returned ${httpStatusText(403)}${detail}${codeText}. ${accessHint(request, credentialError)}`;
+}
+const S3_REQUEST = Symbol('cloudCacheS3Request');
+/**
+ * Records the request on the error and rewrites its message with `s3ErrorMessage`. The name, the
+ * code and `$metadata` stay, so the checks that read them give the same result.
+ */
+function annotateS3Error(err, request) {
+    if (typeof err !== 'object' || err === null || S3_REQUEST in err) {
+        return;
+    }
+    const message = s3ErrorMessage(err, request);
+    Object.defineProperty(err, S3_REQUEST, { value: request });
+    if (err instanceof Error && message !== err.message) {
+        err.message = message;
+    }
+}
+/** The S3 operation that `annotateS3Error` recorded on the error or on one of its causes. */
+function s3OperationOf(err) {
+    for (let current = err, depth = 0; depth < 5; depth++) {
+        if (typeof current !== 'object' || current === null) {
+            return undefined;
+        }
+        const request = current[S3_REQUEST];
+        if (request) {
+            return request.operation;
+        }
+        current = current.cause;
+    }
+    return undefined;
+}
+/**
+ * True when S3 refused a write call for a missing permission. Only then can `read-only: true` be
+ * the fix: a 403 on a read call or a credential error means a broken setup.
+ */
+function isWriteAccessDeniedError(err) {
+    const operation = s3OperationOf(err);
+    return operation !== undefined && WRITE_OPERATIONS.has(operation) && isAccessDeniedError(err);
+}
+
 ;// CONCATENATED MODULE: ./src/storage/client.ts
+
 
 
 
@@ -69188,6 +69368,41 @@ function useUnsignedPayload(endpoint, env = process.env) {
  */
 function useSdkChecksums(env = process.env) {
     return env.CLOUD_CACHE_SDK_CHECKSUMS?.trim().toLowerCase() === 'true';
+}
+const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
+const DEFAULT_SOCKET_TIMEOUT_MS = 120_000;
+function timeoutFromEnv(env, name, fallback) {
+    const raw = env[name];
+    if (raw === undefined || raw.trim() === '') {
+        return fallback;
+    }
+    if (/^\d+$/.test(raw.trim())) {
+        return Number(raw.trim());
+    }
+    core/* warning */.$e(`Ignoring ${name}="${raw}": it must be a whole number of milliseconds (0 turns the timeout off). Using ${fallback}.`);
+    return fallback;
+}
+/**
+ * The timeouts of the S3 client's HTTP handler. Without them, an endpoint that does not answer
+ * holds each attempt for the TCP connect timeout of the OS (about 130 s on Linux), and a stalled
+ * response body holds a transfer with no limit.
+ *
+ * - `connectionTimeout` (10 s): a TCP connection that is not open by then fails, and the SDK
+ *   tries again.
+ * - `socketTimeout` (120 s): a socket with no data in either direction for this time fails, and
+ *   the SDK or the part retry tries again. `addBodyIdleTimeout` applies the same limit to a
+ *   response body. It is an idle limit, not a total limit, so a long transfer that moves data
+ *   never hits it. It is long, so that tar back-pressure on a streaming restore, or a slow server
+ *   reply to CompleteMultipartUpload, does not cause a false retry.
+ *
+ * `CLOUD_CACHE_CONNECTION_TIMEOUT_MS` and `CLOUD_CACHE_SOCKET_TIMEOUT_MS` override the defaults.
+ * The value 0 turns the timeout off.
+ */
+function storageTimeouts(env = process.env) {
+    return {
+        connectionTimeout: timeoutFromEnv(env, 'CLOUD_CACHE_CONNECTION_TIMEOUT_MS', DEFAULT_CONNECTION_TIMEOUT_MS),
+        socketTimeout: timeoutFromEnv(env, 'CLOUD_CACHE_SOCKET_TIMEOUT_MS', DEFAULT_SOCKET_TIMEOUT_MS),
+    };
 }
 /**
  * Returns the S3 error code when the error is a refusal of `UNSIGNED-PAYLOAD`, and undefined
@@ -69257,6 +69472,125 @@ function addGcsGenerationMiddleware(client) {
         return result;
     }, { step: 'build', name: GCS_GENERATION_MIDDLEWARE });
 }
+const ERROR_MESSAGE_MIDDLEWARE = 'cloudCacheErrorMessage';
+const ATTEMPT_MIDDLEWARE = 'cloudCacheAttempt';
+const BODY_TIMEOUT_MIDDLEWARE = 'cloudCacheBodyTimeout';
+/** The request a failed attempt made and how long the attempt took, by error object. */
+const attemptFailures = new WeakMap();
+function s3RequestOf(commandName, input) {
+    const { Bucket, Key } = (input ?? {});
+    return {
+        operation: (commandName ?? 'S3 request').replace(/Command$/, ''),
+        bucket: Bucket,
+        key: Key,
+    };
+}
+/**
+ * Gives every failed request an error message that names the operation and the object (see
+ * `annotateS3Error`). An inner middleware also records each failed attempt, so the retry log
+ * line can name the request.
+ */
+function addErrorMiddleware(client) {
+    client.middlewareStack.add((next, context) => async (args) => {
+        try {
+            return await next(args);
+        }
+        catch (error) {
+            annotateS3Error(error, s3RequestOf(context.commandName, args.input));
+            throw error;
+        }
+    }, { step: 'initialize', name: ERROR_MESSAGE_MIDDLEWARE, priority: 'high' });
+    // In the finalizeRequest step, a lower priority than the SDK retry middleware ('high') puts
+    // this one inside the retry loop, so it sees each attempt.
+    client.middlewareStack.add((next, context) => async (args) => {
+        const start = Date.now();
+        try {
+            return await next(args);
+        }
+        catch (error) {
+            if (typeof error === 'object' && error !== null) {
+                attemptFailures.set(error, {
+                    request: s3RequestOf(context.commandName, args.input),
+                    durationMs: Date.now() - start,
+                });
+            }
+            throw error;
+        }
+    }, { step: 'finalizeRequest', name: ATTEMPT_MIDDLEWARE, priority: 'normal' });
+}
+const seconds = (ms) => `${(ms / 1000).toFixed(1)} s`;
+function isResponseBody(body) {
+    const candidate = body;
+    return typeof candidate?.setTimeout === 'function' && typeof candidate.destroy === 'function';
+}
+/**
+ * Stops a response body that sends no data for `timeoutMs`. The SDK `socketTimeout` does not do
+ * this for a value of 6 s or more: it starts its timer after 3 s and clears it when the response
+ * headers arrive. A GetObject body that stalls after the headers would then wait with no limit.
+ * The error is a `TimeoutError` with no `$metadata`, so the part retry tries the part again.
+ */
+function addBodyIdleTimeout(client, timeoutMs) {
+    if (timeoutMs <= 0) {
+        return;
+    }
+    client.middlewareStack.add((next, context) => async (args) => {
+        const result = await next(args);
+        const body = result.response?.body;
+        if (isResponseBody(body) && body.socket && !body.complete) {
+            const label = s3RequestLabel(s3RequestOf(context.commandName, args.input));
+            body.setTimeout(timeoutMs, () => {
+                body.destroy(Object.assign(new Error(`${label}: no data from the server for ${seconds(timeoutMs)}`), {
+                    name: 'TimeoutError',
+                    code: 'ETIMEDOUT',
+                }));
+            });
+        }
+        return result;
+    }, { step: 'finalizeRequest', name: BODY_TIMEOUT_MIDDLEWARE, priority: 'normal' });
+}
+/**
+ * Wraps the SDK retry strategy and logs one line for each retry it grants. Without the line, a
+ * job log shows nothing while the SDK tries an endpoint that does not answer again and again.
+ * The SDK waits inside `refreshRetryTokenForRetry`, so the line comes just before the next attempt.
+ */
+class LoggedRetryStrategy {
+    inner;
+    maxAttempts;
+    constructor(inner, maxAttempts) {
+        this.inner = inner;
+        this.maxAttempts = maxAttempts;
+    }
+    get mode() {
+        return this.inner.mode;
+    }
+    acquireInitialRetryToken(scope) {
+        return this.inner.acquireInitialRetryToken(scope);
+    }
+    recordSuccess(token) {
+        this.inner.recordSuccess(token);
+    }
+    async refreshRetryTokenForRetry(token, info) {
+        const next = await this.inner.refreshRetryTokenForRetry(token, info);
+        const failure = info.error ? attemptFailures.get(info.error) : undefined;
+        const label = s3RequestLabel(failure?.request ?? { operation: 'S3 request' });
+        const failed = token.getRetryCount() + 1;
+        const took = failure === undefined ? '' : ` after ${seconds(failure.durationMs)}`;
+        const wait = next.$retryLog?.acquisitionDelay ??
+            next.getRetryDelay();
+        core/* info */.pq(`${label}: attempt ${failed} of ${this.maxAttempts} failed${took}: ${s3ErrorReason(info.error).replace(/\.$/, '')}. Starting attempt ${failed + 1} after a wait of ${seconds(wait)}.`);
+        return next;
+    }
+}
+function logSdkRetries(client, maxAttempts) {
+    const resolve = client.config.retryStrategy;
+    let logged;
+    client.config.retryStrategy = () => {
+        logged ??= resolve().then((strategy) => 'refreshRetryTokenForRetry' in strategy
+            ? new LoggedRetryStrategy(strategy, maxAttempts)
+            : strategy);
+        return logged;
+    };
+}
 function createStorageContext(options) {
     const bucket = (0,inputUtils/* getInputWithEnv */.oh)(constants/* Inputs */.G0.Bucket, ['AWS_S3_BUCKET', 'S3_BUCKET']);
     if (!bucket) {
@@ -69277,11 +69611,14 @@ function createStorageContext(options) {
     const accessKey = (0,inputUtils/* getInputWithEnv */.oh)(constants/* Inputs */.G0.AccessKey, ['AWS_ACCESS_KEY_ID'], constants/* Inputs */.G0.AccessKeyCamel);
     const secretKey = (0,inputUtils/* getInputWithEnv */.oh)(constants/* Inputs */.G0.SecretKey, ['AWS_SECRET_ACCESS_KEY'], constants/* Inputs */.G0.SecretKeyCamel);
     const sessionToken = (0,inputUtils/* getInputWithEnv */.oh)(constants/* Inputs */.G0.SessionToken, ['AWS_SESSION_TOKEN'], constants/* Inputs */.G0.SessionTokenCamel);
+    const maxAttempts = Math.max(1, options.maxAttempts);
+    const timeouts = storageTimeouts();
     const clientConfig = {
         region: providerConfig.region,
         forcePathStyle: providerConfig.forcePathStyle,
-        maxAttempts: Math.max(1, options.maxAttempts),
+        maxAttempts,
         retryMode: 'standard',
+        requestHandler: timeouts,
     };
     if (providerConfig.endpoint) {
         clientConfig.endpoint = providerConfig.endpoint;
@@ -69303,8 +69640,11 @@ function createStorageContext(options) {
     else if (accessKey || secretKey) {
         core/* warning */.$e('Only one of access-key and secret-key is set; ignoring it and using the default AWS credential chain.');
     }
-    core/* debug */.Yz(`Configuring S3 client for provider: ${providerConfig.provider} (endpoint: ${providerConfig.endpoint || 'AWS default'}, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle}, maxAttempts: ${clientConfig.maxAttempts})`);
+    core/* debug */.Yz(`Configuring S3 client for provider: ${providerConfig.provider} (endpoint: ${providerConfig.endpoint || 'AWS default'}, region: ${providerConfig.region}, forcePathStyle: ${providerConfig.forcePathStyle}, maxAttempts: ${maxAttempts}, connectionTimeout: ${timeouts.connectionTimeout} ms, socketTimeout: ${timeouts.socketTimeout} ms)`);
     const client = new dist_cjs.S3Client(clientConfig);
+    addErrorMiddleware(client);
+    addBodyIdleTimeout(client, timeouts.socketTimeout);
+    logSdkRetries(client, maxAttempts);
     if (useUnsignedPayload(providerConfig.endpoint)) {
         addUnsignedPayloadMiddleware(client);
     }
@@ -69316,42 +69656,6 @@ function createStorageContext(options) {
         providerConfig,
         bucket,
     };
-}
-
-;// CONCATENATED MODULE: ./src/storage/errors.ts
-/**
- * S3 also answers 403 when the credentials themselves are wrong: a bad key, a bad signature, a
- * clock skew or an expired session token. Those errors are not a missing write permission, so a
- * hint about read-only would mislead.
- */
-const CREDENTIAL_ERROR_NAMES = new Set([
-    'InvalidAccessKeyId',
-    'SignatureDoesNotMatch',
-    'RequestTimeTooSkewed',
-    'ExpiredToken',
-    'InvalidToken',
-    'TokenRefreshRequired',
-]);
-/**
- * True when S3 refused the request because the credentials do not have the permission: the error
- * name `AccessDenied`, or an HTTP 403 that is not a credential error. The check follows the
- * `cause` chain, because some callers wrap the SDK error.
- */
-function isAccessDeniedError(err) {
-    for (let current = err, depth = 0; depth < 5; depth++) {
-        if (typeof current !== 'object' || current === null) {
-            return false;
-        }
-        const error = current;
-        if (error.name !== undefined && CREDENTIAL_ERROR_NAMES.has(error.name)) {
-            return false;
-        }
-        if (error.name === 'AccessDenied' || error.$metadata?.httpStatusCode === 403) {
-            return true;
-        }
-        current = error.cause;
-    }
-    return false;
 }
 
 // EXTERNAL MODULE: ./node_modules/@aws-sdk/lib-storage/dist-cjs/index.js
@@ -72534,7 +72838,7 @@ function isCacheWritable(mode) {
  * it takes the step's metrics and returns text, so any CI front end can print it.
  */
 const timings_MiB = 1024 * 1024;
-function seconds(ms) {
+function timings_seconds(ms) {
     return `${(ms / 1000).toFixed(2)} s`;
 }
 /**
@@ -72549,19 +72853,19 @@ function formatTimings(metrics) {
         return undefined;
     }
     const rate = `${(metrics.bytes / timings_MiB / (transferMs / 1000)).toFixed(1)} MiB/s`;
-    const transfer = `${metrics.step === 'save' ? 'upload' : 'download'} ${seconds(transferMs)} (${rate})`;
+    const transfer = `${metrics.step === 'save' ? 'upload' : 'download'} ${timings_seconds(transferMs)} (${rate})`;
     const parts = [
         metrics.lookupDurationMs === undefined
             ? undefined
-            : `lookup ${seconds(metrics.lookupDurationMs)}`,
+            : `lookup ${timings_seconds(metrics.lookupDurationMs)}`,
         metrics.archiveDurationMs === undefined
             ? undefined
-            : `archive ${seconds(metrics.archiveDurationMs)}`,
+            : `archive ${timings_seconds(metrics.archiveDurationMs)}`,
         transfer,
         metrics.extractDurationMs === undefined
             ? undefined
-            : `extract ${seconds(metrics.extractDurationMs)}`,
-        `total ${seconds(metrics.durationMs)}`,
+            : `extract ${timings_seconds(metrics.extractDurationMs)}`,
+        `total ${timings_seconds(metrics.durationMs)}`,
     ];
     const note = metrics.outcome === 'exists' ? ' (another job saved first)' : '';
     return `Timings: ${parts.filter((part) => part !== undefined).join(', ')}${note}`;
@@ -72946,6 +73250,7 @@ async function restoreImpl(stateProvider, earlyExit) {
         if (config.dualCache) {
             core/* info */.pq(`Dual-cache enabled (priority: ${config.restorePriority}, strategy: ${config.dualCacheStrategy})`);
         }
+        const failedTiers = [];
         for (const source of restoreOrder(config)) {
             const outcome = await attempt(source, config, s3);
             switch (outcome.kind) {
@@ -72993,6 +73298,7 @@ async function restoreImpl(stateProvider, earlyExit) {
                         });
                     }
                     core/* warning */.$e(`Restoring from ${source} failed, so it counts as a cache miss: ${outcome.error.message}`);
+                    failedTiers.push(source);
                     break;
                 default: {
                     const unreachable = outcome;
@@ -73027,7 +73333,17 @@ async function restoreImpl(stateProvider, earlyExit) {
         if (config.failOnCacheMiss) {
             throw new Error(`Failed to restore cache entry. Exiting as fail-on-cache-miss is set. Input key: ${config.primaryKey}`);
         }
-        core/* info */.pq(`Cache not found for input keys: ${[config.primaryKey, ...config.restoreKeys].join(', ')}`);
+        const keys = [config.primaryKey, ...config.restoreKeys].join(', ');
+        if (failedTiers.length > 0) {
+            // A tier error is not a miss: the object can exist, and the download failed.
+            const tiers = failedTiers.length === 1
+                ? `the ${failedTiers[0]} tier failed (see the warning above)`
+                : `the ${failedTiers.join(' and ')} tiers failed (see the warnings above)`;
+            core/* info */.pq(`No cache restored: ${tiers}. Keys searched: ${keys}`);
+        }
+        else {
+            core/* info */.pq(`Cache not found for input keys: ${keys}`);
+        }
         return undefined;
     }
     catch (err) {
@@ -73076,10 +73392,14 @@ async function runRestoreOnly(earlyExit = true) {
 
 
 
-const ACCESS_DENIED_HINT = 'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save and silence this message.';
-/** The S3 save error message, with a hint about read-only when S3 denied the write. */
+const ACCESS_DENIED_HINT = 'The credentials may not be allowed to write to the bucket. Set read-only: true to skip the save.';
+/**
+ * The S3 save error message, with a hint about read-only when S3 denied a write call. A 403 on a
+ * read call, such as the HeadObject existence check, gets no hint: it means wrong credentials or
+ * a policy without s3:ListBucket, and read-only would only hide that.
+ */
 function s3SaveError(error) {
-    if (!isAccessDeniedError(error)) {
+    if (!isWriteAccessDeniedError(error)) {
         return error;
     }
     const message = error.message.replace(/\.$/, '');
