@@ -96,6 +96,7 @@ export default defineConfig({
           { text: 'Inspecting Lookups', link: '/guide/inspecting' },
           { text: 'Security', link: '/guide/security' },
           { text: 'Performance', link: '/guide/performance' },
+          { text: 'Benchmarks', link: '/guide/benchmarks' },
           { text: 'Migrating from actions/cache', link: '/guide/migration' },
         ],
       },

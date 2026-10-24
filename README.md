@@ -526,7 +526,13 @@ archive over 5 GiB, since a copy cannot span more than 5 GiB — costs the check
 the save logs
 `Saved s3://<bucket>/<key> but could not attach metadata: <reason>` and succeeds. A tag has no
 size limit, so a streamed archive over 5 GiB gets a checksum for the first time when the tag path
-applies. The copy was verified to work on MinIO, SeaweedFS, RustFS and Garage.
+applies. The copy was verified to work on MinIO, SeaweedFS, RustFS and Garage. Google Cloud
+Storage has no tagging API, so a streamed save to GCS always uses the copy. GCS cannot check
+`CopySourceIfMatch` against the ETag of a multipart upload. On GCS the copy therefore names the
+generation that the upload wrote as its source version (`?versionId=`). When another job replaced
+the object in between, the copy finds no source and fails, and the save keeps no checksum. With
+Object Versioning on the bucket, an old generation stays readable: the copy can then put an older
+save back over a newer one, with a checksum that matches its bytes.
 
 The ownership check is one `HeadObject` after the tag. It proves that no other job replaced the
 object between the upload and the tag. When the upload and the HEAD both report an ETag, the save
@@ -623,6 +629,15 @@ client's `retry-count`. The upload buffers up to `upload-concurrency × upload-c
 (512 MiB by default, as `actions/cache` does); lower either input on a small self-hosted runner.
 A value of `upload-chunk-size` below 5 MiB or above 128 MiB warns and uses the default, since
 every S3-compatible provider rejects smaller parts.
+
+**Automatic tuning.** With `transfer-tuning: auto`, a restore and a file-mode save select the
+part size and the concurrency from the archive size, for example 16 × 16 MiB for a restore. A
+save also uses the provider. The bytes in flight stay within about a quarter of the usable memory
+and 1 GiB, with at least one part in flight. A transfer
+input that you set still wins for that field, and a streaming save keeps the fixed settings. The
+default is `fixed`. The rules and the measurements are in the
+[Performance](https://xsavikx.github.io/cloud-cache-action/guide/performance#automatic-tuning)
+guide and on the [Benchmarks](https://xsavikx.github.io/cloud-cache-action/guide/benchmarks) page.
 
 **Measured on a hosted runner** (512 MiB archive, `ubuntu-latest`, 2026-09-21; the full tables,
 the run-to-run variance and the settings that measured best are in the
@@ -810,6 +825,7 @@ The post step only runs when the job succeeds. To save a cache even when a later
 | `download-chunk-size`            |    No    |                         `8388608`                          | Bytes per ranged GET request (1 MiB–128 MiB); archives no larger than this use one request |
 | `upload-concurrency`             |    No    |                            `8`                             | Multipart upload parts sent at once (1–32)                                  |
 | `upload-chunk-size`              |    No    |                         `67108864`                         | Bytes per multipart upload part (5 MiB–128 MiB); the same input `actions/cache` takes |
+| `transfer-tuning`                |    No    |                          `fixed`                           | `auto` selects the part size and the concurrency per archive from its size (and, for a save, the provider); a transfer input you set still wins (see [Parallel Transfers](#parallel-transfers)) |
 | `compression-level`              |    No    |                            Tool default                            | zstd 1–19 or gzip 1–9 for saving; lower is faster and larger (see [Performance](https://xsavikx.github.io/cloud-cache-action/guide/performance)) |
 | `job-summary`                    |    No    |                           `true`                           | Write a job summary table with the cache keys, hit, source, size and duration |
 | `metadata`                       |    No    |                             —                              | User metadata (`x-amz-meta-*`) for every saved object, one `key=value` per line, with surrounding whitespace trimmed (see [Object Metadata and Tags](#object-metadata-and-tags)) |

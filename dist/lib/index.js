@@ -60677,6 +60677,7 @@ var Inputs;
     Inputs["Streaming"] = "streaming";
     Inputs["DownloadConcurrency"] = "download-concurrency";
     Inputs["DownloadChunkSize"] = "download-chunk-size";
+    Inputs["TransferTuning"] = "transfer-tuning";
     Inputs["Metadata"] = "metadata";
     Inputs["Tags"] = "tags";
     // Prune-only inputs
@@ -60758,6 +60759,7 @@ var State;
     State["CacheHitSource"] = "CACHE_HIT_SOURCE";
     State["CacheJobSummary"] = "CACHE_JOB_SUMMARY";
     State["CacheMetricsFile"] = "CACHE_METRICS_FILE";
+    State["CacheTransferTuning"] = "CACHE_TRANSFER_TUNING";
 })(State || (State = {}));
 var Events;
 (function (Events) {
@@ -68274,6 +68276,7 @@ function stripReservedMetadata(metadata) {
 
 const RESTORE_PRIORITIES = ['s3-first', 'github-first'];
 const DUAL_CACHE_STRATEGIES = ['backfill', 'skip-on-hit'];
+const TRANSFER_TUNINGS = ['fixed', 'auto'];
 function readDualCacheStrategy() {
     if (core/* getInput */.V4(constants/* Inputs */.G0.DualCacheStrategy).trim() === 'independent') {
         core/* warning */.$e('dual-cache-strategy "independent" was removed in v1.1; using "backfill", which now checks each tier before uploading.');
@@ -68283,19 +68286,19 @@ function readDualCacheStrategy() {
 }
 /**
  * Reads an integer input within [min, max]; anything else warns and uses the default. The
- * warning names `effective`, the value the default stands for, when the default is undefined.
+ * warning names `effective`, what the default stands for. `set` is true only for a valid value.
  */
 function readBoundedInt(name, defaultValue, min, max, effective = defaultValue) {
     const raw = core/* getInput */.V4(name).trim();
     if (raw === '') {
-        return defaultValue;
+        return { value: defaultValue, set: false };
     }
     const value = /^[0-9]+$/.test(raw) ? Number(raw) : Number.NaN;
     if (Number.isNaN(value) || value < min || value > max) {
         core/* warning */.$e(`Input "${name}" must be an integer between ${min} and ${max}; got "${raw}". Using ${effective}.`);
-        return defaultValue;
+        return { value: defaultValue, set: false };
     }
-    return value;
+    return { value, set: true };
 }
 /** Reads `compression-level`; anything outside 1 to 19 warns and leaves the method's default. */
 function readOptionalLevel() {
@@ -68327,6 +68330,13 @@ function readCacheConfig(state) {
     };
     const retryCountState = persisted(constants/* State */.Uw.CacheRetryCount);
     const streaming = bool(constants/* State */.Uw.CacheStreaming, () => (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.Streaming));
+    const transferTuning = text(constants/* State */.Uw.CacheTransferTuning, () => (0,inputUtils/* getInputAsEnum */.q8)(constants/* Inputs */.G0.TransferTuning, TRANSFER_TUNINGS, 'fixed'));
+    // Under `auto`, an invalid transfer input leaves the field to the tuning, not to the default.
+    const tuned = (effective) => transferTuning === 'auto' ? 'the transfer-tuning: auto value' : effective;
+    const uploadChunkSize = readBoundedInt(constants/* Inputs */.G0.UploadChunkSize, undefined, constants/* Defaults */.Hw.MinUploadChunkSize, constants/* Defaults */.Hw.MaxUploadChunkSize, tuned(constants/* Defaults */.Hw.DefaultUploadChunkSize));
+    const uploadConcurrency = readBoundedInt(constants/* Inputs */.G0.UploadConcurrency, constants/* Defaults */.Hw.DefaultUploadConcurrency, 1, constants/* Defaults */.Hw.MaxUploadConcurrency, tuned(constants/* Defaults */.Hw.DefaultUploadConcurrency));
+    const downloadConcurrency = readBoundedInt(constants/* Inputs */.G0.DownloadConcurrency, constants/* Defaults */.Hw.DefaultDownloadConcurrency, 1, constants/* Defaults */.Hw.MaxDownloadConcurrency, tuned(constants/* Defaults */.Hw.DefaultDownloadConcurrency));
+    const downloadChunkSize = readBoundedInt(constants/* Inputs */.G0.DownloadChunkSize, constants/* Defaults */.Hw.DefaultDownloadChunkSize, constants/* Defaults */.Hw.MinDownloadChunkSize, constants/* Defaults */.Hw.MaxDownloadChunkSize, tuned(constants/* Defaults */.Hw.DefaultDownloadChunkSize));
     return {
         primaryKey: text(constants/* State */.Uw.CachePrimaryKey, () => core/* getInput */.V4(constants/* Inputs */.G0.Key).trim()),
         paths: json(constants/* State */.Uw.CachePaths, () => (0,inputUtils/* getInputAsArray */.q3)(constants/* Inputs */.G0.Path)),
@@ -68335,8 +68345,8 @@ function readCacheConfig(state) {
         failOnCacheMiss: (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.FailOnCacheMiss),
         readOnly: bool(constants/* State */.Uw.CacheReadOnly, () => (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.ReadOnly)),
         enableCrossOsArchive: (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.EnableCrossOsArchive),
-        uploadChunkSize: readBoundedInt(constants/* Inputs */.G0.UploadChunkSize, undefined, constants/* Defaults */.Hw.MinUploadChunkSize, constants/* Defaults */.Hw.MaxUploadChunkSize, constants/* Defaults */.Hw.DefaultUploadChunkSize),
-        uploadConcurrency: readBoundedInt(constants/* Inputs */.G0.UploadConcurrency, constants/* Defaults */.Hw.DefaultUploadConcurrency, 1, constants/* Defaults */.Hw.MaxUploadConcurrency),
+        uploadChunkSize: uploadChunkSize.value,
+        uploadConcurrency: uploadConcurrency.value,
         compressionLevel: readOptionalLevel(),
         s3KeyPattern: text(constants/* State */.Uw.CacheS3KeyPattern, () => core/* getInput */.V4(constants/* Inputs */.G0.S3KeyPattern) || constants/* Defaults */.Hw.DefaultS3KeyPattern),
         prefix: text(constants/* State */.Uw.CachePrefix, () => core/* getInput */.V4(constants/* Inputs */.G0.Prefix)),
@@ -68352,8 +68362,15 @@ function readCacheConfig(state) {
         dualCacheStrategy: text(constants/* State */.Uw.CacheDualCacheStrategy, readDualCacheStrategy),
         dualCacheStrict: bool(constants/* State */.Uw.CacheDualCacheStrict, () => (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.DualCacheStrict)),
         streaming,
-        downloadConcurrency: readBoundedInt(constants/* Inputs */.G0.DownloadConcurrency, constants/* Defaults */.Hw.DefaultDownloadConcurrency, 1, constants/* Defaults */.Hw.MaxDownloadConcurrency),
-        downloadChunkSize: readBoundedInt(constants/* Inputs */.G0.DownloadChunkSize, constants/* Defaults */.Hw.DefaultDownloadChunkSize, constants/* Defaults */.Hw.MinDownloadChunkSize, constants/* Defaults */.Hw.MaxDownloadChunkSize),
+        downloadConcurrency: downloadConcurrency.value,
+        downloadChunkSize: downloadChunkSize.value,
+        transferTuning,
+        explicitTransfer: {
+            uploadConcurrency: uploadConcurrency.set,
+            uploadChunkSize: uploadChunkSize.set,
+            downloadConcurrency: downloadConcurrency.set,
+            downloadChunkSize: downloadChunkSize.set,
+        },
         jobSummary: bool(constants/* State */.Uw.CacheJobSummary, () => (0,inputUtils/* getInputAsBool */.$x)(constants/* Inputs */.G0.JobSummary, true)),
         metadata: json(constants/* State */.Uw.CacheMetadata, () => parseMetadata(core/* getInput */.V4(constants/* Inputs */.G0.Metadata))),
         tags: json(constants/* State */.Uw.CacheTags, () => parseTags(core/* getInput */.V4(constants/* Inputs */.G0.Tags), 'tags', streaming ? MAX_TAGS_WITH_CHECKSUM : undefined)),
@@ -68382,6 +68399,7 @@ function persistCacheConfig(state, config) {
     state.setState(constants/* State */.Uw.CacheMetadata, JSON.stringify(config.metadata));
     state.setState(constants/* State */.Uw.CacheTags, JSON.stringify(config.tags));
     state.setState(constants/* State */.Uw.CacheMetricsFile, config.metricsFile);
+    state.setState(constants/* State */.Uw.CacheTransferTuning, config.transferTuning);
 }
 
 ;// CONCATENATED MODULE: ./src/utils/concurrency.ts
@@ -69214,6 +69232,31 @@ function addUnsignedPayloadMiddleware(client) {
         }
     }, { step: 'build', name: UNSIGNED_PAYLOAD_MIDDLEWARE });
 }
+const GCS_GENERATION_HEADER = 'x-goog-generation';
+const GCS_GENERATION_MIDDLEWARE = 'cloudCacheGcsGeneration';
+/** Commands that write an object, whose generation the metadata copy pins its source to. */
+const OBJECT_WRITE_COMMANDS = new Set(['PutObjectCommand', 'CompleteMultipartUploadCommand']);
+/**
+ * Reports the generation that GCS gives each written object as its `VersionId`, as GCS maps
+ * `x-amz-version-id` to `x-goog-generation`. The SDK reads only the `x-amz-*` header, so without
+ * this a write on GCS has no version id.
+ */
+function addGcsGenerationMiddleware(client) {
+    client.middlewareStack.add((next, context) => async (args) => {
+        const result = await next(args);
+        if (!OBJECT_WRITE_COMMANDS.has(context.commandName ?? '')) {
+            return result;
+        }
+        const headers = result.response
+            ?.headers;
+        const generation = headers?.[GCS_GENERATION_HEADER];
+        const output = result.output;
+        if (generation && output.VersionId === undefined) {
+            output.VersionId = generation;
+        }
+        return result;
+    }, { step: 'build', name: GCS_GENERATION_MIDDLEWARE });
+}
 function createStorageContext(options) {
     const bucket = (0,inputUtils/* getInputWithEnv */.oh)(constants/* Inputs */.G0.Bucket, ['AWS_S3_BUCKET', 'S3_BUCKET']);
     if (!bucket) {
@@ -69264,6 +69307,9 @@ function createStorageContext(options) {
     const client = new dist_cjs.S3Client(clientConfig);
     if (useUnsignedPayload(providerConfig.endpoint)) {
         addUnsignedPayloadMiddleware(client);
+    }
+    if (providerConfig.provider === 'gcs') {
+        addGcsGenerationMiddleware(client);
     }
     return {
         client,
@@ -69565,16 +69611,18 @@ function encodeCopySource(bucket, key) {
 /**
  * Replaces an object's user metadata in place (S3 has no metadata-only update): a CopyObject
  * onto itself with MetadataDirective REPLACE. Tags are kept. Used after a streamed save, whose
- * sha256 is only known once the upload has finished. `ifMatch` (the ETag the save just wrote)
- * makes the copy fail with 412 rather than stamp this metadata onto another writer's body.
- * Only for objects up to 5 GiB: a larger one needs a multipart copy.
+ * sha256 is only known once the upload has finished. `guard` keeps the copy off another
+ * writer's body. Only for objects up to 5 GiB: a larger one needs a multipart copy.
  */
-async function replaceObjectMetadata(client, bucket, key, metadata, ifMatch) {
+async function replaceObjectMetadata(client, bucket, key, metadata, guard = {}) {
+    const source = encodeCopySource(bucket, key);
     const result = await client.send(new dist_cjs.CopyObjectCommand({
         Bucket: bucket,
         Key: key,
-        CopySource: encodeCopySource(bucket, key),
-        CopySourceIfMatch: ifMatch,
+        CopySource: guard.versionId === undefined
+            ? source
+            : `${source}?versionId=${encodeURIComponent(guard.versionId)}`,
+        CopySourceIfMatch: guard.ifMatch,
         MetadataDirective: 'REPLACE',
         TaggingDirective: 'COPY',
         Metadata: metadata,
@@ -70092,6 +70140,79 @@ async function openObjectPartsStream(client, bucket, key, options) {
     return { body, metadata, tagCount, parts: source.parts.length };
 }
 
+;// CONCATENATED MODULE: ./src/core/transferTuning.ts
+/**
+ * The `transfer-tuning: auto` rules: the part size and the concurrency for one transfer, from the
+ * object size and the provider. Pure on purpose, so any CI front end can use it. The values come
+ * from the size sweep in benchmark run 39905131759 (128, 512 and 2048 MiB on AWS S3, Cloudflare
+ * R2 and Google Cloud Storage, on a 4-CPU runner); the benchmark page lists the measurements.
+ */
+const MiB = 1024 * 1024;
+const GiB = 1024 * MiB;
+/** S3 accepts at most this many parts in one multipart upload. */
+const MAX_UPLOAD_PARTS = 10_000;
+/** The input limits for `upload-chunk-size` and `download-chunk-size`. */
+const MAX_PART_SIZE = 128 * MiB;
+/** At most this many bytes in flight, whatever the free memory. */
+const MAX_BUFFERED_BYTES = 1 * GiB;
+/**
+ * Downloads: 16 MiB parts, 16 at a time. Every provider reached its top group with 128 MiB or
+ * more in flight; the 8 x 8 MiB default was the slowest or close to it at every size.
+ */
+function downloadRule(sizeBytes) {
+    const partSize = 16 * MiB;
+    const parts = Math.max(1, Math.ceil(sizeBytes / partSize));
+    return { concurrency: Math.min(16, parts), partSize };
+}
+/**
+ * Uploads: 16 at a time, with 16 MiB parts up to 256 MiB and 32 MiB parts above, so a small
+ * archive still gets several parts. R2 gained most from more parts in flight on a large archive,
+ * so R2 uploads of 1 GiB or more use 32 x 16 MiB. The part size grows when the archive would
+ * need more than 10,000 parts.
+ */
+function uploadRule(sizeBytes, provider) {
+    let settings = provider === 'r2' && sizeBytes >= GiB
+        ? { concurrency: 32, partSize: 16 * MiB }
+        : { concurrency: 16, partSize: sizeBytes <= 256 * MiB ? 16 * MiB : 32 * MiB };
+    const minPartSize = Math.ceil(sizeBytes / MAX_UPLOAD_PARTS / MiB) * MiB;
+    if (minPartSize > settings.partSize) {
+        settings = { ...settings, partSize: Math.min(minPartSize, MAX_PART_SIZE) };
+    }
+    return settings;
+}
+/**
+ * Returns the settings for one transfer: the rule's values, with the `fixed` values in their
+ * place. The budget is a quarter of the free memory, at most 1 GiB. The code that reads the parts
+ * holds one part more than the concurrency, so a tuned concurrency goes down until
+ * `(concurrency + 1) * partSize` fits the budget, to 1 at the lowest. The part size does not
+ * shrink, so a very small budget still gets one part in flight. A concurrency that the workflow
+ * set is not reduced.
+ */
+function tuneTransfer(input) {
+    const rule = input.direction === 'download'
+        ? downloadRule(input.sizeBytes)
+        : uploadRule(input.sizeBytes, input.provider);
+    const partSize = input.fixed?.partSize ?? rule.partSize;
+    if (input.fixed?.concurrency !== undefined) {
+        return { concurrency: input.fixed.concurrency, partSize };
+    }
+    const budget = Math.min(MAX_BUFFERED_BYTES, Math.floor(input.freeMemoryBytes / 4));
+    const fits = Math.max(1, Math.floor(budget / partSize) - 1);
+    return { concurrency: Math.min(rule.concurrency, fits), partSize };
+}
+/**
+ * `Transfer tuning: auto selected 16 x 16 MiB for the download of 2.0 GiB`. A value that the
+ * workflow set is marked `(set)`.
+ */
+function formatTuning(direction, settings, sizeBytes, fixed = {}) {
+    const size = sizeBytes >= GiB
+        ? `${(sizeBytes / GiB).toFixed(1)} GiB`
+        : `${(sizeBytes / MiB).toFixed(0)} MiB`;
+    const concurrency = `${settings.concurrency}${fixed.concurrency === undefined ? '' : ' (set)'}`;
+    const partSize = `${settings.partSize / MiB} MiB${fixed.partSize === undefined ? '' : ' (set)'}`;
+    return `Transfer tuning: auto selected ${concurrency} x ${partSize} for the ${direction} of ${size}`;
+}
+
 ;// CONCATENATED MODULE: ./src/core/keyTemplate.ts
 /**
  * Turns `s3-key-pattern` into object keys, listing prefixes and key extraction.
@@ -70465,6 +70586,7 @@ function computeCacheVersion(paths, compression, enableCrossOsArchive, platform 
 
 
 
+
 /** Logged when streaming is requested but the plan needs the BSD-tar-plus-zstd two-step on Windows. */
 const STREAMING_FALLBACK_MESSAGE = 'Streaming is not supported with BSD tar and zstd on Windows; using a temporary archive file.';
 /** Prefix listings sent at once while searching one ref. */
@@ -70589,7 +70711,47 @@ async function buildS3Tier(config, env = process.env, options = {}) {
         metadata: config.metadata,
         tags: config.tags,
         compressionLevel,
+        tuning: config.transferTuning === 'auto' ? config.explicitTransfer : undefined,
     };
+}
+/**
+ * The memory this process can use. `os.freemem()` is MemAvailable on Linux, so it counts the page
+ * cache as free, but it does not see a container limit. `process.constrainedMemory()` is that
+ * limit (0 or a very large value without one), and the process already uses `rss` of it.
+ * `process.availableMemory()` is not used: on a test host it returned about MemFree, which leaves
+ * out the page cache and is far lower after a large build.
+ */
+function usableMemory(free = external_node_os_.freemem(), limit = process.constrainedMemory(), rss = process.memoryUsage.rss()) {
+    return limit > 0 ? Math.min(free, Math.max(0, limit - rss)) : free;
+}
+/**
+ * The transfer settings for one object of `sizeBytes`: the tier's settings with `auto` tuning
+ * applied to each field the workflow did not set. Logs the result when tuning set a field.
+ */
+function settingsFor(tier, direction, sizeBytes) {
+    const current = direction === 'upload' ? tier.upload : tier.download;
+    if (tier.tuning === undefined) {
+        return current;
+    }
+    const explicit = direction === 'upload'
+        ? { concurrency: tier.tuning.uploadConcurrency, partSize: tier.tuning.uploadChunkSize }
+        : { concurrency: tier.tuning.downloadConcurrency, partSize: tier.tuning.downloadChunkSize };
+    if (explicit.concurrency && explicit.partSize) {
+        return current;
+    }
+    const fixed = {
+        concurrency: explicit.concurrency ? current.concurrency : undefined,
+        partSize: explicit.partSize ? current.partSize : undefined,
+    };
+    const settings = tuneTransfer({
+        direction,
+        sizeBytes,
+        provider: tier.storage.providerConfig.provider,
+        freeMemoryBytes: (tier.memory ?? usableMemory)(),
+        fixed,
+    });
+    core/* info */.pq(formatTuning(direction, settings, sizeBytes, fixed));
+    return settings;
 }
 /** gzip stops at 9, so a higher level warns once and uses 9. */
 function clampCompressionLevel(level, method) {
@@ -70825,7 +70987,8 @@ async function saveToS3FileMode(tier, objectKey, entries, primaryKey, retryConfl
         const archiveSize = getArchiveSize(archivePath);
         core/* info */.pq(`Uploading ${(0,inputUtils/* formatSize */.Xq)(archiveSize)} to s3://${bucket}/${objectKey}...`);
         const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: checksum };
-        const attemptUpload = (ifNoneMatch, tagging) => withRetry(() => uploadFile(client, bucket, objectKey, archivePath, tier.upload, {
+        const uploadSettings = settingsFor(tier, 'upload', archiveSize);
+        const attemptUpload = (ifNoneMatch, tagging) => withRetry(() => uploadFile(client, bucket, objectKey, archivePath, uploadSettings, {
             metadata,
             ifNoneMatch,
             tagging,
@@ -70913,6 +71076,31 @@ async function saveToS3FileMode(tier, objectKey, entries, primaryKey, retryConfl
 }
 /** A single CopyObject can only copy up to 5 GiB; a larger object would need a multipart copy. */
 const MAX_COPY_SIZE = 5 * 1024 * 1024 * 1024;
+/** A multipart upload's ETag: an md5 of the part md5s, then a dash and the part count. */
+const isMultipartEtag = (etag) => /-\d+"?$/.test(etag);
+/**
+ * How the metadata copy proves that the object still holds this upload. Elsewhere, the ETag the
+ * upload reported (`CopySourceIfMatch`), or no guard when there is none. GCS cannot evaluate
+ * `CopySourceIfMatch` against a multipart ETag (400 InvalidArgument), and refuses its own
+ * `x-goog-copy-source-if-generation-match` next to the SDK's `x-amz-*` headers. So on GCS the copy
+ * source is pinned to the generation of the upload: a replaced object has another generation, and
+ * the copy finds no source (404). On a bucket with Object Versioning an old generation stays
+ * readable, so the pinned copy can put this save back over a newer one; its checksum still
+ * matches its bytes. Undefined when no guard can work: a multipart upload on GCS with no
+ * generation.
+ */
+function copyGuard(tier, uploaded) {
+    if (tier.storage.providerConfig.provider !== 'gcs') {
+        return { ifMatch: uploaded.etag };
+    }
+    if (uploaded.versionId !== undefined) {
+        return { versionId: uploaded.versionId };
+    }
+    if (uploaded.etag !== undefined && isMultipartEtag(uploaded.etag)) {
+        return undefined;
+    }
+    return { ifMatch: uploaded.etag };
+}
 /**
  * Attaches a streamed save's sha256 and user metadata once the upload has finished, the only
  * point at which the digest is known: a CopyObject onto the object itself. Best-effort — the
@@ -70920,18 +71108,24 @@ const MAX_COPY_SIZE = 5 * 1024 * 1024 * 1024;
  * one) costs the metadata and warns once, never the save. Returns the ETag to report: the copy
  * rewrites the object, so its ETag supersedes the upload's; on any failure the upload's stands.
  */
-async function attachStreamedMetadataByCopy(tier, objectKey, sha256, size, uploadedEtag, checksumTagLeft = false) {
+async function attachStreamedMetadataByCopy(tier, objectKey, sha256, size, uploaded, checksumTagLeft = false) {
     const { client, bucket } = tier.storage;
+    const uploadedEtag = uploaded.etag;
     if (size > MAX_COPY_SIZE) {
         core/* warning */.$e(`Saved s3://${bucket}/${objectKey} but could not attach metadata: archives over 5 GiB cannot be copied in one request.`);
         return uploadedEtag;
     }
+    const guard = copyGuard(tier, uploaded);
+    if (guard === undefined) {
+        core/* warning */.$e(`Saved s3://${bucket}/${objectKey} without a checksum: GCS reported no generation for this multipart upload, so this save cannot prove that it still owns the object, and that cache is kept without an integrity check.`);
+        return uploadedEtag;
+    }
     try {
-        // `CopySourceIfMatch`, when the upload reported an ETag: a concurrent writer that replaced
-        // the object between the upload and this copy must not get this save's metadata stamped onto
-        // its body. The 412 that then comes back is handled like any other copy failure.
+        // A concurrent writer that replaced the object between the upload and this copy must not get
+        // this save's metadata stamped onto its body (see copyGuard). The 412 or 404 that then comes
+        // back is handled like any other copy failure.
         const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: sha256 };
-        const copied = await withRetry(() => replaceObjectMetadata(client, bucket, objectKey, metadata, uploadedEtag), {
+        const copied = await withRetry(() => replaceObjectMetadata(client, bucket, objectKey, metadata, guard), {
             retries: tier.streamRetries,
             operationName: `Metadata for ${objectKey}`,
             shouldRetry: isRetryableStreamError,
@@ -71028,12 +71222,13 @@ function canAttachByTag(tier, usedCondition) {
  * undefined when `canAttachByTag` was false at upload start, and then the save uses the copy.
  * An ownership check that cannot confirm the object removes the tag again. A failed tag write or
  * an unconfirmed check then uses the copy, but only when the upload reported an ETag, which
- * guards the copy with `CopySourceIfMatch`. With no upload ETag, nothing can guard the copy, so
+ * guards the copy (see copyGuard). With no upload ETag, nothing can guard the copy, so
  * the save keeps no checksum: a missing checksum only skips the check on restore, but a false
  * checksum rejects a good cache.
  */
-async function attachStreamedChecksum(tier, objectKey, sha256, size, uploadedEtag, writerId) {
+async function attachStreamedChecksum(tier, objectKey, sha256, size, uploaded, writerId) {
     const { client, bucket } = tier.storage;
+    const uploadedEtag = uploaded.etag;
     let checksumTagLeft = false;
     if (writerId !== undefined) {
         let tagged = false;
@@ -71078,9 +71273,9 @@ async function attachStreamedChecksum(tier, objectKey, sha256, size, uploadedEta
             core/* warning */.$e(`Saved s3://${bucket}/${objectKey} without a checksum: the upload reported no ETag, so this save cannot prove that it still owns the object, and that cache is kept without an integrity check.`);
             return uploadedEtag;
         }
-        core/* debug */.Yz(`Attaching the checksum to s3://${bucket}/${objectKey} by an ETag-guarded copy.`);
+        core/* debug */.Yz(`Attaching the checksum to s3://${bucket}/${objectKey} by a guarded copy.`);
     }
-    return await attachStreamedMetadataByCopy(tier, objectKey, sha256, size, uploadedEtag, checksumTagLeft);
+    return await attachStreamedMetadataByCopy(tier, objectKey, sha256, size, uploaded, checksumTagLeft);
 }
 /** Wraps a failure with tar's recent stderr output, for a clearer error message. */
 function withStderrTail(err, tail) {
@@ -71185,7 +71380,7 @@ async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey) {
             core/* info */.pq(`Cache saved to S3 with key: ${primaryKey}`);
             const size = counter.count();
             const transferMs = Date.now() - transferStart;
-            const etag = await attachStreamedChecksum(tier, objectKey, tap.digest(), size, uploaded.ETag, writerId);
+            const etag = await attachStreamedChecksum(tier, objectKey, tap.digest(), size, { etag: uploaded.ETag, versionId: uploaded.VersionId }, writerId);
             return { kind: 'saved', s3: { objectKey, size, etag }, transferMs };
         }
         catch (err) {
@@ -71265,7 +71460,7 @@ async function saveToS3Streaming(tier, objectKey, entries, tar, primaryKey) {
 }
 /** Part settings for one object, or undefined when it should be fetched in a single request. */
 function partPlan(tier, found) {
-    const { concurrency, partSize } = tier.download;
+    const { concurrency, partSize } = settingsFor(tier, 'download', found.size);
     if (concurrency <= 1 || !shouldDownloadInParts(found.size, partSize)) {
         return undefined;
     }
@@ -72338,7 +72533,7 @@ function isCacheWritable(mode) {
  * The one-line phase summary a restore or save step logs after an S3 transfer. Pure on purpose:
  * it takes the step's metrics and returns text, so any CI front end can print it.
  */
-const MiB = 1024 * 1024;
+const timings_MiB = 1024 * 1024;
 function seconds(ms) {
     return `${(ms / 1000).toFixed(2)} s`;
 }
@@ -72353,7 +72548,7 @@ function formatTimings(metrics) {
     if (transferMs === undefined || transferMs <= 0) {
         return undefined;
     }
-    const rate = `${(metrics.bytes / MiB / (transferMs / 1000)).toFixed(1)} MiB/s`;
+    const rate = `${(metrics.bytes / timings_MiB / (transferMs / 1000)).toFixed(1)} MiB/s`;
     const transfer = `${metrics.step === 'save' ? 'upload' : 'download'} ${seconds(transferMs)} (${rate})`;
     const parts = [
         metrics.lookupDurationMs === undefined

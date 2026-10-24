@@ -47,6 +47,7 @@ import {
   replaceObjectMetadata,
   uploadFile,
   type CacheObjectMetadata,
+  type CopyGuard,
 } from '../storage/operations';
 import {
   downloadFileInParts,
@@ -58,7 +59,8 @@ import {
 import { isRetryableStreamError, withRetry } from '../storage/retry';
 import { formatSize, isExactKeyMatch } from '../utils/inputUtils';
 import { mapWithConcurrency } from '../utils/concurrency';
-import type { CacheConfig } from './config';
+import type { CacheConfig, ExplicitTransferInputs } from './config';
+import { formatTuning, tuneTransfer } from './transferTuning';
 import {
   encodeTagging,
   SHA256_METADATA_KEY,
@@ -102,6 +104,13 @@ export interface S3Tier {
   tags: ObjectTag[];
   /** zstd or gzip level for saving; undefined keeps each method's own default. */
   compressionLevel?: number;
+  /**
+   * Set for `transfer-tuning: auto`: the settings that `download` and `upload` give for each field
+   * the workflow did not set are replaced per object (see transferTuning.ts).
+   */
+  tuning?: ExplicitTransferInputs;
+  /** Reads the memory budget for `tuning`; tests replace it. Defaults to `usableMemory`. */
+  memory?: () => number;
 }
 
 export interface DownloadSettings {
@@ -273,7 +282,58 @@ export async function buildS3Tier(
     metadata: config.metadata,
     tags: config.tags,
     compressionLevel,
+    tuning: config.transferTuning === 'auto' ? config.explicitTransfer : undefined,
   };
+}
+
+/**
+ * The memory this process can use. `os.freemem()` is MemAvailable on Linux, so it counts the page
+ * cache as free, but it does not see a container limit. `process.constrainedMemory()` is that
+ * limit (0 or a very large value without one), and the process already uses `rss` of it.
+ * `process.availableMemory()` is not used: on a test host it returned about MemFree, which leaves
+ * out the page cache and is far lower after a large build.
+ */
+export function usableMemory(
+  free: number = os.freemem(),
+  limit: number = process.constrainedMemory(),
+  rss: number = process.memoryUsage.rss()
+): number {
+  return limit > 0 ? Math.min(free, Math.max(0, limit - rss)) : free;
+}
+
+/**
+ * The transfer settings for one object of `sizeBytes`: the tier's settings with `auto` tuning
+ * applied to each field the workflow did not set. Logs the result when tuning set a field.
+ */
+function settingsFor(
+  tier: S3Tier,
+  direction: 'upload' | 'download',
+  sizeBytes: number
+): { concurrency: number; partSize: number } {
+  const current = direction === 'upload' ? tier.upload : tier.download;
+  if (tier.tuning === undefined) {
+    return current;
+  }
+  const explicit =
+    direction === 'upload'
+      ? { concurrency: tier.tuning.uploadConcurrency, partSize: tier.tuning.uploadChunkSize }
+      : { concurrency: tier.tuning.downloadConcurrency, partSize: tier.tuning.downloadChunkSize };
+  if (explicit.concurrency && explicit.partSize) {
+    return current;
+  }
+  const fixed = {
+    concurrency: explicit.concurrency ? current.concurrency : undefined,
+    partSize: explicit.partSize ? current.partSize : undefined,
+  };
+  const settings = tuneTransfer({
+    direction,
+    sizeBytes,
+    provider: tier.storage.providerConfig.provider,
+    freeMemoryBytes: (tier.memory ?? usableMemory)(),
+    fixed,
+  });
+  core.info(formatTuning(direction, settings, sizeBytes, fixed));
+  return settings;
 }
 
 /** gzip stops at 9, so a higher level warns once and uses 9. */
@@ -592,10 +652,11 @@ async function saveToS3FileMode(
     const archiveSize = getArchiveSize(archivePath);
     core.info(`Uploading ${formatSize(archiveSize)} to s3://${bucket}/${objectKey}...`);
     const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: checksum };
+    const uploadSettings = settingsFor(tier, 'upload', archiveSize);
     const attemptUpload = (ifNoneMatch: string | undefined, tagging: string | undefined) =>
       withRetry(
         () =>
-          uploadFile(client, bucket, objectKey, archivePath, tier.upload, {
+          uploadFile(client, bucket, objectKey, archivePath, uploadSettings, {
             metadata,
             ifNoneMatch,
             tagging,
@@ -692,6 +753,40 @@ async function saveToS3FileMode(
 /** A single CopyObject can only copy up to 5 GiB; a larger object would need a multipart copy. */
 const MAX_COPY_SIZE = 5 * 1024 * 1024 * 1024;
 
+/** What the upload reported about the object it wrote. */
+interface UploadedVersion {
+  etag?: string;
+  /** On GCS, the object's generation (see the GCS middleware in storage/client.ts). */
+  versionId?: string;
+}
+
+/** A multipart upload's ETag: an md5 of the part md5s, then a dash and the part count. */
+const isMultipartEtag = (etag: string): boolean => /-\d+"?$/.test(etag);
+
+/**
+ * How the metadata copy proves that the object still holds this upload. Elsewhere, the ETag the
+ * upload reported (`CopySourceIfMatch`), or no guard when there is none. GCS cannot evaluate
+ * `CopySourceIfMatch` against a multipart ETag (400 InvalidArgument), and refuses its own
+ * `x-goog-copy-source-if-generation-match` next to the SDK's `x-amz-*` headers. So on GCS the copy
+ * source is pinned to the generation of the upload: a replaced object has another generation, and
+ * the copy finds no source (404). On a bucket with Object Versioning an old generation stays
+ * readable, so the pinned copy can put this save back over a newer one; its checksum still
+ * matches its bytes. Undefined when no guard can work: a multipart upload on GCS with no
+ * generation.
+ */
+function copyGuard(tier: S3Tier, uploaded: UploadedVersion): CopyGuard | undefined {
+  if (tier.storage.providerConfig.provider !== 'gcs') {
+    return { ifMatch: uploaded.etag };
+  }
+  if (uploaded.versionId !== undefined) {
+    return { versionId: uploaded.versionId };
+  }
+  if (uploaded.etag !== undefined && isMultipartEtag(uploaded.etag)) {
+    return undefined;
+  }
+  return { ifMatch: uploaded.etag };
+}
+
 /**
  * Attaches a streamed save's sha256 and user metadata once the upload has finished, the only
  * point at which the digest is known: a CopyObject onto the object itself. Best-effort — the
@@ -704,23 +799,31 @@ async function attachStreamedMetadataByCopy(
   objectKey: string,
   sha256: string,
   size: number,
-  uploadedEtag: string | undefined,
+  uploaded: UploadedVersion,
   checksumTagLeft = false
 ): Promise<string | undefined> {
   const { client, bucket } = tier.storage;
+  const uploadedEtag = uploaded.etag;
   if (size > MAX_COPY_SIZE) {
     core.warning(
       `Saved s3://${bucket}/${objectKey} but could not attach metadata: archives over 5 GiB cannot be copied in one request.`
     );
     return uploadedEtag;
   }
+  const guard = copyGuard(tier, uploaded);
+  if (guard === undefined) {
+    core.warning(
+      `Saved s3://${bucket}/${objectKey} without a checksum: GCS reported no generation for this multipart upload, so this save cannot prove that it still owns the object, and that cache is kept without an integrity check.`
+    );
+    return uploadedEtag;
+  }
   try {
-    // `CopySourceIfMatch`, when the upload reported an ETag: a concurrent writer that replaced
-    // the object between the upload and this copy must not get this save's metadata stamped onto
-    // its body. The 412 that then comes back is handled like any other copy failure.
+    // A concurrent writer that replaced the object between the upload and this copy must not get
+    // this save's metadata stamped onto its body (see copyGuard). The 412 or 404 that then comes
+    // back is handled like any other copy failure.
     const metadata = { ...tier.metadata, [SHA256_METADATA_KEY]: sha256 };
     const copied = await withRetry(
-      () => replaceObjectMetadata(client, bucket, objectKey, metadata, uploadedEtag),
+      () => replaceObjectMetadata(client, bucket, objectKey, metadata, guard),
       {
         retries: tier.streamRetries,
         operationName: `Metadata for ${objectKey}`,
@@ -837,7 +940,7 @@ function canAttachByTag(tier: S3Tier, usedCondition: boolean): boolean {
  * undefined when `canAttachByTag` was false at upload start, and then the save uses the copy.
  * An ownership check that cannot confirm the object removes the tag again. A failed tag write or
  * an unconfirmed check then uses the copy, but only when the upload reported an ETag, which
- * guards the copy with `CopySourceIfMatch`. With no upload ETag, nothing can guard the copy, so
+ * guards the copy (see copyGuard). With no upload ETag, nothing can guard the copy, so
  * the save keeps no checksum: a missing checksum only skips the check on restore, but a false
  * checksum rejects a good cache.
  */
@@ -846,10 +949,11 @@ async function attachStreamedChecksum(
   objectKey: string,
   sha256: string,
   size: number,
-  uploadedEtag: string | undefined,
+  uploaded: UploadedVersion,
   writerId: string | undefined
 ): Promise<string | undefined> {
   const { client, bucket } = tier.storage;
+  const uploadedEtag = uploaded.etag;
 
   let checksumTagLeft = false;
   if (writerId !== undefined) {
@@ -898,7 +1002,7 @@ async function attachStreamedChecksum(
       );
       return uploadedEtag;
     }
-    core.debug(`Attaching the checksum to s3://${bucket}/${objectKey} by an ETag-guarded copy.`);
+    core.debug(`Attaching the checksum to s3://${bucket}/${objectKey} by a guarded copy.`);
   }
 
   return await attachStreamedMetadataByCopy(
@@ -906,7 +1010,7 @@ async function attachStreamedChecksum(
     objectKey,
     sha256,
     size,
-    uploadedEtag,
+    uploaded,
     checksumTagLeft
   );
 }
@@ -1029,7 +1133,7 @@ async function saveToS3Streaming(
         objectKey,
         tap.digest(),
         size,
-        uploaded.ETag,
+        { etag: uploaded.ETag, versionId: uploaded.VersionId },
         writerId
       );
       return { kind: 'saved', s3: { objectKey, size, etag }, transferMs };
@@ -1112,7 +1216,7 @@ async function saveToS3Streaming(
 
 /** Part settings for one object, or undefined when it should be fetched in a single request. */
 function partPlan(tier: S3Tier, found: S3Match): PartDownloadOptions | undefined {
-  const { concurrency, partSize } = tier.download;
+  const { concurrency, partSize } = settingsFor(tier, 'download', found.size);
   if (concurrency <= 1 || !shouldDownloadInParts(found.size, partSize)) {
     return undefined;
   }

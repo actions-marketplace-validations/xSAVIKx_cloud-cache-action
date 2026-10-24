@@ -23,9 +23,27 @@ points at the latest `v1.x.y` release.
   sha256 as a tag. When the credentials do not have `s3:PutObjectTagging`, the save copies the
   whole object instead, which took about 7.5 s for 512 MiB on AWS S3 in a test. The step now logs
   this and names the missing permission. Before, only a debug line showed it.
+- **`transfer-tuning: auto`, an opt-in mode that selects the transfer settings.** A restore and a
+  file-mode save select the part size and the concurrency from the archive size. A save also uses
+  the provider. For example, a restore uses 16 × 16 MiB, and an upload of more than 256 MiB uses
+  16 × 32 MiB. The bytes in flight stay within about a quarter of the usable memory, including a
+  container limit, and within 1 GiB. A transfer input that
+  the workflow sets still wins for that field. A streaming save keeps the fixed settings, because
+  it does not know the archive size in advance. The default is `fixed`, so nothing changes
+  without the input. The rule values come from a size sweep of 128 MiB, 512 MiB and 2 GiB on AWS
+  S3, Cloudflare R2 and Google Cloud Storage.
+- **A Benchmarks page on the website.** It compares the defaults, other fixed settings and
+  `transfer-tuning: auto` per provider and per cache size. `tests/ci/benchmarkPage.ts` writes it
+  from the artifacts of a benchmark run.
+- **The benchmark measures several sizes in one run.** The workflow input `size-mb` takes a
+  comma-separated list, and the new `matrix: sweep` input runs more part sizes and concurrencies.
 
 ### Changed
 
+- **The transfer inputs have no default in `action.yml`.** `upload-concurrency`,
+  `download-concurrency` and `download-chunk-size` now name their default in the description,
+  and the code applies the same values as before. This lets `transfer-tuning: auto` tell a value
+  that the workflow set from an unset one.
 - **Uploads to AWS S3 no longer compute a CRC32 for each part.** The AWS SDK computed this
   checksum on the main thread, which took about 100 ms for each 64 MiB part on a test host. The
   action now sends a checksum only when an S3 operation requires one, as it already did for every
@@ -35,6 +53,16 @@ points at the latest `v1.x.y` release.
   Object Lock default retention requires a checksum on each upload, so saves to it now fail with
   `400 InvalidRequest`. The log can then also say that the server refused `UNSIGNED-PAYLOAD`. Set
   `CLOUD_CACHE_SDK_CHECKSUMS=true` in the job environment to send the SDK checksums again.
+
+### Fixed
+
+- **Streaming saves to Google Cloud Storage keep their checksum again.** GCS has no tagging API,
+  so a streaming save attaches its sha256 with a copy of the object onto itself. The copy was
+  guarded with `CopySourceIfMatch`, which GCS rejects with `400 InvalidArgument` for the ETag of
+  a multipart upload. Every streaming save larger than one part therefore logged
+  `could not attach metadata: Invalid argument.` and kept no checksum and no user `metadata`. On
+  GCS the copy now names the generation that the upload wrote as its source version. A copy
+  after another job replaced the object finds no source and fails, as before.
 
 ## [1.8.0] - 2026-10-22
 

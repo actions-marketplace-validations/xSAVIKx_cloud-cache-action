@@ -7,9 +7,17 @@ on:
   workflow_dispatch:
     inputs:
       size-mb:
-        description: 'Payload size in MiB (random data, so the archive is about as large)'
+        description: 'Payload sizes in MiB, comma-separated (random data, so the archive is about as large)'
         required: false
         default: '512'
+      matrix:
+        description: 'standard: the usual configurations; sweep: more part sizes and concurrencies, no streaming'
+        required: false
+        default: standard
+        type: choice
+        options:
+          - standard
+          - sweep
       repeats:
         description: 'Runs per configuration; the table shows the median'
         required: false
@@ -20,7 +28,8 @@ permissions:
   id-token: write
 
 env:
-  BENCH_SIZE_MB: ${{ inputs.size-mb }}
+  BENCH_SIZES_MB: ${{ inputs.size-mb }}
+  BENCH_MATRIX: ${{ inputs.matrix }}
   BENCH_REPEATS: ${{ inputs.repeats }}
 
 jobs:

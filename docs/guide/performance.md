@@ -73,7 +73,8 @@ What the table says:
   same 512 MiB of parts in memory as the default.
 - **Streaming saves pay for the metadata copy on S3.** The whole step took 10.9 s against 2.9 s
   of transfer in both runs, because the sha256 is attached by copying the 512 MiB object onto
-  itself after the upload. R2 and GCS copy in well under a second. File mode sends the checksum
+  itself after the upload. R2 copies in well under a second. On GCS the copy then failed for
+  every archive larger than one part, so that run has no copy time for GCS. File mode sends the checksum
   with the upload and has no copy. This run predates v1.6: a streamed save now attaches the
   checksum as an object tag instead, which removes this gap on S3 in the normal case. See
   [Object Metadata and Tags](https://github.com/xSAVIKx/cloud-cache-action#object-metadata-and-tags)
@@ -185,9 +186,50 @@ holds 512 MiB of parts in memory in streaming mode. The defaults do not change i
 ### A streaming save on S3 spends time after the upload
 
 On S3, a streaming save spent 7.3 s (512 MiB) and 32.7 s (2 GiB) outside the transfer in the v1.9
-runs, and about the same in the v1.8 runs. On R2 and GCS it spent less than 1 s. The cause is not
-known yet. The benchmark does not record the step log. A likely cause is the `CopyObject` fallback
-that attaches the checksum when the tag path is not used.
+runs, and about the same in the v1.8 runs. On R2 and GCS it spent less than 1 s. A debug run
+found the cause: the benchmark credentials do not have `s3:PutObjectTagging`. The save then
+attaches its checksum with a `CopyObject` of the whole object, which took about 7.5 s for
+512 MiB. With the permissions that [Security](./security.md) lists, the save uses a tag and does
+not copy. Since v1.9 the step logs a line that names the missing permission.
+
+## Automatic tuning
+
+Set `transfer-tuning: auto` to let the action select the part size and the concurrency for each
+restore and each file-mode save. A restore uses the archive size. A save uses the archive size
+and the provider:
+
+```yaml
+- uses: xSAVIKx/cloud-cache-action@v1
+  with:
+    transfer-tuning: auto
+```
+
+| Transfer | Archive size | Concurrency × part size |
+| --- | --- | --- |
+| Restore | any | 16 × 16 MiB, fewer workers when the archive has fewer parts |
+| Save | up to 256 MiB | 16 × 16 MiB |
+| Save | more than 256 MiB | 16 × 32 MiB |
+| Save to Cloudflare R2 | 1 GiB or more | 32 × 16 MiB |
+
+- The action reduces a tuned concurrency until `(concurrency + 1) × part size` fits a quarter of
+  the memory that the process can use, and 1 GiB. The extra part is the one that the code reads
+  ahead. The part size does not shrink, so a very small budget still gets one part in flight. A
+  container memory limit counts.
+- An upload part grows when the archive would need more than 10,000 parts.
+- A transfer input that you set, for example `download-concurrency`, still wins for that field.
+  The action does not reduce a concurrency that you set.
+- A wrapper action or a reusable workflow that forwards a transfer input with a default value
+  sets that input. Leave the default of the wrapper input empty, so that `auto` can select it.
+- A streaming save does not know the archive size in advance, so it keeps the fixed settings.
+  When a streaming save falls back to file mode, the file-mode save is tuned.
+- The step logs the selection, for example
+  `Transfer tuning: auto selected 16 x 16 MiB for the download of 2.0 GiB`. A value that you
+  set is marked `(set)`.
+- The default is `transfer-tuning: fixed`, which does not change the settings.
+
+In benchmark run 39906947417, `auto` was faster than the defaults for every provider and size
+measured (128 MiB, 512 MiB and 2 GiB): 1.13× to 3.22× on restores and 1.11× to 1.86× on saves.
+[Benchmarks](./benchmarks.md) has the full tables, with the other fixed settings.
 
 ## Recommended settings
 

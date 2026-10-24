@@ -17,8 +17,18 @@ import {
 
 export const RESTORE_PRIORITIES = ['s3-first', 'github-first'] as const;
 export const DUAL_CACHE_STRATEGIES = ['backfill', 'skip-on-hit'] as const;
+export const TRANSFER_TUNINGS = ['fixed', 'auto'] as const;
 export type RestorePriority = (typeof RESTORE_PRIORITIES)[number];
 export type DualCacheStrategy = (typeof DUAL_CACHE_STRATEGIES)[number];
+export type TransferTuning = (typeof TRANSFER_TUNINGS)[number];
+
+/** Which transfer inputs the workflow set to a valid value. `auto` tuning leaves those alone. */
+export interface ExplicitTransferInputs {
+  uploadConcurrency: boolean;
+  uploadChunkSize: boolean;
+  downloadConcurrency: boolean;
+  downloadChunkSize: boolean;
+}
 
 /** Every input the restore and save steps act on, parsed and defaulted once. */
 export interface CacheConfig {
@@ -56,6 +66,9 @@ export interface CacheConfig {
   downloadConcurrency: number;
   /** Bytes per ranged GET request; objects no larger than this use one request. */
   downloadChunkSize: number;
+  /** `auto` selects the transfer settings per object, except the ones in `explicitTransfer`. */
+  transferTuning: TransferTuning;
+  explicitTransfer: ExplicitTransferInputs;
   jobSummary: boolean;
   /** User metadata written on every object this step saves (Task 1 parsing rules). */
   metadata: Record<string, string>;
@@ -79,27 +92,27 @@ function readDualCacheStrategy(): DualCacheStrategy {
 
 /**
  * Reads an integer input within [min, max]; anything else warns and uses the default. The
- * warning names `effective`, the value the default stands for, when the default is undefined.
+ * warning names `effective`, what the default stands for. `set` is true only for a valid value.
  */
 function readBoundedInt<T extends number | undefined>(
   name: Inputs,
   defaultValue: T,
   min: number,
   max: number,
-  effective: number = defaultValue as number
-): number | T {
+  effective: number | string = defaultValue as number
+): { value: number | T; set: boolean } {
   const raw = core.getInput(name).trim();
   if (raw === '') {
-    return defaultValue;
+    return { value: defaultValue, set: false };
   }
   const value = /^[0-9]+$/.test(raw) ? Number(raw) : Number.NaN;
   if (Number.isNaN(value) || value < min || value > max) {
     core.warning(
       `Input "${name}" must be an integer between ${min} and ${max}; got "${raw}". Using ${effective}.`
     );
-    return defaultValue;
+    return { value: defaultValue, set: false };
   }
-  return value;
+  return { value, set: true };
 }
 
 /** Reads `compression-level`; anything outside 1 to 19 warns and leaves the method's default. */
@@ -135,6 +148,40 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
   };
   const retryCountState = persisted(State.CacheRetryCount);
   const streaming = bool(State.CacheStreaming, () => getInputAsBool(Inputs.Streaming));
+  const transferTuning = text(State.CacheTransferTuning, () =>
+    getInputAsEnum(Inputs.TransferTuning, TRANSFER_TUNINGS, 'fixed')
+  );
+  // Under `auto`, an invalid transfer input leaves the field to the tuning, not to the default.
+  const tuned = (effective: number): number | string =>
+    transferTuning === 'auto' ? 'the transfer-tuning: auto value' : effective;
+  const uploadChunkSize = readBoundedInt(
+    Inputs.UploadChunkSize,
+    undefined,
+    Defaults.MinUploadChunkSize,
+    Defaults.MaxUploadChunkSize,
+    tuned(Defaults.DefaultUploadChunkSize)
+  );
+  const uploadConcurrency = readBoundedInt(
+    Inputs.UploadConcurrency,
+    Defaults.DefaultUploadConcurrency,
+    1,
+    Defaults.MaxUploadConcurrency,
+    tuned(Defaults.DefaultUploadConcurrency)
+  );
+  const downloadConcurrency = readBoundedInt(
+    Inputs.DownloadConcurrency,
+    Defaults.DefaultDownloadConcurrency,
+    1,
+    Defaults.MaxDownloadConcurrency,
+    tuned(Defaults.DefaultDownloadConcurrency)
+  );
+  const downloadChunkSize = readBoundedInt(
+    Inputs.DownloadChunkSize,
+    Defaults.DefaultDownloadChunkSize,
+    Defaults.MinDownloadChunkSize,
+    Defaults.MaxDownloadChunkSize,
+    tuned(Defaults.DefaultDownloadChunkSize)
+  );
 
   return {
     primaryKey: text(State.CachePrimaryKey, () => core.getInput(Inputs.Key).trim()),
@@ -144,19 +191,8 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     failOnCacheMiss: getInputAsBool(Inputs.FailOnCacheMiss),
     readOnly: bool(State.CacheReadOnly, () => getInputAsBool(Inputs.ReadOnly)),
     enableCrossOsArchive: getInputAsBool(Inputs.EnableCrossOsArchive),
-    uploadChunkSize: readBoundedInt(
-      Inputs.UploadChunkSize,
-      undefined,
-      Defaults.MinUploadChunkSize,
-      Defaults.MaxUploadChunkSize,
-      Defaults.DefaultUploadChunkSize
-    ),
-    uploadConcurrency: readBoundedInt(
-      Inputs.UploadConcurrency,
-      Defaults.DefaultUploadConcurrency,
-      1,
-      Defaults.MaxUploadConcurrency
-    ),
+    uploadChunkSize: uploadChunkSize.value,
+    uploadConcurrency: uploadConcurrency.value,
     compressionLevel: readOptionalLevel(),
     s3KeyPattern: text(
       State.CacheS3KeyPattern,
@@ -180,18 +216,15 @@ export function readCacheConfig(state?: IStateProvider): CacheConfig {
     dualCacheStrategy: text(State.CacheDualCacheStrategy, readDualCacheStrategy),
     dualCacheStrict: bool(State.CacheDualCacheStrict, () => getInputAsBool(Inputs.DualCacheStrict)),
     streaming,
-    downloadConcurrency: readBoundedInt(
-      Inputs.DownloadConcurrency,
-      Defaults.DefaultDownloadConcurrency,
-      1,
-      Defaults.MaxDownloadConcurrency
-    ),
-    downloadChunkSize: readBoundedInt(
-      Inputs.DownloadChunkSize,
-      Defaults.DefaultDownloadChunkSize,
-      Defaults.MinDownloadChunkSize,
-      Defaults.MaxDownloadChunkSize
-    ),
+    downloadConcurrency: downloadConcurrency.value,
+    downloadChunkSize: downloadChunkSize.value,
+    transferTuning,
+    explicitTransfer: {
+      uploadConcurrency: uploadConcurrency.set,
+      uploadChunkSize: uploadChunkSize.set,
+      downloadConcurrency: downloadConcurrency.set,
+      downloadChunkSize: downloadChunkSize.set,
+    },
     jobSummary: bool(State.CacheJobSummary, () => getInputAsBool(Inputs.JobSummary, true)),
     metadata: json(State.CacheMetadata, () => parseMetadata(core.getInput(Inputs.Metadata))),
     tags: json(State.CacheTags, () =>
@@ -223,4 +256,5 @@ export function persistCacheConfig(state: IStateProvider, config: CacheConfig): 
   state.setState(State.CacheMetadata, JSON.stringify(config.metadata));
   state.setState(State.CacheTags, JSON.stringify(config.tags));
   state.setState(State.CacheMetricsFile, config.metricsFile);
+  state.setState(State.CacheTransferTuning, config.transferTuning);
 }

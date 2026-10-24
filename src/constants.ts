@@ -32,6 +32,7 @@ export enum Inputs {
   Streaming = 'streaming',
   DownloadConcurrency = 'download-concurrency',
   DownloadChunkSize = 'download-chunk-size',
+  TransferTuning = 'transfer-tuning',
   Metadata = 'metadata',
   Tags = 'tags',
 
@@ -124,6 +125,7 @@ export enum State {
   CacheHitSource = 'CACHE_HIT_SOURCE',
   CacheJobSummary = 'CACHE_JOB_SUMMARY',
   CacheMetricsFile = 'CACHE_METRICS_FILE',
+  CacheTransferTuning = 'CACHE_TRANSFER_TUNING',
 }
 
 export enum Events {

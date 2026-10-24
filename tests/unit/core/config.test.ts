@@ -45,6 +45,13 @@ describe('readCacheConfig', () => {
       streaming: false,
       downloadConcurrency: 8,
       downloadChunkSize: 8388608,
+      transferTuning: 'fixed',
+      explicitTransfer: {
+        uploadConcurrency: false,
+        uploadChunkSize: false,
+        downloadConcurrency: false,
+        downloadChunkSize: false,
+      },
       jobSummary: true,
       metadata: {},
       tags: [],
@@ -52,6 +59,43 @@ describe('readCacheConfig', () => {
       metricsFile: '',
     });
     expect(mockWarning).not.toHaveBeenCalled();
+  });
+
+  it('reads transfer-tuning, and which transfer inputs hold a valid value', () => {
+    inputs.set(Inputs.TransferTuning, 'auto');
+    inputs.set(Inputs.UploadConcurrency, '16');
+    inputs.set(Inputs.DownloadChunkSize, '16777216');
+    inputs.set(Inputs.DownloadConcurrency, '99');
+    expect(readCacheConfig()).toMatchObject({
+      transferTuning: 'auto',
+      explicitTransfer: {
+        uploadConcurrency: true,
+        uploadChunkSize: false,
+        downloadConcurrency: false,
+        downloadChunkSize: true,
+      },
+    });
+  });
+
+  it('names the auto value in the warning for an invalid transfer input under auto', () => {
+    inputs.set(Inputs.TransferTuning, 'auto');
+    inputs.set(Inputs.DownloadConcurrency, '99');
+    readCacheConfig();
+    expect(mockWarning).toHaveBeenCalledWith(
+      'Input "download-concurrency" must be an integer between 1 and 32; got "99". Using the transfer-tuning: auto value.'
+    );
+  });
+
+  it('takes transfer-tuning from the state in the post step', () => {
+    const state = new MemoryState();
+    state.setState(State.CacheTransferTuning, 'auto');
+    expect(readCacheConfig(state).transferTuning).toBe('auto');
+  });
+
+  it('warns and uses fixed for an unknown transfer-tuning', () => {
+    inputs.set(Inputs.TransferTuning, 'fast');
+    expect(readCacheConfig().transferTuning).toBe('fixed');
+    expect(mockWarning).toHaveBeenCalledWith(expect.stringContaining(Inputs.TransferTuning));
   });
 
   it('reads the explain input', () => {

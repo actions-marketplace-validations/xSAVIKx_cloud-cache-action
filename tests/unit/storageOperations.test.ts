@@ -845,10 +845,20 @@ describe('Storage Operations', () => {
     it('sends CopySourceIfMatch when an ETag is given, so it cannot stamp another writer', async () => {
       s3Mock.on(CopyObjectCommand).resolves({});
 
-      await replaceObjectMetadata(client, 'b', 'k', { m: 'v' }, '"uploaded"');
+      await replaceObjectMetadata(client, 'b', 'k', { m: 'v' }, { ifMatch: '"uploaded"' });
 
       const input = s3Mock.commandCalls(CopyObjectCommand)[0].args[0].input;
       expect(input.CopySourceIfMatch).toBe('"uploaded"');
+    });
+
+    it('pins the copy source to a version id instead, so a replaced object is not found', async () => {
+      s3Mock.on(CopyObjectCommand).resolves({});
+
+      await replaceObjectMetadata(client, 'b', 'a/k', { m: 'v' }, { versionId: '17' });
+
+      const input = s3Mock.commandCalls(CopyObjectCommand)[0].args[0].input;
+      expect(input.CopySource).toBe('b/a/k?versionId=17');
+      expect(input.CopySourceIfMatch).toBeUndefined();
     });
   });
 });

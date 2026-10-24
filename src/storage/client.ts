@@ -116,6 +116,36 @@ function addUnsignedPayloadMiddleware(client: S3Client): void {
   );
 }
 
+const GCS_GENERATION_HEADER = 'x-goog-generation';
+const GCS_GENERATION_MIDDLEWARE = 'cloudCacheGcsGeneration';
+/** Commands that write an object, whose generation the metadata copy pins its source to. */
+const OBJECT_WRITE_COMMANDS = new Set(['PutObjectCommand', 'CompleteMultipartUploadCommand']);
+
+/**
+ * Reports the generation that GCS gives each written object as its `VersionId`, as GCS maps
+ * `x-amz-version-id` to `x-goog-generation`. The SDK reads only the `x-amz-*` header, so without
+ * this a write on GCS has no version id.
+ */
+function addGcsGenerationMiddleware(client: S3Client): void {
+  client.middlewareStack.add(
+    (next, context) => async (args) => {
+      const result = await next(args);
+      if (!OBJECT_WRITE_COMMANDS.has(context.commandName ?? '')) {
+        return result;
+      }
+      const headers = (result.response as { headers?: Record<string, string> } | undefined)
+        ?.headers;
+      const generation = headers?.[GCS_GENERATION_HEADER];
+      const output = result.output as { VersionId?: string };
+      if (generation && output.VersionId === undefined) {
+        output.VersionId = generation;
+      }
+      return result;
+    },
+    { step: 'build', name: GCS_GENERATION_MIDDLEWARE }
+  );
+}
+
 export interface StorageClientOptions {
   /** Total SDK attempts per request, including the first one. */
   maxAttempts: number;
@@ -202,6 +232,9 @@ export function createStorageContext(options: StorageClientOptions): StorageCont
   const client = new S3Client(clientConfig);
   if (useUnsignedPayload(providerConfig.endpoint)) {
     addUnsignedPayloadMiddleware(client);
+  }
+  if (providerConfig.provider === 'gcs') {
+    addGcsGenerationMiddleware(client);
   }
 
   return {
