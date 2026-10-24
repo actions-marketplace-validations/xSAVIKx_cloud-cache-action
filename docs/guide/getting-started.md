@@ -105,12 +105,14 @@ Every step — restore, save, `prune` and `inspect` — also writes one `cloud-c
 ```
 
 ```json
-{"step":"restore","timestamp":"2026-09-17T06:02:41.912Z","provider":"r2","key":"Linux-node-9f2c1a","matchedKey":"Linux-node-9f2c1a","objectKey":"octo/app/refs%2Fheads%2Fmain/Linux-node-9f2c1a/4d0f1b2c9a7e35f1/cache.tar.zst","source":"s3","bytes":199687424,"durationMs":8123,"transferDurationMs":5310,"streaming":false,"downloadParts":24,"outcome":"hit"}
+{"step":"restore","timestamp":"2026-09-17T06:02:41.912Z","provider":"r2","key":"Linux-node-9f2c1a","matchedKey":"Linux-node-9f2c1a","objectKey":"octo/app/refs%2Fheads%2Fmain/Linux-node-9f2c1a/4d0f1b2c9a7e35f1/cache.tar.zst","source":"s3","bytes":199687424,"durationMs":8123,"transferDurationMs":5310,"lookupDurationMs":240,"extractDurationMs":2410,"streaming":false,"downloadParts":24,"outcome":"hit"}
 ```
 
 - `step` is `restore`, `save`, `prune` or `inspect`, and `outcome` is one of `hit`, `miss`, `saved`, `exists`, `skipped`, `error`, `pruned`, `would-hit` or `would-miss`.
 - `transferDurationMs` measures the S3 transfer alone in the default file mode. With `streaming: true` the archive is extracted (or compressed) as it moves, so the same field covers download-plus-extract; the `streaming` field on the line tells the two apart.
 - `downloadParts` on a restore is how many ranged requests fetched the archive: `1` for a single request and `0` when nothing was downloaded.
+- `lookupDurationMs` on a restore is the time to find the S3 object. In file mode, `archiveDurationMs` on a save is the time to write and hash the archive, and `extractDurationMs` on a restore is the time to unpack it. Streaming mode does these phases during the transfer, so it does not report them. A streaming step that falls back to file mode reports them.
+- After an S3 download or upload, the step also logs the phases in one line, for example `Timings: lookup 0.24 s, download 5.31 s (35.9 MiB/s), extract 2.41 s, total 8.12 s`. This line is not a debug line, so it shows in every log. `total` is the whole step, including the GitHub tier in dual-cache mode. The transfer time and the rate include retries.
 - `prune` and `inspect` write their line once the step has finished its work, so a step that fails earlier writes none. `prune` reports its tallies in `extra` (`prunedCount`, `prunedBytes`, `keptCount`, `dryRun`) and `inspect` reports `candidateCount`.
 - Writing the file is best-effort by design: a machine-readable timing record must never fail a cache step, so a write error only logs `Could not write metrics to <path>: <reason>`.
 

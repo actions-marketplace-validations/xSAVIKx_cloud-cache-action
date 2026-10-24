@@ -138,7 +138,56 @@ a RustFS server on localhost, so no network limits it.
 - BSD `tar`.
 - A server that refuses `UNSIGNED-PAYLOAD`.
 - The AWS CRC32 cost per part. It is about 100 ms to 110 ms for one 64 MiB part on the local host.
-  v1.8 does not change it.
+  v1.8 does not change it. v1.9 removes it (see below).
+
+## v1.9: no CRC32 on AWS uploads
+
+v1.9 stops the AWS SDK from computing a CRC32 for each upload part. Native `zlib.crc32` takes 94 ms
+to 106 ms for one 64 MiB buffer on the development host (Node 24.22). The change applies to AWS
+S3 only. The other providers already sent no CRC32.
+
+The runs below are all on `ubuntu-latest`, with the median of 2. At 2 GiB, the baseline on `main`
+(v1.8.0, run [39851696904](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/39851696904))
+and v1.9 (run [39851679842](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/39851679842))
+ran at the same time. At 512 MiB, v1.9 (run
+[39851662960](https://github.com/xSAVIKx/cloud-cache-action/actions/runs/39851662960)) ran seven
+hours after the v1.8 run 39791002675.
+
+| Amazon S3 save transfer | 512 MiB | 2 GiB |
+| --- | ---: | ---: |
+| `defaults: 8 x 64 MiB` | 3.4 s → 2.6 s | 5.2 s → 4.7 s |
+| `16 x 32 MiB` | 2.5 s → 2.0 s | 5.5 s → 4.9 s |
+| `streaming, defaults: 8 x 64 MiB` | 4.4 s → 2.7 s | 7.2 s → 6.8 s |
+
+- **The fairest comparison is at 2 GiB,** because those two runs shared the same time window. There,
+  the S3 save transfer got 6% to 11% faster in all three configurations.
+- **This is inside the run-to-run noise** of about 30% described above. The S3 restore, which the
+  change does not touch, moved by 0% to 13% at 2 GiB and by 0% to 31% at 512 MiB. Thus the 512 MiB
+  save gains are mostly noise.
+- **R2 and GCS** use the same code in both versions. Their numbers moved in both directions, by up
+  to 74% on GCS at 512 MiB, which shows the size of the noise.
+
+### Larger caches need more connections on R2 and GCS
+
+At 2 GiB, the default restore (`8 x 8 MiB`) is far from the fastest configuration on R2 and GCS:
+
+| 2 GiB restore transfer, v1.9 | Cloudflare R2 | Amazon S3 | Google Cloud Storage |
+| --- | ---: | ---: | ---: |
+| **Default: 8 × 8 MiB** | 12.0 s | 8.0 s | 21.6 s |
+| 8 × 16 MiB | 10.4 s | 7.1 s | 12.6 s |
+| 16 × 8 MiB | 7.8 s | 7.4 s | 10.0 s |
+| 32 × 16 MiB | 7.1 s | 7.2 s | 5.7 s |
+
+The baseline run shows the same order (GCS: 22.9 s for the default, 4.9 s for `32 x 16 MiB`). For a
+large cache on R2 or GCS, set `download-concurrency: 32` and `download-chunk-size: 16777216`. That
+holds 512 MiB of parts in memory in streaming mode. The defaults do not change in v1.9.
+
+### A streaming save on S3 spends time after the upload
+
+On S3, a streaming save spent 7.3 s (512 MiB) and 32.7 s (2 GiB) outside the transfer in the v1.9
+runs, and about the same in the v1.8 runs. On R2 and GCS it spent less than 1 s. The cause is not
+known yet. The benchmark does not record the step log. A likely cause is the `CopyObject` fallback
+that attaches the checksum when the tag path is not used.
 
 ## Recommended settings
 

@@ -56,6 +56,16 @@ export function useUnsignedPayload(
 }
 
 /**
+ * Decides whether the SDK adds its own CRC checksums where an operation allows them. The default
+ * is off: the sha256 check on restore covers the archive, and the CRC32 costs main-thread CPU.
+ * `CLOUD_CACHE_SDK_CHECKSUMS=true` turns them back on, for example for an AWS bucket with an
+ * Object Lock default retention, which requires a checksum on each upload.
+ */
+export function useSdkChecksums(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.CLOUD_CACHE_SDK_CHECKSUMS?.trim().toLowerCase() === 'true';
+}
+
+/**
  * Returns the S3 error code when the error is a refusal of `UNSIGNED-PAYLOAD`, and undefined
  * otherwise. The SDK always sets `name`, so `name` and `Code` are checked separately.
  */
@@ -163,8 +173,10 @@ export function createStorageContext(options: StorageClientOptions): StorageCont
     clientConfig.endpoint = providerConfig.endpoint;
   }
 
-  if (providerConfig.provider !== 'aws') {
-    // Several S3-compatible services reject the CRC checksums the SDK sends by default.
+  // Several S3-compatible services reject the CRC checksums the SDK sends by default. On AWS the
+  // CRC32 costs about 100 ms of main-thread CPU per 64 MiB part, and the sha256 check on restore
+  // already covers the archive, so no provider sends a checksum unless the operation needs one.
+  if (!useSdkChecksums()) {
     clientConfig.requestChecksumCalculation = 'WHEN_REQUIRED';
     clientConfig.responseChecksumValidation = 'WHEN_REQUIRED';
   }

@@ -8,6 +8,34 @@ points at the latest `v1.x.y` release.
 
 ## [Unreleased]
 
+### Added
+
+- **A timing line for each restore and save.** After an S3 download or upload, the step logs
+  one line with the time of each phase and the transfer rate, for example
+  `Timings: lookup 0.24 s, download 5.31 s (35.9 MiB/s), extract 2.41 s, total 8.12 s`. The
+  metrics line and the `metrics-file` get the same phases as `lookupDurationMs`,
+  `archiveDurationMs` and `extractDurationMs`. The archive and extract phases appear only when the
+  step writes or reads a temporary archive file. A streaming step that falls back to file mode
+  reports them too. `total` is the whole step, including the GitHub tier in dual-cache mode. The
+  transfer time and the rate include retries. A save that uploads and then finds that another job
+  saved first ends the line with `(another job saved first)`.
+- **A log line when a streaming save may not tag its object.** A streaming save attaches its
+  sha256 as a tag. When the credentials do not have `s3:PutObjectTagging`, the save copies the
+  whole object instead, which took about 7.5 s for 512 MiB on AWS S3 in a test. The step now logs
+  this and names the missing permission. Before, only a debug line showed it.
+
+### Changed
+
+- **Uploads to AWS S3 no longer compute a CRC32 for each part.** The AWS SDK computed this
+  checksum on the main thread, which took about 100 ms for each 64 MiB part on a test host. The
+  action now sends a checksum only when an S3 operation requires one, as it already did for every
+  other provider. The sha256 integrity check on restore stays, and TLS protects the bytes in
+  transit. Downloads from AWS also no longer validate the CRC that the SDK can check on a whole
+  object, because the sha256 check covers the same bytes. **Caution:** an AWS bucket with an
+  Object Lock default retention requires a checksum on each upload, so saves to it now fail with
+  `400 InvalidRequest`. The log can then also say that the server refused `UNSIGNED-PAYLOAD`. Set
+  `CLOUD_CACHE_SDK_CHECKSUMS=true` in the job environment to send the SDK checksums again.
+
 ## [1.8.0] - 2026-10-22
 
 Faster saves and restores. Object keys, metadata and archive bytes do not change, so caches saved
