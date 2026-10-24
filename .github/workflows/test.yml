@@ -150,7 +150,6 @@ jobs:
 
   roundtrip:
     name: Round trip (${{ matrix.os }}, streaming ${{ matrix.streaming }})
-    needs: unit
     strategy:
       fail-fast: false
       matrix:
@@ -172,7 +171,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
       - run: node tests/ci/startSeaweedfs.ts
       - name: Build the fixture tree
         id: fixture
@@ -243,7 +242,6 @@ jobs:
 
   main-action:
     name: Main action post step (${{ matrix.os }})
-    needs: unit
     strategy:
       fail-fast: false
       matrix:
@@ -264,7 +262,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
       - run: node tests/ci/startSeaweedfs.ts
       - name: Create a payload
         run: mkdir -p payload && echo "${{ github.run_id }}" > payload/run.txt
@@ -284,7 +282,6 @@ jobs:
 
   prune:
     name: Prune sub-action
-    needs: unit
     runs-on: ubuntu-latest
     env:
       AWS_ENDPOINT_URL: http://127.0.0.1:8333
@@ -298,7 +295,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
       - run: node tests/ci/startSeaweedfs.ts
       - name: Create two payloads
         run: |
@@ -333,7 +330,6 @@ jobs:
 
   inspect:
     name: Inspect sub-action
-    needs: unit
     runs-on: ubuntu-latest
     env:
       AWS_ENDPOINT_URL: http://127.0.0.1:8333
@@ -347,7 +343,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
       - run: node tests/ci/startSeaweedfs.ts
       - name: Create two payloads
         run: |
@@ -398,7 +394,6 @@ jobs:
 
   dual-cache:
     name: Dual-cache with the live GitHub Actions Cache
-    needs: unit
     runs-on: ubuntu-latest
     env:
       AWS_ENDPOINT_URL: http://127.0.0.1:8333
@@ -412,7 +407,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
       - run: node tests/ci/startSeaweedfs.ts
       - name: Create a payload
         run: mkdir -p payload && echo "${{ github.run_id }}" > payload/run.txt
@@ -433,7 +428,6 @@ jobs:
 
   strict-failure:
     name: Strict dual-cache save failure
-    needs: unit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -441,7 +435,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
       - run: node tests/ci/startSeaweedfs.ts
       - name: Create a payload
         run: mkdir -p payload && echo "${{ github.run_id }}" > payload/run.txt
@@ -463,7 +457,6 @@ jobs:
 
   cross-os-seed:
     name: Cross-OS seed (Linux)
-    needs: unit
     runs-on: ubuntu-latest
     env:
       AWS_ENDPOINT_URL: http://127.0.0.1:8333
@@ -477,7 +470,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
       - run: node tests/ci/startSeaweedfs.ts
       - name: Build the portable fixture tree
         id: fixture
@@ -524,7 +517,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
       - name: Require zstd, which the Linux seed used
         run: zstd --version
       - run: node tests/ci/startSeaweedfs.ts
