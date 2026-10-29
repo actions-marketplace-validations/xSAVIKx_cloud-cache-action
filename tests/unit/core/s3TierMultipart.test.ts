@@ -15,6 +15,7 @@ import {
   UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { mockClient } from 'aws-sdk-client-mock';
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import { PassThrough, Transform } from 'node:stream';
 import type { CompressionConfig } from '../../../src/archive/compression';
@@ -57,7 +58,9 @@ jest.unstable_mockModule('../../../src/archive/paths', () => ({
 }));
 jest.unstable_mockModule('../../../src/archive/tar', () => ({
   createArchive: async (archivePath: string) => {
-    fs.writeFileSync(archivePath, Buffer.alloc(ARCHIVE_SIZE, 'a'));
+    const archive = Buffer.alloc(ARCHIVE_SIZE, 'a');
+    fs.writeFileSync(archivePath, archive);
+    return { sha256: createHash('sha256').update(archive).digest('hex') };
   },
   extractArchive: async () => undefined,
   getArchiveSize: (archivePath: string) => fs.statSync(archivePath).size,
@@ -177,6 +180,7 @@ describe('saveToS3 multipart uploads that fail to complete', () => {
       kind: 'exists',
       s3: { objectKey: OBJECT_KEY, size: ARCHIVE_SIZE, etag: undefined },
       transferMs: expect.any(Number) as unknown as number,
+      archiveMs: expect.any(Number) as unknown as number,
     });
     expect(s3Mock.commandCalls(UploadPartCommand).length).toBeGreaterThan(1);
     expect(abortedUploadIds()).toEqual(['upload-1']);
@@ -194,6 +198,7 @@ describe('saveToS3 multipart uploads that fail to complete', () => {
       kind: 'saved',
       s3: { objectKey: OBJECT_KEY, size: ARCHIVE_SIZE, etag: '"fallback"' },
       transferMs: expect.any(Number) as unknown as number,
+      archiveMs: expect.any(Number) as unknown as number,
     });
     expect(abortedUploadIds()).toEqual(['upload-1']);
     const completes = s3Mock.commandCalls(CompleteMultipartUploadCommand);

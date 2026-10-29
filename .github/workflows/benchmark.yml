@@ -7,9 +7,17 @@ on:
   workflow_dispatch:
     inputs:
       size-mb:
-        description: 'Payload size in MiB (random data, so the archive is about as large)'
+        description: 'Payload sizes in MiB, comma-separated (random data, so the archive is about as large)'
         required: false
         default: '512'
+      matrix:
+        description: 'standard: the usual configurations; sweep: more part sizes and concurrencies, no streaming'
+        required: false
+        default: standard
+        type: choice
+        options:
+          - standard
+          - sweep
       repeats:
         description: 'Runs per configuration; the table shows the median'
         required: false
@@ -20,7 +28,8 @@ permissions:
   id-token: write
 
 env:
-  BENCH_SIZE_MB: ${{ inputs.size-mb }}
+  BENCH_SIZES_MB: ${{ inputs.size-mb }}
+  BENCH_MATRIX: ${{ inputs.matrix }}
   BENCH_REPEATS: ${{ inputs.repeats }}
 
 jobs:
@@ -29,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -42,7 +51,7 @@ jobs:
           else
             echo "has_secrets=true" >> "$GITHUB_OUTPUT"
           fi
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
         if: steps.check-secrets.outputs.has_secrets == 'true'
       - name: Benchmark
         if: steps.check-secrets.outputs.has_secrets == 'true'
@@ -55,7 +64,7 @@ jobs:
           BENCH_SECRET_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           BENCH_OUT: ${{ runner.temp }}/benchmark
         run: node tests/ci/benchmark.ts
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.check-secrets.outputs.has_secrets == 'true'
         with:
           name: benchmark-r2
@@ -66,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -92,11 +101,11 @@ jobs:
           fi
       - name: Configure AWS Credentials via OIDC
         if: steps.check-secrets.outputs.has_secrets == 'true' && steps.check-secrets.outputs.auth_mode == 'oidc'
-        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
         if: steps.check-secrets.outputs.has_secrets == 'true'
       - name: Benchmark
         if: steps.check-secrets.outputs.has_secrets == 'true'
@@ -109,7 +118,7 @@ jobs:
           BENCH_SECRET_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
           BENCH_OUT: ${{ runner.temp }}/benchmark
         run: node tests/ci/benchmark.ts
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.check-secrets.outputs.has_secrets == 'true'
         with:
           name: benchmark-aws
@@ -120,7 +129,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -136,7 +145,7 @@ jobs:
           else
             echo "has_secrets=true" >> "$GITHUB_OUTPUT"
           fi
-      - run: npm ci
+      - run: npm ci --omit=dev --no-audit --no-fund
         if: steps.check-secrets.outputs.has_secrets == 'true'
       - name: Benchmark
         if: steps.check-secrets.outputs.has_secrets == 'true'
@@ -149,8 +158,37 @@ jobs:
           BENCH_SECRET_KEY: ${{ secrets.GCS_HMAC_SECRET || secrets.GCS_SECRET_ACCESS_KEY }}
           BENCH_OUT: ${{ runner.temp }}/benchmark
         run: node tests/ci/benchmark.ts
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.check-secrets.outputs.has_secrets == 'true'
         with:
           name: benchmark-gcs
           path: ${{ runner.temp }}/benchmark
+
+  compression:
+    name: Compression levels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build a Python site-packages fixture
+        run: |
+          mkdir -p "$RUNNER_TEMP/wheels" "$RUNNER_TEMP/sitepkgs"
+          pip3 download --quiet --dest "$RUNNER_TEMP/wheels" numpy pandas scipy requests matplotlib
+          for w in "$RUNNER_TEMP"/wheels/*.whl; do
+            python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" \
+              "$w" "$RUNNER_TEMP/sitepkgs"
+          done
+          python3 -m compileall -q "$RUNNER_TEMP/sitepkgs" || true
+      - name: Benchmark compression levels
+        env:
+          BENCH_FIXTURES: node_modules=${{ github.workspace }}/node_modules,python-site-packages=${{ runner.temp }}/sitepkgs
+          BENCH_OUT: ${{ runner.temp }}/benchmark-compression
+        run: node tests/ci/compressionBenchmark.ts
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: benchmark-compression
+          path: ${{ runner.temp }}/benchmark-compression

@@ -1,0 +1,53 @@
+name: Release Please
+
+# Runs after CI passes on main. It keeps a release PR open with the next version and the
+# CHANGELOG entry. When that PR is merged and CI passes again, it tags the release, creates the
+# GitHub release, and calls release.yml to verify it and move the major tag.
+on:
+  workflow_run:
+    workflows: [CI Tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Update the release PR or publish the release
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # A release that GITHUB_TOKEN creates does not start the `release: published` trigger, so
+  # this job calls the release workflow directly.
+  publish:
+    name: Verify the release and move the major tag
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    # id-token: write is for the npm job of release.yml. A called workflow cannot get more
+    # permissions than its caller grants.
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag_name: ${{ needs.release-please.outputs.tag_name }}

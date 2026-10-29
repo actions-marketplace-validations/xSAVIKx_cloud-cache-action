@@ -1,4 +1,6 @@
 import { jest } from '@jest/globals';
+import * as core from '@actions/core';
+import * as childProcess from 'node:child_process';
 import * as path from 'node:path';
 import { makeTempDir, removeDir } from '../../support/tempTree';
 
@@ -8,9 +10,20 @@ type Exec = (
   options?: { env?: Record<string, string> }
 ) => Promise<number>;
 
+type SpawnOptions = { env?: NodeJS.ProcessEnv; stdio?: childProcess.StdioOptions };
+
 const mockExec = jest.fn<Exec>();
+// createArchive spawns tar without exec. The mock records the options and runs an empty Node
+// script in place of tar, so the test needs no tar.
+const mockSpawn = jest.fn((_tool: string, _args: string[], options: SpawnOptions) =>
+  childProcess.spawn(process.execPath, ['-e', ''], { stdio: options.stdio })
+);
+
+const mockDebug = jest.fn<(message: string) => void>();
 
 jest.unstable_mockModule('@actions/exec', () => ({ exec: mockExec }));
+jest.unstable_mockModule('@actions/core', () => ({ ...core, debug: mockDebug }));
+jest.unstable_mockModule('node:child_process', () => ({ ...childProcess, spawn: mockSpawn }));
 
 const { archiveExecOptions, createArchive, extractArchive } = await import(
   '../../../src/archive/tar'
@@ -37,9 +50,26 @@ describe('archive commands', () => {
     dir = makeTempDir('tar-exec');
     mockExec.mockReset();
     mockExec.mockResolvedValue(0);
+    mockSpawn.mockClear();
+    mockDebug.mockClear();
   });
 
   afterEach(() => removeDir(dir));
+
+  it('prints the create command line at debug level before it starts tar', async () => {
+    const compression = { method: 'zstd' as const, archiveFilename: 'cache.tzst' };
+    await createArchive(path.join(dir, 'out', 'cache.tzst'), ['data'], compression, dir);
+
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+    const [tool, args] = mockSpawn.mock.calls[0];
+    const line = mockDebug.mock.calls.findIndex(
+      ([m]) => m === `[command]${tool} ${args.join(' ')}`
+    );
+    expect(line).toBeGreaterThanOrEqual(0);
+    expect(mockDebug.mock.invocationCallOrder[line]).toBeLessThan(
+      mockSpawn.mock.invocationCallOrder[0]
+    );
+  });
 
   it.each(['gzip', 'zstd'] as const)(
     'runs every %s create and extract command with MSYS set',
@@ -49,10 +79,14 @@ describe('archive commands', () => {
       await createArchive(archivePath, ['data'], compression, dir);
       await extractArchive(archivePath, compression, dir);
 
-      expect(mockExec.mock.calls.length).toBeGreaterThanOrEqual(2);
-      for (const [, , options] of mockExec.mock.calls) {
-        expect(options?.env).toMatchObject({ MSYS: 'winsymlinks:nativestrict' });
-        expect(options?.env?.PATH ?? options?.env?.Path).toBe(process.env.PATH ?? process.env.Path);
+      const envs = [
+        ...mockExec.mock.calls.map(([, , options]) => options?.env),
+        ...mockSpawn.mock.calls.map(([, , options]) => options.env),
+      ];
+      expect(envs.length).toBeGreaterThanOrEqual(2);
+      for (const env of envs) {
+        expect(env).toMatchObject({ MSYS: 'winsymlinks:nativestrict' });
+        expect(env?.PATH ?? env?.Path).toBe(process.env.PATH ?? process.env.Path);
       }
     }
   );

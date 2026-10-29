@@ -43,6 +43,8 @@ Never use account-wide administrative tokens for CI workflows. Create a scoped, 
 5. (Optional) Set a **TTL / Expiration date** to satisfy organizational security rotation policies.
 6. Click **Create API Token**.
 
+Use **Object Read only** for jobs that never save. See the [Security guide](../guide/security.md#cloudflare-r2) for the token types and the S3 calls the action sends.
+
 ### 2. Configure GitHub Secrets
 Cloudflare will display the credentials **once**. Copy and store them in your repository's **Settings** > **Secrets and variables** > **Actions**:
 

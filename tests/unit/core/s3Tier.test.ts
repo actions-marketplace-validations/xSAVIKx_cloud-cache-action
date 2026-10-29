@@ -27,7 +27,7 @@ const mockCreateArchive =
       entries: readonly string[],
       compression: CompressionConfig,
       workspace: string
-    ) => Promise<void>
+    ) => Promise<{ sha256: string }>
   >();
 const mockExtractArchive =
   jest.fn<
@@ -53,8 +53,9 @@ const mockDownloadFile =
       client: S3Client,
       bucket: string,
       key: string,
-      destination: string
-    ) => Promise<{ metadata?: Record<string, string> }>
+      destination: string,
+      options?: { hash?: boolean }
+    ) => Promise<{ metadata?: Record<string, string>; tagCount?: number; sha256?: string }>
   >();
 const mockUploadFile =
   jest.fn<
@@ -75,9 +76,20 @@ const mockReplaceObjectMetadata =
       bucket: string,
       key: string,
       metadata: Record<string, string>,
-      ifMatch?: string
+      guard?: { ifMatch?: string; versionId?: string }
     ) => Promise<{ etag?: string }>
   >();
+const mockPutObjectTags =
+  jest.fn<
+    (
+      client: S3Client,
+      bucket: string,
+      key: string,
+      tags: { Key: string; Value: string }[]
+    ) => Promise<void>
+  >();
+const mockGetObjectTags =
+  jest.fn<(client: S3Client, bucket: string, key: string) => Promise<Record<string, string>>>();
 const realSha256Tap = () => {
   const hash = crypto.createHash('sha256');
   const stream = new Transform({
@@ -139,7 +151,7 @@ const mockCaptureStderrTail =
 const mockGetObjectStream =
   jest.fn<(client: S3Client, bucket: string, key: string) => Promise<ObjectStreamResult>>();
 interface FakeUpload {
-  done: () => Promise<{ ETag?: string }>;
+  done: () => Promise<{ ETag?: string; VersionId?: string }>;
   abort: () => Promise<unknown>;
 }
 const mockCreateStreamUpload =
@@ -150,7 +162,7 @@ const mockCreateStreamUpload =
       key: string,
       body: Readable,
       chunkSize?: number,
-      options?: { ifNoneMatch?: string; tagging?: string }
+      options?: { ifNoneMatch?: string; tagging?: string; metadata?: Record<string, string> }
     ) => FakeUpload
   >();
 
@@ -196,6 +208,8 @@ jest.unstable_mockModule('../../../src/storage/operations', () => ({
   getObjectStream: mockGetObjectStream,
   createStreamUpload: mockCreateStreamUpload,
   replaceObjectMetadata: mockReplaceObjectMetadata,
+  putObjectTags: mockPutObjectTags,
+  getObjectTags: mockGetObjectTags,
 }));
 const mockDownloadFileInParts =
   jest.fn<
@@ -204,8 +218,9 @@ const mockDownloadFileInParts =
       bucket: string,
       key: string,
       destination: string,
-      options: PartDownloadOptions
-    ) => Promise<{ metadata?: Record<string, string>; parts: number }>
+      options: PartDownloadOptions,
+      fileOptions?: { hash?: boolean }
+    ) => Promise<{ metadata?: Record<string, string>; parts: number; sha256?: string }>
   >();
 const mockOpenObjectPartsStream =
   jest.fn<
@@ -229,9 +244,8 @@ jest.unstable_mockModule('../../../src/archive/checksum', () => ({
   createSha256Tap: () => mockCreateSha256Tap(),
 }));
 
-const { buildS3Tier, findS3Match, listCandidates, restoreFromS3, saveToS3 } = await import(
-  '../../../src/core/s3Tier'
-);
+const { buildS3Tier, findS3Match, listCandidates, restoreFromS3, saveToS3, usableMemory } =
+  await import('../../../src/core/s3Tier');
 const { buildExplainReport } = await import('../../../src/core/explain');
 type S3Tier = Awaited<ReturnType<typeof buildS3Tier>>;
 
@@ -270,6 +284,8 @@ const tier = (overrides: Partial<S3Tier> = {}): S3Tier => ({
   upload: { concurrency: 8, partSize: 64 * 1024 * 1024 },
   metadata: {},
   tags: [],
+  // A fixed budget, so that the auto tuning tests do not depend on the memory of the host.
+  memory: () => 16 * 1024 * 1024 * 1024,
   ...overrides,
 });
 
@@ -321,12 +337,14 @@ beforeEach(() => {
   mockDownloadFile.mockResolvedValue({});
   mockDownloadFileInParts.mockResolvedValue({ parts: 3 });
   mockExtractArchive.mockResolvedValue();
-  mockCreateArchive.mockResolvedValue();
+  mockCreateArchive.mockResolvedValue({ sha256: 'archive-sha256' });
   mockGetArchiveSize.mockReturnValue(2048);
   mockUploadFile.mockResolvedValue({ size: 2048, etag: '"new"' });
   mockResolveCachePaths.mockResolvedValue({ entries: ['node_modules'], skipped: [] });
   mockSha256File.mockResolvedValue('archive-sha256');
   mockReplaceObjectMetadata.mockResolvedValue({});
+  mockPutObjectTags.mockResolvedValue(undefined);
+  mockGetObjectTags.mockResolvedValue({});
   mockCreateSha256Tap.mockImplementation(realSha256Tap);
   mockCreateByteCounter.mockImplementation(realByteCounter);
 
@@ -449,6 +467,36 @@ describe('findS3Match', () => {
       ref: '',
     });
   });
+
+  it("sends one ref's prefix listings together instead of one after another", async () => {
+    put(MAIN, 'k-old', 1);
+    let inFlight = 0;
+    let peak = 0;
+    const realFindNewest = mockFindNewestObject.getMockImplementation();
+    mockFindNewestObject.mockImplementation(async (...args) => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      return realFindNewest ? realFindNewest(...args) : undefined;
+    });
+    await findS3Match(tier(), 'k', ['k-']);
+    expect(peak).toBeGreaterThan(1);
+  });
+
+  it('does not list at all when the exact key hits', async () => {
+    put(FEATURE, 'k', 1);
+    await findS3Match(tier(), 'k', ['k-']);
+    expect(mockFindNewestObject).not.toHaveBeenCalled();
+  });
+
+  it('keeps a prefix match on the current ref ahead of an exact match on the base ref', async () => {
+    const onFeature = put(FEATURE, 'k-partial', 1);
+    put(MAIN, 'k', 5);
+    const match = await findS3Match(tier(), 'k', ['k-']);
+    expect(match?.objectKey).toBe(onFeature);
+    expect(match?.ref).toBe(FEATURE);
+  });
 });
 
 describe('restoreFromS3', () => {
@@ -459,6 +507,7 @@ describe('restoreFromS3', () => {
       matchedKey: 'k',
       exact: true,
       s3: { objectKey, size: 101, etag: '"k"' },
+      lookupMs: expect.any(Number) as unknown as number,
     });
     expect(mockDownloadFile).not.toHaveBeenCalled();
   });
@@ -489,6 +538,31 @@ describe('restoreFromS3', () => {
       nowSpy.mockRestore();
     }
     expect(mockExtractArchive).toHaveBeenCalled();
+  });
+
+  it('measures the lookup and the extraction apart from the download', async () => {
+    put(FEATURE, 'k', 1);
+    // A clock that only the mocked phases advance, each by a different amount.
+    let now = 1_000;
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    mockDownloadFile.mockImplementation(async () => {
+      now += 250;
+      return {};
+    });
+    mockExtractArchive.mockImplementation(async () => {
+      now += 5_000;
+    });
+    try {
+      const outcome = await restoreFromS3(tier(), 'k', [], false);
+      expect(outcome).toMatchObject({
+        kind: 'hit',
+        lookupMs: 0,
+        transferMs: 250,
+        extractMs: 5_000,
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it('does not log its own info line on a lookup-only hit, since restoreImpl already reports it', async () => {
@@ -582,6 +656,73 @@ describe('restoreFromS3', () => {
       expect(mockExtractArchive).toHaveBeenCalled();
       expect(mockDebug).toHaveBeenCalledWith(expect.stringContaining('sha256'));
     });
+
+    it('verifies against the checksum tag when the object carries no metadata', async () => {
+      put(FEATURE, 'k', 1);
+      mockDownloadFile.mockResolvedValue({ tagCount: 1 });
+      mockGetObjectTags.mockResolvedValue({ 'cloud-cache-sha256': 'good-hash' });
+      mockSha256File.mockResolvedValue('good-hash');
+      await expect(restoreFromS3(tier(), 'k', [], false)).resolves.toMatchObject({ kind: 'hit' });
+      expect(mockExtractArchive).toHaveBeenCalled();
+    });
+
+    it('verifies against the checksum tag when the server does not report the tag count', async () => {
+      // Regression test: some providers (RustFS observed) never set TagCount on GetObject, even
+      // when the object has tags. `tagCount: undefined` must not be treated like `0`.
+      put(FEATURE, 'k', 1);
+      mockDownloadFile.mockResolvedValue({ tagCount: undefined });
+      mockGetObjectTags.mockResolvedValue({ 'cloud-cache-sha256': 'good-hash' });
+      mockSha256File.mockResolvedValue('good-hash');
+      await expect(restoreFromS3(tier(), 'k', [], false)).resolves.toMatchObject({ kind: 'hit' });
+      expect(mockGetObjectTags).toHaveBeenCalled();
+      expect(mockExtractArchive).toHaveBeenCalled();
+    });
+
+    it('rejects a mismatch found through the checksum tag', async () => {
+      put(FEATURE, 'k', 1);
+      mockDownloadFile.mockResolvedValue({ tagCount: 1 });
+      mockGetObjectTags.mockResolvedValue({ 'cloud-cache-sha256': 'expected-hash' });
+      mockSha256File.mockResolvedValue('actual-hash');
+      const outcome = await restoreFromS3(tier(), 'k', [], false);
+      expect(outcome.kind === 'error' && outcome.error.message).toContain('Integrity check failed');
+      expect(mockExtractArchive).not.toHaveBeenCalled();
+    });
+
+    it('prefers metadata over tags, and asks for no tags when metadata carries the checksum', async () => {
+      put(FEATURE, 'k', 1);
+      mockDownloadFile.mockResolvedValue({
+        metadata: { 'cloud-cache-sha256': 'good-hash' },
+        tagCount: 1,
+      });
+      mockSha256File.mockResolvedValue('good-hash');
+      await restoreFromS3(tier(), 'k', [], false);
+      expect(mockGetObjectTags).not.toHaveBeenCalled();
+    });
+
+    it('skips verification, with a warning, when the tag read fails', async () => {
+      // The usual cause is an IAM policy without `s3:GetObjectTagging`. The restore must still
+      // succeed, but the user has to be told the integrity check did not run.
+      put(FEATURE, 'k', 1);
+      mockDownloadFile.mockResolvedValue({ tagCount: 1 });
+      mockGetObjectTags.mockRejectedValue(
+        Object.assign(new Error('Access Denied'), { name: 'AccessDenied' })
+      );
+      const outcome = await restoreFromS3(tier(), 'k', [], false);
+      expect(outcome.kind).toBe('hit');
+      expect(mockSha256File).not.toHaveBeenCalled();
+      expect(mockExtractArchive).toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(
+        expect.stringContaining('skips the integrity check') as unknown as string
+      );
+    });
+
+    it('asks for no tags when the object reports none', async () => {
+      put(FEATURE, 'k', 1);
+      mockDownloadFile.mockResolvedValue({ tagCount: 0 });
+      await restoreFromS3(tier(), 'k', [], false);
+      expect(mockGetObjectTags).not.toHaveBeenCalled();
+      expect(mockDebug).toHaveBeenCalledWith(expect.stringContaining('skipping integrity check'));
+    });
   });
 });
 
@@ -616,6 +757,25 @@ describe('saveToS3', () => {
     expect(mockUploadFile).not.toHaveBeenCalled();
   });
 
+  it('measures the archive apart from the upload', async () => {
+    let now = 1_000;
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    mockCreateArchive.mockImplementation(async () => {
+      now += 1_500;
+      return { sha256: 'archive-sha256' };
+    });
+    mockUploadFile.mockImplementation(async () => {
+      now += 400;
+      return { size: 2048, etag: '"new"' };
+    });
+    try {
+      const outcome = await saveToS3(tier(), 'k', ['node_modules']);
+      expect(outcome).toMatchObject({ kind: 'saved', archiveMs: 1_500, transferMs: 400 });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it('archives the resolved entries and uploads them under the current ref', async () => {
     const outcome = await saveToS3(tier({ upload: { concurrency: 8, partSize: 5_242_880 } }), 'k', [
       'node_modules',
@@ -626,6 +786,7 @@ describe('saveToS3', () => {
       kind: 'saved',
       s3: { objectKey, size: 2048, etag: '"new"' },
       transferMs: expect.any(Number) as unknown as number,
+      archiveMs: expect.any(Number) as unknown as number,
     });
     expect(mockResolveCachePaths).toHaveBeenCalledWith(
       ['node_modules', '!node_modules/.cache'],
@@ -649,13 +810,13 @@ describe('saveToS3', () => {
     expect(fs.existsSync(path.dirname(archivePath))).toBe(false);
   });
 
-  it('hashes the archive and uploads its sha256 as object metadata', async () => {
-    mockSha256File.mockResolvedValue(
-      'c0ffee0000000000000000000000000000000000000000000000000000ffee'
-    );
+  it('uploads the sha256 that createArchive computed as object metadata', async () => {
+    mockCreateArchive.mockResolvedValue({
+      sha256: 'c0ffee0000000000000000000000000000000000000000000000000000ffee',
+    });
     await saveToS3(tier(), 'k', ['node_modules']);
-    const [archivePath] = mockCreateArchive.mock.calls[0];
-    expect(mockSha256File).toHaveBeenCalledWith(archivePath);
+    // createArchive hashes the archive while tar writes it, so the save does not read it again.
+    expect(mockSha256File).not.toHaveBeenCalled();
     const [, , , , , options] = mockUploadFile.mock.calls[0];
     expect(options).toEqual({
       metadata: {
@@ -684,6 +845,7 @@ describe('saveToS3', () => {
       kind: 'exists',
       s3: { objectKey, size: 2048, etag: undefined },
       transferMs: expect.any(Number) as unknown as number,
+      archiveMs: expect.any(Number) as unknown as number,
     });
     expect(mockInfo).toHaveBeenCalledWith(
       `Another job saved s3://bucket/${objectKey} first; keeping its cache.`
@@ -715,6 +877,7 @@ describe('saveToS3', () => {
       kind: 'saved',
       s3: { objectKey, size: 2048, etag: '"fallback"' },
       transferMs: expect.any(Number) as unknown as number,
+      archiveMs: expect.any(Number) as unknown as number,
     });
     expect(mockUploadFile).toHaveBeenCalledTimes(2);
     const [, , , , , firstOptions] = mockUploadFile.mock.calls[0];
@@ -990,6 +1153,13 @@ describe('buildS3Tier', () => {
     streaming: false,
     downloadConcurrency: 8,
     downloadChunkSize: 8388608,
+    transferTuning: 'fixed',
+    explicitTransfer: {
+      uploadConcurrency: false,
+      uploadChunkSize: false,
+      downloadConcurrency: false,
+      downloadChunkSize: false,
+    },
     jobSummary: true,
     metadata: {},
     tags: [],
@@ -1029,6 +1199,14 @@ describe('buildS3Tier', () => {
     expect(built.template.objectKey(FEATURE, 'k')).toBe(
       `octo/app/refs%2Fheads%2Ffeature/k/${VERSION}/cache.tar.zst`
     );
+  });
+
+  it('sets the tuning only for transfer-tuning: auto', async () => {
+    expect((await buildS3Tier(config, env)).tuning).toBeUndefined();
+    const explicitTransfer = { ...config.explicitTransfer, uploadConcurrency: true };
+    expect(
+      (await buildS3Tier({ ...config, transferTuning: 'auto', explicitTransfer }, env)).tuning
+    ).toEqual(explicitTransfer);
   });
 
   it('does not scope by ref without GITHUB_REF or with scoped-to-ref: false', async () => {
@@ -1100,6 +1278,35 @@ describe('buildS3Tier', () => {
     const built = await buildS3Tier({ ...config, streaming }, env);
     expect(built.streaming).toBe(streaming);
   });
+
+  it('clamps a gzip compression level above 9 to 9, and warns', async () => {
+    mockGetCompressionConfig.mockResolvedValue(gzip);
+    const built = await buildS3Tier({ ...config, compressionLevel: 19 }, env);
+    expect(built.compressionLevel).toBe(9);
+    expect(mockWarning).toHaveBeenCalledWith(
+      `Input "compression-level" is 19, above gzip's maximum of 9; using 9.`
+    );
+  });
+
+  it('passes a gzip compression level of exactly 9 through unchanged, without warning', async () => {
+    mockGetCompressionConfig.mockResolvedValue(gzip);
+    const built = await buildS3Tier({ ...config, compressionLevel: 9 }, env);
+    expect(built.compressionLevel).toBe(9);
+    expect(mockWarning).not.toHaveBeenCalled();
+  });
+
+  it('passes a zstd compression level of 19 through unclamped, without warning', async () => {
+    mockGetCompressionConfig.mockResolvedValue(zstd);
+    const built = await buildS3Tier({ ...config, compressionLevel: 19 }, env);
+    expect(built.compressionLevel).toBe(19);
+    expect(mockWarning).not.toHaveBeenCalled();
+  });
+
+  it('leaves compressionLevel undefined when unset, without warning', async () => {
+    const built = await buildS3Tier(config, env);
+    expect(built.compressionLevel).toBeUndefined();
+    expect(mockWarning).not.toHaveBeenCalled();
+  });
 });
 
 describe('saveToS3 streaming', () => {
@@ -1154,7 +1361,12 @@ describe('saveToS3 streaming', () => {
     expect(call[1]).toBe('bucket');
     expect(call[2]).toBe(objectKey);
     expect(call[4]).toEqual({ concurrency: 8, partSize: 5_242_880 });
-    expect(call[5]).toEqual({ ifNoneMatch: '*' });
+    expect(call[5]).toEqual({
+      ifNoneMatch: '*',
+      metadata: {
+        'cloud-cache-writer': expect.stringMatching(/^[0-9a-f-]{36}$/) as unknown as string,
+      },
+    });
   });
 
   it('never lets the upload observe the body as complete when tar closes with a non-zero code', async () => {
@@ -1306,11 +1518,14 @@ describe('saveToS3 streaming', () => {
         'cloud-cache-sha256': crypto.createHash('sha256').update(archiveBody).digest('hex'),
       },
       // The ETag the upload just wrote, so the copy cannot stamp another writer's body.
-      '"streamed"'
+      { ifMatch: '"streamed"' }
     );
   });
 
   it('reports the ETag the metadata copy produced, which supersedes the upload one', async () => {
+    // Forces the copy path (rather than the default tag) so this test can exercise it in
+    // isolation: tagging is covered separately above.
+    storage.conditionalWriteUnsupported = true;
     mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
     mockWaitForExit.mockImplementation(async (c) => {
       c.stdout.end(Buffer.from('archive-body'));
@@ -1323,7 +1538,71 @@ describe('saveToS3 streaming', () => {
     expect(outcome).toMatchObject({ kind: 'saved', s3: { etag: '"copied"' } });
   });
 
+  describe('on GCS', () => {
+    // GCS has no tagging API, so the checksum goes on by the copy.
+    const gcs = () =>
+      ({
+        ...storage,
+        providerConfig: { ...storage.providerConfig, provider: 'gcs' },
+        objectTaggingUnsupported: true,
+      }) as StorageContext;
+    const uploadReturning = (result: { ETag?: string; VersionId?: string }) =>
+      mockCreateStreamUpload.mockImplementation(() => ({
+        done: jest.fn(async () => result),
+        abort: jest.fn(async () => undefined),
+      }));
+
+    beforeEach(() => {
+      mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+      mockWaitForExit.mockImplementation(async (c) => {
+        c.stdout.end(Buffer.from('archive-body'));
+        return 0;
+      });
+    });
+
+    it('pins the copy to the generation of a multipart upload, not to its ETag', async () => {
+      uploadReturning({ ETag: '"0123456789abcdef0123456789abcdef-3"', VersionId: '17' });
+
+      const outcome = await saveToS3(tier({ storage: gcs(), streaming: true }), 'k', [
+        'node_modules',
+      ]);
+
+      expect(outcome.kind).toBe('saved');
+      const [, , , , guard] = mockReplaceObjectMetadata.mock.calls[0];
+      expect(guard).toEqual({ versionId: '17' });
+    });
+
+    it('pins a single-part upload to its generation too', async () => {
+      uploadReturning({ ETag: '"0123456789abcdef0123456789abcdef"', VersionId: '18' });
+
+      await saveToS3(tier({ storage: gcs(), streaming: true }), 'k', ['node_modules']);
+
+      const [, , , , guard] = mockReplaceObjectMetadata.mock.calls[0];
+      expect(guard).toEqual({ versionId: '18' });
+    });
+
+    it('keeps no checksum when a multipart upload reports no generation', async () => {
+      uploadReturning({ ETag: '"0123456789abcdef0123456789abcdef-3"' });
+
+      const outcome = await saveToS3(tier({ storage: gcs(), streaming: true }), 'k', [
+        'node_modules',
+      ]);
+
+      expect(outcome).toMatchObject({
+        kind: 'saved',
+        s3: { etag: '"0123456789abcdef0123456789abcdef-3"' },
+      });
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(
+        expect.stringContaining('without a checksum') as unknown as string
+      );
+    });
+  });
+
   it('skips the metadata copy, and warns, for an archive over the 5 GiB copy limit', async () => {
+    // Forces the copy path (rather than the default tag) so this test can exercise it in
+    // isolation: tagging is covered separately above.
+    storage.conditionalWriteUnsupported = true;
     mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
     mockWaitForExit.mockImplementation(async (c) => {
       c.stdout.end(Buffer.from('x'));
@@ -1346,6 +1625,9 @@ describe('saveToS3 streaming', () => {
   });
 
   it('keeps the save successful and warns when the metadata copy fails', async () => {
+    // Forces the copy path (rather than the default tag) so this test can exercise it in
+    // isolation: tagging is covered separately above.
+    storage.conditionalWriteUnsupported = true;
     mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
     mockWaitForExit.mockImplementation(async (c) => {
       c.stdout.end(Buffer.from('archive-body'));
@@ -1364,6 +1646,9 @@ describe('saveToS3 streaming', () => {
   });
 
   it('keeps the save successful and warns when the metadata copy gets a 412', async () => {
+    // Forces the copy path (rather than the default tag) so this test can exercise it in
+    // isolation: tagging is covered separately above.
+    storage.conditionalWriteUnsupported = true;
     mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
     mockWaitForExit.mockImplementation(async (c) => {
       c.stdout.end(Buffer.from('archive-body'));
@@ -1394,7 +1679,13 @@ describe('saveToS3 streaming', () => {
       'node_modules',
     ]);
     const [, , , , , options] = mockCreateStreamUpload.mock.calls[0];
-    expect(options).toEqual({ ifNoneMatch: '*', tagging: 'repo=acme%2Fapp' });
+    expect(options).toEqual({
+      ifNoneMatch: '*',
+      tagging: 'repo=acme%2Fapp',
+      metadata: {
+        'cloud-cache-writer': expect.stringMatching(/^[0-9a-f-]{36}$/) as unknown as string,
+      },
+    });
   });
 
   it('falls back to a file-mode save without tags when the streamed upload server rejects tagging', async () => {
@@ -1574,6 +1865,380 @@ describe('saveToS3 streaming', () => {
       process.off('unhandledRejection', onUnhandledRejection);
     }
   });
+
+  /**
+   * saveToS3 sends one HeadObject before it uploads (the "already saved?" check, which must find
+   * nothing here) and attachStreamedChecksum sends a second one after the tag, to prove the
+   * object still holds this upload. This answers the first with null and the second with `etag`.
+   */
+  const headAfterTagReturns = (etag: string | undefined): void => {
+    let calls = 0;
+    mockCheckObjectExists.mockImplementation(async (_client, _bucket, key) => {
+      calls += 1;
+      return calls === 1 ? null : { key, size: 12, etag };
+    });
+  };
+
+  it('attaches the checksum with a tag instead of copying the object', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    headAfterTagReturns('"streamed"');
+    const outcome = await saveToS3(
+      tier({ streaming: true, tags: [{ Key: 'team', Value: 'platform' }] }),
+      'k',
+      ['node_modules']
+    );
+    expect(outcome.kind).toBe('saved');
+    expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+    const [, bucket, key, tags] = mockPutObjectTags.mock.calls[0];
+    expect(bucket).toBe('bucket');
+    expect(key).toContain('cache.tar.zst');
+    expect(tags).toEqual([
+      { Key: 'team', Value: 'platform' },
+      { Key: 'cloud-cache-sha256', Value: expect.any(String) as unknown as string },
+    ]);
+    expect(mockPutObjectTags).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes the checksum tag, and does not copy, when another job replaced the object', async () => {
+    // The ownership window the ETag-guarded copy used to close: a provider that accepts
+    // `If-None-Match` and ignores it (Google Cloud Storage) never sets
+    // conditionalWriteUnsupported, so the condition alone does not prove this job owns the
+    // object. A checksum left on another job's bytes would fail a later, perfectly good restore.
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    headAfterTagReturns('"someone-else"');
+    const outcome = await saveToS3(
+      tier({ streaming: true, tags: [{ Key: 'team', Value: 'platform' }] }),
+      'k',
+      ['node_modules']
+    );
+    expect(outcome.kind).toBe('saved');
+    expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+    expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+    // The rewrite puts back the user's tags alone, without the reserved checksum tag.
+    expect(mockPutObjectTags.mock.calls[1][3]).toEqual([{ Key: 'team', Value: 'platform' }]);
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining('replaced s3://bucket/') as unknown as string
+    );
+  });
+
+  it('removes the checksum tag, then copies, when the HeadObject after the tag fails', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    let calls = 0;
+    mockCheckObjectExists.mockImplementation(async () => {
+      calls += 1;
+      if (calls === 1) {
+        return null;
+      }
+      throw new Error('head blocked');
+    });
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    expect(outcome.kind).toBe('saved');
+    expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+    // No user tags: the rewrite is an empty tag set.
+    expect(mockPutObjectTags.mock.calls[1][3]).toEqual([]);
+    expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+  });
+
+  it('removes the checksum tag, then copies, when the HeadObject after the tag finds nothing', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    // Both HEADs find nothing: the first is the "already saved?" check, the second the
+    // ownership check after the tag.
+    mockCheckObjectExists.mockResolvedValue(null);
+    const outcome = await saveToS3(
+      tier({ streaming: true, tags: [{ Key: 'team', Value: 'platform' }] }),
+      'k',
+      ['node_modules']
+    );
+    expect(outcome.kind).toBe('saved');
+    expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+    expect(mockPutObjectTags.mock.calls[1][3]).toEqual([{ Key: 'team', Value: 'platform' }]);
+    const [, , , metadata, guard] = mockReplaceObjectMetadata.mock.calls[0];
+    expect(metadata).toEqual({ 'cloud-cache-sha256': expect.any(String) as unknown as string });
+    expect(guard).toEqual({ ifMatch: '"streamed"' });
+  });
+
+  it('warns, and still copies, when the tag cannot be removed after an unconfirmed check', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    mockCheckObjectExists.mockResolvedValue(null);
+    mockPutObjectTags
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('tag rewrite blocked'));
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    expect(outcome.kind).toBe('saved');
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining("Could not remove this save's checksum tag") as unknown as string
+    );
+    expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+  });
+
+  /**
+   * The upload answers with `uploadEtag` (none when undefined), and the HEAD after the tag
+   * answers with `head`, built from the writer id that the upload sent in its metadata. `head`
+   * can also be 'throws', for a HEAD that fails.
+   */
+  const streamedSave = (
+    uploadEtag: string | undefined,
+    head: ((writerId: string | undefined) => Partial<CacheObjectMetadata>) | 'throws'
+  ): void => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    let writerId: string | undefined;
+    mockCreateStreamUpload.mockImplementation((_client, _bucket, _key, _body, _transfer, opts) => {
+      writerId = opts?.metadata?.['cloud-cache-writer'];
+      return {
+        done: jest.fn(async () => (uploadEtag === undefined ? {} : { ETag: uploadEtag })),
+        abort: jest.fn(async () => undefined),
+      };
+    });
+    let calls = 0;
+    mockCheckObjectExists.mockImplementation(async (_client, _bucket, key) => {
+      calls += 1;
+      if (calls === 1) {
+        return null;
+      }
+      if (head === 'throws') {
+        throw new Error('head blocked');
+      }
+      return { key, size: 12, ...head(writerId) };
+    });
+  };
+
+  const noChecksumWarning = expect.stringContaining(
+    'without a checksum: the upload reported no ETag'
+  ) as unknown as string;
+
+  describe('when the upload reports no ETag', () => {
+    it('keeps the tag when the writer metadata matches this save', async () => {
+      streamedSave(undefined, (writerId) => ({
+        etag: '"any"',
+        metadata: { 'cloud-cache-writer': writerId ?? '' },
+      }));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(1);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).not.toHaveBeenCalled();
+    });
+
+    it('removes the tag, warns, and does not copy, when another save wrote the object', async () => {
+      streamedSave(undefined, () => ({ metadata: { 'cloud-cache-writer': 'another-save' } }));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+      expect(mockPutObjectTags.mock.calls[1][3]).toEqual([]);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(
+        expect.stringContaining('replaced s3://bucket/') as unknown as string
+      );
+    });
+
+    it('removes the tag, and keeps no checksum, when the HEAD returns no writer metadata', async () => {
+      // Without an upload ETag, nothing can guard a copy: it could put this save's checksum on
+      // the bytes of another job.
+      streamedSave(undefined, () => ({ etag: '"any"' }));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+      expect(mockPutObjectTags.mock.calls[1][3]).toEqual([]);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(noChecksumWarning);
+    });
+
+    it('removes the tag, and keeps no checksum, when the HEAD after the tag fails', async () => {
+      streamedSave(undefined, 'throws');
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+      expect(mockPutObjectTags.mock.calls[1][3]).toEqual([]);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(noChecksumWarning);
+    });
+
+    it('keeps no checksum, and does not copy, when the tag write fails', async () => {
+      streamedSave(undefined, () => ({}));
+      mockPutObjectTags.mockRejectedValueOnce(new Error('tagging blocked'));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(1);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(noChecksumWarning);
+    });
+  });
+
+  describe('when the upload reports an ETag and the HEAD does not', () => {
+    it('keeps the tag when the writer metadata matches this save', async () => {
+      streamedSave('"streamed"', (writerId) => ({
+        metadata: { 'cloud-cache-writer': writerId ?? '' },
+      }));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(1);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).not.toHaveBeenCalled();
+    });
+
+    it('removes the tag, warns, and does not copy, when another save wrote the object', async () => {
+      streamedSave('"streamed"', () => ({ metadata: { 'cloud-cache-writer': 'another-save' } }));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+      expect(mockReplaceObjectMetadata).not.toHaveBeenCalled();
+      expect(mockWarning).toHaveBeenCalledWith(
+        expect.stringContaining('replaced s3://bucket/') as unknown as string
+      );
+    });
+
+    it('removes the tag, then uses the ETag-guarded copy, when the HEAD has no writer metadata', async () => {
+      streamedSave('"streamed"', () => ({}));
+      const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+      expect(outcome.kind).toBe('saved');
+      expect(mockPutObjectTags).toHaveBeenCalledTimes(2);
+      expect(mockReplaceObjectMetadata.mock.calls[0][4]).toEqual({ ifMatch: '"streamed"' });
+    });
+  });
+
+  it('warns that a checksum tag may remain when its removal fails and the guarded copy gets a 412', async () => {
+    streamedSave('"streamed"', () => ({}));
+    mockPutObjectTags
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('tag rewrite blocked'));
+    mockReplaceObjectMetadata.mockRejectedValue(
+      Object.assign(new Error('At least one of the pre-conditions you specified did not hold'), {
+        name: 'PreconditionFailed',
+        $metadata: { httpStatusCode: 412 },
+      })
+    );
+    const outcome = await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    expect(outcome.kind).toBe('saved');
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "This save's checksum tag may remain on s3://bucket/"
+      ) as unknown as string
+    );
+  });
+
+  it('does not warn about a remaining tag when the removal worked and the copy gets a 412', async () => {
+    streamedSave('"streamed"', () => ({}));
+    mockReplaceObjectMetadata.mockRejectedValue(
+      Object.assign(new Error('precondition'), {
+        name: 'PreconditionFailed',
+        $metadata: { httpStatusCode: 412 },
+      })
+    );
+    await saveToS3(tier({ streaming: true }), 'k', ['node_modules']);
+    expect(mockWarning).not.toHaveBeenCalledWith(
+      expect.stringContaining('may remain') as unknown as string
+    );
+  });
+
+  it('copies instead of tagging when user metadata is configured', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    await saveToS3(tier({ streaming: true, metadata: { team: 'platform' } }), 'k', [
+      'node_modules',
+    ]);
+    expect(mockPutObjectTags).not.toHaveBeenCalled();
+    expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+    // No tag, so no ownership check, so no writer id on the object.
+    expect(mockCreateStreamUpload.mock.calls[0][5]?.metadata).toBeUndefined();
+  });
+
+  it('copies instead of tagging when the tier cannot use the conditional create', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    const t = tier({ streaming: true });
+    t.storage.conditionalWriteUnsupported = true;
+    await saveToS3(t, 'k', ['node_modules']);
+    expect(mockPutObjectTags).not.toHaveBeenCalled();
+    expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+    expect(mockCreateStreamUpload.mock.calls[0][5]?.metadata).toBeUndefined();
+  });
+
+  it('falls back to the copy, and remembers, when the server has no tagging API', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    const t = tier({ streaming: true });
+    mockPutObjectTags.mockRejectedValueOnce(
+      Object.assign(new Error('NotImplemented'), {
+        name: 'NotImplemented',
+        $metadata: { httpStatusCode: 501 },
+      })
+    );
+    await saveToS3(t, 'k', ['node_modules']);
+    expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+    expect(t.storage.objectTaggingUnsupported).toBe(true);
+  });
+
+  it('names the missing permission when the tag is denied, then copies', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    const t = tier({ streaming: true });
+    mockPutObjectTags.mockRejectedValueOnce(
+      Object.assign(new Error('not authorized to perform: s3:PutObjectTagging'), {
+        name: 'AccessDenied',
+        $metadata: { httpStatusCode: 403 },
+      })
+    );
+    await saveToS3(t, 'k', ['node_modules']);
+    expect(mockInfo).toHaveBeenCalledWith(
+      expect.stringContaining('Grant s3:PutObjectTagging to skip the copy')
+    );
+    expect(mockReplaceObjectMetadata).toHaveBeenCalled();
+    expect(t.storage.objectTaggingUnsupported).toBeFalsy();
+  });
+
+  it('still succeeds, with a warning, when neither the tag nor the copy can be attached', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    // A generic failure whose message happens to mention "tagging" (an AccessDenied on
+    // s3:PutObjectTagging, say) must not be read as "the server has no tagging API": that would
+    // silently drop the user's own tags from every later upload in the run.
+    const t = tier({ streaming: true });
+    mockPutObjectTags.mockRejectedValue(new Error('tagging blocked'));
+    mockReplaceObjectMetadata.mockRejectedValue(new Error('copy blocked'));
+    const outcome = await saveToS3(t, 'k', ['node_modules']);
+    expect(outcome.kind).toBe('saved');
+    expect(mockWarning).toHaveBeenCalledWith(expect.stringContaining('could not attach metadata'));
+    expect(t.storage.objectTaggingUnsupported).toBeFalsy();
+  });
 });
 
 /**
@@ -1666,6 +2331,22 @@ describe('saveToS3 streaming failure timing', () => {
   }, 20_000);
 });
 
+describe('usableMemory', () => {
+  const GiB = 1024 * 1024 * 1024;
+  it('uses the free memory without a container limit', () => {
+    expect(usableMemory(8 * GiB, 0, GiB)).toBe(8 * GiB);
+  });
+  it('uses what is left of a container limit when that is lower', () => {
+    expect(usableMemory(30 * GiB, 4 * GiB, GiB)).toBe(3 * GiB);
+  });
+  it('uses the free memory when it is lower than a container limit', () => {
+    expect(usableMemory(2 * GiB, 16 * GiB, GiB)).toBe(2 * GiB);
+  });
+  it('never returns less than 0', () => {
+    expect(usableMemory(2 * GiB, GiB, 2 * GiB)).toBe(0);
+  });
+});
+
 describe('restoreFromS3 parallel download', () => {
   const MiB = 1024 * 1024;
   // 20 MiB + 1 byte: three 8 MiB parts, so the object is larger than one part.
@@ -1719,6 +2400,143 @@ describe('restoreFromS3 parallel download', () => {
     expect(mockDownloadFile).toHaveBeenCalledTimes(1);
   });
 
+  it('bounds the tuned concurrency by the memory that the process can use', async () => {
+    mockGetArchiveSize.mockReturnValue(2 * 1024 * MiB);
+    await saveToS3(tier({ tuning: noExplicit, memory: () => 256 * MiB }), 'k', ['node_modules']);
+    const [, , , , settings] = mockUploadFile.mock.calls[0];
+    // 64 MiB budget / 32 MiB parts = 2 parts, one of them read ahead.
+    expect(settings).toEqual({ concurrency: 1, partSize: 32 * MiB });
+  });
+
+  const noExplicit = {
+    uploadConcurrency: false,
+    uploadChunkSize: false,
+    downloadConcurrency: false,
+    downloadChunkSize: false,
+  };
+
+  it('selects the part size and the concurrency from the object size with auto tuning', async () => {
+    large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'good-hash' },
+      parts: 2,
+    });
+    mockSha256File.mockResolvedValue('good-hash');
+    await restoreFromS3(tier({ tuning: noExplicit }), 'k', [], false);
+    const [, , , , options] = mockDownloadFileInParts.mock.calls[0];
+    expect(options).toMatchObject({ size: 20 * MiB + 1, partSize: 16 * MiB, concurrency: 2 });
+    expect(mockInfo).toHaveBeenCalledWith(
+      'Transfer tuning: auto selected 2 x 16 MiB for the download of 20 MiB'
+    );
+  });
+
+  it('keeps an explicit download-concurrency with auto tuning', async () => {
+    large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'good-hash' },
+      parts: 2,
+    });
+    mockSha256File.mockResolvedValue('good-hash');
+    await restoreFromS3(
+      tier({
+        download: { concurrency: 5, partSize: 8 * MiB },
+        tuning: { ...noExplicit, downloadConcurrency: true },
+      }),
+      'k',
+      [],
+      false
+    );
+    const [, , , , options] = mockDownloadFileInParts.mock.calls[0];
+    expect(options).toMatchObject({ partSize: 16 * MiB, concurrency: 5 });
+  });
+
+  it('uses the tier settings, with no tuning line, when both download inputs are set', async () => {
+    large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'good-hash' },
+      parts: 3,
+    });
+    mockSha256File.mockResolvedValue('good-hash');
+    await restoreFromS3(
+      tier({ tuning: { ...noExplicit, downloadConcurrency: true, downloadChunkSize: true } }),
+      'k',
+      [],
+      false
+    );
+    const [, , , , options] = mockDownloadFileInParts.mock.calls[0];
+    expect(options).toMatchObject({ partSize: 8 * MiB, concurrency: 8 });
+    expect(mockInfo).not.toHaveBeenCalledWith(expect.stringContaining('Transfer tuning'));
+  });
+
+  it('tunes a file-mode upload from the archive size with auto tuning', async () => {
+    mockGetArchiveSize.mockReturnValue(128 * MiB);
+    await saveToS3(tier({ tuning: noExplicit }), 'k', ['node_modules']);
+    const [, , , , settings] = mockUploadFile.mock.calls[0];
+    expect(settings).toEqual({ concurrency: 16, partSize: 16 * MiB });
+    expect(mockInfo).toHaveBeenCalledWith(
+      'Transfer tuning: auto selected 16 x 16 MiB for the upload of 128 MiB'
+    );
+  });
+
+  it('keeps an explicit upload-chunk-size with auto tuning', async () => {
+    mockGetArchiveSize.mockReturnValue(2 * 1024 * MiB);
+    await saveToS3(
+      tier({
+        upload: { concurrency: 8, partSize: 64 * MiB },
+        tuning: { ...noExplicit, uploadChunkSize: true },
+      }),
+      'k',
+      ['node_modules']
+    );
+    const [, , , , settings] = mockUploadFile.mock.calls[0];
+    // 1 GiB budget / 64 MiB parts = 16 parts, one of them read ahead.
+    expect(settings).toEqual({ concurrency: 15, partSize: 64 * MiB });
+    expect(mockInfo).toHaveBeenCalledWith(
+      'Transfer tuning: auto selected 15 x 64 MiB (set) for the upload of 2.0 GiB'
+    );
+  });
+
+  it('uses the provider of the storage context for the R2 upload rule', async () => {
+    mockGetArchiveSize.mockReturnValue(2 * 1024 * MiB);
+    const r2 = {
+      ...storage,
+      providerConfig: { ...storage.providerConfig, provider: 'r2' },
+    } as StorageContext;
+    await saveToS3(tier({ storage: r2, tuning: noExplicit }), 'k', ['node_modules']);
+    const [, , , , settings] = mockUploadFile.mock.calls[0];
+    expect(settings).toEqual({ concurrency: 32, partSize: 16 * MiB });
+  });
+
+  it('uses one request for an object no larger than a tuned part', async () => {
+    put(FEATURE, 'k', 1);
+    const outcome = await restoreFromS3(tier({ tuning: noExplicit }), 'k', [], false);
+    expect(outcome).toMatchObject({ kind: 'hit', downloadParts: 1 });
+    expect(mockDownloadFileInParts).not.toHaveBeenCalled();
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the fixed settings for a streaming save with auto tuning', async () => {
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockImplementation(async (c) => {
+      c.stdout.end(Buffer.from('archive-body'));
+      return 0;
+    });
+    await saveToS3(tier({ streaming: true, tuning: noExplicit }), 'k', ['node_modules']);
+    expect(mockCreateStreamUpload.mock.calls[0][4]).toEqual({
+      concurrency: 8,
+      partSize: 64 * MiB,
+    });
+    expect(mockInfo).not.toHaveBeenCalledWith(expect.stringContaining('Transfer tuning'));
+  });
+
+  it('does not tune with fixed tuning', async () => {
+    mockGetArchiveSize.mockReturnValue(128 * MiB);
+    await saveToS3(tier(), 'k', ['node_modules']);
+    const [, , , , settings] = mockUploadFile.mock.calls[0];
+    expect(settings).toEqual({ concurrency: 8, partSize: 64 * MiB });
+    expect(mockInfo).not.toHaveBeenCalledWith(expect.stringContaining('Transfer tuning'));
+  });
+
   it('falls back to one request, with an info line, when the server ignores Range', async () => {
     const objectKey = large();
     mockDownloadFileInParts.mockRejectedValue(new RangeNotSupportedError('bucket', objectKey));
@@ -1749,6 +2567,44 @@ describe('restoreFromS3 parallel download', () => {
     mockSha256File.mockResolvedValue('actual-hash');
     const outcome = await restoreFromS3(tier(), 'k', [], false);
     expect(outcome.kind === 'error' && outcome.error.message).toContain('Integrity check failed');
+    expect(mockExtractArchive).not.toHaveBeenCalled();
+  });
+
+  it('asks both download paths for a digest, and checks it without a second pass over the file', async () => {
+    large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'good-hash' },
+      parts: 3,
+      sha256: 'good-hash',
+    });
+    const outcome = await restoreFromS3(tier(), 'k', [], false);
+    expect(outcome.kind).toBe('hit');
+    expect(mockDownloadFileInParts.mock.calls[0][5]).toEqual({ hash: true });
+    expect(mockSha256File).not.toHaveBeenCalled();
+    expect(mockExtractArchive).toHaveBeenCalled();
+
+    mockDownloadFileInParts.mockRejectedValue(new RangeNotSupportedError('bucket', 'x'));
+    mockDownloadFile.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'good-hash' },
+      sha256: 'good-hash',
+    });
+    await restoreFromS3(tier(), 'k', [], false);
+    expect(mockDownloadFile.mock.calls[0][4]).toEqual({ hash: true });
+    expect(mockSha256File).not.toHaveBeenCalled();
+  });
+
+  it('reports a mismatch of the digest the download returned', async () => {
+    const objectKey = large();
+    mockDownloadFileInParts.mockResolvedValue({
+      metadata: { 'cloud-cache-sha256': 'expected-hash' },
+      parts: 3,
+      sha256: 'actual-hash',
+    });
+    const outcome = await restoreFromS3(tier(), 'k', [], false);
+    expect(outcome.kind === 'error' && outcome.error.message).toBe(
+      `Integrity check failed for s3://bucket/${objectKey}: expected sha256 expected-hash, got actual-hash`
+    );
+    expect(mockSha256File).not.toHaveBeenCalled();
     expect(mockExtractArchive).not.toHaveBeenCalled();
   });
 
@@ -1836,6 +2692,8 @@ describe('restoreFromS3 streaming', () => {
       matchedKey: 'k',
       transferMs: expect.any(Number) as unknown as number,
     });
+    // Streaming extracts during the download, so there is no separate extract phase.
+    expect(outcome).not.toHaveProperty('extractMs');
     expect(mockDownloadFile).not.toHaveBeenCalled();
     expect(mockExtractArchive).not.toHaveBeenCalled();
     expect(mockSha256File).not.toHaveBeenCalled();
@@ -1874,6 +2732,20 @@ describe('restoreFromS3 streaming', () => {
     const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
     expect(outcome.kind).toBe('hit');
     expect(mockDebug).toHaveBeenCalledWith(expect.stringContaining('sha256'));
+  });
+
+  it('resolves the checksum from the tag when streaming, when the object carries no metadata', async () => {
+    put(FEATURE, 'k', 1);
+    const payload = Buffer.from('archive-payload');
+    const expectedSha256 = crypto.createHash('sha256').update(payload).digest('hex');
+    mockGetObjectStream.mockResolvedValue({ body: Readable.from([payload]), tagCount: 1 });
+    mockGetObjectTags.mockResolvedValue({ 'cloud-cache-sha256': expectedSha256 });
+    mockSpawnArchiveCommand.mockImplementation(() => makeFakeChild());
+    mockWaitForExit.mockResolvedValue(0);
+
+    const outcome = await restoreFromS3(tier({ streaming: true, workspace }), 'k', [], false);
+    expect(outcome.kind).toBe('hit');
+    expect(mockGetObjectTags).toHaveBeenCalled();
   });
 
   it('kills tar and returns an error, with its stderr tail, when tar fails', async () => {

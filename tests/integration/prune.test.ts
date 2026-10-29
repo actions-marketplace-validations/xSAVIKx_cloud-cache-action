@@ -1,6 +1,14 @@
+import { jest } from '@jest/globals';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { HeadObjectCommand, PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
+import {
+  AbortMultipartUploadCommand,
+  CreateMultipartUploadCommand,
+  HeadObjectCommand,
+  ListMultipartUploadsCommand,
+  PutObjectCommand,
+  type S3Client,
+} from '@aws-sdk/client-s3';
 import { Defaults } from '../../src/constants';
 import { compileKeyTemplate } from '../../src/core/keyTemplate';
 import { pruneCaches } from '../../src/core/prune';
@@ -10,7 +18,27 @@ import { MemoryState } from '../support/memoryState';
 import { createTestS3Client, getTestS3Config, prepareTestBucket } from '../support/s3Server';
 import { makeTempDir, removeDir, setEnv, writeFiles } from '../support/tempTree';
 
+/**
+ * What each server does with ListMultipartUploads, measured on 2026-10-21 (local runs of RustFS
+ * 1.0.0, SeaweedFS 4.46 and MinIO 0.20260330, and the Garage job of CI run 39524953997):
+ * - `aborts`: the listing under a prefix returns the uploads with an Initiated time, so prune
+ *   aborts the stale ones. RustFS and Garage.
+ * - `noInitiated`: the listing returns the uploads but without an Initiated time, so prune skips
+ *   them and warns. SeaweedFS.
+ * - `noPrefixListing`: the listing returns nothing for a prefix that is not a full object key, so
+ *   prune finds no upload. MinIO.
+ * A provider that nobody measured is expected to abort.
+ */
+type UploadListing = 'aborts' | 'noInitiated' | 'noPrefixListing';
+const UPLOAD_LISTING: Record<string, UploadListing> = {
+  rustfs: 'aborts',
+  garage: 'aborts',
+  seaweedfs: 'noInitiated',
+  minio: 'noPrefixListing',
+};
+
 const s3 = getTestS3Config();
+const uploadListing: UploadListing = UPLOAD_LISTING[s3.provider] ?? 'aborts';
 const runId = `${Date.now()}-${process.pid}`;
 let available = false;
 let client: S3Client;
@@ -214,6 +242,212 @@ describe('pruneCaches integration', () => {
       // ...but left the non-archive object and the other repository's cache alone.
       expect(await objectExists(strayKey)).toBe(true);
       expect(await objectExists(otherRepoKey)).toBe(true);
+    }
+  );
+  itS3(
+    'keeps the newest archives of each ref and prunes to a size budget, leaving other repositories alone',
+    async () => {
+      const repository = `cloud-cache-it/prune-count-${runId}`;
+      const otherRepository = `cloud-cache-it/prune-count-other-${runId}`;
+      // S3 stores LastModified in whole seconds, so each save waits to get a distinct time.
+      const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 1100));
+
+      const oldest = await saveArchive(repository, 'refs/heads/main', 'k1', 'main-data-1');
+      await tick();
+      const middle = await saveArchive(repository, 'refs/heads/main', 'k2', 'main-data-2');
+      await tick();
+      const newest = await saveArchive(repository, 'refs/heads/main', 'k3', 'main-data-3');
+      const featureKey = await saveArchive(repository, 'refs/heads/feature', 'k1', 'feature-data');
+      const otherRepoKey = await saveArchive(otherRepository, 'refs/heads/main', 'k1', 'other');
+
+      const template = compileKeyTemplate({
+        pattern: Defaults.DefaultS3KeyPattern,
+        repository,
+        prefix: '',
+        scopedToRepository: true,
+        scopedToRef: true,
+        version: '',
+        archiveFilename: 'cache.tar.zst',
+        env: {},
+      });
+      const storage: StorageContext = {
+        client,
+        bucket: s3.bucket,
+        providerConfig: {
+          provider: s3.provider as 'seaweedfs',
+          region: s3.region,
+          forcePathStyle: true,
+        },
+      };
+      const tier = { storage, template };
+
+      // keep-latest counts per ref: the lone feature archive stays, main loses its oldest two.
+      const dryRun = await pruneCaches(tier, { keepLatest: 1, dryRun: true });
+      expect(dryRun.pruned.map((p) => p.key).sort()).toEqual([oldest, middle].sort());
+      expect(dryRun.keptCount).toBe(2);
+      expect(await objectExists(oldest)).toBe(true);
+
+      const real = await pruneCaches(tier, { keepLatest: 2, dryRun: false });
+      expect(real.pruned.map((p) => p.key)).toEqual([oldest]);
+      expect(await objectExists(oldest)).toBe(false);
+      expect(await objectExists(middle)).toBe(true);
+
+      // A budget alone deletes the oldest archive of the whole scope, whatever its ref. The budget
+      // is one byte under the total, so one deletion is enough.
+      const sizeOf = async (key: string): Promise<number> =>
+        (await client.send(new HeadObjectCommand({ Bucket: s3.bucket, Key: key }))).ContentLength ??
+        0;
+      const total = (await sizeOf(middle)) + (await sizeOf(newest)) + (await sizeOf(featureKey));
+      const budget = await pruneCaches(tier, { maxTotalSize: total - 1, dryRun: false });
+      expect(budget.pruned.map((p) => p.key)).toEqual([middle]);
+      expect(await objectExists(middle)).toBe(false);
+
+      // With keep-latest, the budget still decides, but the newest archive of each ref stays,
+      // even when the budget is 0.
+      const zero = await pruneCaches(tier, { keepLatest: 1, maxTotalSize: 0, dryRun: false });
+      expect(zero.pruned).toEqual([]);
+      expect(await objectExists(newest)).toBe(true);
+      expect(await objectExists(featureKey)).toBe(true);
+      expect(await objectExists(otherRepoKey)).toBe(true);
+    },
+    120_000
+  );
+  itS3(
+    'aborts only stale incomplete uploads inside the prune scope, and lists them in a dry run',
+    async () => {
+      const repository = `cloud-cache-it/prune-uploads-${runId}`;
+      const otherRepository = `cloud-cache-it/prune-uploads-other-${runId}`;
+      const scopeKey = `${repository}/refs%2Fheads%2Fmain/stale/v1/cache.tar.zst`;
+      const strayKey = `${repository}/refs%2Fheads%2Fmain/stale/v1/notes.txt`;
+      const otherKey = `${otherRepository}/refs%2Fheads%2Fmain/stale/v1/cache.tar.zst`;
+
+      const start = async (key: string): Promise<string> => {
+        const started = await client.send(
+          new CreateMultipartUploadCommand({ Bucket: s3.bucket, Key: key })
+        );
+        expect(started.UploadId).toBeTruthy();
+        return started.UploadId as string;
+      };
+      // The test lists the whole bucket and filters the keys itself, because MinIO lists nothing
+      // for a prefix that is not a full object key.
+      const open = async (repo: string): Promise<Array<{ key?: string; id?: string }>> => {
+        const found: Array<{ key?: string; id?: string }> = [];
+        let keyMarker: string | undefined;
+        let uploadIdMarker: string | undefined;
+        do {
+          const listed = await client.send(
+            new ListMultipartUploadsCommand({
+              Bucket: s3.bucket,
+              KeyMarker: keyMarker,
+              UploadIdMarker: uploadIdMarker,
+            })
+          );
+          for (const u of listed.Uploads ?? []) {
+            if (u.Key?.startsWith(`${repo}/`)) {
+              found.push({ key: u.Key, id: u.UploadId });
+            }
+          }
+          keyMarker = listed.IsTruncated ? listed.NextKeyMarker : undefined;
+          uploadIdMarker = listed.IsTruncated ? listed.NextUploadIdMarker : undefined;
+        } while (keyMarker !== undefined || uploadIdMarker !== undefined);
+        return found;
+      };
+
+      const scopeId = await start(scopeKey);
+      const strayId = await start(strayKey);
+      const otherId = await start(otherKey);
+
+      const template = compileKeyTemplate({
+        pattern: Defaults.DefaultS3KeyPattern,
+        repository,
+        prefix: '',
+        scopedToRepository: true,
+        scopedToRef: true,
+        version: '',
+        archiveFilename: 'cache.tar.zst',
+        env: {},
+      });
+      const storage: StorageContext = {
+        client,
+        bucket: s3.bucket,
+        providerConfig: {
+          provider: s3.provider as 'seaweedfs',
+          region: s3.region,
+          forcePathStyle: true,
+        },
+      };
+      const tier = { storage, template };
+      // The uploads just started; a `now` two days ahead makes them look stale.
+      const later = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      const sameUploads = (
+        actual: Array<{ key?: string; id?: string }>,
+        expected: Array<{ key?: string; id?: string }>
+      ): void => {
+        const order = (list: Array<{ key?: string; id?: string }>) =>
+          [...list].sort((a, b) => `${a.key}`.localeCompare(`${b.key}`));
+        expect(order(actual)).toEqual(order(expected));
+      };
+      const stdout = jest.spyOn(process.stdout, 'write');
+      const warned = (text: string): boolean =>
+        stdout.mock.calls.some(
+          ([chunk]) => String(chunk).startsWith('::warning::') && String(chunk).includes(text)
+        );
+
+      try {
+        sameUploads(await open(repository), [
+          { key: scopeKey, id: scopeId },
+          { key: strayKey, id: strayId },
+        ]);
+        if (uploadListing !== 'aborts') {
+          // The server cannot give prune the age of the uploads, so prune aborts nothing, also when
+          // the uploads look stale. On SeaweedFS, prune says so in a warning.
+          const blind = await pruneCaches(tier, {
+            abortUploadsOlderThanHours: 24,
+            dryRun: false,
+            now: later,
+          });
+          expect(blind.abortedUploads).toBe(0);
+          expect(warned('Skipped 1 incomplete upload(s)')).toBe(uploadListing === 'noInitiated');
+          expect(await open(repository)).toHaveLength(2);
+          expect(await open(otherRepository)).toEqual([{ key: otherKey, id: otherId }]);
+          return;
+        }
+
+        // Right now the uploads are younger than the limit, so nothing is aborted.
+        const fresh = await pruneCaches(tier, { abortUploadsOlderThanHours: 24, dryRun: false });
+        expect(fresh.abortedUploads).toBe(0);
+        expect(await open(repository)).toHaveLength(2);
+
+        const dryRun = await pruneCaches(tier, {
+          abortUploadsOlderThanHours: 24,
+          dryRun: true,
+          now: later,
+        });
+        expect(dryRun.abortedUploads).toBe(1);
+        expect(await open(repository)).toHaveLength(2);
+
+        const real = await pruneCaches(tier, {
+          abortUploadsOlderThanHours: 24,
+          dryRun: false,
+          now: later,
+        });
+        expect(real.abortedUploads).toBe(1);
+        expect(real.pruned).toEqual([]);
+        // The archive upload is gone. The non-archive upload and the other repository stay.
+        expect(await open(repository)).toEqual([{ key: strayKey, id: strayId }]);
+        expect(await open(otherRepository)).toEqual([{ key: otherKey, id: otherId }]);
+      } finally {
+        stdout.mockRestore();
+        for (const [key, id] of [
+          [scopeKey, scopeId],
+          [strayKey, strayId],
+          [otherKey, otherId],
+        ]) {
+          await client
+            .send(new AbortMultipartUploadCommand({ Bucket: s3.bucket, Key: key, UploadId: id }))
+            .catch(() => undefined);
+        }
+      }
     }
   );
 });

@@ -19,6 +19,7 @@ import {
   PutObjectCommand,
   type S3Client,
 } from '@aws-sdk/client-s3';
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CompressionConfig } from '../../src/archive/compression';
@@ -246,5 +247,42 @@ describe('archive integrity (sha256)', () => {
         expect(log).toContain('skipping integrity check');
       }
     }
+  );
+
+  itS3(
+    'saves multipart parts with UNSIGNED-PAYLOAD, and the stored sha256 matches the stored bytes',
+    async () => {
+      const restoreVariable = setEnv({ CLOUD_CACHE_UNSIGNED_PAYLOAD: 'true' });
+      try {
+        // Random bytes do not compress, so the archive is larger than two 5 MiB parts.
+        const payload = crypto.randomBytes(12 * 1024 * 1024);
+        fs.mkdirSync(path.join(workspace, 'data'));
+        fs.writeFileSync(path.join(workspace, 'data', 'big.bin'), payload);
+        const key = `integrity-unsigned-${runId}`;
+        const inputs = { key, path: 'data', 'upload-chunk-size': String(5 * 1024 * 1024) };
+
+        const saveOutputs = await save(inputs);
+        const objectKey = saveOutputs['cache-s3-key'];
+        const head = await client.send(
+          new HeadObjectCommand({ Bucket: s3.bucket, Key: objectKey })
+        );
+        const object = await client.send(
+          new GetObjectCommand({ Bucket: s3.bucket, Key: objectKey })
+        );
+        const stored = Buffer.from(await object.Body!.transformToByteArray());
+        const checksum = head.Metadata?.['cloud-cache-sha256'];
+        if (checksum !== undefined) {
+          expect(checksum).toBe(crypto.createHash('sha256').update(stored).digest('hex'));
+        }
+
+        fs.rmSync(path.join(workspace, 'data'), { recursive: true });
+        const { outputs } = await restore(inputs);
+        expect(outputs['cache-hit']).toBe('true');
+        expect(fs.readFileSync(path.join(workspace, 'data', 'big.bin')).equals(payload)).toBe(true);
+      } finally {
+        restoreVariable();
+      }
+    },
+    120_000
   );
 });

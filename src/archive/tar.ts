@@ -1,221 +1,219 @@
+import { log } from '../ci/log';
 import * as exec from '@actions/exec';
-import * as io from '@actions/io';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { CompressionConfig, CompressionMethod } from './compression';
+import type { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { StringDecoder } from 'node:string_decoder';
+import { createSha256Tap, sha256File } from './checksum';
+import type { CompressionConfig } from './compression';
+import {
+  type ArchiveCommand,
+  type ArchivePlan,
+  archiveExecOptions,
+  buildCreateCommands,
+  buildExtractCommands,
+  findTar,
+  formatManifest,
+  MSYS_COPY_SYMLINKS,
+} from './commands';
+import {
+  captureStderrTail,
+  spawnArchiveCommand,
+  waitForExit,
+  waitForExitAfterKill,
+} from './stream';
 
-export type TarFlavor = 'gnu' | 'bsd';
+export * from './commands';
 
-export interface TarTool {
-  path: string;
-  flavor: TarFlavor;
-}
+// GNU tar prints "<tar>: <file>: Cannot create symlink to <target>: <strerror>". The MSYS runtime
+// maps ERROR_PRIVILEGE_NOT_HELD to EPERM. The program name and the quote marks change, so the
+// patterns do not include them.
+const SYMLINK_EPERM_LINE = /: Cannot create symlink to .*: Operation not permitted$/;
+const TAR_SUMMARY_LINE = /: Exiting with failure status due to previous errors$/;
 
-export interface ArchiveCommand {
-  tool: string;
-  args: string[];
-}
+/** Reads stderr in chunks and finds out if a symlink permission error is the only failure. */
+class SymlinkErrorDetector {
+  private readonly decoder = new StringDecoder('utf8');
+  private partial = '';
+  private symlinkErrors = 0;
+  private otherLines = 0;
 
-export interface ToolLookup {
-  platform: NodeJS.Platform;
-  env: NodeJS.ProcessEnv;
-  /** Resolves a tool on PATH; '' when absent. */
-  which: (tool: string) => Promise<string>;
-  exists: (file: string) => boolean;
-}
-
-export interface ArchivePlan {
-  tar: TarTool;
-  platform: NodeJS.Platform;
-  compression: CompressionMethod;
-  archivePath: string;
-  workspace: string;
-  /** Scratch directory; BSD tar on Windows writes its intermediate .tar here. */
-  tempDir: string;
-}
-
-const ZSTD_COMPRESS = 'zstd -T0 --long=30';
-const ZSTD_DECOMPRESS = 'zstd -d --long=30';
-
-function systemLookup(): ToolLookup {
-  return {
-    platform: process.platform,
-    env: process.env,
-    which: (tool) => io.which(tool, false),
-    exists: (file) => fs.existsSync(file),
-  };
-}
-
-/** Picks tar the way actions/cache does: GNU tar where available, BSD tar otherwise. */
-export async function findTar(lookup: ToolLookup = systemLookup()): Promise<TarTool> {
-  if (lookup.platform === 'win32') {
-    const programFiles = lookup.env.ProgramFiles || 'C:\\Program Files';
-    const gnuTar = path.win32.join(programFiles, 'Git', 'usr', 'bin', 'tar.exe');
-    if (lookup.exists(gnuTar)) {
-      return { path: gnuTar, flavor: 'gnu' };
-    }
-    const systemRoot = lookup.env.SystemRoot || 'C:\\Windows';
-    const systemTar = path.win32.join(systemRoot, 'System32', 'tar.exe');
-    if (lookup.exists(systemTar)) {
-      return { path: systemTar, flavor: 'bsd' };
-    }
-    throw new Error(`tar was not found at ${gnuTar} or ${systemTar}`);
-  }
-
-  if (lookup.platform === 'darwin') {
-    const gtar = await lookup.which('gtar');
-    if (gtar) {
-      return { path: gtar, flavor: 'gnu' };
+  write(chunk: Buffer | string): void {
+    const lines = (this.partial + this.decoder.write(Buffer.from(chunk))).split(/\r?\n/);
+    this.partial = lines.pop() ?? '';
+    for (const line of lines) {
+      this.classify(line);
     }
   }
 
-  const tar = await lookup.which('tar');
-  if (!tar) {
-    throw new Error('tar was not found on PATH');
+  matches(): boolean {
+    this.classify(this.partial + this.decoder.end());
+    this.partial = '';
+    return this.symlinkErrors > 0 && this.otherLines === 0;
   }
-  return { path: tar, flavor: lookup.platform === 'darwin' ? 'bsd' : 'gnu' };
-}
 
-const slashes = (value: string): string => value.replace(/\\/g, '/');
-
-/**
- * BSD tar on Windows cannot pipe through zstd reliably, so zstd runs as its own command. This
- * also means that combination cannot stream (Task 8): callers that want to stream check this
- * first and fall back to a temporary archive file when it is true.
- */
-export function usesSeparateZstd(
-  plan: Pick<ArchivePlan, 'tar' | 'platform' | 'compression'>
-): boolean {
-  return plan.tar.flavor === 'bsd' && plan.platform === 'win32' && plan.compression === 'zstd';
-}
-
-function platformFlags(plan: ArchivePlan): string[] {
-  if (plan.tar.flavor !== 'gnu') {
-    return [];
+  private classify(line: string): void {
+    const text = line.trimEnd();
+    if (!text || TAR_SUMMARY_LINE.test(text)) {
+      return;
+    }
+    if (SYMLINK_EPERM_LINE.test(text)) {
+      this.symlinkErrors++;
+    } else {
+      this.otherLines++;
+    }
   }
-  if (plan.platform === 'win32') {
-    return ['--force-local'];
-  }
-  if (plan.platform === 'darwin') {
-    return ['--delay-directory-restore'];
-  }
-  return [];
-}
-
-function compressionFlags(method: CompressionMethod, program: string): string[] {
-  return method === 'zstd' ? ['--use-compress-program', program] : ['-z'];
-}
-
-/** One entry per line; entries starting with '-' get './' so no tar treats them as options. */
-export function formatManifest(entries: readonly string[]): string {
-  return `${entries.map((entry) => (entry.startsWith('-') ? `./${entry}` : entry)).join('\n')}\n`;
-}
-
-export function buildCreateCommands(
-  plan: ArchivePlan & { manifestPath: string }
-): ArchiveCommand[] {
-  const separateZstd = usesSeparateZstd(plan);
-  const tarFile = separateZstd ? path.join(plan.tempDir, 'cache.tar') : plan.archivePath;
-
-  const args: string[] = [];
-  if (plan.tar.flavor === 'gnu') {
-    args.push('--posix');
-  }
-  args.push('-cf', slashes(tarFile), '-P', '-C', slashes(plan.workspace));
-  if (plan.tar.flavor === 'gnu') {
-    args.push('--verbatim-files-from');
-  }
-  args.push('-T', slashes(plan.manifestPath), ...platformFlags(plan));
-
-  if (!separateZstd) {
-    args.push(...compressionFlags(plan.compression, ZSTD_COMPRESS));
-    return [{ tool: plan.tar.path, args }];
-  }
-  return [
-    { tool: plan.tar.path, args },
-    {
-      tool: 'zstd',
-      args: ['-T0', '--long=30', '--force', '-o', slashes(plan.archivePath), slashes(tarFile)],
-    },
-  ];
-}
-
-export function buildExtractCommands(plan: ArchivePlan): ArchiveCommand[] {
-  if (usesSeparateZstd(plan)) {
-    const tarFile = path.join(plan.tempDir, 'cache.tar');
-    return [
-      {
-        tool: 'zstd',
-        args: ['-d', '--long=30', '--force', '-o', slashes(tarFile), slashes(plan.archivePath)],
-      },
-      {
-        tool: plan.tar.path,
-        args: ['-xf', slashes(tarFile), '-P', '-C', slashes(plan.workspace)],
-      },
-    ];
-  }
-  return [
-    {
-      tool: plan.tar.path,
-      args: [
-        '-xf',
-        slashes(plan.archivePath),
-        '-P',
-        '-C',
-        slashes(plan.workspace),
-        ...platformFlags(plan),
-        ...compressionFlags(plan.compression, ZSTD_DECOMPRESS),
-      ],
-    },
-  ];
 }
 
 /**
- * Options for every tar and zstd command. Like actions/cache, sets MSYS so Git's MSYS tar on
- * Windows extracts symlinks as native links instead of copies; other platforms ignore it.
+ * True when tar stderr shows only symlinks that tar could not create because of a missing
+ * privilege. Any other error line makes this false, so a retry cannot hide that error.
  */
-export function archiveExecOptions(env: NodeJS.ProcessEnv = process.env): exec.ExecOptions {
-  const inherited: Record<string, string> = {};
-  for (const [name, value] of Object.entries(env)) {
-    if (value !== undefined) {
-      inherited[name] = value;
-    }
-  }
-  return { env: { ...inherited, MSYS: 'winsymlinks:nativestrict' } };
+export function isSymlinkPermissionError(stderr: string): boolean {
+  const detector = new SymlinkErrorDetector();
+  detector.write(stderr);
+  return detector.matches();
 }
 
-async function run(commands: ArchiveCommand[]): Promise<void> {
-  const options = archiveExecOptions();
+/**
+ * True for Git's GNU tar on Windows, the only tar that reads MSYS. BSD tar
+ * (C:\Windows\System32\tar.exe) ignores MSYS, so a retry cannot change its result.
+ */
+export function usesSymlinkFallback(plan: Pick<ArchivePlan, 'tar' | 'platform'>): boolean {
+  return plan.platform === 'win32' && plan.tar.flavor === 'gnu';
+}
+
+const SYMLINK_FALLBACK_WARNING =
+  'tar could not create native symlinks: Operation not permitted. The usual cause is a runner ' +
+  'account without the SeCreateSymbolicLinkPrivilege privilege while Windows Developer Mode is ' +
+  'off. Another possible cause is a volume that does not support symlinks. The action extracts ' +
+  `the archive again with MSYS=${MSYS_COPY_SYMLINKS}. Symlinks are restored as copies of their ` +
+  'targets, not as links.';
+
+async function run(commands: ArchiveCommand[], options = archiveExecOptions()): Promise<void> {
   for (const command of commands) {
     // exec parses its first argument as a command line, so quote paths that contain spaces.
     await exec.exec(`"${command.tool}"`, command.args, options);
   }
 }
 
+/**
+ * Runs the extract commands for a plan. On Windows with Git's GNU tar, a first attempt that fails
+ * only because native symlinks need a privilege is run one more time with copied symlinks.
+ * The retry needs no cleanup. GNU tar continues after a failed symlink, so the first attempt
+ * writes every other member, and the retry replaces each of them. A copy needs its target to
+ * exist, so these files also let the retry copy a link that comes before its target.
+ */
+export async function runExtract(
+  plan: ArchivePlan,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<void> {
+  const commands = buildExtractCommands(plan);
+  // One detector reads the stderr of every command in the list. This is correct only for one
+  // command: the separate zstd step of a two-command plan writes status lines to stderr, and
+  // these lines would stop every retry. Git's GNU tar always gets one command, so a plan with
+  // more commands runs without the fallback.
+  if (!usesSymlinkFallback(plan) || commands.length !== 1) {
+    await run(commands, archiveExecOptions(env));
+    return;
+  }
+  const detector = new SymlinkErrorDetector();
+  const options = archiveExecOptions(env);
+  try {
+    await run(commands, {
+      ...options,
+      listeners: { stderr: (data: Buffer) => detector.write(data) },
+    });
+  } catch (err) {
+    if (!detector.matches()) {
+      throw err;
+    }
+    log.warning(SYMLINK_FALLBACK_WARNING);
+    await run(commands, archiveExecOptions(env, MSYS_COPY_SYMLINKS));
+  }
+}
+
+/**
+ * Runs one create command that writes the archive to stdout. The sha256 tap hashes the bytes on
+ * their way to `archivePath`, so the file is not read again. On a failure, this stops tar,
+ * removes the partial file, and throws the error text of `run()` with the stderr tail added.
+ */
+async function writeArchiveFromStdout(
+  command: ArchiveCommand,
+  archivePath: string
+): Promise<string> {
+  // exec printed the command line before it started a command. Print it at debug level here.
+  log.debug(`[command]${command.tool} ${command.args.join(' ')}`);
+  const child = spawnArchiveCommand(command, ['ignore', 'pipe', 'pipe']);
+  // exec writes tar's stderr to the log. Do the same, so that tar warnings stay visible.
+  child.stderr?.on('data', (chunk: string) => process.stderr.write(chunk));
+  const stderrTail = captureStderrTail(child.stderr);
+  const tarClose = waitForExit(child);
+  const tap = createSha256Tap();
+  const file = fs.createWriteStream(archivePath);
+  const fileClosed = new Promise<void>((resolve) => file.once('close', () => resolve()));
+  try {
+    const [, code] = await Promise.all([
+      pipeline(child.stdout as Readable, tap.stream, file),
+      tarClose,
+    ]);
+    if (code !== 0) {
+      const tail = stderrTail.lines();
+      const message = `The process '${command.tool}' failed with exit code ${code}`;
+      throw new Error(tail.length === 0 ? message : `${message}\n${tail.join('\n')}`);
+    }
+    await fileClosed;
+    return tap.digest();
+  } catch (err) {
+    // When the pipe fails first, tar can still run. Stop it and wait, bounded, for it to close.
+    child.stdout?.destroy();
+    await waitForExitAfterKill(child, tarClose);
+    file.destroy();
+    await fileClosed;
+    try {
+      fs.rmSync(archivePath, { force: true });
+    } catch {
+      // The tar or pipe error is the one to report, not a failed removal.
+    }
+    throw err;
+  }
+}
+
+/** Creates the archive and returns the sha256 of its bytes. */
 export async function createArchive(
   archivePath: string,
   entries: readonly string[],
   compression: CompressionConfig,
-  workspace: string
-): Promise<void> {
+  workspace: string,
+  level?: number
+): Promise<{ sha256: string }> {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-cache-tar-'));
   try {
     const manifestPath = path.join(tempDir, 'manifest.txt');
     fs.writeFileSync(manifestPath, formatManifest(entries));
     fs.mkdirSync(path.dirname(archivePath), { recursive: true });
     const tar = await findTar();
-    await run(
-      buildCreateCommands({
-        tar,
-        platform: process.platform,
-        compression: compression.method,
-        archivePath,
-        workspace,
-        tempDir,
-        manifestPath,
-      })
-    );
+    const plan = {
+      tar,
+      platform: process.platform,
+      compression: compression.method,
+      archivePath,
+      workspace,
+      tempDir,
+      manifestPath,
+      level,
+    };
+    // Only GNU tar writes the same bytes to stdout as to a file. BSD tar (libarchive) pads the
+    // last record with NULs when it writes to a pipe, which changes the archive bytes. BSD tar
+    // thus writes the file, and the archive is hashed after the commands finish.
+    if (tar.flavor !== 'gnu') {
+      await run(buildCreateCommands(plan));
+      return { sha256: await sha256File(archivePath) };
+    }
+    const [command] = buildCreateCommands({ ...plan, toStdout: true });
+    return { sha256: await writeArchiveFromStdout(command, archivePath) };
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -230,16 +228,14 @@ export async function extractArchive(
   try {
     fs.mkdirSync(workspace, { recursive: true });
     const tar = await findTar();
-    await run(
-      buildExtractCommands({
-        tar,
-        platform: process.platform,
-        compression: compression.method,
-        archivePath,
-        workspace,
-        tempDir,
-      })
-    );
+    await runExtract({
+      tar,
+      platform: process.platform,
+      compression: compression.method,
+      archivePath,
+      workspace,
+      tempDir,
+    });
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

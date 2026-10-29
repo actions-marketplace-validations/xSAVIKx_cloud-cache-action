@@ -4,11 +4,14 @@ author: 'Yurii Serhiichuk (https://serhiichuk.dev)'
 
 inputs:
   path:
-    description: 'A list of files, directories, and wildcard patterns to restore'
-    required: true
+    description: 'A list of files, directories, and wildcard patterns to restore. Required unless preset is set.'
+    required: false
   key:
-    description: 'An explicit key for restoring the cache'
-    required: true
+    description: 'An explicit key for restoring the cache. Required unless preset is set.'
+    required: false
+  preset:
+    description: 'Package manager preset that gives the default path, key and restore-keys: npm, yarn, pnpm, bun, pip, poetry, uv, gradle, maven, cargo, go. The key is <runner.os>-<preset>-<hash of the lockfiles>. An explicit path, key or restore-keys input replaces that one value.'
+    required: false
   restore-keys:
     description: 'An ordered multiline string listing the prefix-matched keys, used for restoring stale cache if no cache hit occurred for key'
     required: false
@@ -92,13 +95,15 @@ inputs:
     required: false
     default: 'false'
   download-concurrency:
-    description: 'How many ranged GET requests a restore runs at once when the archive is larger than download-chunk-size (1-32). Set to 1 to download the archive in one request.'
+    description: 'How many ranged GET requests a restore runs at once when the archive is larger than download-chunk-size (1-32). Set to 1 to download the archive in one request. Default 8.'
     required: false
-    default: '8'
   download-chunk-size:
-    description: 'Bytes per ranged GET request of a parallel download (1 MiB to 128 MiB). Archives no larger than this are downloaded in one request.'
+    description: 'Bytes per ranged GET request of a parallel download (1 MiB to 128 MiB). Archives no larger than this are downloaded in one request. Default 8388608 (8 MiB).'
     required: false
-    default: '8388608'
+  transfer-tuning:
+    description: 'fixed: use download-concurrency, download-chunk-size and their defaults. auto: select the part size and the concurrency from the archive size. A download input that you set still wins.'
+    required: false
+    default: 'fixed'
 
   # Dual-cache inputs
   dual-cache:

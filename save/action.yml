@@ -4,18 +4,27 @@ author: 'Yurii Serhiichuk (https://serhiichuk.dev)'
 
 inputs:
   path:
-    description: 'A list of files, directories, and wildcard patterns to cache'
-    required: true
+    description: 'A list of files, directories, and wildcard patterns to cache. Required unless preset is set.'
+    required: false
   key:
-    description: 'An explicit key for saving the cache'
-    required: true
+    description: 'An explicit key for saving the cache. Required unless preset is set.'
+    required: false
+  preset:
+    description: 'Package manager preset that gives the default path, key and restore-keys: npm, yarn, pnpm, bun, pip, poetry, uv, gradle, maven, cargo, go. The key is <runner.os>-<preset>-<hash of the lockfiles>. An explicit path, key or restore-keys input replaces that one value.'
+    required: false
   upload-chunk-size:
     description: 'The chunk size used to split up large files during upload, in bytes (5 MiB to 128 MiB; default 64 MiB, as in actions/cache)'
     required: false
   upload-concurrency:
-    description: 'How many multipart upload parts are sent at once (1-32)'
+    description: 'How many multipart upload parts are sent at once (1-32; default 8)'
     required: false
-    default: '8'
+  transfer-tuning:
+    description: 'fixed: use upload-concurrency, upload-chunk-size and their defaults. auto: select the part size and the concurrency of a file-mode save from the archive size and the provider. An upload input that you set still wins. A streaming save keeps the fixed settings.'
+    required: false
+    default: 'fixed'
+  compression-level:
+    description: 'Compression level for saving: 1-19 for zstd, 1-9 for gzip. Unset uses the tool default (zstd 3). Lower is faster and larger.'
+    required: false
   enableCrossOsArchive:
     description: 'An optional boolean when enabled, allows windows runners to save caches that can be restored on other platforms'
     default: 'false'

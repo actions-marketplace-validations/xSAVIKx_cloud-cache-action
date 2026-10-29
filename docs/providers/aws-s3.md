@@ -26,6 +26,15 @@ Without lifecycle management, older cache revisions accumulate and increase stor
 2. **Abort Incomplete Multipart Uploads**:
    - **Action**: Delete expired object delete markers and incomplete multipart uploads after **7 days**. This prevents lingering chunks from failed or interrupted uploads from consuming storage.
 
+### 4. Object Lock
+
+Do not use a bucket with an Object Lock default retention for caches. Prune cannot delete locked objects. Also, Object Lock requires a checksum on each upload. From v1.9, the action does not send the AWS SDK CRC32 checksums, because its own sha256 check covers the archive. A save to such a bucket then fails with `400 InvalidRequest`. If you must use such a bucket, set this environment variable on the job:
+
+```yaml
+env:
+  CLOUD_CACHE_SDK_CHECKSUMS: 'true'
+```
+
 ---
 
 ## Credentials & Least-Privilege IAM Policies
@@ -60,37 +69,10 @@ Create an IAM Role with a trust policy allowing GitHub Actions to assume it:
 }
 ```
 
-#### 2. Attach Least-Privilege S3 Permissions Policy
-Attach an IAM policy granting only the minimal actions required by `cloud-cache-action`:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowBucketListing",
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket"
-      ],
-      "Resource": "arn:aws:s3:::my-actions-cache-bucket"
-    },
-    {
-      "Sid": "AllowObjectOperations",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:AbortMultipartUpload"
-      ],
-      "Resource": "arn:aws:s3:::my-actions-cache-bucket/*"
-    }
-  ]
-}
-```
-
-> [!NOTE]
-> `cloud-cache-action` does not require `s3:DeleteObject`. Lifecycle cleanup is handled by bucket lifecycle rules.
+#### 2. Attach a Least-Privilege S3 Permissions Policy
+Attach a policy that grants only the actions the action sends, scoped to the bucket and the
+repository prefix. The [Security guide](../guide/security.md#aws-s3) holds the full read-write,
+read-only and prune policies, and the list of S3 calls that each feature sends.
 
 #### 3. Workflow Example (OIDC)
 
@@ -122,7 +104,7 @@ jobs:
 
 ### Option B: Static IAM Credentials
 
-If you prefer static credentials, create a dedicated IAM user (never use your root AWS account) with the least-privilege policy shown above, generate an Access Key ID and Secret Access Key, and save them in your repository's GitHub Secrets.
+If you prefer static credentials, create a dedicated IAM user (never use your root AWS account) with a least-privilege policy from the [Security guide](../guide/security.md#aws-s3), generate an Access Key ID and Secret Access Key, and save them in your repository's GitHub Secrets.
 
 ```yaml
 - name: Cache dependencies

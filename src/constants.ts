@@ -4,10 +4,12 @@ export enum Inputs {
   RestoreKeys = 'restore-keys',
   UploadChunkSize = 'upload-chunk-size',
   UploadConcurrency = 'upload-concurrency',
+  CompressionLevel = 'compression-level',
   EnableCrossOsArchive = 'enableCrossOsArchive',
   FailOnCacheMiss = 'fail-on-cache-miss',
   LookupOnly = 'lookup-only',
   ReadOnly = 'read-only',
+  Preset = 'preset',
 
   Bucket = 'bucket',
   Endpoint = 'endpoint',
@@ -30,11 +32,15 @@ export enum Inputs {
   Streaming = 'streaming',
   DownloadConcurrency = 'download-concurrency',
   DownloadChunkSize = 'download-chunk-size',
+  TransferTuning = 'transfer-tuning',
   Metadata = 'metadata',
   Tags = 'tags',
 
   // Prune-only inputs
   OlderThanDays = 'older-than-days',
+  KeepLatest = 'keep-latest',
+  MaxTotalSize = 'max-total-size',
+  AbortUploadsOlderThanHours = 'abort-uploads-older-than-hours',
   Ref = 'ref',
   DryRun = 'dry-run',
 
@@ -81,6 +87,7 @@ export enum Outputs {
   PrunedCount = 'pruned-count',
   PrunedBytes = 'pruned-bytes',
   KeptCount = 'kept-count',
+  AbortedUploads = 'aborted-uploads',
 
   // Inspect-only outputs
   WouldHit = 'would-hit',
@@ -92,6 +99,7 @@ export enum Outputs {
 
 export enum State {
   CachePrimaryKey = 'CACHE_PRIMARY_KEY',
+  CachePaths = 'CACHE_PATHS',
   CacheMatchedKey = 'CACHE_MATCHED_KEY',
   CacheStorageProvider = 'CACHE_STORAGE_PROVIDER',
   CacheS3Key = 'CACHE_S3_KEY',
@@ -117,6 +125,7 @@ export enum State {
   CacheHitSource = 'CACHE_HIT_SOURCE',
   CacheJobSummary = 'CACHE_JOB_SUMMARY',
   CacheMetricsFile = 'CACHE_METRICS_FILE',
+  CacheTransferTuning = 'CACHE_TRANSFER_TUNING',
 }
 
 export enum Events {
@@ -145,6 +154,9 @@ export const Defaults = {
   MaxUploadChunkSize: 128 * 1024 * 1024,
   DefaultRestorePriority: 's3-first',
   DefaultDualCacheStrategy: 'backfill',
+  /** zstd accepts 1 to 22, but past 19 it needs --ultra, so the input stops there. */
+  MaxCompressionLevel: 19,
+  MaxGzipCompressionLevel: 9,
   /** Mixed into every cache version; bump it when the archive format changes incompatibly. */
   VersionSalt: 'cloud-cache-1',
 };

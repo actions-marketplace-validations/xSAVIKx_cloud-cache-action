@@ -125,6 +125,19 @@ describe('saveToGitHub', () => {
     });
   });
 
+  it('treats the plain error @actions/cache throws when no path exists as skipped', async () => {
+    // saveCache throws a plain Error here, not a ValidationError, so the name is "Error".
+    mockSaveCache.mockRejectedValue(
+      new Error(
+        'Path Validation Error: Path(s) specified in the action for caching do(es) not exist, hence no cache is being saved.'
+      )
+    );
+    await expect(saveToGitHub(['missing/**'], 'k', undefined, false)).resolves.toEqual({
+      kind: 'skipped',
+      reason: 'no paths matched',
+    });
+  });
+
   it('still reports another validation error as an error', async () => {
     const error = new Error('Key Validation Error: k cannot contain commas.');
     error.name = 'ValidationError';

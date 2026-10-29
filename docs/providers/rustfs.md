@@ -62,6 +62,8 @@ default to `rustfsadmin` / `rustfsadmin`.
 > cache bucket in the RustFS console or through its IAM API, and store that user's keys as GitHub
 > secrets.
 
+The [Security guide](../guide/security.md#minio-and-rustfs) shows a policy that limits the user to the bucket and the repository prefix.
+
 | Secret Name | Description |
 | :--- | :--- |
 | `RUSTFS_ACCESS_KEY` | Access key of the CI user |

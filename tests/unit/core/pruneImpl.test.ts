@@ -46,7 +46,13 @@ const storage: StorageContext = {
   providerConfig: { provider: 'seaweedfs', region: 'us-east-1', forcePathStyle: true },
 };
 
-const emptyResult: PruneResult = { pruned: [], keptCount: 0, prunedBytes: 0, dryRun: true };
+const emptyResult: PruneResult = {
+  pruned: [],
+  keptCount: 0,
+  prunedBytes: 0,
+  abortedUploads: 0,
+  dryRun: true,
+};
 
 describe('pruneImpl', () => {
   beforeEach(() => {
@@ -72,6 +78,7 @@ describe('pruneImpl', () => {
       pruned: [{ key: 'octo/app/k1/cache.tar.zst', size: 100 }],
       keptCount: 2,
       prunedBytes: 100,
+      abortedUploads: 3,
       dryRun: true,
     });
 
@@ -86,7 +93,7 @@ describe('pruneImpl', () => {
         outcome: 'pruned',
         provider: 'seaweedfs',
         bytes: 100,
-        extra: { prunedCount: 1, prunedBytes: 100, keptCount: 2, dryRun: true },
+        extra: { prunedCount: 1, prunedBytes: 100, keptCount: 2, abortedUploads: 3, dryRun: true },
       })
     );
     expect(metrics.durationMs).toEqual(expect.any(Number));
@@ -107,6 +114,7 @@ describe('pruneImpl', () => {
       pruned: [{ key: 'octo/app/refs%2Fheads%2Fmain/k1/cache.tar.zst', size: 100 }],
       keptCount: 2,
       prunedBytes: 100,
+      abortedUploads: 3,
       dryRun: true,
     });
 
@@ -120,6 +128,7 @@ describe('pruneImpl', () => {
       'pruned-count': '1',
       'pruned-bytes': '100',
       'kept-count': '2',
+      'aborted-uploads': '3',
     });
     expect(mockSetFailed).not.toHaveBeenCalled();
   });
@@ -177,10 +186,64 @@ describe('pruneImpl', () => {
     }
   );
 
-  it('fails when older-than-days is missing', async () => {
+  it('fails when none of the four prune rules is set', async () => {
     inputs.delete(Inputs.OlderThanDays);
     await pruneImpl();
-    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining('older-than-days'));
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'Set at least one of "older-than-days", "keep-latest", "max-total-size" or "abort-uploads-older-than-hours": prune has no rule to apply.'
+    );
+    expect(mockCreateStorageContext).not.toHaveBeenCalled();
+    expect(mockPruneCaches).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [Inputs.KeepLatest, '3', { keepLatest: 3 }],
+    [Inputs.MaxTotalSize, '1048576', { maxTotalSize: 1048576 }],
+    [Inputs.AbortUploadsOlderThanHours, '24', { abortUploadsOlderThanHours: 24 }],
+  ])('accepts %s alone and passes it to pruneCaches', async (name, value, expected) => {
+    inputs.delete(Inputs.OlderThanDays);
+    inputs.set(name, value);
+    await pruneImpl();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    const options = mockPruneCaches.mock.calls[0][1];
+    expect(options).toMatchObject(expected);
+    expect(options.olderThanDays).toBeUndefined();
+  });
+
+  it('accepts a max-total-size of 0', async () => {
+    inputs.set(Inputs.MaxTotalSize, '0');
+    await pruneImpl();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    expect(mockPruneCaches).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ maxTotalSize: 0 })
+    );
+  });
+
+  it('passes all three rules together', async () => {
+    inputs.set(Inputs.KeepLatest, '2');
+    inputs.set(Inputs.MaxTotalSize, '500');
+    await pruneImpl();
+    expect(mockPruneCaches).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ olderThanDays: 7, keepLatest: 2, maxTotalSize: 500 })
+    );
+  });
+
+  it.each([
+    [Inputs.KeepLatest, '0'],
+    [Inputs.KeepLatest, '-1'],
+    [Inputs.KeepLatest, '1.5'],
+    [Inputs.MaxTotalSize, '10GB'],
+    [Inputs.MaxTotalSize, 'abc'],
+    [Inputs.AbortUploadsOlderThanHours, '0'],
+    [Inputs.AbortUploadsOlderThanHours, '-2'],
+    [Inputs.AbortUploadsOlderThanHours, '1.5'],
+    [Inputs.AbortUploadsOlderThanHours, 'abc'],
+  ])('fails when %s is "%s"', async (name, value) => {
+    inputs.set(name, value);
+    await pruneImpl();
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining(name));
     expect(mockPruneCaches).not.toHaveBeenCalled();
   });
 

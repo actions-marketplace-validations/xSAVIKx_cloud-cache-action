@@ -3,6 +3,14 @@ name: Release
 on:
   release:
     types: [published]
+  # release-please.yml calls this workflow, because a release that GITHUB_TOKEN creates does not
+  # start the `release: published` trigger.
+  workflow_call:
+    inputs:
+      tag_name:
+        description: The release tag, for example v1.10.0.
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,24 +19,24 @@ jobs:
   release:
     name: Verify release and move the major tag
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag_name || github.event.release.tag_name }}
     steps:
       - name: Checkout the release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ env.TAG }}
           # All history and tags, so the major tag step can find the highest release.
           fetch-depth: 0
           # Nothing before the push step gets a token in .git/config.
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
       # The build needs no install scripts (no prepare or postinstall hook, and ncc needs none).
       - run: npm ci --ignore-scripts
       - name: Verify package.json version matches the release tag
-        env:
-          TAG: ${{ github.event.release.tag_name }}
         run: |
           VERSION="${TAG#v}"
           PKG_VERSION="$(node -p "require('./package.json').version")"
@@ -48,7 +56,6 @@ jobs:
       - name: Move the major version tag
         if: ${{ !github.event.release.prerelease }}
         env:
-          TAG: ${{ github.event.release.tag_name }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           MAJOR="v${VERSION%%.*}"
@@ -64,3 +71,69 @@ jobs:
           git config user.email "41898828+github-actions[bot]@users.noreply.github.com"
           git tag -fa "$MAJOR" -m "Release $MAJOR" "$RELEASE_SHA"
           git push --force "$REMOTE" "refs/tags/$MAJOR:refs/tags/$MAJOR"
+
+  # Attaches the CLI bundle and its checksum to the release. This job runs after the major tag
+  # step, so a CLI failure cannot block the major tag.
+  cli-asset:
+    name: Attach the CLI to the release
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag_name || github.event.release.tag_name }}
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      # The build steps get no token. Only the upload step gets one.
+      - run: npm run build:cli
+      - name: Write the checksum
+        working-directory: build/cli
+        run: sha256sum cloud-cache.mjs > SHA256SUMS
+      - name: Upload the CLI to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" build/cli/cloud-cache.mjs build/cli/SHA256SUMS --clobber
+
+  # Publishes the CLI to npm when the repository variable NPM_PUBLISH is "true".
+  # This job has no npm token. It uses npm trusted publishing (OIDC).
+  # The maintainer must do two manual steps first:
+  # 1. Publish the first version of the package by hand.
+  # 2. Configure the trusted publisher for the package on npmjs.com. It must name
+  #    release-please.yml, because that workflow calls this one (the normal path). A manual
+  #    `release: published` run reports release.yml, and the publish step then fails.
+  npm:
+    name: Publish the CLI to npm
+    needs: release
+    if: vars.NPM_PUBLISH == 'true' && !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG: ${{ inputs.tag_name || github.event.release.tag_name }}
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --ignore-scripts
+      - run: npm run build:cli
+      - run: npm run pack:cli
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@^11.5.1
+      - run: npm --version
+      - run: npm publish ./build/npm --provenance --access public

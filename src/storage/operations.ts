@@ -4,14 +4,17 @@ import {
   CopyObjectCommand,
   HeadObjectCommand,
   GetObjectCommand,
+  GetObjectTaggingCommand,
   ListObjectsV2Command,
+  PutObjectTaggingCommand,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import * as fs from 'fs';
 import * as path from 'path';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
-import * as core from '@actions/core';
+import { log } from '../ci/log';
+import { createSha256Tap } from '../archive/checksum';
 import { Defaults } from '../constants';
 
 export interface CacheObjectMetadata {
@@ -19,6 +22,8 @@ export interface CacheObjectMetadata {
   size: number;
   lastModified?: Date;
   etag?: string;
+  /** User metadata from the HeadObject response; undefined when the server returns none. */
+  metadata?: Record<string, string>;
 }
 
 export async function checkObjectExists(
@@ -37,6 +42,7 @@ export async function checkObjectExists(
       size: response.ContentLength || 0,
       lastModified: response.LastModified,
       etag: response.ETag,
+      metadata: response.Metadata,
     };
   } catch (err: unknown) {
     const error = err as { name?: string; $metadata?: { httpStatusCode?: number } };
@@ -110,6 +116,10 @@ export async function findNewestObject(
 export interface DownloadResult {
   /** Object metadata from the GetObject response; undefined when the object carries none. */
   metadata?: Record<string, string>;
+  /** How many tags the object carries, so a caller can skip a pointless GetObjectTagging. */
+  tagCount?: number;
+  /** The hex sha256 of the bytes written; set only when the call asked for `hash: true`. */
+  sha256?: string;
 }
 
 export interface ObjectStreamResult {
@@ -117,6 +127,41 @@ export interface ObjectStreamResult {
   body: Readable;
   /** Object metadata from the GetObject response; undefined when the object carries none. */
   metadata?: Record<string, string>;
+  /** How many tags the object carries, so a caller can skip a pointless GetObjectTagging. */
+  tagCount?: number;
+}
+
+export interface ObjectTagLike {
+  Key: string;
+  Value: string;
+}
+
+/** Replaces the object's whole tag set; S3 has no partial tag update. */
+export async function putObjectTags(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  tags: readonly ObjectTagLike[]
+): Promise<void> {
+  await client.send(
+    new PutObjectTaggingCommand({ Bucket: bucket, Key: key, Tagging: { TagSet: [...tags] } })
+  );
+}
+
+/** Reads the object's tags as a plain object; an absent or malformed entry is skipped. */
+export async function getObjectTags(
+  client: S3Client,
+  bucket: string,
+  key: string
+): Promise<Record<string, string>> {
+  const response = await client.send(new GetObjectTaggingCommand({ Bucket: bucket, Key: key }));
+  const tags: Record<string, string> = {};
+  for (const tag of response.TagSet ?? []) {
+    if (tag.Key !== undefined && tag.Value !== undefined) {
+      tags[tag.Key] = tag.Value;
+    }
+  }
+  return tags;
 }
 
 /** How a multipart upload is split and fanned out; unset fields take the actions/cache defaults. */
@@ -156,7 +201,8 @@ export interface UploadOptions {
  * goes through the same abort-on-failure handling as `uploadFile`.
  */
 export interface StreamUpload {
-  done(): Promise<{ ETag?: string }>;
+  /** `VersionId` is the version the upload wrote, when the provider reports one. */
+  done(): Promise<{ ETag?: string; VersionId?: string }>;
   /** Stops the upload: `done()` rejects promptly, and no further parts are sent. */
   abort(): Promise<void>;
 }
@@ -177,7 +223,7 @@ async function completeOrAbort(
   bucket: string,
   key: string,
   upload: Upload
-): Promise<{ ETag?: string }> {
+): Promise<{ ETag?: string; VersionId?: string }> {
   try {
     return await upload.done();
   } catch (err) {
@@ -187,7 +233,7 @@ async function completeOrAbort(
         await client.send(
           new AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId })
         );
-        core.debug(`Aborted multipart upload ${uploadId} for s3://${bucket}/${key}.`);
+        log.debug(`Aborted multipart upload ${uploadId} for s3://${bucket}/${key}.`);
       } catch (abortErr) {
         const error = abortErr as {
           name?: string;
@@ -196,9 +242,9 @@ async function completeOrAbort(
         };
         const message = `Could not abort multipart upload ${uploadId} for s3://${bucket}/${key}: ${error.message ?? String(abortErr)}`;
         if (error.name === 'NoSuchUpload' || error.$metadata?.httpStatusCode === 404) {
-          core.debug(`${message} (it was already aborted).`);
+          log.debug(`${message} (it was already aborted).`);
         } else {
-          core.warning(
+          log.warning(
             `${message}. Its parts stay stored until a bucket lifecycle rule (AbortIncompleteMultipartUpload) removes them.`
           );
         }
@@ -212,7 +258,8 @@ export async function downloadFile(
   client: S3Client,
   bucket: string,
   key: string,
-  destinationPath: string
+  destinationPath: string,
+  options: { hash?: boolean } = {}
 ): Promise<DownloadResult> {
   // Ensure target folder exists
   const dir = path.dirname(destinationPath);
@@ -231,9 +278,15 @@ export async function downloadFile(
   }
 
   const fileStream = fs.createWriteStream(destinationPath);
+  // One request is bound by the network, so the hash runs on the main thread, in the pipe.
+  if (options.hash) {
+    const tap = createSha256Tap();
+    await pipeline(response.Body as Readable, tap.stream, fileStream);
+    return { metadata: response.Metadata, tagCount: response.TagCount, sha256: tap.digest() };
+  }
   await pipeline(response.Body as Readable, fileStream);
 
-  return { metadata: response.Metadata };
+  return { metadata: response.Metadata, tagCount: response.TagCount };
 }
 
 /**
@@ -249,7 +302,11 @@ export async function getObjectStream(
   if (!response.Body) {
     throw new Error(`Empty response body received from S3 for key: ${key}`);
   }
-  return { body: response.Body as Readable, metadata: response.Metadata };
+  return {
+    body: response.Body as Readable,
+    metadata: response.Metadata,
+    tagCount: response.TagCount,
+  };
 }
 
 export async function uploadFile(
@@ -282,7 +339,7 @@ export async function uploadFile(
   parallelUpload.on('httpUploadProgress', (progress) => {
     if (progress.total && progress.loaded) {
       const pct = Math.round((progress.loaded / progress.total) * 100);
-      core.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
+      log.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
     }
   });
 
@@ -299,8 +356,8 @@ export async function uploadFile(
  * via a byte counter) instead of a file path, and returns the upload instead of awaiting it, so
  * the caller can race it against the archiving process and abort it on failure. Its `done()`
  * aborts a multipart upload that fails, the same way `uploadFile` does.
- * Metadata is attached afterwards by `replaceObjectMetadata`: a streamed archive's sha256 cannot
- * be known before it finishes.
+ * The sha256 is attached afterwards: a streamed archive's sha256 cannot be known before it
+ * finishes. `metadata` goes with the create request, so it must be known at upload start.
  */
 export function createStreamUpload(
   client: S3Client,
@@ -308,7 +365,7 @@ export function createStreamUpload(
   key: string,
   body: Readable,
   transfer?: UploadTransfer,
-  options?: Pick<UploadOptions, 'ifNoneMatch' | 'tagging'>
+  options?: Pick<UploadOptions, 'ifNoneMatch' | 'tagging' | 'metadata'>
 ): StreamUpload {
   const upload = new Upload({
     client,
@@ -318,6 +375,7 @@ export function createStreamUpload(
       Body: body,
       IfNoneMatch: options?.ifNoneMatch,
       Tagging: options?.tagging,
+      Metadata: options?.metadata,
     },
     partSize: resolvePartSize(transfer),
     queueSize: resolveQueueSize(transfer),
@@ -327,7 +385,7 @@ export function createStreamUpload(
   upload.on('httpUploadProgress', (progress) => {
     if (progress.total && progress.loaded) {
       const pct = Math.round((progress.loaded / progress.total) * 100);
-      core.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
+      log.debug(`Upload progress: ${pct}% (${progress.loaded}/${progress.total} bytes)`);
     }
   });
 
@@ -352,25 +410,38 @@ export interface ReplaceMetadataResult {
 }
 
 /**
+ * What makes a metadata copy fail rather than stamp this metadata onto another writer's body.
+ * `ifMatch` (the ETag the save just wrote) fails the copy with 412. `versionId` pins the copy
+ * source to the version the save just wrote, so a replaced object has no such source (404).
+ */
+export interface CopyGuard {
+  ifMatch?: string;
+  versionId?: string;
+}
+
+/**
  * Replaces an object's user metadata in place (S3 has no metadata-only update): a CopyObject
  * onto itself with MetadataDirective REPLACE. Tags are kept. Used after a streamed save, whose
- * sha256 is only known once the upload has finished. `ifMatch` (the ETag the save just wrote)
- * makes the copy fail with 412 rather than stamp this metadata onto another writer's body.
- * Only for objects up to 5 GiB: a larger one needs a multipart copy.
+ * sha256 is only known once the upload has finished. `guard` keeps the copy off another
+ * writer's body. Only for objects up to 5 GiB: a larger one needs a multipart copy.
  */
 export async function replaceObjectMetadata(
   client: S3Client,
   bucket: string,
   key: string,
   metadata: Record<string, string>,
-  ifMatch?: string
+  guard: CopyGuard = {}
 ): Promise<ReplaceMetadataResult> {
+  const source = encodeCopySource(bucket, key);
   const result = await client.send(
     new CopyObjectCommand({
       Bucket: bucket,
       Key: key,
-      CopySource: encodeCopySource(bucket, key),
-      CopySourceIfMatch: ifMatch,
+      CopySource:
+        guard.versionId === undefined
+          ? source
+          : `${source}?versionId=${encodeURIComponent(guard.versionId)}`,
+      CopySourceIfMatch: guard.ifMatch,
       MetadataDirective: 'REPLACE',
       TaggingDirective: 'COPY',
       Metadata: metadata,

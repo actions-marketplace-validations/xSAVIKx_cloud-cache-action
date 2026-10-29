@@ -2,11 +2,283 @@
 
 All notable changes to Cloud Cache Action are documented here.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
-adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The floating `v1` tag always
-points at the latest `v1.x.y` release.
+This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The floating
+`v1` tag always points at the latest `v1.x.y` release. From v1.9.0 on,
+[release-please](https://github.com/googleapis/release-please) writes the new entries from the
+Conventional Commit messages on `main`. Entries up to v1.9.0 follow
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.9.1](https://github.com/xSAVIKx/cloud-cache-action/compare/v1.9.0...v1.9.1) (2026-10-25)
+
+
+### Fixed
+
+* add connection and idle timeouts to the S3 client and log each retry ([01334bf](https://github.com/xSAVIKx/cloud-cache-action/commit/01334bf91b14362f5b5a3cee2d518ed36ef8bae0))
+* name the S3 call, the status and a fix in S3 access errors ([305c14e](https://github.com/xSAVIKx/cloud-cache-action/commit/305c14e4f568ac46e85771575eee4900ab6efd58))
+* S3 client timeouts and clear access error messages ([b4fb9bf](https://github.com/xSAVIKx/cloud-cache-action/commit/b4fb9bf27815e7acd5fb72230f5521c5723e3a82))
+* say that no cache was restored when a tier failed ([da33171](https://github.com/xSAVIKx/cloud-cache-action/commit/da33171d4e8613950d212e228f4a6b173110018e))
+* stop a stalled S3 response body after the socket timeout ([8bc67b2](https://github.com/xSAVIKx/cloud-cache-action/commit/8bc67b2fe50b2e9594e8b0a37199f291039a7845))
+
+## [1.9.0] - 2026-10-24
+
+Faster uploads to AWS S3, opt-in transfer tuning, and phase timings in the log. Object keys and
+archive bytes do not change, so caches saved by v1.1 to v1.8 stay valid.
+
+### Added
+
+- **A timing line for each restore and save.** After an S3 download or upload, the step logs
+  one line with the time of each phase and the transfer rate, for example
+  `Timings: lookup 0.24 s, download 5.31 s (35.9 MiB/s), extract 2.41 s, total 8.12 s`. The
+  metrics line and the `metrics-file` get the same phases as `lookupDurationMs`,
+  `archiveDurationMs` and `extractDurationMs`. The archive and extract phases appear only when the
+  step writes or reads a temporary archive file. A streaming step that falls back to file mode
+  reports them too. `total` is the whole step, including the GitHub tier in dual-cache mode. The
+  transfer time and the rate include retries. A save that uploads and then finds that another job
+  saved first ends the line with `(another job saved first)`.
+- **A log line when a streaming save may not tag its object.** A streaming save attaches its
+  sha256 as a tag. When the credentials do not have `s3:PutObjectTagging`, the save copies the
+  whole object instead, which took about 7.5 s for 512 MiB on AWS S3 in a test. The step now logs
+  this and names the missing permission. Before, only a debug line showed it.
+- **`transfer-tuning: auto`, an opt-in mode that selects the transfer settings.** A restore and a
+  file-mode save select the part size and the concurrency from the archive size. A save also uses
+  the provider. For example, a restore uses 16 × 16 MiB, and an upload of more than 256 MiB uses
+  16 × 32 MiB. The bytes in flight stay within about a quarter of the usable memory, including a
+  container limit, and within 1 GiB. A transfer input that
+  the workflow sets still wins for that field. A streaming save keeps the fixed settings, because
+  it does not know the archive size in advance. The default is `fixed`, so nothing changes
+  without the input. The rule values come from a size sweep of 128 MiB, 512 MiB and 2 GiB on AWS
+  S3, Cloudflare R2 and Google Cloud Storage.
+- **A Benchmarks page on the website.** It compares the defaults, other fixed settings and
+  `transfer-tuning: auto` per provider and per cache size. `tests/ci/benchmarkPage.ts` writes it
+  from the artifacts of a benchmark run.
+- **The benchmark measures several sizes in one run.** The workflow input `size-mb` takes a
+  comma-separated list, and the new `matrix: sweep` input runs more part sizes and concurrencies.
+
+### Changed
+
+- **The transfer inputs have no default in `action.yml`.** `upload-concurrency`,
+  `download-concurrency` and `download-chunk-size` now name their default in the description,
+  and the code applies the same values as before. This lets `transfer-tuning: auto` tell a value
+  that the workflow set from an unset one.
+- **Uploads to AWS S3 no longer compute a CRC32 for each part.** The AWS SDK computed this
+  checksum on the main thread, which took about 100 ms for each 64 MiB part on a test host. The
+  action now sends a checksum only when an S3 operation requires one, as it already did for every
+  other provider. The sha256 integrity check on restore stays, and TLS protects the bytes in
+  transit. Downloads from AWS also no longer validate the CRC that the SDK can check on a whole
+  object, because the sha256 check covers the same bytes. **Caution:** an AWS bucket with an
+  Object Lock default retention requires a checksum on each upload, so saves to it now fail with
+  `400 InvalidRequest`. The log can then also say that the server refused `UNSIGNED-PAYLOAD`. Set
+  `CLOUD_CACHE_SDK_CHECKSUMS=true` in the job environment to send the SDK checksums again.
+
+### Fixed
+
+- **Streaming saves to Google Cloud Storage keep their checksum again.** GCS has no tagging API,
+  so a streaming save attaches its sha256 with a copy of the object onto itself. The copy was
+  guarded with `CopySourceIfMatch`, which GCS rejects with `400 InvalidArgument` for the ETag of
+  a multipart upload. Every streaming save larger than one part therefore logged
+  `could not attach metadata: Invalid argument.` and kept no checksum and no user `metadata`. On
+  GCS the copy now names the generation that the upload wrote as its source version. A copy
+  after another job replaced the object finds no source and fails, as before.
+
+## [1.8.0] - 2026-10-22
+
+Faster saves and restores. Object keys, metadata and archive bytes do not change, so caches saved
+by v1.1 to v1.7 stay valid.
+
+### Changed
+
+- **Upload parts skip the second hash pass over HTTPS.** Uploads to AWS S3 and to any `https://`
+  endpoint now send `x-amz-content-sha256: UNSIGNED-PAYLOAD` on `UploadPart` and `PutObject`
+  requests. The AWS SDK no longer hashes each part again for the request signature. The sha256
+  integrity check on restore stays, and TLS protects the bytes in transit. Plain `http://`
+  endpoints keep the signed payload. Set `CLOUD_CACHE_UNSIGNED_PAYLOAD=false` to turn the change
+  off, or `CLOUD_CACHE_UNSIGNED_PAYLOAD=true` to turn it on for an `http://` endpoint. If a server
+  refuses the header, the action sends that request again with a signed payload and logs one line.
+- **A file-mode save hashes the archive while tar writes it.** Tar now writes the archive to
+  stdout, and the action computes the sha256 on the way to the temporary file. The save no longer
+  reads the whole archive again before the upload. The archive bytes and the stored sha256 do not
+  change. If tar fails, the action removes the partial file. This applies to GNU tar only. BSD
+  tar (macOS without `gtar`, and `tar.exe` in System32 on Windows) writes the file as before, and
+  the action hashes the file after tar.
+- **A file-mode restore hashes the archive while it downloads.** For a download in ranged parts,
+  a worker thread computes the sha256 each time the parts at the start of the file are complete.
+  For a download in one request, the action computes the sha256 as the bytes arrive. The restore
+  no longer reads the whole archive again before the integrity check. The check and its error
+  text do not change. If the hash worker fails, the action hashes the file after the download, as
+  before. A streaming restore does not change.
+- **The second run of the action in a job starts faster.** For example, the post step starts
+  faster. Each entry turns on the Node.js V8 compile cache. The cache directory is
+  `cloud-cache-action-v8` under `RUNNER_TEMP`, or under the system temp directory when
+  `RUNNER_TEMP` is not set. If the cache cannot start, the step runs without it. The first run in
+  a job does not start faster. A job that uses S3 only no longer loads the GitHub Actions Cache
+  code (`@azure/*` and `@protobuf-ts/*`). The action loads this code only when a run uses the
+  GitHub tier. The bundle in `dist/lib` is now split into three files.
+
+## [1.7.0] - 2026-10-22
+
+One default changes: the S3 tier now obeys `ACTIONS_CACHE_MODE`, so S3-only jobs on
+`pull_request_target`, `issue_comment` and `workflow_run` no longer save by default (see Changed).
+Caches saved by v1.1 to v1.6 stay valid.
+
+### Added
+
+- **`preset` input.** Set `preset: npm` (or `yarn`, `pnpm`, `bun`, `pip`, `poetry`, `uv`,
+  `gradle`, `maven`, `cargo`, `go`) instead of `path`, `key` and `restore-keys`, like the `cache:`
+  input of `actions/setup-node`. The preset gives the download cache of the package manager for
+  the runner OS, the key `<runner.os>-<preset>-<hash of the lockfiles>` and the restore key
+  `<runner.os>-<preset>-`. The hash comes from `hashFiles` of `@actions/glob`, the function that
+  `hashFiles()` in a workflow uses. An explicit `path`, `key` or `restore-keys` input replaces that
+  one value. With no lockfile, the step fails and names the globs. The post step saves with the key
+  and the paths that the restore step resolved. The main action and the `restore` and `save`
+  sub-actions take the input. See the [Cache Presets](./guide/presets.md) guide.
+
+- **`ACTIONS_CACHE_MODE` support.** The S3 tier now obeys the `ACTIONS_CACHE_MODE` environment
+  variable in the same way as `@actions/cache` 6.2.0 (and the 5.2.0 backport) does for GitHub
+  Actions Cache. GitHub sets the variable from the `cache-mode` workflow key. `none` skips
+  the restore and the save. `read` skips the save. `write-only` skips the restore. `write`, an
+  unset variable and an unknown value change nothing. The action trims the value and ignores its
+  case, as the toolkit does. A skip logs one info line that names the variable. The metrics line
+  and the job summary show the step as skipped, with the reason. A skip never fails the step, also
+  in strict dual-cache mode. A skipped restore sets `cache-hit` to `false`, and
+  `fail-on-cache-miss: true` then fails the step, as in `actions/cache`. `read-only: true` still
+  skips the save in every mode. See
+  [Parity with actions/cache](https://github.com/xSAVIKx/cloud-cache-action#parity-with-actionscache).
+
+- **Security guide.** A new [Security](./guide/security.md) page explains the cache trust boundary
+  and what the action does and does not protect. It covers fork pull requests, `pull_request_target`
+  and the read-only credential pattern. It lists each S3 call and the feature that sends it, and it
+  gives least-privilege policies for AWS S3 (read-write, read-only and prune), Cloudflare R2, Google
+  Cloud Storage, MinIO and RustFS. The AWS and MinIO provider pages now link to it.
+
+- **`keep-latest` and `max-total-size` prune inputs.** `keep-latest` keeps the N most recently
+  modified archives of each ref, even when they are older than `older-than-days`. Alone, it
+  deletes every other archive of the ref. `max-total-size` is a budget in bytes: after the other
+  rules, prune deletes the oldest remaining archives in the scope until the total fits.
+  `older-than-days` is now optional, but the step fails when none of the four rule inputs
+  (`older-than-days`, `keep-latest`, `max-total-size` and `abort-uploads-older-than-hours`) is
+  set. Each log line names the rule that selected the archive.
+  `max-total-size: 0` is allowed. It deletes every archive that `keep-latest` does not protect.
+  See the [Pruning](./guide/pruning.md) guide.
+
+- **`abort-uploads-older-than-hours` prune input.** A save that stops in the middle of a multipart
+  upload leaves an incomplete upload that uses storage on providers with no lifecycle rule. Prune
+  now lists the incomplete uploads in its scope and aborts each one that started more than this
+  many hours ago. Set the limit above the duration of your longest save, because prune aborts a
+  save in progress that is older than the limit. `dry-run` lists them and aborts none. The input
+  counts as a prune rule on its own: with only this input set, prune aborts uploads and deletes no
+  archive. A provider that cannot list uploads gives a warning, not a failure. Measured on the CI
+  servers: RustFS 1.0.0 and Garage 2.4.1 list the uploads with their start time, and prune aborts
+  them. SeaweedFS 4.46 lists them without a start time, so prune aborts none and logs a warning
+  with the count. MinIO lists no upload for a prefix that is not a full object key, so prune finds
+  none. The new `aborted-uploads` output and the `abortedUploads` metrics field give the count.
+  See the [Pruning](./guide/pruning.md) guide.
+
+### Changed
+
+- **Behaviour change: S3-only jobs on low-trust triggers no longer save by default.** The S3 tier now obeys
+  `ACTIONS_CACHE_MODE`. GitHub sets it from the `cache-mode` workflow key, which is generally
+  available since 2026-09-10. When the workflow does not set the key, the
+  [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) gives a default of `read` for low-trust triggers, such as
+  `pull_request_target`, `issue_comment` and `workflow_run`, that resolve to the default-branch
+  scope. A job on such a trigger then restores but does not save, and logs one info line. The
+  `pull_request` event is not affected. To save from such a job again, set `cache-mode: write` on
+  the job. Only do this when the job cannot run untrusted code.
+
+- **An S3 save that the storage refuses with `AccessDenied` now gives a hint.** The warning
+  adds: "The credentials may not be allowed to write to the bucket. Set read-only: true to skip
+  the save and silence this message." A `403` for wrong credentials (`InvalidAccessKeyId`,
+  `SignatureDoesNotMatch`, `RequestTimeTooSkewed`, `ExpiredToken`, `InvalidToken`,
+  `TokenRefreshRequired`) does not get the hint. The step still only warns. Strict dual-cache mode still fails the
+  step, as for every other save error, and the failure message has the same hint.
+
+- **`path` and `key` are optional in the manifests.** The main action and the `restore` and
+  `save` manifests now declare `path` and `key` with `required: false`, because a `preset` can
+  give them. With no `preset` and no `key` or `path`, the restore still fails, and the message
+  now tells you to set `preset` or both inputs.
+
+- **One shared bundle in `dist/`.** `dist/` held six ncc bundles that each contained the same
+  SDK code. Now ncc builds one bundle, `dist/lib/index.js`, from `src/main.ts`. Each action entry
+  (`dist/restore`, `dist/save`, `dist/restore-only`, `dist/save-only`, `dist/prune` and
+  `dist/inspect`) is a small file that imports this bundle and calls the function of its action.
+  The `action.yml` paths do not change. `dist/` is now 4.9 MB instead of 24 MB, and
+  `npm run build` takes about 50 seconds instead of about 245 seconds.
+
+### Fixed
+
+- A dual-cache save where `path` matches nothing now skips both tiers with the reason
+  "no paths matched". Before, the GitHub tier reported an error, because `@actions/cache` throws a
+  plain `Error` for this case and the check expected a `ValidationError`. In strict mode, this
+  failed the step. The S3 tier alone was not affected.
+
+- On Windows, an S3 tier restore in file mode with Git's GNU `tar` no longer fails when the runner
+  account cannot create native symlinks (no `SeCreateSymbolicLinkPrivilege` and no Developer Mode). When the only errors
+  are `Cannot create symlink to ...: Operation not permitted`, the action logs a warning and
+  extracts the archive one more time with `MSYS=winsymlinks:deepcopy`. Symlinks are then restored
+  as copies of their targets. Any other extract error still fails the restore without a retry.
+  The retry does not run with `streaming: true`, or for the GitHub tier with `dual-cache: true`,
+  because `@actions/cache` runs its own `tar`. A symlink whose target is a later symlink in the
+  archive still fails. A copied directory symlink can make the restored tree much larger than the
+  archive.
+
+## [1.6.0] - 2026-10-22
+
+No breaking changes. Caches saved by v1.1 to v1.5 stay valid. A streamed save now uses object
+tagging for its checksum, so grant `s3:PutObjectTagging` and `s3:GetObjectTagging` (see Changed).
+
+### Added
+
+- **`compression-level` input.** Set the zstd (1–19) or gzip (1–9) level a save uses. Unset keeps
+  today's exact command (zstd level 3, or gzip via `tar -z`), so an existing workflow sees no
+  change. Only saving is affected; restore decodes whichever level a cache was saved with.
+  Measured levels for two real dependency trees, and the reasoning for leaving the default at 3,
+  are in the [Performance](./guide/performance.md) guide.
+  A new `compression` job in the `Transfer benchmark` workflow, and a `compressionBenchmark.ts`
+  script, reproduce the sweep against your own cache paths.
+- **Faster cache lookups.** Refs are still searched one at a time and in the same order as before,
+  so a later branch is never probed before an earlier one is ruled out. Within one ref, the
+  primary-key and restore-key listings now go out together instead of one after another: a total
+  miss with three refs and two restore keys drops from twelve sequential round trips to six, while
+  an exact hit still costs one request. The `explain` report and the `inspect` sub-action fan out
+  the same way, one ref's listings at a time, and still stop at the first hit, so the rendered
+  report is unchanged.
+
+### Changed
+
+- **A streamed save now stores its sha256 checksum as an object tag** instead of rewriting the
+  whole object, which removes about 8 seconds from a 512 MiB save on Amazon S3. An action older
+  than v1.6 restoring such a cache finds no checksum metadata and skips the integrity check
+  instead of failing, the same way it already does for a v1.1 cache. The object copy is still used
+  when user `metadata` is set, when the provider has no tagging API (Garage), when the upload
+  could not use a conditional create, or when the save cannot confirm that it owns the object
+  after the tag. A streamed archive over 5 GiB now gets a checksum for the
+  first time, since a tag has no size limit while the copy was refused above 5 GiB. With
+  `streaming: true`, the `tags` input is capped at 9 instead of 10, because the reserved checksum
+  tag takes one slot.
+  - The save sends one small `HeadObject` after the tag and compares its ETag with the upload's.
+    A provider that accepts `If-None-Match` and silently ignores it (Google Cloud Storage) would
+    otherwise let this job tag another job's bytes with this archive's checksum, which a later
+    restore would reject. When the ETags differ, the save removes its checksum tag again, warns,
+    and leaves the other job's cache alone.
+  - When the upload or the `HeadObject` reports no ETag, the save compares a new
+    `cloud-cache-writer` user metadata field instead. The upload writes a random id for this save
+    into it, so an object that carries the checksum tag also carries this field. It is not
+    reported in `cache-metadata`. When the save cannot confirm the object either way, it now
+    removes its checksum tag. It then falls back to the copy only when the upload reported an
+    ETag, because only then can `CopySourceIfMatch` guard the copy. With no upload ETag, the save
+    keeps no checksum and warns, and a failed tag write is handled the same way. A missing
+    checksum only skips the integrity check, but a false checksum would reject a good cache.
+  - The documented IAM policies now grant `s3:GetObjectTagging` and `s3:PutObjectTagging`. A
+    restore that cannot read the tags now warns instead of logging a debug line, because the only
+    other symptom is an integrity check that silently stops running.
+
+## [1.5.1] - 2026-10-21
+
+No breaking changes. This release only updates dependencies.
+
+### Changed
+
+- **Dependency update to `@actions/cache` 6.3.0.** This version fixes a race on Windows runners.
+  Concurrent restores no longer fight over the tar scratch file.
 
 ## [1.5.0] - 2026-09-22
 
@@ -275,7 +547,11 @@ Initial pre-release.
 - zstd compression with a gzip fallback, chunked multipart uploads and retries.
 - `restore` and `save` sub-actions.
 
-[Unreleased]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.0...HEAD
+[1.9.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.8.0...v1.9.0
+[1.8.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.7.0...v1.8.0
+[1.7.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.1...v1.6.0
+[1.5.1]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/xSAVIKx/cloud-cache-action/compare/v1.2.0...v1.3.0

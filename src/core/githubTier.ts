@@ -68,11 +68,9 @@ export async function saveToGitHub(
     }
     return { kind: 'saved' };
   } catch (err) {
-    if (
-      err instanceof Error &&
-      err.name === 'ValidationError' &&
-      err.message.startsWith('Path Validation Error')
-    ) {
+    // @actions/cache throws a ValidationError when the path list is empty. It throws a plain
+    // Error, with the same message prefix, when no path exists. Match the prefix for both.
+    if (err instanceof Error && err.message.startsWith('Path Validation Error')) {
       return { kind: 'skipped', reason: 'no paths matched' };
     }
     return { kind: 'error', error: toError(err) };

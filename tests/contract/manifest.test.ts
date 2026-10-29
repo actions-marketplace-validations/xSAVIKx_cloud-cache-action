@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { Defaults, Inputs, Outputs } from '../../src/constants';
+import { PRESET_NAMES } from '../../src/core/presets';
 
 interface ManifestInput {
   description: string;
@@ -36,8 +37,20 @@ const allManifests: Array<[string, Manifest]> = [
 ];
 
 // Inputs/outputs that exist only for the prune sub-action and are exempt from the root manifest.
-const PRUNE_ONLY_INPUTS: string[] = [Inputs.OlderThanDays, Inputs.Ref, Inputs.DryRun];
-const PRUNE_ONLY_OUTPUTS: string[] = [Outputs.PrunedCount, Outputs.PrunedBytes, Outputs.KeptCount];
+const PRUNE_ONLY_INPUTS: string[] = [
+  Inputs.OlderThanDays,
+  Inputs.KeepLatest,
+  Inputs.MaxTotalSize,
+  Inputs.AbortUploadsOlderThanHours,
+  Inputs.Ref,
+  Inputs.DryRun,
+];
+const PRUNE_ONLY_OUTPUTS: string[] = [
+  Outputs.PrunedCount,
+  Outputs.PrunedBytes,
+  Outputs.KeptCount,
+  Outputs.AbortedUploads,
+];
 
 // Inputs/outputs that exist only for the inspect sub-action and are exempt from the root manifest.
 const INSPECT_ONLY_INPUTS: string[] = [Inputs.MaxCandidates];
@@ -119,9 +132,16 @@ describe('action manifests', () => {
     );
   });
 
-  it('prune/action.yml declares older-than-days as required with no default, and dry-run defaulting to false', () => {
-    expect(pruneManifest.inputs[Inputs.OlderThanDays].required).toBe(true);
-    expect(pruneManifest.inputs[Inputs.OlderThanDays].default).toBeUndefined();
+  it('prune/action.yml declares the four rule inputs as optional with no default, and dry-run defaulting to false', () => {
+    for (const name of [
+      Inputs.OlderThanDays,
+      Inputs.KeepLatest,
+      Inputs.MaxTotalSize,
+      Inputs.AbortUploadsOlderThanHours,
+    ]) {
+      expect(pruneManifest.inputs[name].required ?? false).toBe(false);
+      expect(pruneManifest.inputs[name].default).toBeUndefined();
+    }
     expect(pruneManifest.inputs[Inputs.DryRun].default).toBe('false');
   });
 
@@ -133,12 +153,30 @@ describe('action manifests', () => {
     };
     expectDefault(Inputs.S3KeyPattern, Defaults.DefaultS3KeyPattern);
     expectDefault(Inputs.RetryCount, String(Defaults.DefaultRetryCount));
-    expectDefault(Inputs.DownloadConcurrency, String(Defaults.DefaultDownloadConcurrency));
-    expectDefault(Inputs.DownloadChunkSize, String(Defaults.DefaultDownloadChunkSize));
-    expectDefault(Inputs.UploadConcurrency, String(Defaults.DefaultUploadConcurrency));
+    expectDefault(Inputs.TransferTuning, 'fixed');
     expectDefault(Inputs.RestorePriority, Defaults.DefaultRestorePriority);
     expectDefault(Inputs.DualCacheStrategy, Defaults.DefaultDualCacheStrategy);
   });
+
+  it.each(allManifests)(
+    '%s gives the transfer inputs no default, so transfer-tuning: auto can tell a set value from an unset one',
+    (_file, manifest) => {
+      for (const [name, value] of [
+        [Inputs.DownloadConcurrency, String(Defaults.DefaultDownloadConcurrency)],
+        [Inputs.DownloadChunkSize, String(Defaults.DefaultDownloadChunkSize)],
+        [Inputs.UploadConcurrency, String(Defaults.DefaultUploadConcurrency)],
+        [Inputs.UploadChunkSize, '64 MiB'],
+      ]) {
+        if (name in manifest.inputs) {
+          expect({ name, default: manifest.inputs[name].default }).toEqual({
+            name,
+            default: undefined,
+          });
+          expect(manifest.inputs[name].description).toContain(value);
+        }
+      }
+    }
+  );
 
   it('no longer offers save-always, which post-if can never honour', () => {
     for (const [, manifest] of allManifests) {
@@ -160,6 +198,52 @@ describe('action manifests', () => {
     expect(subActions[1][1].runs).toEqual({ using: 'node24', main: '../dist/save-only/index.js' });
     expect(pruneManifest.runs).toEqual({ using: 'node24', main: '../dist/prune/index.js' });
     expect(inspectManifest.runs).toEqual({ using: 'node24', main: '../dist/inspect/index.js' });
+  });
+
+  it('points each entrypoint at one function of the shared dist/lib bundle', async () => {
+    const main = await import('../../src/main');
+    const expected: Record<string, string> = {
+      'dist/restore/index.js': 'runRestore',
+      'dist/save/index.js': 'runSave',
+      'dist/restore-only/index.js': 'runRestoreOnly',
+      'dist/save-only/index.js': 'runSaveOnly',
+      'dist/prune/index.js': 'runPrune',
+      'dist/inspect/index.js': 'runInspect',
+    };
+    const entries = allManifests.flatMap(([file, manifest]) =>
+      [manifest.runs.main, manifest.runs.post]
+        .filter((entry): entry is string => entry !== undefined)
+        .map((entry) =>
+          // path.relative gives backslashes on Windows; the expected keys use forward slashes.
+          path
+            .relative(REPO, path.resolve(REPO, path.dirname(file), entry))
+            .split(path.sep)
+            .join('/')
+        )
+    );
+    expect(entries.sort()).toEqual(Object.keys(expected).sort());
+    for (const [entry, fn] of Object.entries(expected)) {
+      expect(typeof (main as Record<string, unknown>)[fn]).toBe('function');
+      // Git may check out text files with CRLF on Windows.
+      const stub = readFileSync(path.join(REPO, entry), 'utf8').replace(/\r\n/g, '\n');
+      expect(stub).toBe(
+        `// Generated by scripts/writeEntries.ts. Do not edit.
+import fs from 'node:fs';
+import module from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
+
+try {
+  const dir = path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'cloud-cache-action-v8');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+  fs.accessSync(dir, fs.constants.W_OK);
+  module.enableCompileCache?.(dir);
+} catch {}
+const { ${fn} } = await import('../lib/index.js');
+${fn}(true);
+`
+      );
+    }
   });
 
   it.each(allManifests)('%s uses a valid Feather branding icon', (_file, manifest) => {
@@ -254,6 +338,33 @@ describe('action manifests', () => {
         });
       }
     }
+  });
+
+  it('declares preset on the root, restore and save manifests only, and makes path and key optional there', () => {
+    for (const [file, manifest] of [['action.yml', root], ...subActions] as Array<
+      [string, Manifest]
+    >) {
+      const preset = manifest.inputs[Inputs.Preset];
+      expect({ file, declared: preset !== undefined }).toEqual({ file, declared: true });
+      expect({ file, default: preset.default }).toEqual({ file, default: undefined });
+      expect({ file, required: preset.required }).toEqual({ file, required: false });
+      expect({ file, description: preset.description }).toEqual({
+        file,
+        description: root.inputs[Inputs.Preset].description,
+      });
+      for (const name of [Inputs.Path, Inputs.Key]) {
+        expect({ file, name, required: manifest.inputs[name].required }).toEqual({
+          file,
+          name,
+          required: false,
+        });
+      }
+    }
+    for (const name of PRESET_NAMES) {
+      expect(root.inputs[Inputs.Preset].description).toContain(name);
+    }
+    expect(pruneManifest.inputs[Inputs.Preset]).toBeUndefined();
+    expect(inspectManifest.inputs[Inputs.Preset]).toBeUndefined();
   });
 
   it('declares the tier inputs the inspect report reads on inspect/action.yml', () => {

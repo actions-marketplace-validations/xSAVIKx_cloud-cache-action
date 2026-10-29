@@ -45,31 +45,8 @@ mc encrypt set sse-s3 myminio/ci-cache
 > Never use root credentials (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`) in your GitHub Actions workflows. Always create a dedicated Service Account restricted strictly to the CI cache bucket.
 
 ### 1. Create a Restricted Policy (`ci-cache-policy.json`)
-Save the following minimal policy JSON:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket"
-      ],
-      "Resource": "arn:aws:s3:::ci-cache"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:AbortMultipartUpload"
-      ],
-      "Resource": "arn:aws:s3:::ci-cache/*"
-    }
-  ]
-}
-```
+Copy the MinIO policy from the [Security guide](../guide/security.md#minio-and-rustfs) into
+`ci-cache-policy.json`. Change the bucket name and the prefix to match your set-up.
 
 Add the policy to MinIO:
 ```bash
@@ -200,3 +177,4 @@ The repository dogfoods MinIO directly inside the continuous integration test su
 
 - **Checksums**: for this provider, the action sends request checksums only when S3 requires them, because many S3-compatible services reject the CRC checksums recent AWS SDKs send by default. Nothing to configure.
 - **Expiry**: the action never deletes caches. Add a lifecycle rule that expires objects after 30–60 days so old caches do not accumulate.
+- **Incomplete uploads**: MinIO lists no incomplete multipart upload for a prefix that is not a full object key (measured on 2026-10-21 with the CI image). The `prune` input `abort-uploads-older-than-hours` therefore finds no upload and aborts none. Use the `--abort-incomplete-multipart-upload-days` lifecycle rule above instead.
