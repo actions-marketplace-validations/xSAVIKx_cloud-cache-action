@@ -1,9 +1,9 @@
-import { DeleteObjectsCommand, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { execFile } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { DeleteObjectsCommand, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { createTestS3Client, getTestS3Config, prepareTestBucket } from '../support/s3Server';
 import { makeTempDir, removeDir, writeFiles } from '../support/tempTree';
 
@@ -24,13 +24,24 @@ interface CliResult {
   code: number;
   log: string;
   outputs: Record<string, string>;
+  /** The content of the Bitbucket variables file, when the run had one. */
+  variables: string;
+}
+
+interface CliOptions {
+  /** The working directory. The default is the shared work directory. */
+  cwd?: string;
+  /** The env added to the clean env. The default is the generic CLOUD_CACHE_* ref setup. */
+  env?: Record<string, string>;
+  /** The file for BITBUCKET_PIPELINES_VARIABLES_PATH. It is emptied before the run. */
+  variablesFile?: string;
 }
 
 /** The parent env without the variables the CLI reads, so a developer's setup cannot leak in. */
 function cleanEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
   for (const name of Object.keys(env)) {
-    if (/^(CLOUD_CACHE_|AWS_|GITHUB_|RUNNER_)/.test(name)) {
+    if (/^(CLOUD_CACHE_|AWS_|GITHUB_|RUNNER_|BITBUCKET_)/.test(name)) {
       delete env[name];
     }
   }
@@ -38,8 +49,11 @@ function cleanEnv(): NodeJS.ProcessEnv {
 }
 
 /** Runs the built CLI bundle in the work directory, as a user of the CLI would. */
-async function cli(command: string, flags: string[]): Promise<CliResult> {
+async function cli(command: string, flags: string[], options: CliOptions = {}): Promise<CliResult> {
   fs.writeFileSync(outputsFile, '');
+  if (options.variablesFile) {
+    fs.writeFileSync(options.variablesFile, '');
+  }
   const args = [
     bundle,
     command,
@@ -67,12 +81,14 @@ async function cli(command: string, flags: string[]): Promise<CliResult> {
   let log: string;
   try {
     const { stdout, stderr } = await execFileAsync(process.execPath, args, {
-      cwd: work,
+      cwd: options.cwd ?? work,
       env: {
         ...cleanEnv(),
-        CLOUD_CACHE_REPOSITORY: repository,
-        CLOUD_CACHE_REF: 'main',
-        CLOUD_CACHE_WORKSPACE: work,
+        ...(options.env ?? {
+          CLOUD_CACHE_REPOSITORY: repository,
+          CLOUD_CACHE_REF: 'main',
+          CLOUD_CACHE_WORKSPACE: work,
+        }),
       },
     });
     log = stdout + stderr;
@@ -88,7 +104,8 @@ async function cli(command: string, flags: string[]): Promise<CliResult> {
       outputs[line.slice(0, split)] = line.slice(split + 1);
     }
   }
-  return { code, log, outputs };
+  const variables = options.variablesFile ? fs.readFileSync(options.variablesFile, 'utf8') : '';
+  return { code, log, outputs, variables };
 }
 
 async function listObjects(): Promise<{ key: string }[]> {
@@ -238,5 +255,137 @@ describeCli('cloud-cache CLI bundle against S3', () => {
     const objects = await listObjects();
     expect(objects).toHaveLength(2);
     expect(objects.some((o) => o.key.includes(`/${other}/`))).toBe(true);
+  });
+
+  describe('on Bitbucket Pipelines', () => {
+    let bbRepo: string;
+    let clone: string;
+    let varsFile: string;
+
+    /** Runs the CLI as a Bitbucket step: the workspace is BITBUCKET_CLONE_DIR, not a flag. */
+    function bbCli(
+      command: string,
+      flags: string[],
+      bbEnv: Record<string, string>
+    ): Promise<CliResult> {
+      return cli(command, flags, {
+        cwd: clone,
+        variablesFile: varsFile,
+        env: {
+          BITBUCKET_BUILD_NUMBER: '1',
+          BITBUCKET_CLONE_DIR: clone,
+          BITBUCKET_REPO_FULL_NAME: bbRepo,
+          BITBUCKET_PIPELINES_VARIABLES_PATH: varsFile,
+          ...bbEnv,
+        },
+      });
+    }
+
+    async function listBbObjects(): Promise<string[]> {
+      const listed = await client.send(
+        new ListObjectsV2Command({ Bucket: s3.bucket, Prefix: `${bbRepo}/` })
+      );
+      return (listed.Contents ?? []).map((o) => o.Key ?? '');
+    }
+
+    beforeEach(() => {
+      bbRepo = `it-ws/${runId}-${Math.random().toString(36).slice(2, 8)}`;
+      clone = makeTempDir('cli-bb');
+      varsFile = path.join(clone, 'pipelines-variables.txt');
+      writeFiles(clone, { 'pom.xml': '<project/>', 'payload/a.txt': 'alpha' });
+      fs.rmSync(stateFile, { force: true });
+    });
+
+    afterEach(async () => {
+      if (available) {
+        const keys = await listBbObjects();
+        if (keys.length > 0) {
+          await client.send(
+            new DeleteObjectsCommand({
+              Bucket: s3.bucket,
+              Delete: { Objects: keys.map((k) => ({ Key: k })) },
+            })
+          );
+        }
+      }
+      removeDir(clone);
+    });
+
+    itS3(
+      'saves a PR build under its PR ref and restores the destination branch cache',
+      async () => {
+        const flags = ['--key', 'mvn-{hash:pom.xml}', '--path', 'payload'];
+        const branch = { BITBUCKET_BRANCH: 'develop' };
+
+        const first = await bbCli('restore', flags, branch);
+        expect(first.code).toBe(0);
+        expect(first.outputs['cache-hit']).toBe('false');
+        expect(first.log).not.toContain('::debug::');
+        const saved = await bbCli('save', flags, branch);
+        expect(saved.code).toBe(0);
+        const developKey = saved.outputs['cache-s3-key'];
+        expect(developKey).toBeTruthy();
+        expect(developKey).toContain('refs%2Fheads%2Fdevelop');
+
+        fs.rmSync(path.join(clone, 'payload'), { recursive: true, force: true });
+        const pr = {
+          BITBUCKET_BRANCH: 'feature/x',
+          BITBUCKET_PR_ID: '5',
+          BITBUCKET_PR_DESTINATION_BRANCH: 'develop',
+        };
+        // The PR changes pom.xml, so its own key misses. The restore key finds the develop entry.
+        fs.writeFileSync(path.join(clone, 'pom.xml'), '<project>changed</project>');
+        const prFlags = [...flags, '--restore-keys', 'mvn-'];
+        const restored = await bbCli('restore', prFlags, pr);
+        expect(restored.code).toBe(0);
+        expect(restored.outputs['cache-hit']).toBe('false');
+        expect(restored.outputs['cache-matched-key']).toMatch(/^mvn-/);
+        expect(restored.log).toContain('refs/heads/develop');
+        expect(fs.readFileSync(path.join(clone, 'payload', 'a.txt'), 'utf8')).toBe('alpha');
+
+        const prSave = await bbCli('save', prFlags, pr);
+        expect(prSave.code).toBe(0);
+        const prKey = prSave.outputs['cache-s3-key'];
+        expect(prKey).toContain('refs%2Fpull%2F5%2Fmerge');
+        expect(prKey).not.toBe(developKey);
+        expect(await listBbObjects()).toContain(prKey);
+      }
+    );
+
+    itS3('writes a metrics record with runner labels', async () => {
+      const result = await bbCli('restore', ['--key', 'm', '--path', 'payload'], {
+        BITBUCKET_BRANCH: 'main',
+        BITBUCKET_STEP_SIZE: '2x',
+      });
+      expect(result.code).toBe(0);
+      const lines = fs
+        .readFileSync(path.join(clone, 'cloud-cache-metrics.jsonl'), 'utf8')
+        .split('\n')
+        .filter((l) => l.trim() !== '');
+      expect(lines.length).toBeGreaterThan(0);
+      const record = JSON.parse(lines[lines.length - 1]) as Record<string, unknown>;
+      expect(record.platform).toBe('bitbucket');
+      expect(record.runner).toEqual(expect.objectContaining({ stepSize: '2x' }));
+      expect(record).toHaveProperty('compression');
+    });
+
+    itS3('skips the save after a failed script', async () => {
+      const result = await bbCli('save', ['--key', 'failed', '--path', 'payload'], {
+        BITBUCKET_BRANCH: 'main',
+        BITBUCKET_EXIT_CODE: '1',
+      });
+      expect(result.code).toBe(0);
+      expect(result.log).toContain('Use --save-on-failure to save anyway.');
+      expect(result.outputs['cache-s3-key']).toBeUndefined();
+      expect(await listBbObjects()).toHaveLength(0);
+    });
+
+    itS3('writes output variables for later steps', async () => {
+      const result = await bbCli('restore', ['--key', 'vars', '--path', 'payload'], {
+        BITBUCKET_BRANCH: 'main',
+      });
+      expect(result.code).toBe(0);
+      expect(result.variables).toMatch(/^CLOUD_CACHE_CACHE_HIT=false$/m);
+    });
   });
 });

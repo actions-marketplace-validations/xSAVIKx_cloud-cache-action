@@ -100,6 +100,7 @@ export default defineConfig({
           { text: 'Performance', link: '/guide/performance' },
           { text: 'Benchmarks', link: '/guide/benchmarks' },
           { text: 'Command Line (CLI)', link: '/guide/cli' },
+          { text: 'Bitbucket Pipelines', link: '/guide/bitbucket' },
         ],
       },
       {
