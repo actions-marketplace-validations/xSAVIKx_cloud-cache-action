@@ -1,8 +1,8 @@
 import {
   compileKeyTemplate,
   encodeRef,
-  normalizePrefix,
   type KeyTemplateOptions,
+  normalizePrefix,
 } from '../../../src/core/keyTemplate';
 
 const PATTERN = '${GITHUB_REPOSITORY}/${prefix}${ref}/${key}/${version}/${archive_filename}';
@@ -36,6 +36,48 @@ describe('compileKeyTemplate', () => {
   it('drops the repository when scoped-to-repository is false', () => {
     const template = compileKeyTemplate({ ...base, scopedToRepository: false });
     expect(template.objectKey(MAIN, 'k')).toBe(`refs%2Fheads%2Fmain/k/${VERSION}/cache.tar.zst`);
+  });
+
+  describe('${repository} alias', () => {
+    const ALIAS = '${repository}/${prefix}${ref}/${key}/${version}/${archive_filename}';
+
+    it('treats ${repository} as ${GITHUB_REPOSITORY}', () => {
+      const alias = compileKeyTemplate({ ...base, pattern: ALIAS, repository: 'ws/app' });
+      const github = compileKeyTemplate({ ...base, repository: 'ws/app' });
+      expect(alias.objectKey(MAIN, 'k')).toBe(github.objectKey(MAIN, 'k'));
+      expect(alias.scopeProblem()).toBe(github.scopeProblem());
+    });
+
+    it('does not expand ${repository} from the environment', () => {
+      const template = compileKeyTemplate({
+        ...base,
+        pattern: ALIAS,
+        repository: 'ws/app',
+        env: { repository: 'x' },
+      });
+      expect(template.objectKey(MAIN, 'k').startsWith('ws/app/')).toBe(true);
+    });
+
+    it('keeps the raw pattern text', () => {
+      const template = compileKeyTemplate({ ...base, pattern: ALIAS, repository: 'ws/app' });
+      expect(template.pattern).toContain('${repository}');
+    });
+
+    it('removes ${repository} when scoped-to-repository is false', () => {
+      const alias = compileKeyTemplate({
+        ...base,
+        pattern: ALIAS,
+        repository: 'ws/app',
+        scopedToRepository: false,
+      });
+      const github = compileKeyTemplate({
+        ...base,
+        repository: 'ws/app',
+        scopedToRepository: false,
+      });
+      expect(alias.objectKey(MAIN, 'k')).toBe(github.objectKey(MAIN, 'k'));
+      expect(alias.objectKey(MAIN, 'k')).not.toContain('ws/app');
+    });
   });
 
   it('drops the ref when scoped-to-ref is false', () => {

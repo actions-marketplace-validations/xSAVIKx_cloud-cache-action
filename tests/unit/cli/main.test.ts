@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   afterAll,
   afterEach,
@@ -8,9 +11,6 @@ import {
   it,
   jest,
 } from '@jest/globals';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import type { CiHost } from '../../../src/ci/host';
 import { State } from '../../../src/constants';
 import type { IStateProvider } from '../../../src/state';
@@ -62,6 +62,9 @@ beforeEach(() => {
     return true;
   });
   process.env = { ...savedEnv, CLOUD_CACHE_STATE_FILE: join(dir, 'state.json') };
+  delete process.env.BITBUCKET_BUILD_NUMBER;
+  delete process.env.BITBUCKET_EXIT_CODE;
+  delete process.env.BITBUCKET_STEP_OIDC_TOKEN;
 });
 afterEach(() => {
   process.env = { ...savedEnv };
@@ -98,6 +101,162 @@ describe('main', () => {
     expect(saveImpl).toHaveBeenCalledWith(expect.any(FileStateProvider));
     expect(inspectImpl).toHaveBeenCalledWith();
     expect(pruneImpl).toHaveBeenCalledWith();
+  });
+
+  it('expands {hash:} in CLOUD_CACHE_KEY', async () => {
+    writeFileSync(join(dir, 'lock.txt'), 'lock');
+    process.env.CLOUD_CACHE_WORKSPACE = dir;
+    process.env.CLOUD_CACHE_KEY = 'k-{hash:lock.txt}';
+    process.env.CLOUD_CACHE_RESTORE_KEYS = 'k-\nr-{hash:lock.txt}';
+    let key = '';
+    let restoreKeys = '';
+    inspectImpl.mockImplementation(async () => {
+      key = getHost().input('key');
+      restoreKeys = getHost().input('restore-keys');
+    });
+    expect(await main(['inspect'])).toBe(0);
+    expect(key).toMatch(/^k-[0-9a-f]{64}$/);
+    expect(restoreKeys).toMatch(/^k-\nr-[0-9a-f]{64}$/);
+    expect(restoreKeys.split('\n')[1]).toBe(`r-${key.slice(2)}`);
+  });
+
+  it('warns when a {hash:} template matches no file', async () => {
+    process.env.CLOUD_CACHE_WORKSPACE = dir;
+    process.env.CLOUD_CACHE_KEY = 'k-{hash:**/missing.lock}';
+    expect(await main(['inspect'])).toBe(0);
+    expect(stderr).toContain('matched no file');
+    expect(stderr).toContain('**/missing.lock');
+  });
+
+  it('exits 2 for an unclosed {hash:} template', async () => {
+    process.env.CLOUD_CACHE_KEY = 'k-{hash:lock.txt';
+    expect(await main(['inspect'])).toBe(2);
+    expect(stderr).toContain('{hash:');
+    expect(inspectImpl).not.toHaveBeenCalled();
+  });
+
+  it('picks the Bitbucket host from BITBUCKET_BUILD_NUMBER', async () => {
+    process.env.BITBUCKET_BUILD_NUMBER = '7';
+    let platform = '';
+    inspectImpl.mockImplementation(async () => {
+      platform = getHost().context().platform;
+    });
+    expect(await main(['inspect'])).toBe(0);
+    expect(platform).toBe('bitbucket');
+    expect(await main(['inspect', '--platform', 'generic'])).toBe(0);
+    expect(platform).toBe('generic');
+  });
+
+  it('uses the Bitbucket clone dir for {hash:}', async () => {
+    writeFileSync(join(dir, 'lock.txt'), 'lock');
+    process.env.BITBUCKET_BUILD_NUMBER = '7';
+    process.env.BITBUCKET_CLONE_DIR = dir;
+    process.env.CLOUD_CACHE_KEY = 'k-{hash:lock.txt}';
+    let key = '';
+    inspectImpl.mockImplementation(async () => {
+      key = getHost().input('key');
+    });
+    expect(await main(['inspect'])).toBe(0);
+    expect(key).toMatch(/^k-[0-9a-f]{64}$/);
+  });
+
+  it('defaults metrics-file on Bitbucket, and the env var wins', async () => {
+    process.env.BITBUCKET_BUILD_NUMBER = '7';
+    delete process.env.CLOUD_CACHE_METRICS_FILE;
+    let file = '';
+    restoreImpl.mockImplementation(async () => {
+      file = getHost().input('metrics-file');
+    });
+    expect(await main(['restore', '--path', 'a'])).toBe(0);
+    expect(file).toBe('cloud-cache-metrics.jsonl');
+    process.env.CLOUD_CACHE_METRICS_FILE = 'other.jsonl';
+    expect(await main(['restore', '--path', 'a'])).toBe(0);
+    expect(file).toBe('other.jsonl');
+    delete process.env.CLOUD_CACHE_METRICS_FILE;
+    process.env.BITBUCKET_BUILD_NUMBER = '';
+    expect(await main(['restore', '--path', 'a', '--platform', 'generic'])).toBe(0);
+    expect(file).toBe('');
+  });
+
+  it('skips save after a failed Bitbucket step', async () => {
+    process.env.BITBUCKET_BUILD_NUMBER = '7';
+    process.env.BITBUCKET_EXIT_CODE = '1';
+    expect(await main(['save'])).toBe(0);
+    expect(saveImpl).not.toHaveBeenCalled();
+    expect(checkTar).not.toHaveBeenCalled();
+    expect(stdout + stderr).toContain('--save-on-failure');
+    const lines = (stdout + stderr).split('\n').filter((l) => l.includes('--save-on-failure'));
+    expect(lines).toHaveLength(1);
+
+    expect(await main(['save', '--save-on-failure'])).toBe(0);
+    expect(saveImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('saves after a passed Bitbucket step, and on the generic platform', async () => {
+    process.env.BITBUCKET_BUILD_NUMBER = '7';
+    process.env.BITBUCKET_EXIT_CODE = '0';
+    expect(await main(['save'])).toBe(0);
+    expect(saveImpl).toHaveBeenCalledTimes(1);
+    process.env.BITBUCKET_EXIT_CODE = '1';
+    expect(await main(['save', '--platform', 'generic'])).toBe(0);
+    expect(saveImpl).toHaveBeenCalledTimes(2);
+  });
+
+  describe('OIDC', () => {
+    const TOKEN = 'oidc-secret-xyz';
+
+    function oidcEnv() {
+      process.env.BITBUCKET_BUILD_NUMBER = '7';
+      process.env.BITBUCKET_STEP_OIDC_TOKEN = TOKEN;
+      delete process.env.AWS_WEB_IDENTITY_TOKEN_FILE;
+      delete process.env.AWS_ACCESS_KEY_ID;
+      delete process.env.CLOUD_CACHE_ACCESS_KEY;
+    }
+
+    it('sets the token file during the engine call and removes it after', async () => {
+      oidcEnv();
+      let file = '';
+      let content = '';
+      inspectImpl.mockImplementation(async () => {
+        file = process.env.AWS_WEB_IDENTITY_TOKEN_FILE ?? '';
+        content = readFileSync(file, 'utf8');
+      });
+      expect(await main(['inspect', '--debug', '--role-arn', 'arn:aws:iam::1:role/x'])).toBe(0);
+      expect(file).not.toBe('');
+      expect(content).toBe(TOKEN);
+      expect(existsSync(file)).toBe(false);
+      expect(stdout + stderr).not.toContain(TOKEN);
+    });
+
+    it('removes the token file after an engine error', async () => {
+      oidcEnv();
+      let file = '';
+      inspectImpl.mockImplementation(async () => {
+        file = process.env.AWS_WEB_IDENTITY_TOKEN_FILE ?? '';
+        throw new Error('boom');
+      });
+      expect(await main(['inspect', '--role-arn', 'arn:aws:iam::1:role/x'])).toBe(1);
+      expect(file).not.toBe('');
+      expect(existsSync(file)).toBe(false);
+    });
+
+    it('skips OIDC when an access key is set', async () => {
+      oidcEnv();
+      process.env.AWS_ACCESS_KEY_ID = 'AKIA';
+      inspectImpl.mockImplementation(async () => undefined);
+      expect(await main(['inspect', '--role-arn', 'arn:aws:iam::1:role/x'])).toBe(0);
+      expect(process.env.AWS_WEB_IDENTITY_TOKEN_FILE).toBeUndefined();
+    });
+
+    it('skips OIDC for an access-key input', async () => {
+      oidcEnv();
+      let seen: string | undefined = 'unset';
+      inspectImpl.mockImplementation(async () => {
+        seen = process.env.AWS_WEB_IDENTITY_TOKEN_FILE;
+      });
+      expect(await main(['inspect', '--access-key', 'AKIA', '--role-arn', 'arn:x'])).toBe(0);
+      expect(seen).toBeUndefined();
+    });
   });
 
   it('exit code follows process.exitCode', async () => {
@@ -159,6 +318,8 @@ describe('main', () => {
   });
 
   it('save warns when the key or the paths differ from the state', async () => {
+    // The host warns once about an empty repository. That is not the subject of this test.
+    process.env.CLOUD_CACHE_REPOSITORY = 'o/r';
     const stateFile = join(dir, 'state.json');
     const restored = { [State.CachePrimaryKey]: 'k1', [State.CachePaths]: '["a","b"]' };
     writeFileSync(stateFile, JSON.stringify(restored));
