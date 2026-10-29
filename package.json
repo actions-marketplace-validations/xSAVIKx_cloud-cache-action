@@ -1,6 +1,6 @@
 {
   "name": "cloud-cache-action",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "description": "High-performance GitHub Action caching to any S3-compatible storage with actions/cache v4-v6 parity",
   "main": "dist/restore/index.js",
   "type": "module",
@@ -50,11 +50,11 @@
     "@actions/exec": "^3.0.0",
     "@actions/glob": "^0.7.0",
     "@actions/io": "^3.0.2",
-    "@aws-sdk/client-s3": "^3.1154.0",
-    "@aws-sdk/lib-storage": "^3.1154.0"
+    "@aws-sdk/client-s3": "^3.1156.0",
+    "@aws-sdk/lib-storage": "^3.1156.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15",
+    "@biomejs/biome": "^2.6.2",
     "@eslint/js": "^10.0.1",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.6.5",
